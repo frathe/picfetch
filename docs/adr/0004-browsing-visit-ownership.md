@@ -1,6 +1,6 @@
 # Give browsing visits one root-UI owner
 
-Status: accepted design; implementation pending
+Status: accepted; implemented, final qualification in progress
 
 Use one private root-UI module to own the active browsing visit, its ordered
 scope, foreground visit, return destination and valid transitions across

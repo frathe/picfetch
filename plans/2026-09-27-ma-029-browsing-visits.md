@@ -673,3 +673,77 @@ a production rendering change or golden acceptance. No baseline PNG changed.
 The original ProgressiveScopes/VisitLifecycle/Escape-reset prefix passed all
 three Docker race repetitions after cleanup was restored. The CI golden finding
 is fixed locally; latest-head GitHub CI must still confirm the complete shard.
+
+Ticket 08 commit: `9e41e78`. Fixed Docker prefix: root package 22.590s.
+
+09 convergence contract: scope capture dispatches once on the foreground owner,
+not feature precedence. Feature adapters only resolve their data into the
+captured value. Ranked Mosaic capture joins the same scope seam; its ordinary
+collection/Grid/selection target policies remain unchanged. Explorer-map input
+observation becomes a direct owner projection, matching Location Map. Existing
+scope/action/return guards characterize this convergence; no new visit kind,
+worker, user-facing behavior or string is introduced. Lead owns the complete
+authority inventory, all changed-code inspections and final review/CI gate.
+
+09 CI recon exception: reuse the T3 scout to explain the unchanged macOS HEIC
+`TestHEICWorkerLifecycle/stop_cancels_submitted_and_queued_work` failure.
+G1: bounded test/worker sequencing question; G2: verify cited lines against raw
+CI output and focused regressions; G3: read-only HEIC test/implementation paths;
+G4: no browsing design or review decisions; G5: lead has not reconstructed this
+worker lifecycle. Shell located the failing case first. This is causal recon,
+not a mechanical search or delegated review. Lead owns any disposition/fix.
+
+### Ticket 09 local convergence evidence (working diff over `9e41e78`)
+
+Final foreground-owner switch replaced the temporary precedence adapter;
+`captureSearchOrder` and its independent active flag are removed. Mosaic's ranked
+image capture now uses the same immutable scope. Explorer-map admission observes
+the owner directly, not Grid visibility. Lead inventory against accepted baseline
+`161323da348a0471f17f63d8db3e76efbddf8fb0`:
+
+| Prior authority | Final disposition |
+| --- | --- |
+| `cohortIndexes` and navigation feature precedence | Removed; scope switches once on current owner. Ordinary duplicate navigation is the explicit baseline adapter. |
+| Explorer `HasCohort`/visibility | No root ownership consumers remain; cohort/camera/analysis are feature data. |
+| Search `imageOrder` and history origin | Removed; owner retains origin and frozen image rank; feature retains query history/producer state. |
+| Location image/cluster/order/return flags | Removed; owner retains visits/exact members/bookmarks. `locationInput` contains only tracked preparation/rebuild effects. |
+| Distributed reconciliation | Root captures before mutation, publishes/remaps once, then restores through owner bindings; menus publish after the transaction. |
+| Failed-load inference | Scope.Recover supplies existing display retry chain with separate successor semantics. |
+| Input/menu/lifecycle | Owner projections authorize visits; Grid visibility still selects live interaction payloads and MA-028 input surfaces, never subset identity. Close/Stop retain existing worker barriers. |
+
+Uncached acceptance and baseline command passed with no skips (`internal/ui
+35.490s`): `go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run
+'^(TestBrowsing.*|TestFindMoreLikeThisInitialRoundTrip|TestFindMoreLikeThisProgressiveForegroundIdentity|TestFindMoreLikeThisActionsCaptureRankedSources|TestFindMoreLikeThisSourceAndSortRetirement|TestVisualSimilarityExplorer|TestLocationMap|TestLocationMapReleaseQualification|TestHEICBackendLossPreservesSession|TestHEICUnavailableGuide|TestCommandAdmissionVisits|TestWindowCommandAdmissionMatrix|TestEscapeUnwindsModesBeforeReset|TestStepImage.*|TestHandleKeyEvent_.*(HomeEnd|Inspect).*|TestAdvance_.*|TestShowWindowGrid_FromInspectReopensVariants|TestShutdownStopsPictureFrameWithQueuedAdvance)$'`.
+
+The proposed Identity family maps to CollectionChanges' surviving middle
+occurrence, sorted repeated origin and removed selection; RoundTrips'
+cluster_removed_selection; and LocationMapReleaseQualification/repeated_occurrences.
+Compatibility maps to the actual StepImage, Home/End, Inspect, Advance and
+shutdown tests in the command above. No unmatched proposed family is counted.
+Ten actual Browsing families ran. Prior ticket evidence records each concrete
+acceptance subcase and observed deliberate-violation failures. This final slice
+is behavior-preserving convergence under those existing guards, not new behavior.
+The earlier broad related-feature selector also passed (30.850s).
+
+`make verify-build` passed: formatting, TUF/generated inputs, exact test
+exclusions, application assets, shipped dependency notices, vet and build.
+No dependency/model/runtime or native glue changed. Full race/native tests remain
+latest-head CI gates, not duplicated locally.
+
+GoLand `get_file_problems(errorsOnly=false)` completed all 29 Go files in
+`git diff --name-only 161323da348a0471f17f63d8db3e76efbddf8fb0 -- '*.go'` on this
+working revision, without skips/timeouts. Production findings: only viewer.go's
+four unchanged weak duplicate fragments (503/555/579/836), retaining explicit
+composition per ticket 01. Test findings: only browsing_test.go's intentional
+nine-line comparison fixture (130), under its exact Qodana test exclusion.
+All other files clear. This IDE fallback is not a substitute for final fresh
+post-suppression CI SARIF.
+
+Ticket 08 CI confirms the repaired complete ui-3 shard passes; macOS-amd64
+instead reported an unchanged HEIC worker-stop guard: three command creations
+where two were expected. Raw native artifact is retained locally; diagnosis is
+open. Do not count the native gate as passed or mark final qualification done.
+
+Final shard/exclusion inventories passed: 727 runnables, three Linux/amd64
+shards. Ticket 09 implementation is ready to commit; the ticket stays claimed
+until the required latest-head CI/static-analysis gates finish.

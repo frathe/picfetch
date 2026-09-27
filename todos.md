@@ -66,7 +66,9 @@
   no unrelated navigation/preloads from an empty restriction, and preserved
   action targets, authoritative Explorer/ranked-search/Location Map visits,
   shared committed-source remapping/restoration, and scoped single-chain recovery).
-  Ticket 09 owns final convergence and qualification. The intermediate Escape
+  Ticket 09 has converged scope and input adapters on the owner; final local
+  acceptance and all changed-file inspections pass. Latest-head CI and review
+  qualification remain open. The intermediate Escape
   golden failure was a shutdown test leaking shared session state; the repaired
   test passes the three-repeat Docker race prefix. Full CI remains open. Keep the PR draft
   until all nine tickets finish, then complete fresh GitHub reviews and CI.

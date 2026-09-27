@@ -1,6 +1,6 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-27 after completion of MA-028 and publication of MA-029's spec.
+Updated 2026-09-28 during final qualification of MA-029.
 The cross-feature architecture assessment of PR review history and
 implementation is dated 2026-09-26.
 
@@ -16,9 +16,9 @@ MA-027 is complete in `e6024dc`, with native CI and clean code/security reviews
 recorded in its [archived plan](finished_refactorings/2026-09-14-ma-027-presentation.md).
 MA-028 is complete, with all-platform qualification and a clean PR 66 review
 round recorded in its [archived plan](finished_refactorings/2026-09-27-ma-028-command-admission.md).
-MA-029's design is accepted and its local specification is ready for an agent;
-implementation planning is next. MA-030 through MA-033 remain proposals.
-None is an accepted implementation plan or an unresolved PR defect.
+MA-029's implementation is complete and its final qualification is in progress;
+MA-030 through MA-033 remain proposals, not accepted implementation plans or
+unresolved PR defects.
 
 Historical inspection baseline: `main` at `54fd7c3` (v1.1.2). At that revision,
 the root `internal/ui` package contained 55 production Go files, 10,835 non-test
@@ -28,7 +28,7 @@ explicit cross-feature composition in `internal/ui`.
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
-| [MA-029](#ma-029) | P1 | Give browsing visits one explicit state owner | Spec ready-for-agent; implementation planning next |
+| [MA-029](#ma-029) | P1 | Give browsing visits one explicit state owner | Implemented; final qualification in progress |
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | Recommended; large, incremental |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | Recommended; medium scope |
 | [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Conditional extraction; medium scope |
@@ -270,8 +270,11 @@ older duplicate-inspection navigation retain their accepted distinctions.
 Reuse the existing collection identity/reconciliation seam independently of
 MA-030. The [local specification](.scratch/ma-029/spec.md) is published as
 `ready-for-agent`, with user stories, testing seams and acceptance commands.
-The next step is a Deep SDD implementation plan; no application code has
-changed. The following rationale records the original assessment.
+The [Deep SDD implementation plan](plans/2026-09-27-ma-029-browsing-visits.md)
+records completed tickets 01-08 and ticket 09's final convergence/qualification.
+The implementation now has one foreground owner and no legacy scope-precedence
+chain. Full latest-head CI and fresh reviews remain open in draft PR 68.
+The following rationale records the original pre-implementation assessment.
 
 **P1; high confidence in the need, medium confidence in the final interface.**
 This is the useful state-management module suggested by the review history.
@@ -285,7 +288,7 @@ Preload order diverged from navigation in
 [search](https://github.com/frathe/picfetch/pull/25#discussion_r4007684445) and
 [Location Map](https://github.com/frathe/picfetch/pull/58#discussion_r4105976290).
 
-**Current seam:** [browsing.go](internal/ui/browsing.go) already shares a
+**Original seam:** [browsing.go](internal/ui/browsing.go) already shares a
 restriction snapshot and ranked order. However, `cohortIndexes` in
 [explorer.go](internal/ui/explorer.go) also selects Location Map and search order;
 `searchPresentation` in [visualsearch.go](internal/ui/visualsearch.go),

@@ -35,38 +35,29 @@ type browsingScope struct {
 	collection dupes.Snapshot
 }
 
-// captureBrowsingScope is the temporary adapter for visits whose ownership has
-// not migrated yet. Consumers never infer restriction from a nonempty slice.
+// captureBrowsingScope resolves the foreground owner's data into one immutable
+// action scope. Feature visibility and nonempty membership never choose a visit.
 func (v *viewer) captureBrowsingScope() browsingScope {
-	scope := browsingScope{complete: true, collection: v.state.snapshot()}
+	visit := v.browsing.current()
+	scope := browsingScope{complete: true, collection: v.state.snapshot(), binding: visit.binding}
 	scope.binding.collection = v.Generation()
-	if v.locationImageVisit() || v.browsing.current().binding.kind == browsingCluster {
-		scope.indexes, scope.restricted = v.locationIndexes(), true
-		scope.binding = v.browsing.current().binding
+	scope.restricted = visit.binding.kind != browsingCollection
+	switch visit.binding.kind {
+	case browsingCollection:
+		// Ordinary and duplicate browsing retain the baseline model adapter.
+	case browsingLocation:
+		scope.indexes = v.locationIndexes()
 		scope.complete = v.locationMap.Counts().Complete
-		if scope.binding.kind == browsingCluster {
-			scope.complete = true
-		}
-		return scope
-	}
-	if v.browsing.current().binding.kind == browsingLocationMap {
-		scope.restricted, scope.binding = true, v.browsing.current().binding
+	case browsingCluster:
+		scope.indexes = v.locationIndexes()
+	case browsingLocationMap:
 		scope.complete = v.locationMap.Counts().Complete
-		return scope
-	}
-	if order := v.captureSearchOrder(); order.active {
-		state := v.visualsearch.State()
-		scope.indexes, scope.restricted = order.indexes, true
-		scope.binding = v.browsing.current().binding
-		scope.complete = state.Progress.Complete
-		return scope
-	}
-	if v.browsing.current().binding.kind == browsingExplorerMap {
-		scope.restricted, scope.binding = true, v.browsing.current().binding
+	case browsingSearch:
+		scope.indexes = v.captureRankedIndexes(visit)
+		scope.complete = v.visualsearch.State().Progress.Complete
+	case browsingExplorerMap:
 		scope.complete = v.explorer.State().Complete
-		return scope
-	}
-	if v.browsing.has(browsingExplorer) {
+	case browsingExplorer:
 		paths, _ := v.explorer.Cohort()
 		members := make(map[string]bool, len(paths))
 		for _, path := range paths {
@@ -78,8 +69,7 @@ func (v *viewer) captureBrowsingScope() browsingScope {
 				indexes = append(indexes, i)
 			}
 		}
-		scope.indexes, scope.restricted = indexes, true
-		scope.binding = v.browsing.current().binding
+		scope.indexes = indexes
 	}
 	return scope
 }
@@ -180,30 +170,17 @@ func (v *viewer) browsingContext() browsingContext {
 	return browsingContext{ranked: ranked, grid: v.grid.Visible()}
 }
 
-// searchOrder is one immutable index snapshot for an action or both preloads.
-// An opened image uses its frozen order; the Grid uses its current visible rank.
-type searchOrder struct {
-	indexes []int
-	active  bool
-}
-
-func (v *viewer) captureSearchOrder() searchOrder {
-	mode := v.browsingContext()
-	order := searchOrder{active: mode.ranked}
-	if !order.active {
-		return order
+// An opened search image uses frozen rank; the current Grid supplies live rank.
+func (v *viewer) captureRankedIndexes(visit browsingVisit) []int {
+	if visit.surface == browsingGrid && v.grid.Visible() {
+		return v.grid.ResultIndexes()
 	}
-	if mode.grid {
-		order.indexes = v.grid.ResultIndexes()
-		return order
-	}
-	visit := v.browsing.current()
 	paths := visit.order
 	if visit.surface != browsingImage {
 		paths = v.visualsearch.State().Visit.Paths
 	}
 	if len(paths) == 0 {
-		return order
+		return nil
 	}
 	byPath := make(map[string]int, len(paths))
 	for _, path := range paths {
@@ -229,8 +206,7 @@ func (v *viewer) captureSearchOrder() searchOrder {
 			indexes = append(indexes, i)
 		}
 	}
-	order.indexes = indexes
-	return order
+	return indexes
 }
 
 func neighborInOrder(indexes []int, from, delta int) int {

@@ -529,8 +529,9 @@ the selected origin index through their existing retry chain instead of starting
 a competing load. Committed writes retain comparison for Grid origins and close
 it when an image origin must be restored.
 `internal/ui/browsing.go` captures explicit restricted/ordinary scopes, discovery
-completion and collection/feature bindings; its temporary adapters resolve
-Explorer/search/Location Map orders once per navigation action or preload pair.
+completion and collection/visit bindings. It dispatches on the foreground owner;
+data adapters resolve Explorer/search/Location Map orders once per navigation
+action or preload pair, without feature-precedence inference.
 Empty restrictions produce no navigation target. Command restrictions live in
 the shared root policy. Favorite capture exposes one
 `CurrentFiles` snapshot to the naming/overwrite workflow.

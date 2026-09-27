@@ -191,7 +191,7 @@ func (v *viewer) explorerCanRetry() bool {
 	return v.explorer.State().CanRetry && v.explorerInput.prepare == nil
 }
 func (v *viewer) explorerMapActive() bool {
-	return v.browsing.current().binding.kind == browsingExplorerMap && !v.searchActive() && !v.grid.Visible()
+	return v.browsing.current().binding.kind == browsingExplorerMap
 }
 
 func (v *viewer) browsingImageOpened(bookmark grid.Visit) {

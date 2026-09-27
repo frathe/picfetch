@@ -22,7 +22,7 @@ func (v *viewer) mosaicSources() ([]fyne.URI, error) {
 	mode := v.browsingContext()
 	if !mode.grid && mode.ranked {
 		var sources []fyne.URI
-		for _, i := range v.captureSearchOrder().indexes {
+		for _, i := range v.captureBrowsingScope().indexes {
 			sources = append(sources, v.FileAt(i))
 		}
 		return sources, nil
