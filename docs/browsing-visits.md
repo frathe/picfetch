@@ -1,6 +1,6 @@
 # MA-029: explicit browsing-visit ownership
 
-Status: accepted design; interview resolved; implementation planning pending.
+Status: accepted design; specification published; implementation planning pending.
 Date: 2026-09-27
 Source: `/grill-with docs MA-029`
 Inspected revision: `e7d04561dd7f1565480ed8a46adf76cc327f0e73`.
@@ -11,10 +11,15 @@ active browsing visit, its scope and return transitions. This replaces the
 need for unrelated navigation callers to infer ownership from several features.
 The [ownership ADR](adr/0004-browsing-visit-ownership.md) records the trade-off.
 
+The [local specification](../.scratch/ma-029/spec.md), marked `ready-for-agent`,
+captures user stories, testing seams and the executable acceptance map. It is
+published to the repository's gitignored Markdown tracker; this design remains
+the tracked record of accepted decisions.
+
 All ten interview decisions are accepted. The eventual cross-package refactor
-follows the Deep SDD route; exact interfaces, acceptance-test commands and
-migration tasks belong to its implementation plan. No implementation plan has
-been accepted and no application code has changed.
+follows the Deep SDD route; its implementation plan will finalize interfaces,
+migration tasks and the specification's proposed verification targets. No
+implementation plan has been accepted and no application code has changed.
 
 ## Accepted decisions
 

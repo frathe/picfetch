@@ -57,7 +57,9 @@
   (MA-031 through MA-033). All ten decisions in the
   [MA-029 design](docs/browsing-visits.md) are accepted, including return
   fallbacks, failed-load recovery and duplicate-inspection compatibility.
-  Next: write its Deep SDD implementation plan and executable acceptance map.
+  Its [local specification](.scratch/ma-029/spec.md) is `ready-for-agent`, with
+  the user stories and executable acceptance map. Next: task decomposition and
+  the Deep SDD implementation plan.
   MA-030 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 
