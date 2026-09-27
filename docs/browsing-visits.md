@@ -1,6 +1,6 @@
 # MA-029: explicit browsing-visit ownership
 
-Status: accepted design; implemented, ticket 09 final qualification in progress.
+Status: accepted design; all nine implementation tickets complete and CI-qualified.
 Date: 2026-09-27
 Source: `/grill-with docs MA-029`
 Inspected revision: `e7d04561dd7f1565480ed8a46adf76cc327f0e73`.
@@ -11,16 +11,17 @@ active browsing visit, its scope and return transitions. This replaces the
 need for unrelated navigation callers to infer ownership from several features.
 The [ownership ADR](adr/0004-browsing-visit-ownership.md) records the trade-off.
 
-The [local specification](../.scratch/ma-029/spec.md), marked `ready-for-agent`,
+The resolved [local specification](../.scratch/ma-029/spec.md)
 captures user stories, testing seams and the executable acceptance map. It is
 published to the repository's gitignored Markdown tracker; this design remains
 the tracked record of accepted decisions.
 
 All ten interview decisions are accepted. The authorized implementation follows
-the [Deep SDD plan](../plans/2026-09-27-ma-029-browsing-visits.md), with finalized
+the [archived Deep SDD plan](../finished_refactorings/2026-09-27-ma-029-browsing-visits.md), with finalized
 scope contracts, per-ticket TDD/inspection evidence and incremental commits.
-The [nine local tickets](../.scratch/ma-029/issues/README.md) track remaining
-migrations; scope centralization alone is not completion of MA-029.
+The [nine local tickets](../.scratch/ma-029/issues/README.md) are resolved;
+all three visit migrations are complete. Final review dispositions and
+latest-head checks are tracked in [PR 68](https://github.com/frathe/picfetch/pull/68).
 
 ## Accepted decisions
 

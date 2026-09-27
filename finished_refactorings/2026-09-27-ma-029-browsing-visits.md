@@ -1,6 +1,6 @@
 # MA-029 — explicit browsing visits
 
-Status: tickets 01-08 complete; implementing ticket 09 of 09.
+Status: all nine implementation tickets complete; archived after full CI qualification.
 Date: 2026-09-27. Base: `11e8c4c` on `feature/ma-029-browsing-visits`.
 Route: Deep SDD, vertical TDD slices. Lead owns design, review and fixes.
 
@@ -161,9 +161,12 @@ implementation slot: root/feature ownership must be changed together by the lead
 - [x] 06: exact frozen cluster authority and return stages.
 - [x] 07: ordered reconciliation and identity/fallback matrix.
 - [x] 08: single-chain failed-load recovery and HEIC guidance.
-- [ ] 09: route/authority convergence and final verification.
-- [ ] PR ready, fresh clean latest-head Codex code/security reviews, CI,
-  CodeQL and post-suppression Qodana SARIF clear of actionable findings.
+- [x] 09: route/authority convergence and final verification.
+
+The authorized post-implementation review loop and latest-head checks are tracked
+live in [PR 68](https://github.com/frathe/picfetch/pull/68). This archived record
+pins implementation qualification; final review dispositions and completion
+evidence are published in that PR, without treating an older clean head as final.
 
 ## Evidence ledger
 
@@ -182,7 +185,7 @@ Use that PATH and a writable temporary Go cache for local commands.
 | 06 | 0 / 0 | 2 | no | frozen cluster owner and validated Grid/map stages |
 | 07 | 1 / 1 | 2 | no | common occurrence remap, scoped origin restoration |
 | 08 | 0 / 0 | 2 | focused Docker | separate recovery policy; shutdown test isolation repaired |
-| 09 / review | 0 / 0 | 0 | CI | pending |
+| 09 / review | 1 / 1 causal scout | 2 | CI | implementation complete; live final review in PR 68 |
 
 Compatibility mapping: the proposed `TestBrowsingCompatibility` family reuses
 the existing `TestStepImage_*`, `TestHandleKeyEvent_*HomeEnd*`,
@@ -775,3 +778,36 @@ Formatting/vet and diff checks passed. Existing exact test exclusion and native
 guard family automatically include the new lifecycle subcase. All 31 changed
 Go files now have complete IDE inspection evidence. Native CI and SARIF must
 still run on the corrective commit.
+
+### Implementation qualification and handoff to review
+
+All nine tickets and every ticket acceptance point are complete. Commits:
+01 `e2cb9e1`, 02 `90c3aab`, 03 `ba185ce`, 04 `9ff1fd7`, 05 `385fac3`,
+06 `d97bca6`, 07 `0a8615b`, 08 `9e41e78`, 09 `0af9d25`;
+CI-driven HEIC correction `219cf26`.
+
+Full final-code CI passed on `219cf263618e0fbf02664d137ab4cb6e1b886c3b`:
+[test/build/native run 36359703861](https://github.com/frathe/picfetch/actions/runs/36359703861)
+includes validation, all four Linux/amd64 race shards, Windows tests, Linux
+native guards and macOS amd64/arm64 native guards. The repaired shutdown test
+passes its complete UI shard; both macOS architectures pass the HEIC guard.
+[CodeQL run 36359703919](https://github.com/frathe/picfetch/actions/runs/36359703919)
+and the PR CodeQL check passed; the PR merge-ref alert API returned no open alerts.
+
+[Qodana run 36359703855](https://github.com/frathe/picfetch/actions/runs/36359703855)
+passed. The actual `/qodana.sarif.json` in its qodana-report artifact identifies
+revision `219cf263618e0fbf02664d137ab4cb6e1b886c3b`, exitCode 0,
+executionSuccessful true and **zero post-suppression results**. This is fresh
+qodana.starter PR-differential evidence, not the pre-suppression CSV summary.
+Local IDE evidence covers all 31 changed Go files; the HEIC files were inspected
+after the fix, and earlier UI inspection evidence remains unchanged-code evidence.
+The archival commit changes documentation only and carries forward those exact
+code revisions. Latest-head CI and fresh code/security reviews still belong to
+the authorized PR loop; this record does not waive them.
+
+No required acceptance case was skipped in the final focused suite. The separate
+07 export-alias regression contains its existing case-insensitive-filesystem
+skip on Linux, recorded there and not counted as browsing acceptance. No native
+UI glue changed; existing manual native UI qualification is not re-claimed.
+No dependency closure, native runtime, model, translations or golden assets
+changed. MA-030 and later proposals remain outside this work.

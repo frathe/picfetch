@@ -32,6 +32,14 @@
 
 #### Internal
 
+- MA-029 browsing ownership is complete: all nine tickets and acceptance points
+  are resolved. Focused TDD, all 31 changed-file IDE inspections, full Linux
+  race/native, Windows/macOS CI, CodeQL and fresh post-suppression Qodana
+  evidence are in the [archived plan](finished_refactorings/2026-09-27-ma-029-browsing-visits.md).
+  CI also verified the shutdown-test isolation and HEIC queued-stop fixes.
+  [PR 68](https://github.com/frathe/picfetch/pull/68) maintains final review
+  dispositions and latest-head checks; merge/release is not authorized.
+
 - MA-028 shared command admission is complete across menus, shortcuts, keys,
   direct actions and open delivery. All ten tickets are resolved. Linux,
   Windows and macOS native qualification passed, with physical editor-input
@@ -50,32 +58,11 @@
 
 ## Open
 
-- **Application architecture:** MA-028's shared command policy is complete.
-  The [remaining refactoring backlog](needs_refactoring.md) covers explicit
-  browsing ownership and collection transitions (MA-029/030), followed by
-  Favorite ownership, a bounded worker-lifetime pilot and launch policy
-  (MA-031 through MA-033). All ten decisions in the
-  [MA-029 design](docs/browsing-visits.md) are accepted, including return
-  fallbacks, failed-load recovery and duplicate-inspection compatibility.
-  Its [local specification](.scratch/ma-029/spec.md) is `ready-for-agent`, with
-  the user stories and executable acceptance map. The
-  [nine implementation tickets](.scratch/ma-029/issues/README.md) are published
-  under the authorized implementation workflow. The
-  [Deep SDD plan](plans/2026-09-27-ma-029-browsing-visits.md) tracks per-ticket
-  TDD, commits and verification; tickets 01-08 are complete (explicit scopes,
-  no unrelated navigation/preloads from an empty restriction, and preserved
-  action targets, authoritative Explorer/ranked-search/Location Map visits,
-  shared committed-source remapping/restoration, and scoped single-chain recovery).
-  Ticket 09 has converged scope and input adapters on the owner; final local
-  acceptance and all changed-file inspections pass. Latest-head CI and review
-  qualification remain open. The intermediate Escape
-  golden failure was a shutdown test leaking shared session state; the repaired
-  test passes the three-repeat Docker race prefix and complete ui-3 CI shard.
-  Native CI exposed a preexisting HEIC queued-work stop race; its deterministic
-  regression and 100 lifecycle race repetitions now pass after a shared-stop
-  recheck. Latest-head native CI remains open. Keep the PR draft
-  until all nine tickets finish, then complete fresh GitHub reviews and CI.
-  MA-030 through MA-033 remain proposals.
+- **Application architecture:** MA-028's shared command policy and MA-029's
+  browsing ownership implementation are complete.
+  The [remaining refactoring backlog](needs_refactoring.md) covers collection
+  transitions, Favorite ownership, a bounded worker-lifetime pilot and launch
+  policy (MA-030 through MA-033), which remain proposals.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

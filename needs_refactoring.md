@@ -1,6 +1,6 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-28 during final qualification of MA-029.
+Updated 2026-09-28 after implementation qualification of MA-029.
 The cross-feature architecture assessment of PR review history and
 implementation is dated 2026-09-26.
 
@@ -16,7 +16,10 @@ MA-027 is complete in `e6024dc`, with native CI and clean code/security reviews
 recorded in its [archived plan](finished_refactorings/2026-09-14-ma-027-presentation.md).
 MA-028 is complete, with all-platform qualification and a clean PR 66 review
 round recorded in its [archived plan](finished_refactorings/2026-09-27-ma-028-command-admission.md).
-MA-029's implementation is complete and its final qualification is in progress;
+MA-029's nine tickets are complete and CI-qualified; the
+[archived plan](finished_refactorings/2026-09-27-ma-029-browsing-visits.md) records
+implementation evidence and [PR 68](https://github.com/frathe/picfetch/pull/68)
+tracks final review dispositions and latest-head checks.
 MA-030 through MA-033 remain proposals, not accepted implementation plans or
 unresolved PR defects.
 
@@ -28,7 +31,6 @@ explicit cross-feature composition in `internal/ui`.
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
-| [MA-029](#ma-029) | P1 | Give browsing visits one explicit state owner | Implemented; final qualification in progress |
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | Recommended; large, incremental |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | Recommended; medium scope |
 | [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Conditional extraction; medium scope |
@@ -263,17 +265,20 @@ require hand-editing independent admission predicates in all input adapters.
 
 **Design accepted, 2026-09-27.** The [design record](docs/browsing-visits.md)
 and [ownership ADR](docs/adr/0004-browsing-visit-ownership.md) capture all ten
-accepted interview decisions. Migrate Explorer, ranked search and Location Map
-incrementally while keeping feature-owned data and MA-028 command admission.
+accepted interview decisions. The incremental Explorer, ranked search and
+Location Map migration keeps feature-owned data and MA-028 command admission.
 Empty migrated scopes have explicit return behavior; failed-load recovery and
 older duplicate-inspection navigation retain their accepted distinctions.
 Reuse the existing collection identity/reconciliation seam independently of
-MA-030. The [local specification](.scratch/ma-029/spec.md) is published as
-`ready-for-agent`, with user stories, testing seams and acceptance commands.
-The [Deep SDD implementation plan](plans/2026-09-27-ma-029-browsing-visits.md)
-records completed tickets 01-08 and ticket 09's final convergence/qualification.
-The implementation now has one foreground owner and no legacy scope-precedence
-chain. Full latest-head CI and fresh reviews remain open in draft PR 68.
+MA-030. The [local specification](.scratch/ma-029/spec.md) is resolved,
+with user stories, testing seams and acceptance commands retained.
+
+**Implementation complete and CI-qualified, 2026-09-28.** The
+[archived Deep SDD plan](finished_refactorings/2026-09-27-ma-029-browsing-visits.md)
+records all nine completed tickets and full CI qualification on `219cf26`.
+The implementation has one foreground owner and no legacy scope-precedence
+chain. [PR 68](https://github.com/frathe/picfetch/pull/68) records final review
+dispositions and latest-head checks.
 The following rationale records the original pre-implementation assessment.
 
 **P1; high confidence in the need, medium confidence in the final interface.**
