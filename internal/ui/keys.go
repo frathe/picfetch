@@ -209,7 +209,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			v.LeaveSimilarityMap()
 			return
 		}
-		if v.locationInput.cluster && ev.Name == fyne.KeyV && !v.grid.Searching() {
+		if v.browsing.current().binding.kind == browsingCluster && ev.Name == fyne.KeyV && !v.grid.Searching() {
 			v.LeaveLocationMap()
 			return
 		}

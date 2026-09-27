@@ -227,7 +227,6 @@ func (v *viewer) settleExplorer() {
 	}
 }
 func (v *viewer) explorerGridChanged() {
-	v.locationGridChanged()
 	v.syncMenus()
 }
 func (v *viewer) explorerCanRetry() bool {
@@ -238,10 +237,9 @@ func (v *viewer) explorerMapActive() bool {
 }
 
 func (v *viewer) browsingImageOpened(bookmark grid.Visit) {
-	if v.browsing.current().binding.kind == browsingExplorer && !v.searchActive() {
+	if kind := v.browsing.current().binding.kind; kind == browsingExplorer || kind == browsingCluster {
 		v.browsing.openImage(v.browsing.current().binding, v.Generation(), bookmark)
 	}
-	v.locationImageOpened(bookmark)
 }
 
 func (v *viewer) explorerImageOpened() {

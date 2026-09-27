@@ -39,12 +39,12 @@ type browsingScope struct {
 func (v *viewer) captureBrowsingScope() browsingScope {
 	scope := browsingScope{complete: true, collection: v.state.snapshot()}
 	scope.binding.collection = v.Generation()
-	if v.locationImageVisit() {
+	if v.locationImageVisit() || v.browsing.current().binding.kind == browsingCluster {
 		scope.indexes, scope.restricted = v.locationIndexes(), true
 		scope.binding = v.browsing.current().binding
 		scope.complete = v.locationMap.Counts().Complete
-		if v.locationInput.cluster {
-			scope.binding.kind, scope.complete = browsingCluster, true
+		if scope.binding.kind == browsingCluster {
+			scope.complete = true
 		}
 		return scope
 	}

@@ -104,6 +104,17 @@ func (b *browsingVisits) leaveLocation() {
 	}
 }
 
+func (b *browsingVisits) openLocationCluster(binding browsingBinding, generation uint64, members []fileidentity.Occurrence, origin grid.Visit) bool {
+	if !b.matches(binding, generation) || binding.kind != browsingLocationMap || len(members) == 0 {
+		return false
+	}
+	b.push(browsingCluster, browsingGrid, generation)
+	visit := &b.stack[len(b.stack)-1]
+	visit.occurrences = slices.Clone(members)
+	visit.origin = &browsingOrigin{grid: origin.Clone()}
+	return true
+}
+
 func (b *browsingVisits) openExplorerCohort(generation uint64) browsingBinding {
 	if !b.has(browsingExplorerMap) {
 		b.enterExplorer(generation)
@@ -142,7 +153,7 @@ func (b *browsingVisits) detachSearch() (browsingOrigin, bool) {
 }
 
 func (b *browsingVisits) openImage(binding browsingBinding, generation uint64, bookmark grid.Visit) bool {
-	if !b.matches(binding, generation) || binding.kind != browsingExplorer && binding.kind != browsingSearch {
+	if !b.matches(binding, generation) || binding.kind != browsingExplorer && binding.kind != browsingSearch && binding.kind != browsingCluster {
 		return false
 	}
 	visit := &b.stack[len(b.stack)-1]
@@ -161,7 +172,7 @@ func (b *browsingVisits) planReturn(binding browsingBinding, generation uint64, 
 	}
 	allowed := false
 	switch binding.kind {
-	case browsingExplorer, browsingSearch:
+	case browsingExplorer, browsingSearch, browsingCluster:
 		allowed = destination == browsingReturnGrid || destination == browsingReturnParent
 	case browsingLocation:
 		allowed = destination == browsingReturnParent
@@ -213,6 +224,9 @@ func (b *browsingVisits) reconcile(generation uint64, survivors map[fileidentity
 		if bookmark := b.stack[i].grid; bookmark != nil && survivors != nil {
 			remapped := bookmark.RemapOccurrences(survivors)
 			b.stack[i].grid = &remapped
+		}
+		if origin := b.stack[i].origin; origin != nil && survivors != nil {
+			origin.grid = origin.grid.RemapOccurrences(survivors)
 		}
 		if survivors != nil && b.stack[i].occurrences != nil {
 			var remapped []fileidentity.Occurrence

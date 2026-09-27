@@ -12,11 +12,9 @@ import (
 )
 
 type locationInput struct {
-	order                                         []fileidentity.Occurrence
-	prepare                                       func()
-	prepareOp                                     requestLifecycle
-	savedGrid, clusterGrid                        *grid.Visit
-	clusterImage, cluster, transition, rebuilding bool
+	prepare    func()
+	prepareOp  requestLifecycle
+	rebuilding bool
 }
 
 func (v *viewer) showLocationMap() {
@@ -126,20 +124,17 @@ func (v *viewer) LeaveLocationMap() {
 	v.Unfocus()
 }
 func (v *viewer) closeLocationMap() {
+	visit := v.browsing.current()
 	v.browsing.leaveLocation()
 	v.locationInput.prepareOp.invalidate()
 	if v.locationInput.prepare != nil {
 		v.locationInput.prepare = nil
 		v.grid.Close()
 	}
-	v.locationInput.clusterImage, v.locationInput.order = false, nil
-	v.locationInput.cluster = false
 	v.locationMap.Close()
-	if saved := v.locationInput.savedGrid; saved != nil {
-		v.locationInput.savedGrid = nil
-		v.grid.RestoreVisit(*saved)
+	if visit.binding.kind == browsingCluster && visit.origin != nil {
+		v.grid.RestoreVisit(visit.origin.grid)
 	}
-	v.locationInput.clusterGrid = nil
 }
 func (v *viewer) LocationMapChanged() {
 	v.recordLocationTrial()
@@ -150,17 +145,18 @@ func (v *viewer) LocationMapChanged() {
 }
 func (v *viewer) locationVisitActive() bool { return v.browsing.has(browsingLocationMap) }
 func (v *viewer) locationImageVisit() bool {
-	return v.browsing.current().binding.kind == browsingLocation || v.locationInput.cluster && v.locationInput.clusterImage
+	visit := v.browsing.current()
+	return visit.binding.kind == browsingLocation || visit.binding.kind == browsingCluster && visit.surface == browsingImage
 }
 func (v *viewer) locationMapVisible() bool {
-	return v.browsing.current().binding.kind == browsingLocationMap && !v.locationInput.cluster
+	return v.browsing.current().binding.kind == browsingLocationMap
 }
 
 func (v *viewer) locationMapKey(key fyne.KeyName) bool {
 	if v.locationImageVisit() && key == fyne.KeyP {
 		return true
 	}
-	if v.locationInput.cluster && v.locationInput.clusterImage && (key == fyne.KeyEscape || key == fyne.KeyG) {
+	if v.browsing.current().binding.kind == browsingCluster && v.locationImageVisit() && (key == fyne.KeyEscape || key == fyne.KeyG) {
 		v.openLocationGrid()
 		return true
 	}
@@ -188,41 +184,49 @@ func (v *viewer) locationMapKey(key fyne.KeyName) bool {
 }
 
 func (v *viewer) OpenLocationCluster(members []fileidentity.Occurrence) {
+	if _, ok := v.admitCommand(commandRequest{command: commandLocationMap, route: routeDelivery}); !ok {
+		return
+	}
 	visit := v.grid.CaptureVisit()
 	visit.Visible = false
-	v.locationInput.savedGrid = &visit
-	v.locationInput.cluster = true
-	v.locationInput.order = slices.Clone(members)
-	v.locationInput.clusterGrid = nil
+	if !v.browsing.openLocationCluster(v.browsing.current().binding, v.Generation(), members, visit) {
+		return
+	}
 	v.locationMap.HideForImage()
-	v.openLocationGrid()
+	v.presentLocationGrid(nil)
 }
 
 func (v *viewer) openLocationGrid() {
-	v.locationInput.transition = true
-	defer func() { v.locationInput.transition = false; v.syncMenus() }()
-	v.locationInput.clusterImage = false
-	v.grid.OpenOccurrences(v.locationInput.order, lang.L("Showing location cluster"), v.returnLocationMap)
-	if visit := v.locationInput.clusterGrid; visit != nil {
-		v.grid.RestoreVisit(*visit)
-	}
-	v.Unfocus()
-}
-
-func (v *viewer) locationImageOpened(visit grid.Visit) {
-	if !v.locationInput.cluster {
+	plan, ok := v.browsing.planReturn(v.browsing.current().binding, v.Generation(), browsingReturnGrid)
+	if !ok || plan.source.kind != browsingCluster {
 		return
 	}
-	v.locationInput.clusterGrid = &visit
-	v.locationInput.clusterImage = true
+	if _, ok := v.admitCommand(commandRequest{command: commandGrid, route: routeDelivery}); !ok || !v.browsing.commitReturn(plan, v.Generation()) {
+		return
+	}
+	v.presentLocationGrid(plan.grid)
+}
+
+func (v *viewer) presentLocationGrid(bookmark *grid.Visit) {
+	visit := v.browsing.current()
+	v.grid.OpenOccurrences(visit.occurrences, lang.L("Showing location cluster"), func() { v.returnLocationMapFrom(visit.binding) })
+	if bookmark != nil {
+		v.grid.RestoreInteraction(*bookmark)
+	}
+	v.Unfocus()
+	v.syncMenus()
 }
 
 func (v *viewer) returnLocationMap() {
+	v.returnLocationMapFrom(v.browsing.current().binding)
+}
+
+func (v *viewer) returnLocationMapFrom(binding browsingBinding) {
 	destination := browsingReturnMap
-	if v.browsing.current().binding.kind == browsingLocation {
+	if binding.kind == browsingLocation || binding.kind == browsingCluster {
 		destination = browsingReturnParent
 	}
-	plan, ok := v.browsing.planReturn(v.browsing.current().binding, v.Generation(), destination)
+	plan, ok := v.browsing.planReturn(binding, v.Generation(), destination)
 	if !ok {
 		return
 	}
@@ -236,15 +240,8 @@ func (v *viewer) returnLocationMap() {
 		if ready {
 			ready = v.browsing.commitReturn(plan, v.Generation())
 		}
-		if ready {
-			v.locationInput.cluster = false
-			v.locationInput.clusterImage = false
-			v.locationInput.order = nil
-			if saved := v.locationInput.savedGrid; saved != nil {
-				v.locationInput.savedGrid = nil
-				v.grid.RestoreVisit(*saved)
-			}
-			v.locationInput.clusterGrid = nil
+		if ready && plan.source.kind == browsingCluster && plan.origin != nil {
+			v.grid.RestoreVisit(plan.origin.grid)
 		}
 		if changed {
 			// Reconcile even when an in-flight copy defers the visible return:
@@ -277,7 +274,7 @@ func (v *viewer) captureLocationReconciliation(removed []int) func() {
 	v.locationInput.prepareOp.invalidate()
 	v.locationInput.prepare = nil
 	var current *grid.Visit
-	if v.locationInput.cluster && v.grid.Visible() {
+	if v.browsing.current().binding.kind == browsingCluster && v.grid.Visible() {
 		visit := v.grid.CaptureVisit()
 		current = &visit
 	}
@@ -293,37 +290,20 @@ func (v *viewer) captureLocationReconciliation(removed []int) func() {
 		ordinals[source.Path()]++
 		survivors[before] = after
 	}
-	var order []fileidentity.Occurrence
-	for _, identity := range v.locationInput.order {
-		if next, ok := survivors[identity]; ok {
-			order = append(order, next)
-		}
+	if current != nil {
+		*current = current.RemapOccurrences(survivors)
 	}
-	v.locationInput.order = order
-	for _, visit := range []*grid.Visit{current, v.locationInput.savedGrid, v.locationInput.clusterGrid} {
-		if visit != nil {
-			*visit = visit.RemapOccurrences(survivors)
-		}
-	}
-	v.locationInput.transition = true
 	return func() {
 		v.browsing.reconcile(v.Generation(), survivors)
 		if current != nil {
-			v.grid.RestoreVisit(*current)
+			v.presentLocationGrid(current)
 		}
-		v.locationInput.transition = false
 		// Rebuild retires validation, so admit an exhausted visit's return
 		// only after the new source generation owns the map.
 		v.rebuildLocationMap()
-		if v.locationInput.cluster && len(v.locationInput.order) == 0 {
+		if v.browsing.current().binding.kind == browsingCluster && len(v.browsing.current().occurrences) == 0 {
 			v.returnLocationMap()
 		}
-	}
-}
-
-func (v *viewer) locationGridChanged() {
-	if v.locationInput.cluster && !v.locationInput.transition && !v.locationInput.clusterImage && !v.grid.Visible() {
-		v.returnLocationMap()
 	}
 }
 
@@ -349,16 +329,13 @@ func (v *viewer) OpenLocationImage(identity fileidentity.Occurrence) {
 }
 
 func (v *viewer) locationIndexes() []int {
-	if !v.locationImageVisit() {
+	if !v.locationImageVisit() && v.browsing.current().binding.kind != browsingCluster {
 		return nil
 	}
 	index := fileidentity.NewIndex(v.FileCount(), func(i int) string { return v.FileAt(i).Path() })
 	var result []int
 	order := v.browsing.current().occurrences
-	if v.locationInput.cluster {
-		order = v.locationInput.order
-	}
-	if !v.locationInput.cluster {
+	if v.browsing.current().binding.kind != browsingCluster {
 		if points := v.locationMap.Points(); len(points) > 0 || v.locationMap.Counts().Complete {
 			order = nil
 			for _, point := range points {
@@ -371,7 +348,7 @@ func (v *viewer) locationIndexes() []int {
 			result = append(result, i)
 		}
 	}
-	if !v.locationInput.cluster {
+	if v.browsing.current().binding.kind != browsingCluster {
 		slices.Sort(result)
 	}
 	return result

@@ -1,6 +1,6 @@
 # MA-029 — explicit browsing visits
 
-Status: tickets 01-05 complete; implementing ticket 06 of 09.
+Status: tickets 01-06 complete; implementing ticket 07 of 09.
 Date: 2026-09-27. Base: `11e8c4c` on `feature/ma-029-browsing-visits`.
 Route: Deep SDD, vertical TDD slices. Lead owns design, review and fixes.
 
@@ -158,7 +158,7 @@ implementation slot: root/feature ownership must be changed together by the lead
 - [x] 03: Explorer authority, round trips, exhaustion and lifecycle.
 - [x] 04: ranked search authority, history and origin restoration.
 - [x] 05: direct-map authority, live navigation and valid return.
-- [ ] 06: exact frozen cluster authority and return stages.
+- [x] 06: exact frozen cluster authority and return stages.
 - [ ] 07: ordered reconciliation and identity/fallback matrix.
 - [ ] 08: single-chain failed-load recovery and HEIC guidance.
 - [ ] 09: route/authority convergence and final verification.
@@ -179,7 +179,8 @@ Use that PATH and a writable temporary Go cache for local commands.
 | 03 | 1 / 1 | 1 | no | complete; evidence below |
 | 04 | 1 / 1 | 1 | no | complete; evidence below |
 | 05 | 0 / 0 | 2 | no | direct-map owner, live scope and validated return |
-| 06-08 | per routing above / 0 | 0 | no | pending |
+| 06 | 0 / 0 | 2 | no | frozen cluster owner and validated Grid/map stages |
+| 07-08 | per routing above / 0 | 0 | no | pending |
 | 09 / review | 0 / 0 | 0 | CI | pending |
 
 Compatibility mapping: the proposed `TestBrowsingCompatibility` family reuses
@@ -460,3 +461,65 @@ feature-owned and no automatic command replay was introduced. Cluster order,
 Grid bookmarks and cluster flags remain only the documented 06 adapter. No
 dependency, worker, native glue or user string changed. Cost: zero spawns, two
 lead review passes, no broad local suite; final CI/SARIF/review gate remains open.
+
+Ticket 05 commit: `385fac3`.
+
+06 contract before tests: `openLocationCluster` validates the current map binding
+and captures frozen exact occurrences plus its ordinary hidden-Grid origin.
+The existing `openImage` and Grid/parent return plans handle cluster stages;
+Grid restore installs current membership/callbacks then restores only interaction.
+`locationInput` retains preparation effects only, losing cluster/image/order/
+bookmark/transition authority. Grid Back requests the owner before closing;
+generic visibility callbacks no longer infer returns. Source reconciliation
+remaps owner occurrences and bookmarks; live Grid capture remains an effect
+until common transaction consolidation in 07. Lead-only (G5 hot context).
+
+07 scout gate (overlaps lead's 06 work): bounded read-only inventory of existing
+source reconciliation/identity fixtures in visualsearch_test.go,
+savework_test.go and sort_test.go. G1: short standalone prompt;
+G2: verify cited test/helper names and assertions with rg/sed; G3: three files,
+no writes; G4: fixtures only, not owner design; G5: lead has not read the broad
+write/removal/sort matrix. Shell located the anchors first; causal sequencing
+is not a mechanical transform (S), and no implementation is delegated (W).
+Reuse T3/gpt-6-luna scout; lead owns all design and review.
+
+### Ticket 06 evidence (working diff over `385fac3`)
+
+All Location Map visit authority is in browsingVisits. Removed cluster/image
+flags, order, ordinary/cluster Grid bookmarks and the visibility-driven return
+observer from locationInput. Cluster entry clones exact occurrences and its
+ordinary Grid origin; image return reinstalls current callbacks/membership before
+interaction. Both path and occurrence Grid Back routes request owner admission
+before dismissal. The only remaining locationInput state is preparation/rebuild
+effects. Existing feature worker, camera, validation and queue ownership is
+unchanged; no dependency or user string was added.
+
+New subcases: transitions/frozen_cluster_and_retired_return;
+round-trips/cluster_bookmark/{escape,g,show} and cluster_removed_selection;
+empty-scope/cluster_filter; lifecycle/retired_cluster_request. Red: the retired
+map request reopened Grid (`FAIL 0.105s`). Negative verification disabled frozen
+membership cloning and bookmark restoration: alias and all three route tests
+failed as intended (`FAIL 0.281s`), then both mutations were restored. An initial
+misgrouped negative selector matched nothing and is not counted as evidence.
+
+Final uncached verbose gate passed (`ok .../internal/ui 29.173s`), no skips:
+`^(TestBrowsing.*|TestLocationMap|TestLocationMapReleaseQualification|TestCommandAdmissionVisits|TestWindowCommandAdmissionMatrix|TestVisualSimilarityExplorer)$`.
+Existing map cluster_visit/frozen_progressive_members_and_escape_stages,
+source_changes/frozen_visit_survivors, external_changes/return_validation_barrier,
+camera_retention/cluster_visit and lifecycle cases cover progressive freezing,
+exact repeated survivors, map validation/admission, camera and lifetime barriers.
+The complete Grid package passed (1.852s); focused new round-trip/transition/empty
+tests passed (0.885s), and removed-selection guard passed (0.180s).
+
+`make fmt-check vet`, diff check, Docker shard inventory (725 runnables/three
+shards) and exact Qodana exclusions passed. All nine changed code files completed
+GoLand inspection with weak warnings enabled and zero findings. Four initially
+failed with IDE-internal cached-PSI/file-text mismatch; reopening alone did not
+repair it. A whitespace-only edit plus IDE reformat refreshed those documents;
+all four then completed clear. No failed/incomplete scan is counted as a pass.
+This remains the documented IDE fallback, not CI SARIF equivalence.
+
+Lead review confirms saved subset callbacks cannot revive a cluster; return
+bindings are refreshed after source remapping. Duplicated Explorer/Map remap
+capture adapters remain the explicit next-ticket consolidation, not a second
+visit owner. No new test file/top-level test/shard assignment was needed.

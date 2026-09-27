@@ -490,15 +490,7 @@ func New(host Host, win fyne.Window, model *dupes.Model) *Overview {
 	g.countLabel = widget.NewLabel("")
 	g.selLabel = widget.NewLabelWithStyle("", fyne.TextAlignTrailing, fyne.TextStyle{Bold: true})
 	g.subsetBack = widget.NewButton(lang.L("Back to map"), func() {
-		back := g.onSubsetBack
-		if g.subsetOccurrences == nil && back != nil {
-			back()
-			return
-		}
-		g.Close()
-		if back != nil {
-			back()
-		}
+		g.closeBrowsingGrid()
 	})
 	g.subsetBack.Hide()
 	g.analyze = widget.NewButton(lang.L("Analyze"), func() {

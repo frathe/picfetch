@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -21,6 +22,33 @@ import (
 )
 
 func TestBrowsingVisitTransitions(t *testing.T) {
+	t.Run("frozen_cluster_and_retired_return", func(t *testing.T) {
+		var visits browsingVisits
+		visits.enterLocation(7)
+		parent := visits.current().binding
+		members := []fileidentity.Occurrence{{Path: "/a", Ordinal: 1}, {Path: "/b"}}
+		if !visits.openLocationCluster(parent, 7, members, grid.Visit{Query: "ordinary"}) {
+			t.Fatal("current map refused its cluster")
+		}
+		binding := visits.current().binding
+		members[0].Ordinal = 0
+		if visits.current().occurrences[0].Ordinal != 1 {
+			t.Fatal("cluster membership aliases live map discovery")
+		}
+		visits.openImage(binding, 7, grid.Visit{Query: "cluster", ScrollOffset: 200})
+		toGrid, ok := visits.planReturn(binding, 7, browsingReturnGrid)
+		if !ok || toGrid.grid.Query != "cluster" || toGrid.grid.ScrollOffset != 200 || !visits.commitReturn(toGrid, 7) {
+			t.Fatal("cluster image lost its Grid bookmark")
+		}
+		toMap, ok := visits.planReturn(binding, 7, browsingReturnParent)
+		if !ok || toMap.origin.grid.Query != "ordinary" || !visits.commitReturn(toMap, 7) || visits.current().binding != parent {
+			t.Fatal("cluster map return lost its ordinary Grid origin")
+		}
+		visits.openLocationCluster(parent, 7, members, grid.Visit{})
+		if visits.commitReturn(toMap, 7) || visits.current().binding == binding {
+			t.Fatal("old cluster return replaced a newly opened visit")
+		}
+	})
 	t.Run("direct_map_parent_and_validation", func(t *testing.T) {
 		var visits browsingVisits
 		visits.enterLocation(7)
@@ -179,6 +207,73 @@ func TestBrowsingProgressiveScopes(t *testing.T) {
 }
 
 func TestBrowsingRoundTrips(t *testing.T) {
+	t.Run("cluster_removed_selection", func(t *testing.T) {
+		v := newTestViewer(t)
+		a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
+		outside := uitest.TempGPSJPEGURI(t, "outside.jpg", 24, 16, 40.7, -74)
+		dropAndWait(t, v, a, outside)
+		v.state.SetMergeMode(true)
+		dropAndWait(t, v, a)
+		locationMenu(t, v).Action()
+		v.locationMap.Settle()
+		fynetest.Tap(locationButton(t, v, "2 images"))
+		v.grid.Settle()
+		v.grid.SimulateHover(0)
+		v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+		removed := v.grid.Selection()[0]
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		waitUntilLoaded(t, v)
+		v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: []int{removed}})
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		v.grid.Settle()
+		if !v.grid.Visible() || v.grid.SelectionCount() != 0 || !slices.Equal(v.grid.ResultIndexes(), []int{0}) {
+			t.Fatal("removed selected occurrence was replaced by its surviving duplicate")
+		}
+	})
+	for _, route := range []string{"escape", "g", "show"} {
+		t.Run("cluster_bookmark/"+route, func(t *testing.T) {
+			v := newTestViewer(t)
+			v.win.Resize(fyne.NewSize(480, 280))
+			var sources []fyne.URI
+			for i := range 20 {
+				sources = append(sources, uitest.TempGPSJPEGURI(t, fmt.Sprintf("photo-%02d.jpg", i), 24, 16, 52.52, 13.405))
+			}
+			dropAndWait(t, v, sources...)
+			locationMenu(t, v).Action()
+			v.locationMap.Settle()
+			fynetest.Tap(locationButton(t, v, "20 images"))
+			v.grid.Settle()
+			v.grid.SimulateHover(1)
+			v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
+			v.grid.HandleRune('/')
+			v.grid.HandleRune('.')
+			v.grid.SimulateHover(19)
+			before := v.grid.CaptureVisit()
+			if before.ScrollOffset == 0 {
+				t.Fatal("cluster fixture did not scroll")
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			waitUntilLoaded(t, v)
+			switch route {
+			case "escape":
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			case "g":
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
+			case "show":
+				v.showWindowGrid()
+			}
+			after := v.grid.CaptureVisit()
+			if !v.grid.Visible() || after.Query != before.Query || after.Searching != before.Searching ||
+				!slices.Equal(after.Selected, before.Selected) || after.Highlight != before.Highlight || after.ScrollOffset != before.ScrollOffset {
+				t.Fatal("cluster image return lost filter, selection, highlight or scroll")
+			}
+			fynetest.Tap(explorerButton(t, v, "Back to map"))
+			v.locationMap.Settle()
+			if !locationSurface(t, v).Visible() || !v.locationMapVisible() || v.grid.Visible() {
+				t.Fatal("cluster did not return to its mounted map")
+			}
+		})
+	}
 	t.Run("explorer_surviving_selection", func(t *testing.T) {
 		v := explorerFixture(t)
 		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path(), v.FileAt(2).Path()}
@@ -242,6 +337,24 @@ func TestBrowsingRoundTrips(t *testing.T) {
 }
 
 func TestBrowsingEmptyScope(t *testing.T) {
+	t.Run("cluster_filter", func(t *testing.T) {
+		v := newTestViewer(t)
+		a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
+		dropAndWait(t, v, a)
+		locationMenu(t, v).Action()
+		v.locationMap.Settle()
+		v.OpenLocationCluster([]fileidentity.Occurrence{v.locationMap.Points()[0].Source.Identity})
+		for _, r := range "/absent" {
+			v.handleTypedRune(r)
+		}
+		if !v.grid.Visible() || len(v.grid.ResultIndexes()) != 0 || !slices.Equal(v.captureBrowsingScope().indexes, []int{0}) {
+			t.Fatal("empty filter retired or widened the frozen cluster")
+		}
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		if !v.grid.Visible() || len(v.grid.ResultIndexes()) != 1 {
+			t.Fatal("filter Escape lost its cluster")
+		}
+	})
 	t.Run("direct_map_last_member", func(t *testing.T) {
 		v := newTestViewer(t)
 		a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
@@ -311,6 +424,20 @@ func TestBrowsingEmptyScope(t *testing.T) {
 }
 
 func TestBrowsingVisitLifecycle(t *testing.T) {
+	t.Run("retired_cluster_request", func(t *testing.T) {
+		v := newTestViewer(t)
+		a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
+		dropAndWait(t, v, a)
+		locationMenu(t, v).Action()
+		v.locationMap.Settle()
+		members := []fileidentity.Occurrence{v.locationMap.Points()[0].Source.Identity}
+		v.LeaveLocationMap()
+		v.OpenLocationCluster(members)
+		v.grid.Settle()
+		if v.grid.Visible() || v.locationVisitActive() {
+			t.Fatal("retired map request revived a cluster Grid")
+		}
+	})
 	t.Run("search_shutdown", func(t *testing.T) {
 		v, publish := streamingSearch(t)
 		publish(similarity.SearchFinal, 2, 1)

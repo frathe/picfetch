@@ -102,7 +102,7 @@ func (v *viewer) showWindowGrid() {
 	if _, ok := v.admitCommand(commandRequest{command: commandGrid, intent: intentShow}); !ok {
 		return
 	}
-	if v.locationInput.cluster {
+	if v.browsing.current().binding.kind == browsingCluster {
 		v.openLocationGrid()
 		return
 	}
