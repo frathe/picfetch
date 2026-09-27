@@ -101,6 +101,14 @@ func (c *Client) run(ctx context.Context, data []byte, request wireRequest, limi
 	case <-ctx.Done():
 		return Result{}, ctx.Err()
 	}
+	// Stop may free a child's slot before it reaches this request's cancel.
+	// Observe the shared admission boundary before constructing another child.
+	c.mu.Lock()
+	stopped := c.stopped
+	c.mu.Unlock()
+	if stopped {
+		return Result{}, context.Canceled
+	}
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}

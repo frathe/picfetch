@@ -70,7 +70,10 @@
   acceptance and all changed-file inspections pass. Latest-head CI and review
   qualification remain open. The intermediate Escape
   golden failure was a shutdown test leaking shared session state; the repaired
-  test passes the three-repeat Docker race prefix. Full CI remains open. Keep the PR draft
+  test passes the three-repeat Docker race prefix and complete ui-3 CI shard.
+  Native CI exposed a preexisting HEIC queued-work stop race; its deterministic
+  regression and 100 lifecycle race repetitions now pass after a shared-stop
+  recheck. Latest-head native CI remains open. Keep the PR draft
   until all nine tickets finish, then complete fresh GitHub reviews and CI.
   MA-030 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.

@@ -747,3 +747,31 @@ open. Do not count the native gate as passed or mark final qualification done.
 Final shard/exclusion inventories passed: 727 runnables, three Linux/amd64
 shards. Ticket 09 implementation is ready to commit; the ticket stays claimed
 until the required latest-head CI/static-analysis gates finish.
+
+Ticket 09 implementation commit: `0af9d25` (pushed draft). CI follow-up found a
+real, preexisting HEIC stop-order race, not a browsing regression or bad golden.
+`Stop` publishes `stopped` then cancels registered requests one by one; a child's
+exit can free a slot before the queued request's own cancellation. The queued
+request formerly checked only its context and could create a third child.
+The original case passed 100 local iterations and 200 race iterations (1.573s),
+so the native CI artifact is the observed original failure, not a local repro.
+
+A deterministic added subcase models exactly the published-stop/uncancelled-queue
+interval after real request admission, then releases a slot. It failed before
+the fix (`FAIL 0.007s`, child response instead of cancellation). The client now
+rechecks shared stopped state under the existing mutex after slot acquisition.
+All lifecycle cases, including the original and deterministic guard, passed
+100 race repetitions (7.617s). No worker policy, native glue, decoder, dependency
+or runtime changes. This small CI-driven repair uses the existing per-instance
+private test seam, no package-level seam or new test file.
+GoLand completed client.go/client_test.go with all severities: zero findings.
+The diagnosing-bugs workflow established the stop interval; the scout supplied
+read-only sequencing facts, and the lead owns the diagnosis and fix.
+
+Final worker regression selector `go test -tags no_emoji,nodynamic -race
+-count=1 -v ./internal/heic -run '^TestHEICWorker.*$'` passed (4.312s), no skips:
+lifecycle, malformed/valid protocol, producer death and descendant retirement.
+Formatting/vet and diff checks passed. Existing exact test exclusion and native
+guard family automatically include the new lifecycle subcase. All 31 changed
+Go files now have complete IDE inspection evidence. Native CI and SARIF must
+still run on the corrective commit.
