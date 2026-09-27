@@ -16,9 +16,9 @@ statement after that, see `internal/openwith`), skips GitHub-update predecessor
 cleanup for Store-managed builds and explicit Explorer or Location Map trials,
 asks `launch.Options.ApplicationID` to validate and select the app identity before
 building the `fyne.App`, loads embedded
-`translations/*.json`, embeds `THIRD-PARTY-NOTICES.md`, converts CLI paths to URIs
-(`argsToURIs`), and passes the immutable notices to `ui.Run`, which supplies
-Help's offline Licenses window before startup. `main_darwin_test.go` asserts the graft landed — this is the only
+`translations/*.json`, embeds `THIRD-PARTY-NOTICES.md` and `PRIVACY.md`, converts CLI paths to URIs
+(`argsToURIs`), and passes the immutable documents to `ui.Run`, which supplies
+Help's offline Licenses and Privacy policy windows before startup. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
 
 ### `scripts/historymovie`
@@ -684,6 +684,10 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 Help's `licenses.go` displays the complete immutable release notice document
 supplied by `main.go` through `ui.Run` and `Help.SetLicenses`. Help -> Licenses
 opens a scrollable Markdown singleton, with no runtime file reads or downloads.
+Help's `privacy.go` uses the same document-injection pattern through
+`Help.SetPrivacyPolicy` for the canonical root `PRIVACY.md`. Help -> Privacy
+policy opens a separate, word-wrapped Markdown singleton with vertical scrolling,
+Escape-to-close, and the same command-admission and shutdown guards.
 
 ### `internal/heic`
 

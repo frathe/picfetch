@@ -402,8 +402,8 @@ func TestHelpMenu(t *testing.T) {
 		t.Errorf("expected menu label %q, got %q", "Help", help.Label)
 	}
 
-	if got := len(help.Items); got != 6 {
-		t.Fatalf("expected 6 help items, got %d", got)
+	if got := len(help.Items); got != 7 {
+		t.Fatalf("expected 7 help items, got %d", got)
 	}
 
 	manual := help.Items[0]
@@ -429,12 +429,17 @@ func TestHelpMenu(t *testing.T) {
 		t.Fatal("Help does not offer release notes")
 	}
 
-	licenses := help.Items[2]
+	privacy := help.Items[2]
+	if privacy.Label != "Privacy policy" || privacy.Action == nil {
+		t.Fatal("Help does not offer the privacy policy")
+	}
+
+	licenses := help.Items[3]
 	if licenses.Label != "Licenses" || licenses.Action == nil {
 		t.Fatal("Help does not offer licenses")
 	}
 
-	discussions := help.Items[3]
+	discussions := help.Items[4]
 	if discussions.Label != "GitHub Discussions" || discussions.Action == nil {
 		t.Fatal("Help does not offer a GitHub Discussions link")
 	}
@@ -455,11 +460,11 @@ func TestHelpMenu(t *testing.T) {
 	if application.opened == nil {
 		t.Fatal("owned dialog hyperlink was blocked by main-window admission")
 	}
-	if !help.Items[4].IsSeparator {
+	if !help.Items[5].IsSeparator {
 		t.Error("expected a separator before About")
 	}
 
-	about := help.Items[5]
+	about := help.Items[6]
 
 	if about.Label != "About" {
 		t.Errorf("expected item label %q, got %q", "About", about.Label)

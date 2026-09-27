@@ -6,13 +6,17 @@
 
 #### New Features
 
+- Help -> Privacy policy opens the installed build's policy in a scrollable
+  offline window, alongside Release Notes. Menu labels use the existing English
+  and German translations; the policy retains its published English text.
+
 #### Bugfix
 
-Menus and keyboard shortcuts now respect what you’re doing. When a dialog is
-open, commands won’t change the photo behind it, and Copy and Select All work
-on the text you’re editing. Actions that could interrupt copying a selected
-part of a photo are temporarily disabled. Choosing an unavailable action also
-leaves your selection intact.
+- Menus and keyboard shortcuts now respect what you’re doing. When a dialog is
+  open, commands won’t change the photo behind it, and Copy and Select All work
+  on the text you’re editing. Actions that could interrupt copying a selected
+  part of a photo are temporarily disabled. Choosing an unavailable action also
+  leaves your selection intact.
 
 - Keep Export/Delete keyboard focus on the prompt through Tab and checkbox
   clicks, and release it on dismissal. Windows native qualification found

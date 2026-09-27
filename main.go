@@ -43,6 +43,11 @@ var translationsFS embed.FS
 //go:embed THIRD-PARTY-NOTICES.md
 var thirdPartyNotices string
 
+// privacyPolicy keeps the installed build's canonical policy available offline.
+//
+//go:embed PRIVACY.md
+var privacyPolicy string
+
 // appID is the stable key Fyne uses for application-scoped preferences and
 // cache data. Keep it in sync with FyneApp.toml's ID and the Makefile's
 // PACKAGE_ID (the bundle identifier packaging stamps in); changing it would
@@ -161,7 +166,7 @@ func main() {
 		fyne.LogError("failed to load translations", err)
 	}
 
-	if err := ui.Run(application, argsToURIs(paths), opts, thirdPartyNotices); err != nil {
+	if err := ui.Run(application, argsToURIs(paths), opts, thirdPartyNotices, privacyPolicy); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
