@@ -22,29 +22,14 @@ func (v *viewer) comparisonActive() bool {
 	return v.compare != nil && v.compare.Visible()
 }
 
-// refuseOpenDuringComparison applies the one exceptional command policy:
-// ordinary commands are silent no-ops, but an OS/file-dialog open request
-// needs to explain why the supplied files were deliberately discarded.
-func (v *viewer) refuseOpenDuringComparison() bool {
-	if !v.comparisonActive() {
-		return false
-	}
-	v.ShowToast(lang.L("Return to Grid View before opening files"))
-	return true
-}
-
 // compareSelected is the only bridge from Grid View selection into the
 // comparison feature. Selection, rather than Targets, is intentional: this
 // command never falls back to the highlighted cell.
 func (v *viewer) compareSelected() {
-	if v.comparisonActive() {
+	if _, ok := v.admitCommand(commandRequest{command: commandCompare}); !ok {
 		return
 	}
 	selected := v.grid.Selection()
-	if !v.grid.Visible() || len(selected) != 2 {
-		v.ShowToast(lang.L("Select exactly 2 images to compare"))
-		return
-	}
 
 	var sources [2]fyne.URI
 	for i, index := range selected {

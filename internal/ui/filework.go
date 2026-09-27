@@ -224,7 +224,7 @@ func (v *viewer) refreshWrittenFile(result imaging.WriteResult, reload, refreshE
 			}
 			defer done()
 			if reload {
-				v.ShowImage(index)
+				v.loadImage(index)
 				return
 			}
 			if infoErr == nil {

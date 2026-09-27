@@ -79,8 +79,9 @@ func Maximize(win fyne.Window) {
 // changes the size the OS remembers for after an eventual un-maximize -
 // see the platform-specific files, and callers should follow this with a
 // Set/Restore, since the OS's own un-maximize placement rarely lands back
-// where the window was before Maximize grew it. A no-op wherever there's
-// no native handle to reach, same as Maximize.
+// where the window was before Maximize grew it. On Windows, normal and
+// minimized windows stay untouched; this does not restore from the taskbar.
+// A no-op wherever there's no native handle to reach, same as Maximize.
 func Unmaximize(win fyne.Window) {
 	native, isNative := win.(driver.NativeWindow)
 	if !isNative {

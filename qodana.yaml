@@ -221,6 +221,7 @@ exclude:
       - "internal/ui/compare/workgroup_test.go"
       - "internal/ui/compare_fidelity_test.go"
       - "internal/ui/compare_test.go"
+      - "internal/ui/commandadmission_test.go"
       - "internal/ui/copyselection/copyselection_test.go"
       - "internal/ui/copyselection/edit_test.go"
       - "internal/ui/copyselection/geometry_test.go"

@@ -23,6 +23,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/display"
 	"github.com/frathe/picfetch/internal/ui/infoview"
+	"github.com/frathe/picfetch/internal/winpos"
 )
 
 // buildViewer wires up every widget, the drop handler, and the key handler
@@ -108,6 +109,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	}
 
 	view.chooserUI = fyneChooserQueue{}
+	view.unmaximizeWindow = winpos.Unmaximize
 	view.regionCopyDo = fyne.Do
 	view.regionCopyDoAndWait = fyne.DoAndWait
 	view.compareLoad = view.loadComparedImage

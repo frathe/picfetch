@@ -372,8 +372,8 @@ func TestCopySelectionAvailability(t *testing.T) {
 			tc.setup(t, v)
 
 			state := v.menuState()
-			if state.CanCopySelection != tc.available {
-				t.Fatalf("menuState().CanCopySelection = %v, want %v", state.CanCopySelection, tc.available)
+			if state.Availability.CopySelection != tc.available {
+				t.Fatalf("menuState().Availability.CopySelection = %v, want %v", state.Availability.CopySelection, tc.available)
 			}
 			v.menus.Apply(state)
 			item := v.menus.Actions().CopySelection()

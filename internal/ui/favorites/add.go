@@ -215,6 +215,7 @@ func (f *Feature) newAddDialog(initial string) (dialog.Dialog, *addPanel) {
 		}
 
 		f.addDialog, f.addPanel = nil, nil
+		f.dialogChanged()
 		if f.onDialogClosed != nil {
 			f.onDialogClosed()
 		}
@@ -243,6 +244,7 @@ func (f *Feature) showAdd(initial string) {
 	d, panel := f.newAddDialog(initial)
 	f.addDialog, f.addPanel = d, panel
 	d.Show()
+	f.dialogChanged()
 	// After Show, not before: Fyne can only focus an object that is already
 	// part of an overlay it can walk to, and the field is only part of one
 	// once the dialog holding it is up.

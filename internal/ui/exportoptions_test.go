@@ -560,16 +560,9 @@ func TestExportAs_ToastReportsOmissionOnlyWhenTheBoxWasUnchecked(t *testing.T) {
 }
 
 // TestExportPrompt_ClickingTheMetadataCheckboxLeavesTheKeyboardWorking is
-// the guard the checkbox needs to exist at all. Fyne focuses a widget.Check
-// on the tap that toggles it, and this app dispatches every key from the
-// canvas's *unfocused* handler - so without the Unfocus in the box's own
-// OnChanged, one click would leave the Check holding Return and Escape and
-// strand a prompt that can no longer be committed or cancelled.
-//
-// The Focused() assertion is the one that catches that. The key presses
-// below go through handleKeyEvent directly, which is the path Fyne takes
-// only while nothing is focused - so they document what has to keep working
-// but cannot themselves fail on a focused Check.
+// the guard for returning keyboard ownership after a real checkbox tap.
+// Dispatch through the actual focused object: a Check left holding focus
+// would swallow the card's arrow/Return controls.
 func TestExportPrompt_ClickingTheMetadataCheckboxLeavesTheKeyboardWorking(t *testing.T) {
 	v := newTestViewer(t)
 	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 40, 30, color.White))
@@ -586,17 +579,18 @@ func TestExportPrompt_ClickingTheMetadataCheckboxLeavesTheKeyboardWorking(t *tes
 	if !v.exportOptions.Options().OmitMetadata {
 		t.Fatal("clicking the checkbox should untick it")
 	}
-	if focused := v.win.Canvas().Focused(); focused != nil {
-		t.Errorf("the canvas is focused on %T after the click, want the keyboard handed back to the app", focused)
+	focused := v.win.Canvas().Focused()
+	if focused == nil || focused == metadataCheck(t, v) {
+		t.Fatalf("focus = %T after the click, want the prompt's keyboard owner", focused)
 	}
 
 	// The keys the prompt owns must still reach it: Right moves the format
 	// ring, and Return commits from wherever the selection stands.
-	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+	focused.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	if got := v.exportPrompt.Selected(); got != jpegChoice {
 		t.Errorf("selection = %d after Right, want jpegChoice (%d) - the click swallowed the keyboard", got, jpegChoice)
 	}
-	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	focused.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
 	settleChooser(t, v)
 
 	if v.exportPrompt.Visible() {

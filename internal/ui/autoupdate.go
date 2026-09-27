@@ -284,7 +284,7 @@ func (v *viewer) maybeShowUpdateFailure(rec *autoupdate.ApplyFailure) {
 		rec.Version, rec.Reason, rec.Op, rec.Path, rec.Detail), nil)
 	_ = autoupdate.ClearApplyFailure(v.app)
 
-	dialog.NewCustomConfirm(
+	prompt := dialog.NewCustomConfirm(
 		lang.L("Update could not be installed"),
 		lang.L("Open download page"),
 		lang.L("Close"),
@@ -295,7 +295,10 @@ func (v *viewer) maybeShowUpdateFailure(rec *autoupdate.ApplyFailure) {
 			}
 		},
 		v.win,
-	).Show()
+	)
+	prompt.SetOnClosed(v.syncMenus)
+	prompt.Show()
+	v.syncMenus()
 }
 
 // The scrolled message is sized from the canvas it will be shown on, not

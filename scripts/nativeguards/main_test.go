@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v3"
 )
 
 func TestNativeSuitesSelectPlatformAndDistributionGuards(t *testing.T) {
@@ -145,6 +147,7 @@ func TestHEICCodecExceptionRequiresWindowsCI(t *testing.T) {
 	}{
 		{"windows", "windows", false}, {"store", "windows", false},
 		{"linux", "linux", true}, {"macos", "darwin", true},
+		{"command-admission", "windows", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, err := suiteFor(tc.name, tc.host)
@@ -164,6 +167,115 @@ func TestHEICCodecExceptionRequiresWindowsCI(t *testing.T) {
 
 func fixtureSuite() suite {
 	return suite{name: "fixture", tags: "microsoftstore", packages: []string{"./internal/distribution"}, guards: []guard{{"github.com/frathe/picfetch/internal/distribution", "TestRequired"}}}
+}
+
+func TestCommandAdmissionNativeSuiteRunsFocusedGuards(t *testing.T) {
+	for _, tc := range []struct {
+		host  string
+		tests []string
+	}{
+		{"linux", []string{"TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset"}},
+		{"windows", []string{"TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset"}},
+		{"darwin", []string{"TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset", "TestSetMenuItemModifierMask_ClearsDefaultCommand"}},
+	} {
+		t.Run(tc.host, func(t *testing.T) {
+			s, err := suiteFor("command-admission", tc.host)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var calls [][]string
+			var capture bytes.Buffer
+			execute := func(_ context.Context, args []string, out io.Writer) error {
+				calls = append(calls, slices.Clone(args))
+				if args[len(args)-1] != "./internal/ui" || !slices.Contains(args, "-tags=no_emoji,nodynamic") {
+					t.Fatalf("wrong native UI package/tags: %v", args)
+				}
+				for _, arg := range args {
+					if strings.HasPrefix(arg, "./") && arg != "./internal/ui" {
+						t.Fatalf("focused suite also selected %s", arg)
+					}
+				}
+				if slices.Contains(args, "-list") {
+					_, _ = fmt.Fprintln(out, strings.Join(tc.tests, "\n"))
+					return nil
+				}
+				index := slices.Index(args, "-run")
+				if index < 0 || index+1 >= len(args) {
+					t.Fatalf("focused suite has no test filter: %v", args)
+				}
+				filter, err := regexp.Compile(args[index+1])
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, name := range tc.tests {
+					if !filter.MatchString(name) || filter.MatchString(name+"Extra") || filter.MatchString("Prefix"+name) {
+						t.Errorf("filter must select exactly %s", name)
+					}
+					_, _ = io.WriteString(out, eventsFor(guard{"github.com/frathe/picfetch/internal/ui", name}, "run", "pass"))
+				}
+				if filter.MatchString("TestE2E_Golden") || filter.MatchString("TestHEICNativeQualification") || slices.Contains(args, "-skip") {
+					t.Fatalf("focused suite includes unrelated tests or skip exemptions: %v", args)
+				}
+				return nil
+			}
+			if err := runSuite(context.Background(), s, execute, io.Discard, &capture); err != nil {
+				t.Fatal(err)
+			}
+			if len(calls) != 2 || capture.Len() == 0 {
+				t.Fatalf("want one inventory and execution with retained events: calls=%v capture=%q", calls, capture.String())
+			}
+		})
+	}
+}
+
+func TestCommandAdmissionNativeSuiteRejectsIncompleteEvidence(t *testing.T) {
+	names := []string{"TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset", "TestSetMenuItemModifierMask_ClearsDefaultCommand"}
+	for _, target := range names {
+		for _, problem := range []string{"missing inventory", "missing events", "skipped", "skipped child", "failed"} {
+			t.Run(target+"/"+problem, func(t *testing.T) {
+				s, err := suiteFor("command-admission", "darwin")
+				if err != nil {
+					t.Fatal(err)
+				}
+				executed := false
+				execute := func(_ context.Context, args []string, out io.Writer) error {
+					if slices.Contains(args, "-list") {
+						for _, name := range names {
+							if name != target || problem != "missing inventory" {
+								_, _ = fmt.Fprintln(out, name)
+							}
+						}
+						return nil
+					}
+					executed = true
+					for _, name := range names {
+						g := guard{"github.com/frathe/picfetch/internal/ui", name}
+						stream := eventsFor(g, "run", "pass")
+						if name == target {
+							switch problem {
+							case "missing events":
+								stream = ""
+							case "skipped":
+								stream = eventsFor(g, "run", "skip")
+							case "skipped child":
+								stream += eventsFor(guard{g.Package, g.Test + "/fixture"}, "run", "skip")
+							case "failed":
+								stream = eventsFor(g, "run", "fail")
+							}
+						}
+						_, _ = io.WriteString(out, stream)
+					}
+					return nil
+				}
+				if err := runSuite(context.Background(), s, execute, io.Discard, io.Discard); err == nil {
+					t.Fatal("accepted incomplete native UI evidence")
+				}
+				if problem == "missing inventory" && executed {
+					t.Fatal("executed after the required guard was absent from the inventory")
+				}
+			})
+		}
+	}
 }
 
 func eventsFor(g guard, actions ...string) string {
@@ -349,5 +461,51 @@ func TestNativeCIExecutesAndRetainsEveryDeclaredSuite(t *testing.T) {
 	}
 	if !strings.Contains(text, "runs-on: windows-latest") || strings.Contains(text, "windows-11-arm") {
 		t.Fatal("Windows CI must retain its x64 hosted runner")
+	}
+}
+
+func TestCommandAdmissionCIExecutesAndRetainsFocusedGuards(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/ci.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow struct {
+		Jobs map[string]struct {
+			Steps []struct {
+				Run  string
+				Uses string
+				If   string
+				With map[string]string
+			}
+		}
+	}
+	if err := yaml.Unmarshal(data, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	for _, jobName := range []string{"windows-test", "macos-test"} {
+		t.Run(jobName, func(t *testing.T) {
+			job, ok := workflow.Jobs[jobName]
+			if !ok {
+				t.Fatal("native job missing")
+			}
+			var runs, uploads int
+			for _, step := range job.Steps {
+				if strings.Contains(step.Run, "./scripts/nativeguards -suite command-admission ") {
+					runs++
+					if step.If != "" || strings.Contains(step.Run, "-skip-heic-codecs") || !strings.Contains(step.Run, `-capture "${{ runner.temp }}/native-guards-command-admission.json"`) {
+						t.Errorf("focused qualification is conditional, exempted or lacks its capture: %+v", step)
+					}
+				}
+				if strings.HasPrefix(step.Uses, "actions/upload-artifact@") && step.With["path"] == "${{ runner.temp }}/native-guards-*.json" {
+					uploads++
+					if step.If != "always()" || step.With["if-no-files-found"] != "error" {
+						t.Error("native guard evidence must be retained even after failure")
+					}
+				}
+			}
+			if runs != 1 || uploads != 1 {
+				t.Fatalf("focused native commands=%d, evidence uploads=%d; want one of each", runs, uploads)
+			}
+		})
 	}
 }

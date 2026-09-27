@@ -295,7 +295,18 @@ func TestCopySelectionCancelsBeforeOtherCommands(t *testing.T) {
 		},
 		{
 			name: "settings",
-			act:  func(_ *testing.T, v *viewer) { v.win.MainMenu().Items[0].Items[5].Action() },
+			act: func(t *testing.T, v *viewer) {
+				before := make(map[fyne.Window]bool)
+				for _, window := range v.app.Driver().AllWindows() {
+					before[window] = true
+				}
+				v.win.MainMenu().Items[0].Items[5].Action()
+				for _, window := range v.app.Driver().AllWindows() {
+					if !before[window] {
+						t.Cleanup(window.Close)
+					}
+				}
+			},
 			assert: func(t *testing.T, v *viewer) {
 				if !v.settingsWin.Open() {
 					t.Fatal("Settings did not open")

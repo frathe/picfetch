@@ -172,6 +172,7 @@ func TestCompareOrientation_UsesCanonicalEXIFPixelsAndIgnoresViewerRotation(t *t
 	reference := storage.NewFileURI(uitest.WriteTempFile(t, "b-reference.png",
 		uitest.EncodePNG(t, 18, 18, color.White)))
 	v := prepareRealComparison(t, oriented, reference)
+	v.grid.Close()
 	if got := v.FileAt(v.CurrentIndex()).Name(); got != "a-oriented.jpg" {
 		t.Fatalf("setup current file = %q, want oriented source", got)
 	}
@@ -183,6 +184,8 @@ func TestCompareOrientation_UsesCanonicalEXIFPixelsAndIgnoresViewerRotation(t *t
 		t.Fatalf("setup viewer-only rotated bounds = %v, want %v", got, want)
 	}
 	v.imgCache.Purge()
+	v.showWindowGrid()
+	v.grid.SelectAll()
 	observed := observeRealCompareLoads(v)
 
 	fireCompareShortcut(v)

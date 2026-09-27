@@ -17,9 +17,17 @@ import (
 	"github.com/frathe/picfetch/internal/ui/display"
 )
 
-// ShowImage is the existing admission chokepoint for navigation and image actions.
+// ShowImage admits a fresh image selection, including Grid's Host entry.
 func (v *viewer) ShowImage(i int) {
-	if v.comparisonActive() || len(v.state.files) == 0 || !v.yieldCopySelection() {
+	v.showImage(i, intentAction)
+}
+
+// loadImage continues an admitted collection change or presentation lifetime.
+// A prompt opened meanwhile must not strand its collection/display handoff.
+func (v *viewer) loadImage(i int) { v.showImage(i, intentContinuation) }
+
+func (v *viewer) showImage(i int, intent commandIntent) {
+	if _, ok := v.admitCommand(commandRequest{command: commandSelectImage, intent: intent}); !ok {
 		return
 	}
 	v.explorerImageOpened()

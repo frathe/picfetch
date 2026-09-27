@@ -7,6 +7,9 @@ package ui
 // broken file, via attemptLoad's existing retry chain, so no separate
 // existence check is needed here.
 func (v *viewer) restoreSession() {
+	if _, ok := v.admitCommand(commandRequest{command: commandRestore}); !ok {
+		return
+	}
 	files := v.savedSession
 	v.savedSession = nil
 	v.restoreLink.Hide()

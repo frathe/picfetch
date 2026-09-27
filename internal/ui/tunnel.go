@@ -15,6 +15,8 @@ func (v *viewer) tunnelSources() []fyne.URI {
 	return sources
 }
 
+// openSpiral serves the manual's owned navigation without applying the
+// main window's admission or yielding its active region selection.
 func (v *viewer) openSpiral() {
 	if v.stopping {
 		return
@@ -27,7 +29,7 @@ func (v *viewer) openSpiral() {
 }
 
 func (v *viewer) openSpiralForGesture(clockwise bool) {
-	if v.stopping {
+	if _, ok := v.admitCommand(commandRequest{command: commandSpiral}); !ok {
 		return
 	}
 	var sources []fyne.URI

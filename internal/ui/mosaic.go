@@ -75,9 +75,6 @@ func (v *viewer) mosaicSources() ([]fyne.URI, error) {
 }
 
 func (v *viewer) canMosaic() bool {
-	if v.comparisonActive() {
-		return false
-	}
 	if v.grid.Visible() {
 		return len(v.grid.ResultIndexes()) > 0
 	}
@@ -88,14 +85,11 @@ func (v *viewer) canMosaic() bool {
 // raised before resolving anything so its original command-entry snapshot can
 // never be silently retargeted.
 func (v *viewer) showMosaic() {
-	if v.comparisonActive() || !v.yieldCopySelection() {
+	if _, ok := v.admitCommand(commandRequest{command: commandMosaic}); !ok {
 		return
 	}
 	if v.mosaicWin.Opened() {
 		v.mosaicWin.Show(mosaicwin.Snapshot{})
-		return
-	}
-	if !v.canMosaic() {
 		return
 	}
 	sources, err := v.mosaicSources()

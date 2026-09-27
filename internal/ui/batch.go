@@ -34,10 +34,7 @@ import (
 // first, would hand their next Right/Return to the card they can't see. See
 // promptExport (export.go) for the same guard in the other direction.
 func (v *viewer) requestDelete() {
-	if v.comparisonActive() {
-		return
-	}
-	if v.exportPrompt.Visible() {
+	if _, ok := v.admitCommand(commandRequest{command: commandTrash}); !ok {
 		return
 	}
 
@@ -55,6 +52,9 @@ func (v *viewer) requestDelete() {
 // the whole point of a batch is working through a large set, and closing the
 // overview after every one would throw away the user's place in it.
 func (v *viewer) deleteGridSelection() {
+	if _, ok := v.admitCommand(commandRequest{command: commandTrash}); !ok {
+		return
+	}
 	targets := v.grid.Targets()
 	if len(targets) == 0 {
 		return
@@ -77,14 +77,15 @@ func (v *viewer) deleteGridSelection() {
 // data otherwise. Different things share one shortcut because they are the
 // same intent applied to the subject the user is currently working with.
 func (v *viewer) copySelection() {
-	if v.comparisonActive() {
+	decision, ok := v.admitCommand(commandRequest{command: commandCopy})
+	if !ok {
 		return
 	}
-	if v.regionCopy.State().Active {
+	if decision.target == targetRegion {
 		v.regionCopy.HandleKey(fyne.KeyReturn)
 		return
 	}
-	if v.grid.Visible() {
+	if decision.target == targetGridFiles {
 		v.copyGridSelection()
 		return
 	}
@@ -101,6 +102,9 @@ func (v *viewer) copySelection() {
 // I/O, and a test needs one thing to wait on rather than polling widgets the
 // goroutine may still be writing.
 func (v *viewer) copyGridSelection() {
+	if _, ok := v.admitCommand(commandRequest{command: commandCopyFiles}); !ok {
+		return
+	}
 	targets := v.grid.Targets()
 
 	paths := make([]string, 0, len(targets))
@@ -119,7 +123,7 @@ func (v *viewer) copyGridSelection() {
 	}
 	v.clipboardWork.workers.Go(func() {
 		if !token.current() {
-			done()
+			v.completeClipboardCopy(token, done, nil)
 			return
 		}
 		err := clipboard.CopyFiles(paths)
@@ -151,10 +155,7 @@ func (v *viewer) reportFileCopyError(err error) {
 // selection there would make it appear out of nowhere the next time the
 // overview opened.
 func (v *viewer) selectAllInGrid() {
-	if v.comparisonActive() {
-		return
-	}
-	if !v.grid.Visible() {
+	if _, ok := v.admitCommand(commandRequest{command: commandSelectAll}); !ok {
 		return
 	}
 

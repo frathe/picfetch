@@ -14,11 +14,9 @@ import (
 // selection are the ChoicePanel underneath; the card adds the scrim, the
 // message above them, and its own visibility.
 //
-// The card never gives that panel Fyne's keyboard focus, unlike a dialog
-// would: this app dispatches every key from the canvas's unfocused handler
-// (modified key combos already have to bypass widget focus - see the app's
-// wireOpenShortcuts comment), so the app's dispatcher hands the card the keys
-// through HandleKey instead while it is up.
+// The host gives the panel keyboard focus while the card is visible. It
+// forwards keys through HandleKey so the extra rows and buttons share one
+// owner; Tab cannot leave a child control swallowing Escape or Return.
 type ChoiceCard struct {
 	// panel owns the buttons, their focus rings, the selected index and the
 	// key rules over them. The card keeps no copy of any of that, so a click
@@ -86,6 +84,7 @@ func NewChoiceCardWithRows(repaint func(), rows ExtraRows, choices ...Choice) *C
 	c := &ChoiceCard{repaint: repaint, rows: rows}
 
 	c.panel = NewChoicePanel(repaint, choices...)
+	c.panel.cardKey = c.HandleKey
 	// The card is what a confirmed or cancelled prompt has to take off
 	// screen, and hiding it is all there is to that - see the panel's
 	// SetOnDismiss for the ordering this buys.
@@ -127,6 +126,14 @@ func (c *ChoiceCard) Overlay() fyne.CanvasObject {
 // Visible reports whether the card is up.
 func (c *ChoiceCard) Visible() bool {
 	return c.visible
+}
+
+// Focus gives the visible card its single keyboard owner. The host restores
+// ordinary canvas focus when the card reports its dismissal.
+func (c *ChoiceCard) Focus(target fyne.Canvas) {
+	if c.visible {
+		target.Focus(c.panel)
+	}
 }
 
 // Selected is the index Left/Right (or Select) last moved the ring to - a
@@ -211,12 +218,10 @@ func (c *ChoiceCard) Confirm() {
 // is competing for them - and a card built without rows leaves both as inert
 // as they have always been.
 //
-// The app's key dispatcher calls this rather than Fyne delivering it to the
-// panel, because nothing on this card ever holds widget focus - see the type
-// comment.
+// Both the focused panel and the app's unfocused dispatcher use this path.
 func (c *ChoiceCard) HandleKey(ev *fyne.KeyEvent) {
 	if c.rows == nil {
-		c.panel.TypedKey(ev)
+		c.panel.handleKey(ev)
 		return
 	}
 
@@ -228,7 +233,7 @@ func (c *ChoiceCard) HandleKey(ev *fyne.KeyEvent) {
 	case fyne.KeyEscape:
 		// Cancelling is the prompt's, never a row's: Escape backs out of the
 		// whole card from whichever stop the selection is on.
-		c.panel.TypedKey(ev)
+		c.panel.handleKey(ev)
 	case fyne.KeyReturn, fyne.KeyEnter:
 		// Offered to the focused row first, so Return on a highlighted
 		// checkbox ticks it rather than committing the prompt out from under
@@ -239,13 +244,13 @@ func (c *ChoiceCard) HandleKey(ev *fyne.KeyEvent) {
 		if c.rowsHoldSelection() && c.rows.HandleKey(ev) {
 			return
 		}
-		c.panel.TypedKey(ev)
+		c.panel.handleKey(ev)
 	default:
 		if c.rowsHoldSelection() {
 			c.rows.HandleKey(ev)
 			return
 		}
-		c.panel.TypedKey(ev)
+		c.panel.handleKey(ev)
 	}
 }
 

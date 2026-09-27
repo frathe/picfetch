@@ -44,28 +44,17 @@ const (
 // its message and its format buttons, and the widgets.ExtraRows
 // implementation behind it.
 //
-// The metadata row is a real widget.Check; the size rungs are tappable
-// labels with hand-drawn marks. Both Fyne widgets grab canvas focus on every
-// tap (focusIfNotMobile, in Fyne's own check.go and radio_item.go), and this
-// app dispatches every key from the canvas's *unfocused* handler - so a
-// focused control left holding the keyboard would swallow Return and Escape
-// with the prompt still on screen and no way to commit or cancel it. What
-// separates the two is whether there is anywhere to hand the keyboard back
-// from: every effective tap on a Check toggles it, so OnChanged fires on all
-// of them and Unfocus there closes the hole (grid.Close does the same thing
-// after a tap, one surface deeper). A radio item focuses on every tap but
-// only fires OnChanged when the value actually changes, so tapping the
-// already-selected rung would focus with nothing to hook - which is why the
-// rungs draw their own selection instead.
+// The metadata checkbox takes Fyne focus on a tap, then returns it to the
+// card's keyboard owner through OnChanged. The size rungs use tappable labels
+// with hand-drawn marks: unlike radio items, they never leave a focused child
+// behind when an already-selected value is clicked.
 type exportOptions struct {
 	// repaint forces the window to redraw after a selection change, the way
 	// every other overlay in this app has to - see viewer.ForceRepaint.
 	repaint func()
 
-	// unfocus releases Fyne's canvas focus - viewer.Unfocus. Called whenever
-	// the checkbox changes, because a tap on it focuses the widget first and
-	// the app's key dispatcher only runs while nothing is focused.
-	unfocus func()
+	// restoreFocus returns the keyboard from a clicked checkbox to the card.
+	restoreFocus func()
 
 	content *fyne.Container
 
@@ -102,8 +91,8 @@ type exportOptions struct {
 
 // newExportOptions builds the prompt's extra rows, unfocused and at their
 // defaults.
-func newExportOptions(repaint, unfocus func()) *exportOptions {
-	o := &exportOptions{repaint: repaint, unfocus: unfocus, focus: -1}
+func newExportOptions(repaint, restoreFocus func()) *exportOptions {
+	o := &exportOptions{repaint: repaint, restoreFocus: restoreFocus, focus: -1}
 
 	o.sizeRing = widgets.NewFocusRing(widgets.ButtonRingWidth, widgets.RingRadius)
 	o.sizeRing.Hide()
@@ -253,14 +242,11 @@ func (o *exportOptions) setMetadataIncluded(included bool) {
 // was ticked - the keyboard through SetChecked, or a click straight on the
 // widget.
 //
-// The Unfocus is what makes a real widget.Check usable inside this prompt:
-// Fyne focuses the box on the tap that toggles it, and the app dispatches
-// every key from the canvas's *unfocused* handler, so leaving it focused
-// would hand it Return and Escape - which it ignores - and strand a prompt
-// the user can no longer commit or cancel from the keyboard.
+// A tapped checkbox must return focus to the card, whose keyboard handler
+// owns Return and Escape as well as navigation between rows.
 func (o *exportOptions) metadataChanged(_ bool) {
-	if o.unfocus != nil {
-		o.unfocus()
+	if o.restoreFocus != nil {
+		o.restoreFocus()
 	}
 	o.redraw()
 }

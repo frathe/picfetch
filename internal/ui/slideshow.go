@@ -18,6 +18,9 @@ import (
 // pair: the grid is already closed on the way out, so closing it again
 // costs nothing.
 func (v *viewer) togglePictureFrameMode() {
+	if _, ok := v.admitCommand(commandRequest{command: commandPictureFrame, intent: intentToggle}); !ok {
+		return
+	}
 	if v.searchActive() {
 		v.visualsearch.Exit()
 	}
@@ -44,6 +47,9 @@ func (v *viewer) togglePictureFrameMode() {
 // as M and S do for their own standing preferences: it just pre-arms the
 // order for whenever picture-frame mode next runs.
 func (v *viewer) toggleSlideshowShuffle() {
+	if _, ok := v.admitCommand(commandRequest{command: commandShuffle}); !ok {
+		return
+	}
 	v.SetSlideShuffle(!v.slides.Shuffle())
 }
 

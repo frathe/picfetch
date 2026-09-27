@@ -20,7 +20,7 @@ type locationInput struct {
 }
 
 func (v *viewer) showLocationMap() {
-	if v.stopping || v.comparisonActive() || v.scanOp.active || v.sortOp.active || !v.yieldCopySelection() {
+	if _, ok := v.admitCommand(commandRequest{command: commandLocationMap}); !ok {
 		return
 	}
 	if v.locationMap.Active() {
@@ -44,6 +44,10 @@ func (v *viewer) showLocationMap() {
 	v.beginLocationTrial()
 	v.locationMap.Preparing()
 	v.locationMap.ValidateSources(func(changed bool) {
+		if _, ok := v.admitCommand(commandRequest{command: commandLocationMap, route: routeDelivery}); !ok {
+			v.closeLocationMap()
+			return
+		}
 		if changed {
 			v.grid.InvalidateContent()
 		}
@@ -72,6 +76,13 @@ func (v *viewer) prepareLocationMap() {
 }
 
 func (v *viewer) beginLocationMap() {
+	// Committed-source rebuilds retain their reconciliation ownership.
+	if !v.locationInput.rebuilding {
+		if _, ok := v.admitCommand(commandRequest{command: commandLocationMap, route: routeDelivery}); !ok {
+			v.closeLocationMap()
+			return
+		}
+	}
 	v.scanLocationTrial()
 	v.locationMap.SetFavoritesRoot(v.favorites.Dir())
 	identities := fileidentity.NewIndex(v.FileCount(), func(i int) string { return v.FileAt(i).Path() })
@@ -198,7 +209,7 @@ func (v *viewer) returnLocationMap() {
 	v.locationMap.ValidateSources(func(changed bool) {
 		// Keep the browsing visit visible until validation completes. It can
 		// still start Copy Selection while the worker is checking sources.
-		ready := v.yieldCopySelection()
+		_, ready := v.admitCommand(commandRequest{command: commandLocationMap, route: routeDelivery})
 		if ready {
 			v.locationInput.cluster = false
 			v.locationInput.image = false

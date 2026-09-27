@@ -12,6 +12,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -137,6 +138,14 @@ func TestHypnoTunnel(t *testing.T) {
 		if entry == nil {
 			t.Fatal("manual search is absent from the window")
 		}
+		popup := widget.NewModalPopUp(widget.NewLabel("owned prompt"), v.win.Canvas())
+		popup.Show()
+		defer popup.Hide()
+		modalOverlay := v.win.Canvas().Overlays().Top()
+		v.openSpiralForGesture(true)
+		if v.spiral.Open() {
+			t.Fatal("fresh Spiral command bypassed the main-window modal")
+		}
 		entry.SetText("please hypnotize me")
 		entry.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
 		if !v.spiral.Open() {
@@ -150,6 +159,10 @@ func TestHypnoTunnel(t *testing.T) {
 		if v.help.ManualOpen() {
 			t.Fatal("manual did not close before testing Spiral's F1 binding")
 		}
+		v.help.ShowManual()
+		if v.help.ManualOpen() {
+			t.Fatal("fresh manual command bypassed the main-window modal")
+		}
 		for _, w := range testApp.Driver().AllWindows() {
 			if w != nil && w.Title() == "Hypno Spiral" {
 				w.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyF1})
@@ -157,6 +170,9 @@ func TestHypnoTunnel(t *testing.T) {
 		}
 		if !v.help.ManualOpen() {
 			t.Fatal("F1 in Spiral did not open the viewer's manual")
+		}
+		if v.win.Canvas().Overlays().Top() != modalOverlay {
+			t.Fatal("secondary-window navigation dismissed the main-window modal")
 		}
 		reads := v.dupes.VisibilityReads()
 		v.spiralGesture(true)

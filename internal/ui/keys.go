@@ -185,7 +185,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			}
 			return
 		case fyne.KeyS:
-			if (!v.explorerMapActive() || v.explorerCanRetry()) && !(v.grid.Visible() && v.grid.Searching()) {
+			if !(v.grid.Visible() && v.grid.Searching()) {
 				v.showExplorer()
 			}
 			return
@@ -199,6 +199,12 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	// still closes while a selection is pending (it is "go to the image
 	// view", not a toggle). Every other key does nothing.
 	if v.grid.Visible() {
+		if ev.Name == fyne.KeyD && !v.grid.Searching() {
+			request, _ := v.keyCommand(ev.Name)
+			if _, ok := v.admitCommand(request); !ok {
+				return
+			}
+		}
 		if v.explorer.HasCohort() && ev.Name == fyne.KeyV && !v.grid.Searching() {
 			v.LeaveSimilarityMap()
 			return
@@ -222,7 +228,12 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	if v.regionCopy.HandleKey(ev.Name) {
 		return
 	}
-	if v.regionCopy.State().Active && !copySelectionKeepsKey(ev.Name) {
+	request, recognized := v.keyCommand(ev.Name)
+	if recognized && !v.locationMapVisible() && !v.explorerMapActive() {
+		if _, ok := v.admitCommand(request); !ok {
+			return
+		}
+	} else if v.regionCopy.State().Active && !copySelectionKeepsKey(ev.Name) {
 		if !v.yieldCopySelection() {
 			return
 		}
@@ -295,9 +306,6 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		if v.keyModifiers()&fyne.KeyModifierShift != 0 {
 			v.toggleSlideshowShuffle()
 		} else {
-			if v.dupes.Inspecting() || v.explorer.HasCohort() {
-				return
-			}
 			v.togglePictureFrameMode()
 		}
 
@@ -312,9 +320,6 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// rather than inside either package: neither needs to know the
 		// other exists. G from inspect reopens the variants grid, same
 		// as Escape, rather than the hide-duplicates overview.
-		if v.slides.Active() {
-			return
-		}
 		if v.dupes.Inspecting() {
 			v.reopenVariantGrid()
 			return
@@ -322,9 +327,6 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		v.grid.Toggle()
 		return
 	case fyne.KeyD:
-		if v.explorer.HasCohort() {
-			return
-		}
 		// Same place as G: hide-dupes is useful with one file (no-op) or
 		// while a decode is in flight, and must not wait for the
 		// navigation-length guard below.
@@ -337,9 +339,6 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// cannot jump off a hidden extra.
 		if v.keyModifiers()&fyne.KeyModifierShift != 0 {
 			v.browseCurrentDuplicates()
-			return
-		}
-		if v.dupes.Inspecting() {
 			return
 		}
 		v.toggleHideDuplicates()
@@ -355,8 +354,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// Handled before the navigation guard below, same as I - the EXIF panel
 		// itself no-ops with nothing loaded yet. The explicit sync matches
 		// showWindowExif's: the panel fires an observer on close, none on open.
-		v.exif.Show()
-		v.syncMenus()
+		v.showWindowExif()
 
 		return
 	case fyne.Key0:
@@ -444,4 +442,53 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	if v.slides.Active() {
 		v.slides.Kick()
 	}
+}
+
+// keyCommand translates application keys to intent; local Grid/map/comparison
+// interpretation and Escape remain with their owning dispatchers above.
+func (v *viewer) keyCommand(key fyne.KeyName) (commandRequest, bool) {
+	request := commandRequest{route: routeKey}
+	shift := v.keyModifiers()&fyne.KeyModifierShift != 0
+	switch key {
+	case fyne.KeyF1:
+		request.command = commandHelp
+	case fyne.KeyM:
+		request.command = commandMerge
+	case fyne.KeyV:
+		request.command = commandViewer
+	case fyne.KeyP:
+		request.command, request.intent = commandPictureFrame, intentToggle
+		if shift {
+			request.command = commandShuffle
+		}
+	case fyne.KeyG:
+		request.command, request.intent = commandGrid, intentToggle
+	case fyne.KeyD:
+		request.command = commandHideDuplicates
+		if shift {
+			request.command, request.intent = commandBrowseDuplicates, intentToggle
+		}
+	case fyne.KeyI:
+		request.command = commandInfo
+	case fyne.KeyE:
+		request.command = commandExif
+	case fyne.Key0:
+		request.command = commandReset
+	case fyne.Key1, fyne.KeyPlus, fyne.KeyEqual, fyne.KeyMinus:
+		request.command = commandZoom
+	case fyne.KeyR:
+		request.command = commandRotate
+	case fyne.KeyS:
+		request.command, request.intent = commandSort, intentToggle
+	case fyne.KeyUp, fyne.KeyDown:
+		request.command = commandNavigate
+		if v.slides.Active() {
+			request.command = commandInterval
+		}
+	case fyne.KeyLeft, fyne.KeyRight, fyne.KeyHome, fyne.KeyEnd:
+		request.command = commandNavigate
+	default:
+		return commandRequest{}, false
+	}
+	return request, true
 }

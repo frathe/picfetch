@@ -104,11 +104,13 @@ func (f *Feature) showConfirm(c confirmation) dialog.Dialog {
 	// confirm.SetOnClosed(c.onClosed) would panic on Hide the first time a
 	// caller leaves onClosed unset, so the nil check has to live here.
 	confirm.SetOnClosed(func() {
+		f.dialogChanged()
 		if c.onClosed != nil {
 			c.onClosed()
 		}
 	})
 	confirm.Show()
+	f.dialogChanged()
 	// After Show, for the reason ShowManage focuses its own panel after Show:
 	// Fyne can only focus an object that is already part of an overlay it can
 	// walk to.

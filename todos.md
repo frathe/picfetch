@@ -8,7 +8,36 @@
 
 #### Bugfix
 
+Menus and keyboard shortcuts now respect what you’re doing. When a dialog is
+open, commands won’t change the photo behind it, and Copy and Select All work
+on the text you’re editing. Actions that could interrupt copying a selected
+part of a photo are temporarily disabled. Choosing an unavailable action also
+leaves your selection intact.
+
+- Keep Export/Delete keyboard focus on the prompt through Tab and checkbox
+  clicks, and release it on dismissal. Windows native qualification found
+  Escape swallowed by Export's checkbox or Delete's hidden panel; focused
+  regressions and native repeats verify the repair. See the
+  [Windows evidence](docs/command-admission-windows-qualification-2026-09-27.md).
+
+- Escape/Close Files now leave ordinary native maximization before restoring
+  the compact welcome window. Preserve fixed-size and Grid-owned restore
+  behavior. A native-boundary regression and repeated Linux desktop checks
+  cover the canvas/native size mismatch; fresh `make verify` and changed-file
+  GoLand inspections passed.
+
 #### Internal
+
+- MA-028 shared command admission is complete across menus, shortcuts, keys,
+  direct actions and open delivery. All ten tickets are resolved. Linux,
+  Windows and macOS native qualification passed, with physical editor-input
+  provenance retained in the platform records. The clean PR 66 acceptance
+  round at `e2d3b30` passed all 17 checks, fresh code/security reviews and
+  inspected Qodana SARIF; source tests and GoLand evidence are retained at
+  their recorded revisions. See the [completed ticket](docs/ma-028/issues/10-native-qualification.md),
+  [archived plan](finished_refactorings/2026-09-27-ma-028-command-admission.md)
+  and [review evidence](docs/command-admission-pr-66-review-2026-09-27.md).
+  PR 66 records fresh gates for the final documentation-only closure head.
 
 - Stabilize the similarity protocol race test by dispatching its helper before
   the test runner starts and bounding its lifetime from the parent. Preserve
@@ -17,11 +46,12 @@
 
 ## Open
 
-- **Application architecture:** the [cross-PR assessment](needs_refactoring.md)
-  recommends shared command policy (MA-028), explicit browsing ownership and
-  collection transitions (MA-029/030), followed by Favorite ownership, a bounded
-  worker-lifetime pilot and launch policy (MA-031 through MA-033). Proposals only;
-  keep feature state local and preserve explicit composition. Start with MA-028.
+- **Application architecture:** MA-028's shared command policy is complete.
+  The [remaining assessment proposals](needs_refactoring.md) are explicit
+  browsing ownership and collection transitions (MA-029/030), followed by
+  Favorite ownership, a bounded worker-lifetime pilot and launch policy
+  (MA-031 through MA-033). These remain proposals, not accepted implementation
+  work. Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with
   independently verified pan/zoom transforms before enabling formal latency

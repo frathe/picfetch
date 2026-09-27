@@ -34,7 +34,7 @@ type fakeHost struct {
 
 	refreshMenus int
 
-	// blockCommands makes RunCommand refuse, the way the real host does
+	// blockCommands makes AdmitFavorite refuse, the way the real host does
 	// while a copy is pending; runCommands counts arrivals either way.
 	blockCommands bool
 	runCommands   int
@@ -52,12 +52,9 @@ func (h *fakeHost) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 	h.calls = append(h.calls, "sync")
 }
 func (h *fakeHost) RefreshMenus() { h.refreshMenus++ }
-func (h *fakeHost) RunCommand(fn func()) {
+func (h *fakeHost) AdmitFavorite(_ Command) bool {
 	h.runCommands++
-	if h.blockCommands {
-		return
-	}
-	fn()
+	return !h.blockCommands
 }
 
 func newFeature(t *testing.T, host *fakeHost) *Feature {
@@ -73,11 +70,11 @@ func newFeature(t *testing.T, host *fakeHost) *Feature {
 	return f
 }
 
-// Every Favorites menu action goes through Host.RunCommand, so the host's
+// Every Favorites menu action goes through Host.AdmitFavorite, so the host's
 // command-entry rules (yielding Copy Selection) cover this menu without
 // internal/ui wrapping its items from the outside. A refused command runs
 // nothing — not even the preview sync openFavorite fires before opening.
-func TestMenuActionsRunThroughHostRunCommand(t *testing.T) {
+func TestMenuActionsRunThroughHostAdmission(t *testing.T) {
 	host := &fakeHost{files: []fyne.URI{storage.NewFileURI("/tmp/a.jpg")}}
 	f := newFeature(t, host)
 	f.writeFavorite("trip")
@@ -95,7 +92,7 @@ func TestMenuActionsRunThroughHostRunCommand(t *testing.T) {
 	favoriteItem.Action()
 
 	if host.runCommands != before+3 {
-		t.Errorf("RunCommand arrivals = %d, want %d", host.runCommands, before+3)
+		t.Errorf("AdmitFavorite arrivals = %d, want %d", host.runCommands, before+3)
 	}
 	if f.addDialog != nil || f.manageDialog != nil {
 		t.Error("a refused command still opened its dialog")
@@ -406,14 +403,14 @@ func TestOpenUsesCurrentSortedShortcutSlots(t *testing.T) {
 	}
 }
 
-func TestSetHasFilesTogglesAddItem(t *testing.T) {
+func TestSetAvailabilityTogglesAddItem(t *testing.T) {
 	f := newFeature(t, &fakeHost{})
 
-	f.SetHasFiles(true)
+	f.SetAvailability(Availability{Open: true, Add: true, Manage: true})
 	if f.addItem.Disabled {
 		t.Error("Add should be enabled with files")
 	}
-	f.SetHasFiles(false)
+	f.SetAvailability(Availability{Open: true, Manage: true})
 	if !f.addItem.Disabled {
 		t.Error("Add should be disabled without files")
 	}
@@ -422,13 +419,13 @@ func TestSetHasFilesTogglesAddItem(t *testing.T) {
 func TestCompareMenuState_DisablesStaticAndRefreshedFavoriteCommands(t *testing.T) {
 	host := &fakeHost{files: []fyne.URI{storage.NewFileURI("/photos/a.jpg")}}
 	f := newFeature(t, host)
-	f.SetHasFiles(true)
+	f.SetAvailability(Availability{Open: true, Add: true, Manage: true})
 	if err := favstore.Save(f.dir, "Trip", host.files); err != nil {
 		t.Fatal(err)
 	}
 	f.SetDir(f.dir)
 
-	f.SetCommandsEnabled(false)
+	f.SetAvailability(Availability{})
 	for _, item := range f.menu.Items {
 		if !item.IsSeparator && !item.Disabled {
 			t.Errorf("%q stayed enabled during comparison", item.Label)
@@ -453,7 +450,7 @@ func TestCompareMenuState_DisablesStaticAndRefreshedFavoriteCommands(t *testing.
 		}
 	}
 
-	f.SetCommandsEnabled(true)
+	f.SetAvailability(Availability{Open: true, Add: true, Manage: true})
 	for _, item := range f.menu.Items {
 		if !item.IsSeparator && item.Disabled {
 			t.Errorf("%q stayed disabled after comparison", item.Label)
@@ -468,7 +465,7 @@ func TestCompareMenuState_DisablesStaticAndRefreshedFavoriteCommands(t *testing.
 	}
 }
 
-// TestSetHasFilesDoesNotRefreshMenus pins the deliberate omission: SetHasFiles
+// TestSetAvailabilityDoesNotRefreshMenus pins the deliberate omission: SetAvailability
 // only recomputes the feature's item availability and leaves publishing the
 // bar to its one caller, internal/ui's syncMenus, which folds it on the very
 // next line. If
@@ -476,16 +473,16 @@ func TestCompareMenuState_DisablesStaticAndRefreshedFavoriteCommands(t *testing.
 // on top of it and, on Darwin, leave a duplicate "Window" menu and
 // Command-prefixed accelerators on the unmodified letters until the next
 // unrelated sync.
-func TestSetHasFilesDoesNotRefreshMenus(t *testing.T) {
+func TestSetAvailabilityDoesNotRefreshMenus(t *testing.T) {
 	host := &fakeHost{}
 	f := newFeature(t, host)
 	host.refreshMenus = 0
 
-	f.SetHasFiles(true)
-	f.SetHasFiles(false)
+	f.SetAvailability(Availability{Open: true, Add: true, Manage: true})
+	f.SetAvailability(Availability{Open: true, Manage: true})
 
 	if host.refreshMenus != 0 {
-		t.Errorf("RefreshMenus called %d times by SetHasFiles, want 0", host.refreshMenus)
+		t.Errorf("RefreshMenus called %d times by SetAvailability, want 0", host.refreshMenus)
 	}
 }
 

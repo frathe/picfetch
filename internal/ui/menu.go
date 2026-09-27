@@ -6,7 +6,7 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 
-	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/ui/favorites"
 	"github.com/frathe/picfetch/internal/ui/menus"
 )
 
@@ -17,13 +17,13 @@ import (
 // Window items themselves, and the whole Checked/Disabled matrix over
 // them, live in internal/ui/menus; everything those items do stays here.
 func buildMainMenu(view *viewer) *fyne.MainMenu {
-	view.menus = menus.New(view.yieldingMenuCallbacks(menus.Callbacks{
+	view.menus = menus.New(menus.Callbacks{
 		FindMoreLikeThis: view.findMoreLikeThis,
 		OpenFiles:        func() { view.openFileDialog() },
 		SaveRotation:     func() { view.saveRotation() },
 		PromptExport:     func() { view.promptExport() },
 		CloseFiles:       func() { view.closeFiles() },
-		ShowSettings:     func() { view.settingsWin.Show(view.settingsState(), view.storeManaged) },
+		ShowSettings:     view.showSettings,
 
 		ShowViewer:       view.showViewer,
 		ShowExplorer:     view.showExplorer,
@@ -49,7 +49,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 		Reveal:               view.revealActionsFile,
 		SetWallpaper:         view.wallpaperActionsImage,
 		Trash:                view.trashActionsImage,
-	}), view.SortMode())
+	}, view.SortMode())
 
 	view.help.SetOnManualClosed(view.syncMenus)
 	view.help.SetOnManualOpened(view.syncMenus)
@@ -65,182 +65,63 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 	return fyne.NewMainMenu(view.menus.FileMenu(), view.favorites.Menu(), view.menus.ActionsMenu(), view.menus.WindowMenu(), view.help.Menu())
 }
 
-// yieldingMenuCallbacks is the menu-bar yield: every PicFetch command the
-// bar can start cancels idle Copy Selection (or blocks while a copy is
-// pending), except zoom, Copy Selection itself, and Copy image. Comparison
-// adds a second gate: ordinary commands stop here, while Help still opens and
-// Open reaches its refusal toast. Copy image routes through copySelection so
-// the native Cmd/Ctrl+C menu accelerator can copy an active image-region
-// selection before falling back to the grid or displayed image.
-func (v *viewer) yieldingMenuCallbacks(c menus.Callbacks) menus.Callbacks {
-	c.OpenFiles = v.yieldThenAllowedDuringComparison(c.OpenFiles)
-	c.ShowHelp = v.yieldThenAllowedDuringComparison(c.ShowHelp)
-	c.SetSort = v.yieldThenMode(c.SetSort)
-	for _, callback := range []*func(){&c.ShowViewer, &c.ShowExplorer, &c.ShowLocationMap, &c.Mosaic, &c.CloseFiles, &c.ShowSettings} {
-		*callback = v.yieldThenMapAllowed(*callback)
-	}
-
-	for _, callback := range []*func(){
-		&c.SaveRotation,
-		&c.PromptExport,
-		&c.ShowExif,
-		&c.ShowGrid,
-		&c.ShowPictureFrame,
-		&c.ToggleHideDuplicates,
-		&c.ShowVariant,
-		&c.Compare,
-		&c.FindMoreLikeThis,
-		&c.Rotate,
-		&c.ToggleMergeMode,
-		&c.ToggleInfoOverlay,
-		&c.CopyPath,
-		&c.Reveal,
-		&c.SetWallpaper,
-		&c.Trash,
-	} {
-		*callback = v.yieldThen(*callback)
-	}
-	return c
-}
-
-func (v *viewer) yieldThen(fn func()) func() {
-	return v.yieldThenMapAllowed(func() {
-		if !v.explorerMapActive() && !v.locationMapVisible() && fn != nil {
-			fn()
-		}
-	})
-}
-func (v *viewer) yieldThenMapAllowed(fn func()) func() {
-	if fn == nil {
-		return nil
-	}
-	return func() {
-		if !v.comparisonActive() && v.yieldCopySelection() {
-			fn()
-		}
-	}
-}
-
-func (v *viewer) yieldThenAllowedDuringComparison(fn func()) func() {
-	if fn == nil {
-		return nil
-	}
-	return func() {
-		if !v.yieldCopySelection() {
-			return
-		}
-		fn()
-	}
-}
-
-func (v *viewer) yieldThenMode(fn func(filesort.Mode)) func(filesort.Mode) {
-	if fn == nil {
-		return nil
-	}
-	return func(m filesort.Mode) {
-		if v.comparisonActive() || v.explorerMapActive() {
-			return
-		}
-		if !v.yieldCopySelection() {
-			return
-		}
-		fn(m)
-	}
-}
-
-// RunCommand is favorites.Host's command entry: the same comparison gate and
-// Copy Selection yield every ordinary menus.Callbacks field gets from
-// yieldingMenuCallbacks, supplied to the favorites package as a runner so its
-// menu items are covered from the inside instead of wrapped item-by-item out
-// here.
-func (v *viewer) RunCommand(fn func()) {
-	if v.comparisonActive() {
-		return
-	}
-	if !v.yieldCopySelection() {
-		return
-	}
-	fn()
-}
-
-// menuState is the one place the snapshot internal/ui/menus reads is
-// built: every condition its enablement matrix depends on, gathered from
-// whichever feature owns it. One function rather than a Host interface
-// the package calls back through - the dependency surface is then this
-// struct literal, readable at a glance, instead of a dozen methods.
+// menuState is the sole adapter from UI-owned facts to the menu snapshot.
+// Decisions are derived from one observation; no query yields or starts work.
 func (v *viewer) menuState() menus.State {
-	_, displayed := v.DisplayedFile()
+	return v.menuStateFor(v.commandContext())
+}
 
+// Keep named menu decisions explicit; similar field assignments are not a
+// second policy or a reason to introduce a runtime command registry.
+//
+//goland:noinspection DuplicatedCode
+func (v *viewer) menuStateFor(context commandContext) menus.State {
+	can := func(id commandID, intent commandIntent) bool {
+		return decideCommand(commandRequest{command: id, intent: intent, route: routeMenu}, context).allowed
+	}
 	return menus.State{
-		SortMode:         v.SortMode(),
-		VariantGroupSize: v.grid.SourceDuplicateGroupSize(),
-
-		NoFiles:             v.FileCount() == 0,
-		FileWorkActive:      v.scanOp.active || v.sortOp.active,
-		GridUp:              v.grid.Visible(),
-		NoImage:             v.display.Count() == 0,
-		SlidesActive:        v.slides.Active(),
-		ExifOpen:            v.exif.Open(),
-		ManualOpen:          v.help.ManualOpen(),
-		Displayed:           displayed,
-		MergeMode:           v.MergeMode(),
-		HideDuplicates:      v.dupes.HideDuplicates(),
-		BrowsingDuplicates:  v.grid.BrowsingDuplicates(),
-		VariantsSession:     v.variantsSession(),
-		InfoVisible:         v.info.Visible(),
-		CanSave:             v.canSaveRotation(),
-		CanExport:           v.canExport(),
-		CanWallpaper:        v.canSetWallpaper(),
-		CanCopySelection:    v.regionCopyAvailable(),
-		CanCompare:          v.grid.Visible() && v.grid.SelectionCount() == 2,
-		CanFindMoreLikeThis: v.searchReference() != "",
-		RestrictedBrowsing:  v.browsingContext().restricted,
-		CanMosaic:           v.canMosaic(),
-		ComparisonActive:    v.comparisonActive(),
-		ExplorerActive:      v.explorerMapActive(),
-		LocationMapActive:   v.locationMapVisible(),
-		ExplorerCanRetry:    v.explorerCanRetry(),
-		CohortActive:        v.explorer.HasCohort() || v.locationMap.Active(),
+		SortMode: v.SortMode(), MergeMode: v.MergeMode(),
+		HideDuplicates: context.hideDuplicates, BrowsingDuplicates: context.browsingDuplicates,
+		InfoVisible: v.info.Visible(), LocationMapActive: context.surface == surfaceLocationMap,
+		Availability: menus.Availability{
+			Open: can(commandOpenChooser, intentAction), Save: can(commandSave, intentAction),
+			Export: can(commandExport, intentAction), CloseFiles: can(commandCloseFiles, intentAction),
+			Settings: can(commandSettings, intentShow), Viewer: can(commandViewer, intentShow),
+			Explorer: can(commandExplorer, intentShow), LocationMap: can(commandLocationMap, intentShow),
+			Mosaic: can(commandMosaic, intentShow), Exif: can(commandExif, intentShow),
+			Grid: can(commandGrid, intentShow), PictureFrame: can(commandPictureFrame, intentShow),
+			Help: can(commandHelp, intentShow), Sort: can(commandSort, intentToggle),
+			HideDuplicates: can(commandHideDuplicates, intentToggle), BrowseDuplicates: can(commandBrowseDuplicates, intentShow),
+			Compare: can(commandCompare, intentShow), Search: can(commandSearch, intentAction),
+			Rotate: can(commandRotate, intentAction), Zoom: can(commandZoom, intentAction),
+			Merge: can(commandMerge, intentToggle), Info: can(commandInfo, intentToggle),
+			Copy: can(commandCopy, intentAction), CopySelection: can(commandCopyRegion, intentAction),
+			CopyPath: can(commandCopyPath, intentAction), Reveal: can(commandReveal, intentAction),
+			Wallpaper: can(commandWallpaper, intentAction), Trash: can(commandTrash, intentAction),
+		},
 	}
 }
 
-// syncMenus recomputes the whole menu matrix from the current state and
-// rebuilds the native bar only when something in it actually moved. It is
-// the single entry point every site that can change what is loaded,
-// displayed or shown calls - directly, or through the feature observers
-// registered in buildMainMenu, which cover the surface toggles (grid,
-// picture-frame, manual, EXIF close) so those don't sync per call site;
-// the nil guard covers the window of construction before buildMainMenu
-// has run.
-//
-// Whether there are any files at all and whether comparison owns the main
-// window also drive the Favorites menu, which belongs to that feature rather
-// than to internal/ui/menus, so both facts are pushed here alongside.
-//
-// Both Favorites setters are inside the changed branch, and before
-// refreshMainMenu, for two reasons that are both load-bearing - do not lift
-// them out:
-//
-//   - Neither setter publishes anything. refreshMainMenu on the next line is
-//     what gets their new Disabled state onto the bar and performs the Darwin
-//     native-bar fold, so it must see both post-toggle values.
-//   - Skipping them when nothing moved cannot skip a needed update. FileCount
-//     is also State.NoFiles, which moves Close Files, while active scan/sort
-//     work moves it independently through State.FileWorkActive. Comparison
-//     visibility is State.ComparisonActive, whose final override always moves
-//     the normally-enabled Open and Settings items on entry and exit. Either
-//     Favorites fact can therefore change only on a turn Apply reports.
-//
-// The startup sync is the one call where changed can be false with files
-// already loaded; it costs nothing, because Add is constructed Disabled and
-// comparison is constructed inactive.
+// syncMenus publishes all feature menu decisions together, once, only when
+// their rendered state changed. Native reconstruction sees the complete update.
 func (v *viewer) syncMenus() {
 	if v.stopping || v.menus == nil {
 		return
 	}
-	if v.menus.Apply(v.menuState()) {
-		v.favorites.SetHasFiles(v.FileCount() > 0)
-		v.favorites.SetCommandsEnabled(!v.comparisonActive())
+	context := v.commandContext()
+	changed := v.menus.Apply(v.menuStateFor(context))
+	can := func(id commandID) bool {
+		return decideCommand(commandRequest{command: id, route: routeMenu}, context).allowed
+	}
+	if v.favorites.SetAvailability(favorites.Availability{
+		Open: can(commandFavoriteOpen), Add: can(commandFavoriteAdd), Manage: can(commandFavoriteManage),
+	}) {
+		changed = true
+	}
+	if v.help.SetCommandsEnabled(can(commandHelp)) {
+		changed = true
+	}
+	if changed {
 		v.refreshMainMenu()
 	}
 }

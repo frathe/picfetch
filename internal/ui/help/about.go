@@ -22,6 +22,9 @@ const (
 // on the left. A second call while it's still open just raises it instead of
 // stacking up duplicates (see widgets.Singleton).
 func (h *Help) ShowAbout() {
+	if !h.admitted() {
+		return
+	}
 	h.aboutWin.Show(h.app, fmt.Sprintf(lang.L("About %s"), h.title), fyne.NewSize(aboutW, aboutH), func() fyne.CanvasObject {
 		art := canvas.NewImageFromResource(fyne.NewStaticResource("comparingImages.webp", h.art))
 		art.FillMode = canvas.ImageFillContain
@@ -34,9 +37,9 @@ func (h *Help) ShowAbout() {
 		version := widget.NewLabel(fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build))
 
 		manualLink := widget.NewHyperlink(lang.L("Open the manual"), nil)
-		manualLink.OnTapped = h.ShowManual
+		manualLink.OnTapped = h.OpenManualLink
 		discussionsLink := widget.NewHyperlink(lang.L("GitHub Discussions"), nil)
-		discussionsLink.OnTapped = h.ShowDiscussions
+		discussionsLink.OnTapped = h.OpenDiscussionsLink
 
 		left := container.NewPadded(container.NewVBox(title, version, manualLink, discussionsLink))
 

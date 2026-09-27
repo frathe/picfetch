@@ -31,21 +31,19 @@ type shortcutAdder interface {
 // one visible sequence. This is the same order buildViewer used before the
 // registration moved out of the top-level assembly.
 func wireGlobalShortcuts(c shortcutAdder, view *viewer) {
-	yielding := yieldingShortcuts{inner: c, view: view}
-	wireOpenShortcuts(yieldingShortcuts{inner: c, view: view, comparisonAllowed: true, explorerAllowed: true}, view)
-	favoriteBindings := yieldingShortcuts{inner: c, view: view, explorerAllowed: true}
-	wireFavoriteShortcuts(favoriteBindings, view.favorites.Open)
-	wireManageFavoritesShortcut(favoriteBindings, view)
-	wireAddFavoritesShortcut(favoriteBindings, view)
+	wireOpenShortcuts(c, view)
+	wireFavoriteShortcuts(c, view.favorites.Open)
+	wireManageFavoritesShortcut(c, view)
+	wireAddFavoritesShortcut(c, view)
 	wireClipboardShortcuts(c, view)
 	wireCopySelectionShortcut(c, view)
-	wireCompareShortcut(yielding, view)
-	yielding.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift}, func(_ fyne.Shortcut) { view.findMoreLikeThis() })
-	wireDeleteShortcut(yielding, view)
-	wireSelectAllShortcut(yielding, view)
-	wireSaveShortcut(yielding, view)
-	wireExportShortcuts(yielding, view)
-	wireRevealShortcut(yielding, view)
+	wireCompareShortcut(c, view)
+	c.AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyL, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift}, func(_ fyne.Shortcut) { view.findMoreLikeThis() })
+	wireDeleteShortcut(c, view)
+	wireSelectAllShortcut(c, view)
+	wireSaveShortcut(c, view)
+	wireExportShortcuts(c, view)
+	wireRevealShortcut(c, view)
 }
 
 // wireRevealShortcut binds Cmd/Ctrl+R to revealCurrentFile (reveal.go) -
@@ -82,33 +80,6 @@ func wireCompareShortcut(c shortcutAdder, view *viewer) {
 			Modifier: fyne.KeyModifierControl,
 		}, open)
 	}
-}
-
-// yieldingShortcuts is the canvas-shortcut yield: every binding registered
-// through it cancels idle Copy Selection (or blocks while a copy is pending)
-// before the command runs. Copy Selection and the clipboard shortcuts own
-// their mode coordination directly, so wireGlobalShortcuts registers those
-// against the underlying adder instead.
-type yieldingShortcuts struct {
-	inner             shortcutAdder
-	view              *viewer
-	comparisonAllowed bool
-	explorerAllowed   bool
-}
-
-func (y yieldingShortcuts) AddShortcut(shortcut fyne.Shortcut, handler func(fyne.Shortcut)) {
-	y.inner.AddShortcut(shortcut, func(s fyne.Shortcut) {
-		if y.view.win.Canvas().Overlays().Top() != nil {
-			return
-		}
-		if y.view.comparisonActive() && !y.comparisonAllowed || (y.view.explorerMapActive() || y.view.locationMapVisible()) && !y.explorerAllowed {
-			return
-		}
-		if !y.view.yieldCopySelection() {
-			return
-		}
-		handler(s)
-	})
 }
 
 // wireOpenShortcuts binds Cmd/Ctrl+O and Cmd/Ctrl+Shift+O to the same
@@ -168,14 +139,12 @@ func wireFavoriteShortcuts(c shortcutAdder, open func(index int)) {
 // caught. Shift+Cmd/Ctrl+C isn't one of the driver's special-cased combos,
 // so it still becomes a CustomShortcut and needs no such treatment.
 func wireClipboardShortcuts(c shortcutAdder, view *viewer) {
-	c.AddShortcut(&fyne.ShortcutCopy{}, func(fyne.Shortcut) { view.copySelection() })
+	c.AddShortcut(&fyne.ShortcutCopy{}, func(s fyne.Shortcut) { view.editingShortcut(commandCopy, s) })
 	c.AddShortcut(&desktop.CustomShortcut{
 		KeyName:  fyne.KeyC,
 		Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift,
 	}, func(fyne.Shortcut) {
-		if view.yieldCopySelection() {
-			view.copyPathToClipboard()
-		}
+		view.copyPathToClipboard()
 	})
 }
 
@@ -197,7 +166,27 @@ func wireCopySelectionShortcut(c shortcutAdder, view *viewer) {
 // desktop.CustomShortcut, so a CustomShortcut for {KeyA,
 // KeyModifierShortcutDefault} could never be reached by a real key press.
 func wireSelectAllShortcut(c shortcutAdder, view *viewer) {
-	c.AddShortcut(&fyne.ShortcutSelectAll{}, func(fyne.Shortcut) { view.selectAllInGrid() })
+	c.AddShortcut(&fyne.ShortcutSelectAll{}, func(s fyne.Shortcut) { view.editingShortcut(commandSelectAll, s) })
+}
+
+// editingShortcut also covers explicit delivery through an application binding.
+// Normally GLFW sends these built-in shortcuts to the focused widget first.
+func (v *viewer) editingShortcut(command commandID, shortcut fyne.Shortcut) {
+	decision, ok := v.admitCommand(commandRequest{command: command, intent: intentEditing, route: routeShortcut})
+	if !ok {
+		return
+	}
+	if decision.target == targetEditor {
+		if editor, ok := v.win.Canvas().Focused().(fyne.Shortcutable); ok {
+			editor.TypedShortcut(shortcut)
+		}
+		return
+	}
+	if command == commandCopy {
+		v.copySelection()
+	} else {
+		v.selectAllInGrid()
+	}
 }
 
 // wireDeleteShortcut binds Shift+Delete to open the permanent-delete
@@ -283,13 +272,6 @@ func wireManageFavoritesShortcut(c shortcutAdder, view *viewer) {
 // against for itself, mirrored here rather than shared because the two
 // prompts' own guard against each other already lives on their side.
 func (v *viewer) showManageFavorites() {
-	if v.comparisonActive() {
-		return
-	}
-	if v.deletion.Visible() || v.exportPrompt.Visible() {
-		return
-	}
-
 	v.favorites.ShowManage()
 }
 
@@ -309,18 +291,5 @@ func wireAddFavoritesShortcut(c shortcutAdder, view *viewer) {
 // as showManageFavorites, plus FileCount: the menu item is disabled with
 // no files, and the shortcut must not open an empty Add dialog.
 func (v *viewer) showAddFavorites() {
-	if v.comparisonActive() {
-		return
-	}
-	if v.deletion.Visible() || v.exportPrompt.Visible() {
-		return
-	}
-	if v.win != nil && v.win.Canvas().Overlays().Top() != nil {
-		return
-	}
-	if v.FileCount() == 0 {
-		return
-	}
-
 	v.favorites.AddCurrentList()
 }

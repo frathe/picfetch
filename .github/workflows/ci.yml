@@ -214,6 +214,9 @@ jobs:
         # and portable guards; installed-codec qualification runs separately.
         run: go run ./scripts/nativeguards -suite windows -capture "${{ runner.temp }}/native-guards-windows.json" -skip-heic-codecs
 
+      - name: Check native command admission
+        run: go run ./scripts/nativeguards -suite command-admission -capture "${{ runner.temp }}/native-guards-command-admission.json"
+
       - name: Check Windows visual search
         run: go test -tags no_emoji,nodynamic ./internal/similarity -run '^TestSearch' -count=1 -timeout 3m
 
@@ -257,6 +260,9 @@ jobs:
 
       - name: Execute Cocoa-linked macOS guards
         run: go run ./scripts/nativeguards -suite macos -capture "${{ runner.temp }}/native-guards-macos.json"
+
+      - name: Check native command admission
+        run: go run ./scripts/nativeguards -suite command-admission -capture "${{ runner.temp }}/native-guards-command-admission.json"
 
       - name: Check native Location Map observer
         run: |

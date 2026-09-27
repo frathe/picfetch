@@ -208,6 +208,11 @@ func (c *Confirmer) HandleKey(ev *fyne.KeyEvent) {
 	c.card.HandleKey(ev)
 }
 
+// Focus keeps the visible confirmation's keyboard on its own controls.
+func (c *Confirmer) Focus(target fyne.Canvas) {
+	c.card.Focus(target)
+}
+
 // performDelete is the danger button's action (or Return with it
 // selected): it moves the current file to the OS trash/recycle bin via
 // trash.Move rather than removing it outright, so Shift+Delete is

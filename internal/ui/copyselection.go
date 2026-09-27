@@ -18,23 +18,14 @@ import (
 // direct activation, the menu snapshot, and the shortcut action. A decoded
 // image must be settled in the normal viewer with no modal surface.
 func (v *viewer) regionCopyAvailable() bool {
-	if v.explorerMapActive() || v.locationMapVisible() {
-		return false
-	}
-	if v.display.Count() == 0 || v.img.Image == nil || v.display.Snapshot().Loading {
-		return false
-	}
-	if v.grid.Visible() || v.slides.Active() || v.deletion.Visible() || v.exportPrompt.Visible() {
-		return false
-	}
-	return v.win == nil || v.win.Canvas().Overlays().Top() == nil
+	return v.queryCommand(commandRequest{command: commandCopyRegion}).allowed
 }
 
 // startRegionCopy begins a fresh Copy Selection mode. Repeated activation is
 // deliberately a no-op; Feature.Start owns the same guard, but keeping it here
 // avoids disturbing viewer-owned temporary state before that call.
 func (v *viewer) startRegionCopy() {
-	if !v.regionCopyAvailable() || v.regionCopy.State().Active {
+	if _, ok := v.admitCommand(commandRequest{command: commandCopyRegion}); !ok || v.regionCopy.State().Active {
 		return
 	}
 
@@ -80,6 +71,7 @@ func (v *viewer) finishRegionCopy() {
 		v.info.Object().Hide()
 	}
 	v.regionCopyInfoVisible = false
+	v.syncMenus()
 	v.ForceRepaint()
 }
 
@@ -142,15 +134,17 @@ func (v *viewer) regionCopyView(geometry zoom.Geometry, source copyselection.Sou
 // signal finishes only after the final UI update, so tests and shutdown can
 // wait without sleeping.
 func (v *viewer) copyRegionSelection(bounds image.Rectangle) {
-	_, done, ok := v.beginClipboardCopy(false)
+	v.syncMenus()
+	clipboardToken, done, ok := v.beginClipboardCopy(false)
 	if !ok {
 		v.regionCopy.Complete(errors.New("clipboard copy already pending"))
+		v.syncMenus()
 		return
 	}
 	token := v.regionCopyLifecycle.begin()
 
 	v.clipboardWork.workers.Go(func() {
-		defer done()
+		defer v.completeClipboardCopy(clipboardToken, done, nil)
 		defer token.cancelContext()
 
 		if !token.current() {
@@ -175,6 +169,7 @@ func (v *viewer) copyRegionSelection(bounds image.Rectangle) {
 			if err != nil {
 				v.reportRegionCopyError(err)
 				v.regionCopy.Complete(err)
+				v.syncMenus()
 				v.ForceRepaint()
 				return
 			}

@@ -38,9 +38,13 @@ var _ mosaicwin.Host = (*viewer)(nil)
 // widgets compose, and menu.go still decides how their menus compose.
 func registerFeatures(view *viewer, application fyne.App, window fyne.Window, prefs preferences.State) {
 	view.help = help.New(application, appTitle, assets.ComparingWebP)
+	view.help.SetAdmission(func() bool {
+		_, ok := view.admitCommand(commandRequest{command: commandHelp})
+		return ok
+	})
 	view.welcomeArt.onCircles = view.help.ShowFinis
 	view.spiral = spiral.New(application)
-	view.spiral.SetOnManual(view.help.ShowManual)
+	view.spiral.SetOnManual(view.help.OpenManualLink)
 	view.help.SetOnSpiral(view.openSpiral)
 
 	// The window-drag easter egg (gesture.go): the detector is fed by the
@@ -115,7 +119,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.grid = grid.New(view, window, view.dupes)
 	view.locationMap = locationmap.New(view, locationmap.Options{Context: view.heicContext, Thumbnails: view.grid.CaptureThumbs})
 	view.explorer = explorerui.NewFeature(explorerHost{view}, explorerui.Options{
-		App: application, Discussions: view.help.ShowDiscussions, Supported: similarity.SupportedPlatform(),
+		App: application, Discussions: view.help.OpenDiscussionsLink, Supported: similarity.SupportedPlatform(),
 		CachePressure: func(needBytes uint64) {
 			if view.analysisCache == nil {
 				return
@@ -163,7 +167,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.settings.checkForUpdates = prefs.CheckForUpdates && !view.storeManaged
 	view.settings.staticWindowSize = prefs.StaticWindowSize
 
-	view.deletion = deletion.New(view)
+	view.deletion = deletion.New(deletionHost{view})
 
 	// The export-format prompt (promptExport, export.go) is a bare
 	// widgets.ChoiceCard, unlike deletion's own wrapping Confirmer: each
@@ -180,8 +184,8 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	choices := make([]widgets.Choice, 2)
 	choices[pngChoice] = widgets.Choice{Label: lang.L("PNG"), OnChosen: func() { view.exportAs(exportPNGExt) }}
 	choices[jpegChoice] = widgets.Choice{Label: lang.L("JPEG"), OnChosen: func() { view.exportAs(exportJPEGExt) }}
-	view.exportOptions = newExportOptions(view.ForceRepaint, view.Unfocus)
-	view.exportPrompt = widgets.NewChoiceCardWithRows(view.ForceRepaint, view.exportOptions, choices...)
+	view.exportOptions = newExportOptions(view.ForceRepaint, view.promptChanged)
+	view.exportPrompt = widgets.NewChoiceCardWithRows(view.promptChanged, view.exportOptions, choices...)
 
 	// Run starts the position poller only after buildViewer returns. Register
 	// the slideshow first because the poller's skip callback reads Active.
@@ -194,6 +198,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.settingsWin = settingswin.New(application, view)
 	view.favorites = favorites.New(favoriteListHost{view}, window)
 	view.favorites.SetOnDialogClosed(view.flushSearchPresentation)
+	view.favorites.SetOnDialogChanged(view.syncMenus)
 	view.favorites.SetOnSaved(view.favoriteSaved)
 	view.registerAnalysisCache(prefs)
 }

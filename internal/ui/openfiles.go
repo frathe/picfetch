@@ -16,7 +16,7 @@ import (
 // openFileDialog admits an open request on UI, then runs its native panel
 // on a worker. Capture the native function here as part of this request.
 func (v *viewer) openFileDialog() {
-	if v.openChooserClosed || v.refuseOpenDuringComparison() {
+	if _, ok := v.admitCommand(commandRequest{command: commandOpenChooser}); !ok {
 		return
 	}
 	token := v.openChooserLifecycle.begin()
@@ -40,7 +40,10 @@ func (v *viewer) runFileChooser(token requestToken, choose func() ([]fyne.URI, e
 	}
 	uris = slices.Clone(uris)
 	v.chooserUI.Do(func() {
-		if !token.current() || v.comparisonActive() {
+		if !token.current() {
+			return
+		}
+		if _, ok := v.admitCommand(commandRequest{command: commandOpen, route: routeDelivery}); !ok {
 			return
 		}
 		if err != nil {

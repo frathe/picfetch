@@ -2,16 +2,15 @@ package ui
 
 import "slices"
 
-// browsingContext captures cross-feature restrictions on the UI goroutine.
-// Menus and command handlers consume the same restriction for source subsets.
+// browsingContext observes the source subset for payload/order capture.
 // It deliberately does not copy ranked paths just to answer a capability check.
 type browsingContext struct {
-	ranked, grid, restricted bool
+	ranked, grid bool
 }
 
 func (v *viewer) browsingContext() browsingContext {
 	ranked := v.searchActive()
-	return browsingContext{ranked: ranked, grid: v.grid.Visible(), restricted: ranked || v.explorer.HasCohort() || v.locationMap.Active()}
+	return browsingContext{ranked: ranked, grid: v.grid.Visible()}
 }
 
 // searchOrder is one immutable index snapshot for an action or both preloads.

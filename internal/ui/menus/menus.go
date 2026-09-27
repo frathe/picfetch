@@ -63,43 +63,20 @@ type Callbacks struct {
 	Trash                func()
 }
 
-// State is the snapshot Apply reads: every app condition the enablement
-// matrix depends on, as one struct literal you can take in at a glance.
-// A Host interface for this would need a dozen methods and would leave
-// the coupling implicit; a value makes it explicit and testable.
+// State separates admission (decided by root UI) from menu presentation.
 type State struct {
-	// SortMode is the mode whose entry in the Sort order submenu is checked.
-	SortMode filesort.Mode
-	// VariantGroupSize is the duplicate-group size of the file a variant
-	// browse would start from. "Show variants" needs at least 2.
-	VariantGroupSize int
+	Availability                                                                  Availability
+	SortMode                                                                      filesort.Mode
+	MergeMode, HideDuplicates, BrowsingDuplicates, InfoVisible, LocationMapActive bool
+}
 
-	NoFiles             bool // nothing is loaded at all
-	FileWorkActive      bool // a scan or sort can still be cancelled through Close Files
-	GridUp              bool // the grid overview is showing
-	NoImage             bool // no decoded frame, so nothing to rotate or zoom
-	SlidesActive        bool // picture-frame mode is running
-	ExifOpen            bool // the EXIF window is already open
-	ManualOpen          bool // the manual window is already open
-	Displayed           bool // there is a current file on display
-	MergeMode           bool
-	HideDuplicates      bool
-	BrowsingDuplicates  bool
-	VariantsSession     bool // browsing duplicates, or inspecting a group
-	InfoVisible         bool
-	CanSave             bool // a pending rotation can be written back
-	CanExport           bool
-	CanWallpaper        bool
-	CanCopySelection    bool
-	CanCompare          bool
-	CanFindMoreLikeThis bool
-	ExplorerActive      bool
-	LocationMapActive   bool
-	ExplorerCanRetry    bool
-	CohortActive        bool
-	RestrictedBrowsing  bool
-	CanMosaic           bool
-	ComparisonActive    bool // comparison exclusively owns main-window commands
+// Availability contains named decisions, not the cross-feature facts from
+// which they were derived. Menus only render them; actions recheck on entry.
+type Availability struct {
+	Open, Save, Export, CloseFiles, Settings                                           bool
+	Viewer, Explorer, LocationMap, Mosaic, Exif, Grid, PictureFrame, Help              bool
+	Sort, HideDuplicates, BrowseDuplicates, Compare, Search                            bool
+	Rotate, Zoom, Merge, Info, Copy, CopySelection, CopyPath, Reveal, Wallpaper, Trash bool
 }
 
 // Menus holds every menu item whose Checked or Disabled state moves at
@@ -170,14 +147,14 @@ func New(c Callbacks, sortMode filesort.Mode) *Menus {
 	}
 
 	m.save = fyne.NewMenuItem(lang.L("Save Changes"), c.SaveRotation)
-	m.save.Disabled = true // Apply enables it once State.CanSave reports a pending rotation to save
+	m.save.Disabled = true // Apply renders the host's Save admission.
 	m.save.Shortcut = &desktop.CustomShortcut{
 		KeyName:  fyne.KeyS,
 		Modifier: fyne.KeyModifierShortcutDefault,
 	}
 
 	m.export = fyne.NewMenuItem(lang.L("Export image"), c.PromptExport)
-	m.export.Disabled = true // Apply enables it once State.CanExport reports an image is loaded
+	m.export.Disabled = true // Apply renders the host's Export admission.
 	// Display-only, like Open's above: the binding itself is
 	// wireExportShortcuts's AddShortcut call in internal/ui/shortcuts.go.
 	m.export.Shortcut = &desktop.CustomShortcut{
@@ -448,138 +425,52 @@ func (a ActionItems) Trash() *fyne.MenuItem { return a.trash }
 // It recomputes every item on every call rather than trusting a caller to
 // say what changed: the matrix is compact boolean arithmetic, and a caller
 // that guesses wrong is exactly how a menu goes stale.
+// Each named decision maps to its own item; the repeated assignment shape
+// keeps that correspondence visible without adding a second item registry.
+//
+//goland:noinspection DuplicatedCode
 func (m *Menus) Apply(s State) (changed bool) {
 	before := m.pairs()
-
-	m.applyFile(s)
-	m.applyWindow(s)
-	m.applyActions(s)
-	m.applyComparisonIsolation(s.ComparisonActive)
-	if s.ExplorerActive || s.LocationMapActive {
-		for _, item := range []*fyne.MenuItem{m.save, m.export, m.window.exif, m.window.grid, m.window.pictureFrame, m.sortParent, m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.findMoreLikeThis, m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut, m.actions.merge, m.actions.info, m.actions.copy, m.actions.copySelection, m.actions.copyPath, m.actions.reveal, m.actions.wallpaper, m.actions.trash} {
-			item.Disabled = true
-		}
-		for _, item := range m.actions.sort {
-			item.Disabled = true
-		}
-		m.window.viewer.Disabled = false
-	}
-	if s.RestrictedBrowsing {
-		m.actions.hide.Disabled = true
-		m.actions.showVariant.Disabled = true
-	}
-	if s.CohortActive {
-		m.window.viewer.Disabled = s.ComparisonActive
-		m.actions.hide.Disabled = true
-		m.actions.showVariant.Disabled = true
-		m.window.pictureFrame.Disabled = true
-	}
-
-	return !slices.Equal(before, m.pairs())
-}
-
-// applyFile is the File menu's share: what can be saved, exported or
-// closed right now. Whether there are any files at all also drives the
-// Favorites menu, but that stays in internal/ui - it is a feature menu,
-// not one of these items.
-func (m *Menus) applyFile(s State) {
-	m.open.Disabled = false
-	m.save.Disabled = !s.CanSave
-
-	m.export.Disabled = !s.CanExport
-
-	m.closeFiles.Disabled = s.NoFiles && !s.FileWorkActive
-	m.settings.Disabled = false
-}
-
-// applyComparisonIsolation is the final override on the ordinary menu
-// matrix. Checked state still reflects the covered viewer/grid underneath,
-// but comparison exclusively owns commands until it closes. Help remains
-// governed by ManualOpen so it can still be opened and raised from F1 or the
-// Window menu.
-func (m *Menus) applyComparisonIsolation(active bool) {
-	if !active {
-		return
-	}
-
-	m.open.Disabled = true
-	m.save.Disabled = true
-	m.export.Disabled = true
-	m.closeFiles.Disabled = true
-	m.settings.Disabled = true
-
-	m.window.viewer.Disabled = true
-	m.window.exif.Disabled = true
-	m.window.grid.Disabled = true
-	m.window.pictureFrame.Disabled = true
-
-	m.sortParent.Disabled = true
-	for _, item := range m.actions.sort {
-		item.Disabled = true
-	}
-	for _, item := range []*fyne.MenuItem{
-		m.actions.hide, m.actions.showVariant, m.actions.compare, m.actions.findMoreLikeThis, m.window.mosaic,
-		m.actions.rotate, m.actions.zoomIn, m.actions.zoomOut,
-		m.actions.merge, m.actions.info, m.actions.copy,
-		m.actions.copySelection, m.actions.copyPath, m.actions.reveal,
-		m.actions.wallpaper, m.actions.trash,
-	} {
-		item.Disabled = true
-	}
-}
-
-// applyWindow greys out whichever surface is already showing.
-func (m *Menus) applyWindow(s State) {
-	m.window.locationMap.Disabled = s.ComparisonActive || s.FileWorkActive
+	a := s.Availability
+	m.open.Disabled = !a.Open
+	m.save.Disabled = !a.Save
+	m.export.Disabled = !a.Export
+	m.closeFiles.Disabled = !a.CloseFiles
+	m.settings.Disabled = !a.Settings
+	m.window.viewer.Disabled = !a.Viewer
+	m.window.explorer.Disabled = !a.Explorer
+	m.window.locationMap.Disabled = !a.LocationMap
 	m.window.locationMap.Checked = s.LocationMapActive
-	m.window.explorer.Disabled = s.NoFiles || s.ComparisonActive || s.ExplorerActive && !s.ExplorerCanRetry
-	m.window.mosaic.Disabled = !s.CanMosaic
-	m.window.viewer.Disabled = !s.GridUp && !s.SlidesActive
-	m.window.exif.Disabled = s.ExifOpen || !s.Displayed
-	m.window.grid.Disabled = s.GridUp || s.NoFiles || s.SlidesActive
-	m.window.pictureFrame.Disabled = s.SlidesActive || s.NoFiles || s.VariantsSession
-	m.window.help.Disabled = s.ManualOpen
-}
-
-// applyActions is the Actions menu's share of the matrix.
-func (m *Menus) applyActions(s State) {
-	modes := filesort.Modes()
-	m.sortParent.Disabled = false
-	for i, item := range m.actions.sort {
-		if item == nil || i >= len(modes) {
-			continue
-		}
-		item.Checked = modes[i] == s.SortMode
-		item.Disabled = false
+	m.window.mosaic.Disabled = !a.Mosaic
+	m.window.exif.Disabled = !a.Exif
+	m.window.grid.Disabled = !a.Grid
+	m.window.pictureFrame.Disabled = !a.PictureFrame
+	m.window.help.Disabled = !a.Help
+	m.sortParent.Disabled = !a.Sort
+	for i, mode := range filesort.Modes() {
+		m.actions.sort[i].Checked = mode == s.SortMode
+		m.actions.sort[i].Disabled = !a.Sort
 	}
-	noFiles := s.NoFiles
-	gridUp := s.GridUp
-	noImage := s.NoImage
-
 	m.actions.hide.Checked = s.HideDuplicates
-	m.actions.hide.Disabled = noFiles || s.VariantsSession
+	m.actions.hide.Disabled = !a.HideDuplicates
 	m.actions.showVariant.Checked = s.BrowsingDuplicates
-	canShowVariants := s.HideDuplicates && s.VariantGroupSize >= 2
-	m.actions.showVariant.Disabled = noFiles || s.SlidesActive || !(canShowVariants || s.BrowsingDuplicates)
-	m.actions.compare.Disabled = !s.CanCompare
-	m.actions.findMoreLikeThis.Disabled = !s.CanFindMoreLikeThis
-
-	rotZoomOff := noImage || gridUp
-	m.actions.rotate.Disabled = rotZoomOff
-	m.actions.zoomIn.Disabled = rotZoomOff
-	m.actions.zoomOut.Disabled = rotZoomOff
-
+	m.actions.showVariant.Disabled = !a.BrowseDuplicates
+	m.actions.compare.Disabled = !a.Compare
+	m.actions.findMoreLikeThis.Disabled = !a.Search
+	m.actions.rotate.Disabled = !a.Rotate
+	m.actions.zoomIn.Disabled = !a.Zoom
+	m.actions.zoomOut.Disabled = !a.Zoom
 	m.actions.merge.Checked = s.MergeMode
-	m.actions.merge.Disabled = false
+	m.actions.merge.Disabled = !a.Merge
 	m.actions.info.Checked = s.InfoVisible
-	m.actions.info.Disabled = gridUp
-
-	m.actions.copy.Disabled = noFiles
-	m.actions.copySelection.Disabled = !s.CanCopySelection
-	m.actions.copyPath.Disabled = noFiles
-	m.actions.reveal.Disabled = noFiles
-	m.actions.wallpaper.Disabled = !s.CanWallpaper
-	m.actions.trash.Disabled = noFiles
+	m.actions.info.Disabled = !a.Info
+	m.actions.copy.Disabled = !a.Copy
+	m.actions.copySelection.Disabled = !a.CopySelection
+	m.actions.copyPath.Disabled = !a.CopyPath
+	m.actions.reveal.Disabled = !a.Reveal
+	m.actions.wallpaper.Disabled = !a.Wallpaper
+	m.actions.trash.Disabled = !a.Trash
+	return !slices.Equal(before, m.pairs())
 }
 
 // pair is one item's observable menu state.

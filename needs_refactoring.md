@@ -1,7 +1,8 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-26 after a cross-feature architecture assessment of PR review
-history and the current implementation.
+Updated 2026-09-27 after completion of MA-028. The cross-feature
+architecture assessment of PR review history and implementation is dated
+2026-09-26.
 
 This file contains proposed refactorings and accepted dependency watches.
 Completed findings have been removed; their history remains in Git and the
@@ -13,7 +14,9 @@ MA-026 is complete in `28d65ef`, with full CI qualification recorded in its
 [archived plan](finished_refactorings/2026-09-14-explorer-feature.md).
 MA-027 is complete in `e6024dc`, with native CI and clean code/security reviews
 recorded in its [archived plan](finished_refactorings/2026-09-14-ma-027-presentation.md).
-MA-028 remains the recommended first task. MA-029 through MA-033 below are
+MA-028 is complete, with all-platform qualification and a clean PR 66 review
+round recorded in its [archived plan](finished_refactorings/2026-09-27-ma-028-command-admission.md).
+MA-029 through MA-033 below are
 proposals, not accepted implementation plans or unresolved PR defects.
 
 Historical inspection baseline: `main` at `54fd7c3` (v1.1.2). At that revision,
@@ -24,7 +27,6 @@ explicit cross-feature composition in `internal/ui`.
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
-| [MA-028](#ma-028) | P1 | Share command policy across all entry routes | Recommended first; medium scope |
 | [MA-029](#ma-029) | P1 | Give browsing visits one explicit state owner | Recommended; large, incremental |
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | Recommended; large, incremental |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | Recommended; medium scope |
@@ -194,8 +196,25 @@ See the [accepted specification](.scratch/ma-027/spec.md),
 
 ## MA-028 — Centralize shared command-admission decisions
 
-**P1; high confidence.** The best first change because it reduces the cost of
-every later mode addition without moving feature state.
+**Completed, 2026-09-27.** All ten tickets are resolved after Linux, Windows and
+macOS qualification and the clean `e2d3b30` review/CI round. The
+[archived plan](finished_refactorings/2026-09-27-ma-028-command-admission.md)
+and [PR evidence](docs/command-admission-pr-66-review-2026-09-27.md) retain the
+implementation, acceptance and final-head gates. This anchor remains for
+existing dependency links; the following rationale records the original design.
+
+**Design accepted, 2026-09-27.** The
+[design record](docs/command-admission.md) and
+[ownership ADR](docs/adr/0003-shared-command-admission.md) capture the seven
+accepted interview decisions. Migrate every application-wide command family;
+preserve intended route differences and explicitly correct modal ownership,
+focused-text editing, busy-region-copy menu availability and checking
+availability before yielding. The [specification](docs/ma-028/spec.md) records
+the completed implementation and local verification. Tickets 01-09 are resolved;
+[ticket 10](docs/ma-028/issues/10-native-qualification.md) is resolved with
+all three native platforms qualified. Fresh remote gates remain required on
+the documentation-only closure head. The tracked
+[handoff index](docs/ma-028/README.md) preserves the cross-desktop test procedure.
 
 **Recurring evidence:** Explorer's
 [enabled menu but blocked Favorites shortcuts](https://github.com/frathe/picfetch/pull/18#discussion_r3983220054),
@@ -204,7 +223,7 @@ and Location Map's [clipboard bypass](https://github.com/frathe/picfetch/pull/58
 and [duplicate-key bypass](https://github.com/frathe/picfetch/pull/58#discussion_r4107351569)
 are the same class of coordination failure across different features.
 
-**Current seam:** `handleKeyEvent` in [keys.go](internal/ui/keys.go),
+**Pre-implementation seam (historical):** `handleKeyEvent` in [keys.go](internal/ui/keys.go),
 `yieldingShortcuts.AddShortcut` in [shortcuts.go](internal/ui/shortcuts.go),
 `yieldingMenuCallbacks`/`menuState` in [menu.go](internal/ui/menu.go),
 [menus.State and Apply](internal/ui/menus/menus.go), and direct entries such as
@@ -520,8 +539,8 @@ search for scattered feature-name predicates.
 
 ## Suggested sequence and verification approach
 
-1. Implement MA-028 against current feature observations. This gives subsequent
-   refactors one place to preserve command policy.
+1. MA-028 is complete. Use its shared command policy as the baseline for
+   subsequent refactors.
 2. Implement MA-030's collection snapshot/remapping slice and MA-029's shared
    browse-scope slice; then migrate browsing ownership one flow at a time.
 3. Extend the existing source transaction to the remaining collection commits.

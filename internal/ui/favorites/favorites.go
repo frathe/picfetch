@@ -32,6 +32,15 @@ var shortcutKeys = [...]fyne.KeyName{
 	fyne.Key0,
 }
 
+// Command identifies a fresh Favorite intent without exposing root UI policy.
+type Command uint8
+
+const (
+	OpenCommand Command = iota
+	AddCommand
+	ManageCommand
+)
+
 // Host is the viewer behavior used by the favorites feature.
 type Host interface {
 	CurrentFiles() []fyne.URI
@@ -50,29 +59,25 @@ type Host interface {
 	// only the host knows how to fold it back together afterwards.
 	RefreshMenus()
 
-	// RunCommand runs a menu-initiated PicFetch command under the host's
-	// command-entry rules: comparison isolation plus the Copy Selection
-	// yield. Every action this menu can start goes through it; the keyboard
-	// shortcuts reaching the same actions are wrapped on the host's side
-	// instead (internal/ui's yielding shortcut adder).
-	RunCommand(fn func())
+	// AdmitFavorite checks admission before storage, capture or dialog entry.
+	AdmitFavorite(Command) bool
 }
 
 // Feature owns the Favorites menu and its dialogs.
 type Feature struct {
-	addFiles       []fyne.URI
-	onDialogClosed func()
-	onSaved        func()
-	host           Host
-	win            fyne.Window
-	dir            string
+	addFiles        []fyne.URI
+	onDialogClosed  func()
+	onDialogChanged func()
+	onSaved         func()
+	host            Host
+	win             fyne.Window
+	dir             string
 
-	menu            *fyne.Menu
-	addItem         *fyne.MenuItem
-	manageItem      *fyne.MenuItem
-	names           []string
-	hasFiles        bool
-	commandsEnabled bool
+	menu         *fyne.Menu
+	addItem      *fyne.MenuItem
+	manageItem   *fyne.MenuItem
+	names        []string
+	availability Availability
 
 	// manageDialog and managePanel are the Manage Favorites dialog while it
 	// is up, and nil whenever it is not - see manage.go, where a non-nil
@@ -91,8 +96,8 @@ type Feature struct {
 
 // New builds the Favorites menu without reading from disk.
 func New(host Host, win fyne.Window) *Feature {
-	f := &Feature{host: host, win: win, commandsEnabled: true}
-	f.addItem = fyne.NewMenuItem(lang.L("Add Current List to Favorites…"), func() { f.host.RunCommand(f.AddCurrentList) })
+	f := &Feature{host: host, win: win, availability: Availability{Open: true, Manage: true}}
+	f.addItem = fyne.NewMenuItem(lang.L("Add Current List to Favorites…"), f.AddCurrentList)
 	f.addItem.Disabled = true
 	// Display-only, mirroring Manage Favorites… below: the binding itself
 	// is wireAddFavoritesShortcut's AddShortcut call
@@ -102,7 +107,7 @@ func New(host Host, win fyne.Window) *Feature {
 		KeyName:  fyne.KeyF,
 		Modifier: fyne.KeyModifierAlt | fyne.KeyModifierShift,
 	}
-	f.manageItem = fyne.NewMenuItem(lang.L("Manage Favorites…"), func() { f.host.RunCommand(f.ShowManage) })
+	f.manageItem = fyne.NewMenuItem(lang.L("Manage Favorites…"), f.ShowManage)
 	// Display-only, mirroring how internal/ui/menu.go sets Export image's
 	// and Actions' Set as Wallpaper Shortcut fields: the binding itself is
 	// wireManageFavoritesShortcut's AddShortcut call
@@ -131,21 +136,16 @@ func (f *Feature) SetDir(dir string) {
 	f.refreshMenu()
 }
 
-// SetHasFiles enables adding the current list when it is non-empty. It
-// deliberately does not re-publish the menu: its one caller is
-// internal/ui's syncMenus, which folds the bar on the very next line.
-func (f *Feature) SetHasFiles(has bool) {
-	f.hasFiles = has
-	f.syncCommandAvailability()
-}
+// Availability is supplied by the host's shared command policy.
+type Availability struct{ Open, Add, Manage bool }
 
-// SetCommandsEnabled enables or disables every command in the Favorites
-// menu while preserving whether Add Current List should be available when
-// commands are enabled again. It does not publish the menu; syncMenus owns
-// the single main-bar refresh immediately after applying all menu state.
-func (f *Feature) SetCommandsEnabled(enabled bool) {
-	f.commandsEnabled = enabled
+// SetAvailability updates items without publishing the main menu. Root owns
+// its single refresh after applying all feature decisions.
+func (f *Feature) SetAvailability(availability Availability) bool {
+	changed := f.availability != availability
+	f.availability = availability
 	f.syncCommandAvailability()
+	return changed
 }
 
 func (f *Feature) syncCommandAvailability() {
@@ -153,11 +153,10 @@ func (f *Feature) syncCommandAvailability() {
 		if item.IsSeparator {
 			continue
 		}
-		item.Disabled = !f.commandsEnabled
+		item.Disabled = !f.availability.Open
 	}
-	if f.commandsEnabled {
-		f.addItem.Disabled = !f.hasFiles
-	}
+	f.addItem.Disabled = !f.availability.Add
+	f.manageItem.Disabled = !f.availability.Manage
 }
 
 // ShortcutForIndex returns the Cmd/Ctrl+digit accelerator for a zero-based
@@ -191,7 +190,7 @@ func (f *Feature) refreshMenu() bool {
 	for i, name := range names {
 		favoriteName := name
 		item := fyne.NewMenuItem(f.menuLabel(favoriteName), func() {
-			f.host.RunCommand(func() { f.openFavorite(favoriteName) })
+			f.openFavorite(favoriteName)
 		})
 		if shortcut := ShortcutForIndex(i); shortcut != nil {
 			item.Shortcut = shortcut
@@ -229,7 +228,10 @@ func (f *Feature) menuLabel(name string) string {
 // dialog; showAdd's initial parameter exists for Stage 5's Replace-Cancel,
 // which reopens with the name that just clashed still in the field.
 func (f *Feature) AddCurrentList() {
-	f.AddFiles(f.host.CurrentFiles())
+	if !f.host.AdmitFavorite(AddCommand) {
+		return
+	}
+	f.addFilesPrompt(f.host.CurrentFiles())
 }
 
 func (f *Feature) saveFavorite(name string) {
@@ -301,6 +303,9 @@ func (f *Feature) writeFavorite(name string) {
 }
 
 func (f *Feature) openFavorite(name string) {
+	if !f.host.AdmitFavorite(OpenCommand) {
+		return
+	}
 	files, err := favstore.Load(f.dir, name)
 	if err != nil {
 		f.reportError(lang.L("could not open favorite %q: %v"), name, err)
@@ -322,7 +327,14 @@ func (f *Feature) reportError(format string, args ...any) {
 
 // AddFiles opens naming for an explicit list.
 func (f *Feature) AddFiles(files []fyne.URI) {
-	if f.addDialog != nil || f.win.Canvas().Overlays().Top() != nil {
+	if !f.host.AdmitFavorite(AddCommand) {
+		return
+	}
+	f.addFilesPrompt(files)
+}
+
+func (f *Feature) addFilesPrompt(files []fyne.URI) {
+	if f.addDialog != nil {
 		return
 	}
 	f.addFiles = append([]fyne.URI{}, files...)
@@ -331,6 +343,14 @@ func (f *Feature) AddFiles(files []fyne.URI) {
 
 // SetOnDialogClosed observes return to the main browsing surface.
 func (f *Feature) SetOnDialogClosed(closed func()) { f.onDialogClosed = closed }
+
+// SetOnDialogChanged reports modal ownership changes without publishing menus.
+func (f *Feature) SetOnDialogChanged(changed func()) { f.onDialogChanged = changed }
+func (f *Feature) dialogChanged() {
+	if f.onDialogChanged != nil {
+		f.onDialogChanged()
+	}
+}
 
 // SetOnSaved observes a successfully committed list, before menu refresh.
 func (f *Feature) SetOnSaved(saved func()) { f.onSaved = saved }
