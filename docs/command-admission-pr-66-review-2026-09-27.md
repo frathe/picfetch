@@ -7,6 +7,11 @@ The user explicitly invoked the review loop on 2026-09-27, authorizing scoped
 fixes, commits, pushes, review replies/resolution and fresh review requests.
 Merge/release and physical-input acceptance remain outside this loop.
 
+Current status: all three native platforms are qualified. The macOS handoff and
+review round below supersede the historical pending-platform statements in
+earlier sections. Ticket 10 remains open until a fresh clean review and all
+required remote gates pass after the latest finding's disposition.
+
 ## Windows follow-up from `bae3c55`
 
 The user requested all feasible Windows ticket 10 checks, then commit/push and
@@ -22,7 +27,8 @@ copy, prompt control, maximized-window reset and native busy/modal close. T0
 owns every assessment/fix. No broad local race suite was repeated. Required
 fresh code/security reviews, CI/CodeQL and inspected Qodana SARIF must pass on
 the new pushed head; the final PR disposition pins that commit and evidence.
-Physical keyboard and full macOS desktop acceptance remain open in ticket 10.
+At that Windows handoff, physical keyboard and full macOS desktop acceptance
+remained open in ticket 10; subsequent completion is recorded below.
 
 ### Windows review round on `d662160`
 
@@ -268,7 +274,7 @@ closed the isolated literal `make run` session with exit 0. The
 [Windows record](command-admission-windows-qualification-2026-09-27.md#final-physical-keyboard-qualification)
 retains source/binary identity, operator/input distinctions, times and artifacts.
 Windows V10 is complete. Linux was still recorded as open at that handoff;
-the retrospective user confirmation below now leaves only macOS qualification.
+the retrospective user confirmation below then left only macOS qualification.
 
 The preceding source revision already passed all 17 PR checks, CI run
 `36327036028`, CodeQL run `36327036051` and Qodana run `36327036045`.
@@ -304,5 +310,40 @@ zero final SARIF results with successful execution; the
 [final disposition](https://github.com/frathe/picfetch/pull/66#issuecomment-5858217739)
 pins all run and review details. This follow-up changes Markdown only, so local
 source inspections carry forward at their recorded revisions. Fresh final-head
-remote gates remain mandatory and are recorded on PR 66. No plan is archived
-and no all-platform acceptance is claimed while macOS remains open.
+remote gates remain mandatory and are recorded on PR 66. At that Linux handoff,
+the plan remained active and all-platform acceptance awaited macOS.
+
+## macOS qualification and review round on `6e63d75`
+
+The [macOS qualification record](command-admission-macos-qualification-2026-09-27.md)
+completes the final native platform on product source `41cdaa9`. Its literal
+`make run` uses documented qualification-only identity/storage overlays, not
+changes to input, policy or clipboard behavior. The operator physically performed
+Cmd+A/C in image and Grid fields and drew the region selections. Exact clipboard
+payload/pixel checks, unchanged image/Grid pixels, real menus, modal/prompt
+controls, held-copy refusal/recovery and native busy/modal close passed. Both
+final Make sessions exited 0. Native guards and focused root UI/widgets/menu
+race tests passed. Evidence-only harness failures and launcher limitations remain
+explicit in the macOS record; they are not counted as application defects.
+
+Fresh code review at 18:56:10 UTC reported one confirmed documentation P2:
+[stale macOS status in this record](https://github.com/frathe/picfetch/pull/66#discussion_r4116531909).
+T0 verified that the chronological record stopped at Linux completion and still
+described macOS as pending. This follow-up adds the missing handoff and current
+status while retaining earlier sections as historical evidence. No product code
+changes, suppression changes or new source inspections are required. Existing
+GoLand inspection evidence carries forward at its recorded source revisions.
+
+[Qodana 36342192111](https://github.com/frathe/picfetch/actions/runs/36342192111)
+completed successfully. T0 inspected artifact `10939043672`,
+`/end/qodana.sarif.json`: zero post-suppression results, successful execution,
+exit code 0, no execution notifications, and provenance matching
+`6e63d75604fbb9459c945984500bffbd63b2a00e`. This is the configured incremental
+PR scope, not a replacement for the recorded changed-file IDE inspections.
+
+At this disposition, CI/CodeQL and security review were still completing. The
+documentation finding means this is not a clean final review round regardless
+of their outcome. After the fix is pushed and the thread is resolved, obtain
+another fresh code/security review and required CI/CodeQL plus inspected final
+Qodana SARIF on the new head. Ticket 10 and the plan remain open until that
+round passes. PR 66 records exact latest-head outcomes; no merge or release.
