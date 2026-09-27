@@ -328,10 +328,14 @@ The original ext4 and kernel NTFS skips are retained as historical limitations,
 not counted as passed observations. This follow-up changed no code, so the
 preceding full Make and GoLand evidence carries forward.
 
-A separate CI selection gap remains: the Windows/macOS nativeguard package
-lists omit `internal/ui`, so neither runs the case-alias test and macOS does
-not run the new Copy key-equivalent assertion. A focused native UI guard suite
-and its command-boundary tests await the requested TDD seam confirmation.
+The subsequently found CI selection gap is now fixed locally: Windows/macOS
+jobs invoke a focused `command-admission` suite for case-alias export and the
+Darwin Copy key-equivalent assertion, without Linux-only goldens. Its
+command-boundary and workflow tests were seen red/green; missing/skipped guards
+are rejected. The real runner passes on FAT16 and rejects an ext4 skip. See the
+new native-CI follow-up in the Linux qualification record for inspection,
+full-suite and negative-control evidence. This does not establish actual
+Windows/macOS execution.
 Read-only GitHub checks found no PR or runs for this branch; publishing and
 starting the CI/review workflow await permission. Native CI does not replace
 the physical-input procedure.

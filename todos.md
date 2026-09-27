@@ -55,10 +55,14 @@
   remain unverified. Fresh Qodana/CodeQL CI results also require the later PR
   workflow; local GoLand checks are not a Qodana-CI pass.
   The case-insensitive export regression now passes on temporary FAT16 storage,
-  including five race runs. Windows/macOS native CI omits `internal/ui`, including
-  the case-alias and macOS Copy-menu assertions; add focused native guards after
-  confirmation of the proposed test boundary. PR publication/review permission
-  is still pending.
+  including five race runs. Windows/macOS CI now selects focused native guards
+  for case-alias export and macOS Copy-menu behavior, with command-boundary
+  tests rejecting missing/skipped evidence. The actual new runner passes on
+  Linux FAT16 and rejects an ext4 skip; native Windows/macOS execution and PR
+  publication/review permission are still pending. The
+  [portability audit](docs/ma-028-portability-audit-2026-09-27.md) recommends a
+  redacted planning-Markdown move, leaving raw evidence ignored; that choice
+  is pending.
   MA-029 through MA-033 remain proposals.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

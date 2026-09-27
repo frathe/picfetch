@@ -36,6 +36,58 @@ No implementation, review or native desktop interaction is delegated.
 
 ### Remaining acceptance follow-up (2026-09-27)
 
+#### Native CI selection implementation
+
+The user subsequently requested continuing ticket 10 until human interaction
+is needed. This accepts the proposed local nativeguards command-boundary tests;
+it does not authorize publishing the branch. Continue within this existing
+plan. T0 owns all design, TDD, implementation and review.
+
+1. Add a focused `command-admission` native suite: case-alias export on the
+   current supported host, plus the Copy key-equivalent guard on macOS. Preserve
+   the existing full-package suites and fail on missing/skipped required guards.
+   Files: `scripts/nativeguards/main.go`, existing `main_test.go`.
+   Verify: `go test -race -count=1 ./scripts/nativeguards`, and execute the real
+   new suite on temporary case-insensitive Linux storage; reject a real ext4 skip.
+2. Wire that suite into Windows/macOS CI, retaining JSON evidence even on failure
+   and excluding Linux golden tests. File: `.github/workflows/ci.yml`; guard the
+   job-specific wiring in the existing command-boundary tests before editing it.
+3. Run negative controls, inspect changed code/workflow files with GoLand and
+   run one final `make verify`. Record native-platform/physical-input and PR/CI
+   limits, update tracker/evidence/todos, and commit locally. No new dependency,
+   source package, production viewer behavior or platform waiver.
+
+Budget: one bounded read-only scout assignment may inspect native UI test
+startup/linkage and existing CI toolchain prerequisites while T0 implements
+the runner. G1-G5: under 25 lines; verify source citations; zero edits; bounded
+cross-file platform prerequisite sweep; separate from T0's command runner.
+No delegated review or implementation. Full suite: once after local iterations.
+
+Implemented locally on base `574cf82`. Command-boundary tests were observed red
+for the absent suite, forbidden HEIC exemption and missing per-job CI steps,
+then green. Overlay omissions of the required inventory and focused filter
+also fail. The real new runner rejects an ext4 skip and passes the existing
+export regression on actual FAT16. GoLand inspected both changed Go files and
+the workflow with weak warnings included: no findings. Windows runner cross-vet
+passes. Final `make verify` exited 0, including every Docker race partition;
+the
+[Linux qualification record](../docs/command-admission-linux-qualification-2026-09-27.md)
+records the exact evidence and remaining platform/publication gates.
+
+The workflow test reuses already-pinned `go.yaml.in/yaml/v3` v3.0.5, test-only.
+Its existing module LICENSE/NOTICE were reviewed (MIT and Apache-2.0); no new
+module/version, shipped dependency closure or notice-delivery change is made.
+The user's cross-desktop portability request is assessed in the
+[privacy and migration audit](../docs/ma-028-portability-audit-2026-09-27.md).
+Moving the curated Markdown subset awaits their choice; raw artifacts stay local.
+
+Final gate artifacts: `.scratch/race-runs/20260927T113110Z-p0dfVe` and
+`.scratch/ma-028/native-ci-2026-09-27`. The ordinary suite's existing environment
+skips, including ext4 case aliasing, are retained rather than treated as native
+passes; the focused FAT runner provides that case's executed observation.
+No production viewer code changed during this follow-up. Inspection hashes
+still match the final source/workflow, and current Markdown links resolve.
+
 From `75fd69e`, T0 continues ticket 10's open gates. First run the existing
 case-alias export regression against an isolated temporary case-insensitive
 filesystem; accept only an executed PASS, not a skip. The first NTFS attempt
@@ -60,8 +112,9 @@ with race instrumentation on FAT16, without skipping; the owned image was
 unmounted and its loop device detached. Source is unchanged at `75fd69e`.
 T0 verified the scout's selection finding: neither native CI package list
 includes root UI, so the case-alias and Darwin Copy-menu assertions are absent.
-A focused suite and command-boundary guard tests await TDD seam confirmation;
-PR publication and CI/review execution await permission. Actual budget: one
+A focused suite and command-boundary guard tests were proposed at that handoff
+and subsequently implemented above; PR publication and CI/review execution
+still await permission. That evidence-only follow-up used one
 read-only scout spawn, zero code edits, focused tests only, T0 review. Evidence:
 [Linux qualification](../docs/command-admission-linux-qualification-2026-09-27.md).
 
@@ -138,8 +191,9 @@ checklist items checked against the recorded local evidence. Ticket 10 is
 unblocked and `ready-for-human` after repair of the confirmed Linux reset defect:
 its completed preparation, scoped Linux checks and repair are checked separately.
 Case-insensitive export now passes on FAT16, including five race repetitions.
-Physical-input, Windows/macOS, focused native CI selection and fresh CI
-acceptance remain open; the partial evidence does not resolve ticket 10.
+Focused native CI selection is now implemented and locally verified.
+Physical-input, Windows/macOS execution and fresh CI acceptance remain open;
+the partial evidence does not resolve ticket 10.
 
 | Ticket | Status | Delivers | Depends on | Owner / model / effort |
 | --- | --- | --- | --- | --- |
@@ -392,7 +446,7 @@ they are the configured tracker, and this tracked plan links to them.
 | --- | --- | --- | --- |
 | Implementation 01-08 | One read-only scout, two bounded assignments; no implementation support | T0 owned vertical red/green slices, integration and all fixes | All six families migrated; superseded wrappers/policy removed |
 | Convergence 09 | None | T0 structural review; 124 focused top-level passes, nine new guard groups; all 68 changed Go files inspected without findings | Final `make verify` passed, including every Docker race partition; existing platform skips are explicitly retained in the evidence |
-| Native acceptance 10 | Four further read-only scout assignments (launch isolation; pinned driver resize; neighboring tests; native CI selection), the last on one new scout; no implementation support | T0: scoped native checks, Escape/maximize diagnosis and TDD repair, repeated native/static controls, three-file inspections, fresh Make gate, case-alias FAT16 pass plus five race repeats | Linux reset repaired and case-alias gap closed; physical operator, Windows/macOS, focused native CI selection and CI gates remain open |
+| Native acceptance 10 | Five further read-only scout assignments (launch isolation; pinned driver resize; neighboring tests; native CI selection; native test startup/toolchain), the last two on one new scout; no implementation support | T0: scoped native checks, Escape/maximize TDD repair, repeated native/static controls, inspections/Make gates, case-alias FAT16 pass plus five race repeats, focused CI suite with red/green and mutation controls | Linux reset, case-alias and local CI-selection gaps closed; physical operator, Windows/macOS execution and external CI gates remain open |
 
 The original implementation used two complete Make runs under the budget
 exception above; no broad local race run was used during individual red/green

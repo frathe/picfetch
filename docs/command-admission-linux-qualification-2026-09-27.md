@@ -333,7 +333,8 @@ Windows/macOS input or their native filesystem adapters.
 T0 created a new 64 MiB image under `/tmp/picfetch-ma028-casefs-reoIdM`, formatted
 only that file with installed `mkfs.vfat` 4.2, and attached it with UDisks.
 The owned image was verified as `/dev/loop203`, mounted at
-`/media/finis/MA028FAT` with `nosuid,nodev,noexec`, and used only for the test's
+`/media/<user>/MA028FAT` (user component redacted) with `nosuid,nodev,noexec`,
+and used only for the test's
 `TMPDIR`. The ordinary and race test binaries were built on the normal workspace
 filesystem; production code and the regression were unchanged.
 
@@ -343,10 +344,10 @@ PATH=/snap/go/current/bin:$PATH go test -tags no_emoji,nodynamic -c \
 PATH=/snap/go/current/bin:$PATH go test -race -tags no_emoji,nodynamic -c \
   -o /tmp/picfetch-ma028-casefs-reoIdM/ui-race.test ./internal/ui
 # From internal/ui, after confirming the test image is mounted:
-TMPDIR=/media/finis/MA028FAT/ma028tmp /tmp/picfetch-ma028-casefs-reoIdM/ui.test \
+TMPDIR="/media/<user>/MA028FAT/ma028tmp" /tmp/picfetch-ma028-casefs-reoIdM/ui.test \
   -test.run '^TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset$' \
   -test.v -test.count=1 -test.timeout=2m
-TMPDIR=/media/finis/MA028FAT/ma028tmp /tmp/picfetch-ma028-casefs-reoIdM/ui-race.test \
+TMPDIR="/media/<user>/MA028FAT/ma028tmp" /tmp/picfetch-ma028-casefs-reoIdM/ui-race.test \
   -test.run '^TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset$' \
   -test.v -test.count=5 -test.timeout=2m
 ```
@@ -372,7 +373,7 @@ Logs, hashes, setup history and cleanup checks are retained in
 The full Make and GoLand evidence from the preceding repair carries forward for
 unchanged code; no redundant full suite or new inspections were claimed.
 
-### Remaining native CI selection gap
+### Native CI selection gap at the filesystem-only handoff
 
 Read-only GitHub checks found no PR or workflow run for this branch. A bounded
 read-only scout mapped native-suite selection; T0 verified the cited sources.
@@ -389,3 +390,88 @@ new seam awaits the requested TDD confirmation; publishing a PR and starting
 the CI/review workflow also await explicit permission. Neither change was made
 in this evidence-only follow-up. Physical-input and native Windows/macOS runtime
 qualification remain separate open gates.
+
+### Focused native CI suite implemented (base `574cf82`)
+
+The user's subsequent request to continue ticket 10 accepted the proposed test
+boundary. T0 implemented and reviewed `nativeguards -suite command-admission`
+and added it to both Windows/macOS jobs. It selects only root UI's case-alias
+export guard, plus `TestSetMenuItemModifierMask_ClearsDefaultCommand` on Darwin;
+it does not select Linux goldens or HEIC qualification. Both inventory and
+execution must include each required guard. Missing results, skips (including
+children), failures and use of the Windows HEIC exemption are rejected.
+The jobs retain the captured JSON through the existing always-run artifact step.
+Existing full-package platform suites retain their selection.
+
+Observed TDD and negative controls:
+
+- Selection first failed on all three supported hosts with `unknown native
+  suite "command-admission"`, then passed after the focused suite was added.
+- The waiver regression first failed because the new Windows suite accepted
+  the HEIC exception. Restricting the exception to Windows/Store suites fixed it.
+- The workflow regression first failed for both native jobs with zero focused
+  commands; adding the two steps passed. The test checks each job and its
+  unconditional command/capture plus always-run artifact retention.
+- Go build overlays deliberately removed required guards or the focused filter.
+  The incomplete-evidence cases and all three host-selection cases respectively
+  failed. Production sources were not mutated by these controls.
+- `go test -race -count=1 ./scripts/nativeguards -v` passed after integration
+  (1.058 s). Windows/amd64 no-cgo cross-vet of this runner also passed; this is
+  tooling coverage, not Windows desktop or AppKit qualification.
+
+The actual new CLI, not a fake runner, was also exercised twice:
+
+1. Normal ext4: exit 1, correctly rejecting a skipped case-alias guard
+   (`run=1 pass=0 rejected=true`).
+2. Temporary FAT16/vfat: exit 0 with the required guard run and passed. The
+   pre-existing disposable image was attached as `/dev/loop203`, verified against
+   its backing file and automounted at `/media/<user>/MA028FAT` (redacted).
+   This attachment
+   had `rw,nosuid,nodev,...,showexec`; it was not the earlier `noexec` mount.
+   It was unmounted after qualification and the auto-cleared device was confirmed
+   released. No existing filesystem or user profile was changed.
+
+An initial FAT runner attempt skipped because this host's Go 1.27 gives
+`GOTMPDIR` precedence over `TMPDIR` in `testing.TempDir`. The compiler was kept
+on ext4, and a test-execution wrapper unset only `GOTMPDIR` before `exec "$@"`.
+The compiled runner then ran with `TMPDIR` on the FAT test directory and
+`GOFLAGS=-exec=<wrapper>`. The failed initial attempt is retained separately;
+only `native-vfat-final.json`/`.log` establish the passing observation. The
+wrapper is qualification-only and is not part of production or CI.
+
+GoLand's `get_file_problems(errorsOnly=false)` inspected both changed Go files
+and the workflow, including weak warnings, with no findings and no timeout.
+It used active IDE inspections; the tool does not report the profile name.
+Exact analyzed SHA-256 values:
+
+| File | SHA-256 |
+| --- | --- |
+| `scripts/nativeguards/main.go` | `33e6c3eaf525226771feab56a8612054fd9241a4728df3f85e11105852e562fe` |
+| `scripts/nativeguards/main_test.go` | `c49f7ae7592229046fa9cda8d0383b56133aeeefe4724b2ed177111ef11e37e1` |
+| `.github/workflows/ci.yml` | `96f716487c560f9dcfd29d3079aa3bb5206a42f9cf91f10ab413e409f9d85d80` |
+
+This is the documented IDE inspection fallback, not a fresh Qodana SARIF pass.
+The workflow test reuses pinned YAML v3.0.5 only in tests; its existing MIT /
+Apache-2.0 license and notice were reviewed. No new dependency, shipped runtime,
+notice obligation, package, UI string or test-shard assignment was introduced.
+The existing exact Qodana exclusion already covers `main_test.go`.
+
+The final `make verify` exited 0 for this source/workflow revision: formatting,
+asset/notice checks, vet, build and all native Linux/amd64 Docker race partitions
+passed. Root UI partitions passed in 476.803 s, 380.036 s and 390.196 s.
+Existing platform/privilege/opt-in skips are preserved in the raw events; the
+case-alias test skips on Docker's ordinary filesystem and is qualified by the
+separate executed FAT pass above, not by that skip. The runner test package also
+passed in the complete Docker race suite. Final source hashes still match the
+three inspected files; Markdown link checks and `git diff --check` pass.
+Raw local logs and setup details are retained under
+`.scratch/ma-028/native-ci-2026-09-27`; full race artifacts are under
+`.scratch/race-runs/20260927T113110Z-p0dfVe`. These ignored artifacts are optional
+local audit material, not files available in another checkout.
+
+Native Windows/macOS execution still has not occurred. Root UI's test harness
+uses Fyne's test application; the Darwin guard checks isolated native menu
+objects, not a running desktop's physical Cmd+C route. Neither the focused
+suite nor its Linux qualification substitutes for the spec's physical-input
+procedure. Publishing the branch and running remote CI/reviews remain awaiting
+permission; ticket 10 and the overall acceptance gate stay open.

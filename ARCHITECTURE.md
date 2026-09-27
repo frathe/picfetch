@@ -314,10 +314,13 @@ release. `docs/microsoft-store.md` covers setup and recovery.
 ### `scripts/nativeguards`
 
 Native Linux/Windows/macOS and explicit Microsoft Store validation. `main.go`
-selects suites, verifies build-selected inventories, runs the full packages,
+selects suites, verifies build-selected inventories, runs the full packages
+(or the focused `command-admission` UI guards),
 retains raw Go test events and requires named guards to run/pass without skips.
 The macOS suite includes root main's Cocoa-linked delegate test; Windows includes
 native Unicode transport, wallpaper and updater guards. CI invokes this command
+with separate Windows/macOS command-admission runs for case-alias export and
+Darwin Copy key-equivalent behavior, without Linux-only golden rendering,
 and uploads its event files. `main_test.go` covers admission, selection, event
 validation, process failures and workflow wiring through a per-call runner.
 
