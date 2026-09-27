@@ -54,7 +54,11 @@
   macOS AppKit compilation/runtime and physical input on all three platforms
   remain unverified. Fresh Qodana/CodeQL CI results also require the later PR
   workflow; local GoLand checks are not a Qodana-CI pass.
-  The skipped case-insensitive export regression also remains in ticket 10.
+  The case-insensitive export regression now passes on temporary FAT16 storage,
+  including five race runs. Windows/macOS native CI omits `internal/ui`, including
+  the case-alias and macOS Copy-menu assertions; add focused native guards after
+  confirmation of the proposed test boundary. PR publication/review permission
+  is still pending.
   MA-029 through MA-033 remain proposals.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

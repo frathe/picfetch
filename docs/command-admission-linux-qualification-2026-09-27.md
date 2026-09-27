@@ -319,5 +319,73 @@ under ignored scratch storage; production sources contain no instrumentation.
 
 T0 owns the regression, fix, native probes and all review. One further bounded
 read-only scout assignment identified neighboring static-size/ownership tests;
-no implementation or review was delegated. Platform/physical-input,
-case-insensitive export and external CI limitations remain as recorded above.
+no implementation or review was delegated. Platform/physical-input and external
+CI limitations remain. The case-insensitive export gap was closed below.
+
+## Case-insensitive export qualification
+
+At code revision `75fd69ef5460e39bef8916765ea901a60f1f7045`,
+`TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset` passed on an actual
+case-insensitive FAT16 filesystem mounted by Linux's `vfat` driver. This closes
+the previously skipped filesystem-dependent AC9 observation; it does not qualify
+Windows/macOS input or their native filesystem adapters.
+
+T0 created a new 64 MiB image under `/tmp/picfetch-ma028-casefs-reoIdM`, formatted
+only that file with installed `mkfs.vfat` 4.2, and attached it with UDisks.
+The owned image was verified as `/dev/loop203`, mounted at
+`/media/finis/MA028FAT` with `nosuid,nodev,noexec`, and used only for the test's
+`TMPDIR`. The ordinary and race test binaries were built on the normal workspace
+filesystem; production code and the regression were unchanged.
+
+```sh
+PATH=/snap/go/current/bin:$PATH go test -tags no_emoji,nodynamic -c \
+  -o /tmp/picfetch-ma028-casefs-reoIdM/ui.test ./internal/ui
+PATH=/snap/go/current/bin:$PATH go test -race -tags no_emoji,nodynamic -c \
+  -o /tmp/picfetch-ma028-casefs-reoIdM/ui-race.test ./internal/ui
+# From internal/ui, after confirming the test image is mounted:
+TMPDIR=/media/finis/MA028FAT/ma028tmp /tmp/picfetch-ma028-casefs-reoIdM/ui.test \
+  -test.run '^TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset$' \
+  -test.v -test.count=1 -test.timeout=2m
+TMPDIR=/media/finis/MA028FAT/ma028tmp /tmp/picfetch-ma028-casefs-reoIdM/ui-race.test \
+  -test.run '^TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset$' \
+  -test.v -test.count=5 -test.timeout=2m
+```
+
+The ordinary run passed in 0.34s. All five race repetitions passed (1.40s,
+0.90s, 0.89s, 0.89s, 0.90s), without skips or race findings. The test independently
+requires `Photo.png` and `photo.png` to identify the same file, exports a rotated
+8 x 16 image through the alternate-case path, and verifies that reset retains
+the written 16 x 8 pixels and clears rotation.
+
+Earlier setup attempts are not passes: unprivileged `lowntfs-3g` mounting was
+denied; the desktop-mounted kernel `ntfs3` filesystem remained case-sensitive
+and correctly skipped the test; the first FAT attempt ran before that filesystem
+was mounted and failed at temporary-directory setup. Only the confirmed `vfat`
+runs above count. The existing locale-C startup warning remains unrelated and
+was not represented as a clean static-analysis result.
+
+The FAT mount was normally unmounted and its owned loop device detached.
+Final checks found neither test mount nor a loop203 backing file. No existing
+disk, global configuration, application preference or user image was changed.
+Logs, hashes, setup history and cleanup checks are retained in
+[`.scratch/ma-028/case-insensitive-2026-09-27`](../.scratch/ma-028/case-insensitive-2026-09-27/).
+The full Make and GoLand evidence from the preceding repair carries forward for
+unchanged code; no redundant full suite or new inspections were claimed.
+
+### Remaining native CI selection gap
+
+Read-only GitHub checks found no PR or workflow run for this branch. A bounded
+read-only scout mapped native-suite selection; T0 verified the cited sources.
+The Windows and macOS jobs invoke `scripts/nativeguards`, whose package lists
+omit `internal/ui`. Therefore neither runs this case-alias test, and macOS also
+misses `TestSetMenuItemModifierMask_ClearsDefaultCommand`, which contains MA-028's
+Copy key-equivalent assertion. The runner rejects missing/skipped evidence only
+for declared guards, so current CI does not reject these omissions.
+
+A focused native UI suite is needed without including Linux-only golden tests.
+The proposed regression seam is the existing nativeguards command boundary:
+assert exact selection plus rejection of absent/skipped guard results. That
+new seam awaits the requested TDD confirmation; publishing a PR and starting
+the CI/review workflow also await explicit permission. Neither change was made
+in this evidence-only follow-up. Physical-input and native Windows/macOS runtime
+qualification remain separate open gates.

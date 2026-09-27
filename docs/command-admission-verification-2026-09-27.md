@@ -320,6 +320,18 @@ procedure and untested platforms still require native operators.
 Run the spec's four groups on Windows/macOS and retain revision/OS/input route
 and actual payload/visible outcomes. Do not archive the plan or claim MA-028
 accepted until the remaining observations and required CI gates are complete.
-The existing case-alias export regression must also run on a case-insensitive
-filesystem; Linux's explicit skip does not establish that behavior. The new
-empty qualification directory rejected ext4 `+F` with `Operation not supported`.
+The case-alias export gap is now closed at `75fd69e`: the existing regression
+passed on a disposable Linux `vfat`/FAT16 filesystem, once normally and five
+times with race instrumentation, with no skips. See the Linux qualification
+record for commands, hashes, failed setup attempts and confirmed cleanup.
+The original ext4 and kernel NTFS skips are retained as historical limitations,
+not counted as passed observations. This follow-up changed no code, so the
+preceding full Make and GoLand evidence carries forward.
+
+A separate CI selection gap remains: the Windows/macOS nativeguard package
+lists omit `internal/ui`, so neither runs the case-alias test and macOS does
+not run the new Copy key-equivalent assertion. A focused native UI guard suite
+and its command-boundary tests await the requested TDD seam confirmation.
+Read-only GitHub checks found no PR or runs for this branch; publishing and
+starting the CI/review workflow await permission. Native CI does not replace
+the physical-input procedure.

@@ -34,6 +34,37 @@ G1-G5: under 25 lines; verify returned source citations with targeted reads;
 zero files changed; bounded pinned-driver scope; separate from T0's app path.
 No implementation, review or native desktop interaction is delegated.
 
+### Remaining acceptance follow-up (2026-09-27)
+
+From `75fd69e`, T0 continues ticket 10's open gates. First run the existing
+case-alias export regression against an isolated temporary case-insensitive
+filesystem; accept only an executed PASS, not a skip. The first NTFS attempt
+could not supply that environment; actual FAT16/vfat subsequently did.
+No existing disk, system configuration or production code changes.
+Verify with the compiled UI test binary, `TMPDIR` on that filesystem, and
+`-test.run '^TestExportCommittedCaseAliasKeepsWrittenPixelsOnReset$' -test.v`.
+Record the driver/options, test output and normal unmount. Source inspection
+and full-suite evidence carry forward only while code is unchanged.
+
+One read-only scout mapped CI/nativeguard selection for the outstanding
+case-alias and macOS menu assertions. G1-G5: prompt under 25 lines; verify
+file:line conclusions with targeted reads; zero edits; bounded cross-file
+workflow/test-selection search; separate from T0's filesystem execution.
+T0 retains acceptance and review. Budget: one scout, no new broad suite for
+evidence-only work. GitHub has no PR/runs for this branch; publishing and the
+PR/review workflow await explicit permission. Native physical-input and
+unavailable OS checks stay open.
+
+Completed: the existing case-alias guard passed once normally and five times
+with race instrumentation on FAT16, without skipping; the owned image was
+unmounted and its loop device detached. Source is unchanged at `75fd69e`.
+T0 verified the scout's selection finding: neither native CI package list
+includes root UI, so the case-alias and Darwin Copy-menu assertions are absent.
+A focused suite and command-boundary guard tests await TDD seam confirmation;
+PR publication and CI/review execution await permission. Actual budget: one
+read-only scout spawn, zero code edits, focused tests only, T0 review. Evidence:
+[Linux qualification](../docs/command-admission-linux-qualification-2026-09-27.md).
+
 ### Authorized Linux reset repair (2026-09-27)
 
 The user's "continue the work" authorizes repairing the confirmed defect.
@@ -106,8 +137,9 @@ Tickets 01-09 are **done/resolved** at commit `9dc3a81`, with all 46 implementat
 checklist items checked against the recorded local evidence. Ticket 10 is
 unblocked and `ready-for-human` after repair of the confirmed Linux reset defect:
 its completed preparation, scoped Linux checks and repair are checked separately.
-Physical-input, Windows/macOS, case-insensitive export and fresh
-CI acceptance remain open; the partial evidence does not resolve ticket 10.
+Case-insensitive export now passes on FAT16, including five race repetitions.
+Physical-input, Windows/macOS, focused native CI selection and fresh CI
+acceptance remain open; the partial evidence does not resolve ticket 10.
 
 | Ticket | Status | Delivers | Depends on | Owner / model / effort |
 | --- | --- | --- | --- | --- |
@@ -360,7 +392,7 @@ they are the configured tracker, and this tracked plan links to them.
 | --- | --- | --- | --- |
 | Implementation 01-08 | One read-only scout, two bounded assignments; no implementation support | T0 owned vertical red/green slices, integration and all fixes | All six families migrated; superseded wrappers/policy removed |
 | Convergence 09 | None | T0 structural review; 124 focused top-level passes, nine new guard groups; all 68 changed Go files inspected without findings | Final `make verify` passed, including every Docker race partition; existing platform skips are explicitly retained in the evidence |
-| Native acceptance 10 | Three further read-only scout assignments (launch isolation; pinned driver resize; neighboring tests); no implementation support | T0: scoped native checks, Escape/maximize diagnosis, red/green boundary regression and repair, repeated native/static controls, three-file inspections and fresh Make gate | Linux reset repaired; physical operator, Windows/macOS, case-insensitive export and CI gates remain open |
+| Native acceptance 10 | Four further read-only scout assignments (launch isolation; pinned driver resize; neighboring tests; native CI selection), the last on one new scout; no implementation support | T0: scoped native checks, Escape/maximize diagnosis and TDD repair, repeated native/static controls, three-file inspections, fresh Make gate, case-alias FAT16 pass plus five race repeats | Linux reset repaired and case-alias gap closed; physical operator, Windows/macOS, focused native CI selection and CI gates remain open |
 
 The original implementation used two complete Make runs under the budget
 exception above; no broad local race run was used during individual red/green
