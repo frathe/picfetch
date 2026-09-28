@@ -655,7 +655,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `windowmenu_notdarwin.go` | No-op twin of the Darwin native-menu merge. |
 | `testdata/` | Golden screenshots for the e2e suite. |
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |
-| `collection.go` | Immutable `collectionSnapshot`, bound path bookmarks, `Observe`, `Select`, atomic `Replace` and `Clear`; source/display/retained order, chosen occurrence, Favorite association and URI-key worker adapter share one publication. |
+| `collection.go` | Immutable `collectionSnapshot`, bound path bookmarks, `Observe`, `Select`, atomic `Replace`, retained-membership `Merge` and `Clear`; source/display/retained order, chosen occurrence, Favorite association and URI-key worker adapter share one publication. |
 | `sourcechange.go` | Complete source-removal, committed-write, validation-recovery and analysis-policy transitions. Detaches search before callback delivery and restores browsing after collection/cohort/Grid reconciliation; display keeps retry ownership. |
 | `lifecycle.go` | `requestLifecycle` / `requestToken` for root scan/sort/copy-selection and other root work. Display owns its load/GIF/SVG lifecycles internally. |
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / comparison ownership / `applyTitle`), reset/close (`clearToDropzone` releases cached and recycled-cell images through `grid.InvalidateContent`), merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |

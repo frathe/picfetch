@@ -103,7 +103,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	// a folder scan can take seconds, and toggling M while one is still
 	// running shouldn't retroactively change how this already-in-flight
 	// drop gets applied.
-	merging := v.state.MergeMode() && len(v.state.files) > 0
+	merging := v.state.MergeMode() && len(v.state.Observe().Retained()) > 0
 
 	v.invalidateSort()
 	v.invalidateLoad()
@@ -292,23 +292,26 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 		if len(uris) == 1 {
 			msg = fmt.Sprintf(lang.L("%q is not a supported image file"), uris[0].Name())
 		}
-		if merging {
-			// Nothing to add - leave the existing set exactly as it
-			// was instead of wiping it out from under the user.
-			v.ShowToast(msg)
-			v.retainUnavailableHEIC(true, skipped, sourceOrder)
-		} else {
-			input := collectionInput{retained: retainedSources(skipped, sourceOrder)}
-			if len(input.retained) > 0 {
-				input.favorite = favoriteDir
-			}
-			v.commitOpenedCollection(input, false, func() {
+		input := collectionInput{retained: retainedSources(skipped, sourceOrder), favorite: favoriteDir}
+		if !merging || len(input.retained) > 0 {
+			v.commitOpenedCollection(input, merging, func() {
+				if v.FileCount() > 0 {
+					v.ShowToast(msg)
+					return
+				}
 				v.pendingPictureFrame = false
 				v.slides.Exit()
 				v.resetFade()
 				v.presentDropzone()
 				v.showEmptyCollectionError(msg)
 			})
+		} else {
+			// No admitted additions: keep all committed facts and bindings.
+			v.ShowToast(msg)
+			if v.FileCount() == 0 {
+				v.dropzone.Show()
+				v.emptyStateArt.Show()
+			}
 		}
 
 		v.explainUnavailableHEIC(skipped, true)
@@ -401,17 +404,13 @@ func (v *viewer) applyScannedCollection(merging bool, images, dropped []fyne.URI
 		// v.state.unsortedFiles's existing backing array (when it has spare
 		// capacity) would let a concurrent RemoveFile mutate the same memory
 		// the goroutine is reading.
-		unsorted = append(append([]fyne.URI(nil), v.state.unsortedFiles...), images...)
+		unsorted = append(v.state.Observe().SourceFiles(), images...)
 	} else {
 		unsorted = images
 	}
 
 	v.startSort(v.state.SortMode(), unsorted, func(ordered []fyne.URI) {
-		retained := retainedSources(skipped, sourceOrder)
-		if merging {
-			retained = append(v.retainedOrder(), retained...)
-		}
-		input := collectionInput{source: unsorted, display: ordered, retained: retained, favorite: favoriteDir}
+		input := collectionInput{source: images, display: ordered, retained: retainedSources(skipped, sourceOrder), favorite: favoriteDir}
 		var target fyne.URI
 		if merging {
 			target = images[0]

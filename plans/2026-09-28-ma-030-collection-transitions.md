@@ -1,6 +1,6 @@
 # MA-030: authoritative collection identity and committed transitions
 
-Status: implementation in progress; tickets 01-02 complete, ticket 03 next.
+Status: implementation in progress; tickets 01-03 complete, ticket 04 next.
 Baseline: `1f92396367acc41c663710ee4b4b981c43d1c184`.
 Branch: `feature/ma-030-collection-transitions`.
 Authority: [accepted design](../docs/collection-transitions.md),
@@ -112,7 +112,10 @@ Budget: <= 1 spawn, <= 2 planned review rounds, full suite no.
 
 Owner: T0 inline. Files: model, drop, HEIC/root tests.
 Depends: 02. Contract: Merge extends full retained membership atomically;
-no-op admission preserves association and generation.
+no-op admission preserves association and generation. `Merge(collectionInput)`
+takes source/retained additions plus the prepared full display order and chosen
+index. A retained-only addition preserves existing display order/selection;
+the model, not the caller, appends committed source/retained membership.
 Test/verify: `TestCollectionMerge`, model operations/merge,
 FavoriteAssociation/merge, Admission/merge, Reconciliation/merge;
 `TestHEICUnavailableFiles` and `TestBrowsingCollectionChanges`.
@@ -213,9 +216,10 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 | --- | --- | --- | --- | --- |
 | 01 | 2/1 | 1 | no | Complete; evidence below |
 | 02 | 1/0 | 1 | no | Complete; evidence below |
-| 03 | 1/0 | 0 | no | Pending |
+| 03 | 1/0 | 2 | no | Complete; merge and CI race evidence below |
 | 04 | 1/1 | 0 | no | Read-only replay scout complete |
-| 05-08 | 1 each/0 | 0 | no | Pending |
+| 05 | 1/1 | 0 | no | Held-sort test-seam scout complete |
+| 06-08 | 1 each/0 | 0 | no | Pending |
 | 09 | 1/0 | 0 | CI | Pending |
 
 ### Progress
@@ -224,7 +228,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 - [x] Deep plan, task graph, file map, routing, contracts and budgets recorded.
 - [x] 01 coherent snapshots and navigation.
 - [x] 02 atomic replacement and Favorite association.
-- [ ] 03 retained merge.
+- [x] 03 retained merge.
 - [ ] 04 saved replay and capture.
 - [ ] 05 latest-choice sort handoff.
 - [ ] 06 batch removals and shared survivor result.
@@ -333,3 +337,75 @@ persistence and capture span multiple packages; G5 not yet traced by lead.
 Rule S cannot replace the flow tracing and Rule W did not specify implementation.
 The reused scout found both path and URI deduplication layers and the pending
 capability replay pass; ordinary discovery semantics must remain unchanged.
+
+05 scout gate: G1 bounded held-sort/load/origin test inventory; G2 source locations
+checked by targeted reads; G3 no writes; G4 interaction tests span root browsing,
+sorting and display packages; G5 the lead has not traced those test barriers.
+S/W do not apply to flow tracing. Reuse the read-only scout while lead implements 03.
+
+### Ticket 03 evidence
+
+Merge now appends full retained membership in the model, including repeated
+occurrences and unavailable gaps. Retained-only additions preserve the requested
+browsable occurrence while committing incoming association and one generation.
+No admitted additions is a true model/root no-op. The scan merge gate observes
+retained membership, suppressing replacement-style siblings for unavailable-only
+collections. Removed the obsolete retainUnavailableHEIC bridge. Preparation
+continues using its existing token, per-input scan cap and separate retention cap.
+
+New cases: Model/operations/merge; Merge/{unavailable_existing,per_input_limit};
+Admission/merge/{browsable,unavailable}; FavoriteAssociation/merge's eight-way
+existing/addition/association matrix and containment/{mixed,repeated,subset};
+Reconciliation/merge shares the mounted-display/search-retirement guard.
+Equivalent cancellation AC: existing
+`TestVisualSimilarityExplorer/favorite_identity_cancel/{merge_scan,merge_sort}`
+extended alongside the replacement cases; stale replacement/merge scan admission
+and common sort callback rejection are covered by
+`TestStaleFileStateCompletionsDoNotOverwriteNewerState`. Existing HEICUnavailableFiles
+supplies repeated gap order and separate retention/capability regressions.
+
+Behavioral reds: unavailable-existing merge expanded siblings; model Merge lost a
+repeated source; retained-only Merge lost selection; four unavailable-addition
+association cases failed atomic incoming identity. Each passed after its slice.
+Negative guards: forced replacement admission failed per-input collection size,
+unavailable membership, both no-op admission cases, all eight merge-order cases
+and root reconciliation; disabling the model no-op guard failed its generation
+assertion. Separately disabling Explorer's containment check failed mixed-source
+cohort ownership while repeated/subset cases passed. Restored every mutation.
+The containment fixture initially expanded siblings because it used ordinary
+input; corrected to explicit Favorite input, not counted as product red.
+
+All seven Collection top-level families ran uncached and verbose, 1.511s; no
+required subcases skipped. Final affected suite passed (`internal/ui`, 20.026s):
+`go test -tags no_emoji,nodynamic -count=1 ./internal/ui -run
+'^(TestCollection.*|TestHEICUnavailableFiles|TestBrowsingCollectionChanges|TestStaleFileStateCompletionsDoNotOverwriteNewerState|TestVisualSimilarityExplorer|Test.*Merge.*)$'`.
+Focused vet, make fmt/fmt-check, shard/exclusion checks and diff check passed.
+The inventory now contains 734 runnables. No new files or dependencies.
+
+GoLand fallback: revision 3582c7f plus ticket 03 diff, current IDE profile with
+errorsOnly=false. All seven changed code files inspected: collection.go,
+collection_test.go, drop.go, explorer_test.go, filestate_test.go, heic.go and
+sourcechange.go. No errors, ordinary warnings, timeouts or skips. Only two old
+17-line fixture-duplication weak warnings in filestate_test.go, covered by its
+existing exact exclusion. Mutated files reinspected after restoration/fixes;
+Explorer workflow also reinspected clean and has no final diff.
+
+CI follow-up / diagnosing-bugs: ticket 02's run 36395246262 exposed races in all
+three UI shards. The single existing session-restore test reproduced them under
+`go test -race -tags no_emoji,nodynamic -count=2 ./internal/ui -run
+'^TestRestoreSession_LoadsSavedFilesAndHidesLink$'` (race failure, 1.434s).
+Ranked hypotheses were trailing repaint, deferred menu flush, then startup harness.
+Moving only repaint removed that overlap but exposed the deferred menu race.
+Finishing both synchronous effects before display admission restored the original
+inline-driver contract; display's own request/presentation callbacks publish the
+subsequent loading/pixel state. No test harness relaxation or broad queue change.
+The unchanged repro passed three race runs (3.079s). All ten CI-failing tests and
+the Collection families passed focused race checks, count=3, in two batches
+(75.393s and 9.501s). Those existing tests provide the red-capable regression seam.
+No instrumentation retained. This inline lead fix is included with 03 because it
+corrects the shared replacement/merge boundary; second lead review recorded.
+
+The macOS amd64 job failed during RealAssetInstall with a model-download
+connection reset; it is unverified, not passed. The next pushed revision will run
+that external gate again. Qodana/CodeQL job success on 3582c7f is not final SARIF or
+latest-commit evidence. The PR remains draft until all nine tickets are complete.

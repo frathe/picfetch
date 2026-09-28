@@ -856,9 +856,11 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 	})
 	t.Run("favorite_identity_cancel", func(t *testing.T) {
-		for _, stage := range []string{"scan", "sort"} {
-			t.Run(stage, func(t *testing.T) {
+		for _, name := range []string{"scan", "sort", "merge_scan", "merge_sort"} {
+			t.Run(name, func(t *testing.T) {
+				stage := strings.TrimPrefix(name, "merge_")
 				v := openGridWith(t, "current.jpg")
+				v.SetMergeMode(strings.HasPrefix(name, "merge_"))
 				current := v.FileAt(0)
 				v.state.Replace(collectionInput{source: []fyne.URI{current}, display: []fyne.URI{current}, favorite: "original-favorite"})
 				before := v.state.Observe()

@@ -1,14 +1,19 @@
 package ui
 
 import (
+	"context"
+	"image/color"
 	"slices"
 	"testing"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+	fynetest "fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/similarity"
+	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -56,6 +61,33 @@ func TestCollectionModel(t *testing.T) {
 		}
 	})
 	t.Run("operations", func(t *testing.T) {
+		t.Run("merge", func(t *testing.T) {
+			a := storage.NewFileURI("/images/a.jpg")
+			u := storage.NewFileURI("/images/u.heic")
+			state := newAppState(0, false)
+			state.Replace(collectionInput{source: []fyne.URI{a}, display: []fyne.URI{a}, retained: []collectionSource{{a, false}, {u, true}}, favorite: "favorite-A"})
+			change := state.Merge(collectionInput{source: []fyne.URI{a}, display: []fyne.URI{a, a}, retained: []collectionSource{{a, false}, {u, true}}, index: 1, favorite: "favorite-B"})
+			if got := change.after.SourceFiles(); !slices.Equal(got, []fyne.URI{a, a}) {
+				t.Fatalf("merge lost a repeated source occurrence: %v", got)
+			}
+			if got := change.after.Retained(); !slices.Equal(got, []collectionSource{{a, false}, {u, true}, {a, false}, {u, true}}) {
+				t.Fatalf("merge lost retained gap order: %v", got)
+			}
+			if uri, index, ok := change.after.Current(); !ok || uri != a || index != 1 || change.after.Favorite() != "favorite-B" || change.after.Generation() != change.before.Generation()+1 {
+				t.Fatal("merge did not publish the requested repeated occurrence and association together")
+			}
+			if change.before.Count() != 1 || len(change.before.Retained()) != 2 || change.before.Favorite() != "favorite-A" {
+				t.Fatal("merge mutated its old observation")
+			}
+			retained := state.Merge(collectionInput{retained: []collectionSource{{u, true}}, favorite: "favorite-C"})
+			if uri, index, ok := retained.after.Current(); !ok || uri != a || index != 1 || retained.after.Count() != 2 || len(retained.after.Retained()) != 5 || retained.after.Favorite() != "favorite-C" {
+				t.Fatal("retained-only merge lost existing selection or incoming association")
+			}
+			empty := state.Merge(collectionInput{favorite: "must-not-bind"})
+			if empty.after.Generation() != retained.after.Generation() || empty.after.Favorite() != "favorite-C" || len(empty.after.Retained()) != 5 || empty.after.Count() != 2 {
+				t.Fatal("merge with no admitted entries changed committed facts")
+			}
+		})
 		t.Run("replacement", func(t *testing.T) {
 			a, b := storage.NewFileURI("/images/a.jpg"), storage.NewFileURI("/images/b.jpg")
 			u := storage.NewFileURI("/images/u.heic")
@@ -162,6 +194,43 @@ func TestCollectionCompatibility(t *testing.T) {
 	})
 }
 
+func TestCollectionMerge(t *testing.T) {
+	t.Run("per_input_limit", func(t *testing.T) {
+		v := newTestViewer(t)
+		files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "c.jpg", "d.jpg")
+		v.SetMaxScan(2)
+		dropAndWait(t, v, files[:2]...)
+		v.SetMergeMode(true)
+		dropAndWait(t, v, files[2:]...)
+		if got := v.state.Observe().SourceFiles(); !slices.EqualFunc(got, files, sameURI) {
+			t.Fatalf("per-input admission became an aggregate merge cap: %v", got)
+		}
+	})
+	t.Run("unavailable_existing", func(t *testing.T) {
+		v := newTestViewer(t)
+		v.startHEICCheck(false)
+		v.settleHEIC()
+		unavailable := storage.NewFileURI(uitest.WriteTempFile(t, "saved.heic", []byte("unavailable")))
+		v.OpenFavorite("favorite-A", []fyne.URI{unavailable})
+		waitForScan(t, v)
+		fynetest.Tap(explorerDialogButton(t, v, "Close"))
+		before := v.state.Observe()
+		v.SetMergeMode(true)
+		files := uitest.TempDirJPEGURIs(t, "added.jpg", "uninvited-sibling.jpg")
+		dropAndWait(t, v, files[0])
+		after := v.state.Observe()
+		if after.Count() != 1 || after.FileAt(0).String() != files[0].String() {
+			t.Fatal("merge into unavailable membership expanded replacement-style siblings")
+		}
+		if retained := after.Retained(); len(retained) != 2 || retained[0].uri != unavailable || !retained[0].unavailable || retained[1].uri.String() != files[0].String() {
+			t.Fatal("merge did not preserve unavailable membership before the addition")
+		}
+		if before.Count() != 0 || len(before.Retained()) != 1 || before.Favorite() != "favorite-A" || after.Favorite() != "" || after.Generation() != before.Generation()+1 {
+			t.Fatal("merge changed its old snapshot or did not atomically apply ordinary association")
+		}
+	})
+}
+
 func TestCollectionUnavailable(t *testing.T) {
 	t.Run("favorite_open", func(t *testing.T) {
 		v := newTestViewer(t)
@@ -190,6 +259,41 @@ func TestCollectionUnavailable(t *testing.T) {
 }
 
 func TestCollectionAdmission(t *testing.T) {
+	t.Run("merge", func(t *testing.T) {
+		for _, existing := range []string{"browsable", "unavailable"} {
+			t.Run(existing, func(t *testing.T) {
+				v := newTestViewer(t)
+				v.startHEICCheck(false)
+				v.settleHEIC()
+				files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
+				if existing == "unavailable" {
+					files = []fyne.URI{storage.NewFileURI(uitest.WriteTempFile(t, "a.heic", []byte("unavailable")))}
+				}
+				v.OpenFavorite("favorite-A", files)
+				waitForScan(t, v)
+				if existing == "browsable" {
+					waitForSort(t, v)
+					waitUntilLoaded(t, v)
+					v.ShowImage(1)
+					waitUntilLoaded(t, v)
+				} else {
+					fynetest.Tap(explorerDialogButton(t, v, "Close"))
+				}
+				before := v.state.Observe()
+				v.SetMergeMode(true)
+				unsupported := storage.NewFileURI(uitest.WriteTempFile(t, "notes.txt", []byte("unsupported")))
+				v.OpenFavorite("must-not-bind", []fyne.URI{unsupported})
+				waitForScan(t, v)
+				after := v.state.Observe()
+				if after.Generation() != before.Generation() || after.Favorite() != before.Favorite() || after.index != before.index || !slices.Equal(after.Retained(), before.Retained()) || !slices.Equal(after.SourceFiles(), before.SourceFiles()) {
+					t.Fatal("merge with no admitted entries changed committed facts")
+				}
+				if existing == "unavailable" && (!v.dropzone.Visible() || !v.emptyStateArt.Visible()) {
+					t.Fatal("no-op merge left an unavailable collection without guidance")
+				}
+			})
+		}
+	})
 	t.Run("empty_input", func(t *testing.T) {
 		v := newTestViewer(t)
 		files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
@@ -215,6 +319,122 @@ func TestCollectionAdmission(t *testing.T) {
 }
 
 func TestCollectionFavoriteAssociation(t *testing.T) {
+	t.Run("merge", func(t *testing.T) {
+		t.Run("containment", func(t *testing.T) {
+			for _, kind := range []string{"mixed", "repeated", "subset"} {
+				t.Run(kind, func(t *testing.T) {
+					v := newTestViewer(t)
+					files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "outside.jpg")
+					dir := t.TempDir()
+					if err := favstore.Save(dir, "Saved", files[:2]); err != nil {
+						t.Fatal(err)
+					}
+					favorite := favstore.Dir(dir, "Saved")
+					store, _, err := favstore.OpenCohorts(context.Background(), favorite)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := store.Save(context.Background(), favstore.CohortState{Groups: []favstore.Cohort{{Name: "Saved group", Paths: []string{files[0].Path()}}}}); err != nil {
+						t.Fatal(err)
+					}
+					initial := files[:1]
+					if kind == "mixed" {
+						initial = files[2:]
+					}
+					v.OpenFavorite("initial-favorite", initial)
+					waitForScan(t, v)
+					waitForSort(t, v)
+					waitUntilLoaded(t, v)
+					v.SetMergeMode(true)
+					incoming := files[:2]
+					if kind == "subset" {
+						incoming = files[:1]
+					}
+					v.OpenFavorite(favorite, incoming)
+					waitForScan(t, v)
+					waitForSort(t, v)
+					waitUntilLoaded(t, v)
+					preview := uitest.EncodeJPEG(t, 16, 16, color.White)
+					configureExplorer(v, func(options *explorerui.Options) {
+						options.Settings.CacheFavorites = false
+						options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+							var items []similarity.Item
+							for _, path := range paths {
+								items = append(items, similarity.Item{Path: path, Cohort: "unassigned", Preview: preview})
+							}
+							emit(similarity.Event{Complete: true, Total: len(paths), Successful: len(paths), Items: items})
+							return nil
+						}
+					})
+					v.showExplorer()
+					v.settleExplorer()
+					groups := v.explorer.Surface().Cohorts().Groups
+					if got := len(groups) > 0; got != (kind != "mixed") {
+						t.Fatalf("Favorite cohort ownership for %s: %+v", kind, groups)
+					}
+					if v.state.Observe().Favorite() != favorite {
+						t.Fatal("containment changed the committed candidate association")
+					}
+				})
+			}
+		})
+		for _, existing := range []string{"browsable", "unavailable"} {
+			for _, incoming := range []string{"browsable", "unavailable"} {
+				for _, kind := range []string{"ordinary", "favorite"} {
+					t.Run(existing+"/"+incoming+"/"+kind, func(t *testing.T) {
+						v := newTestViewer(t)
+						v.startHEICCheck(false)
+						v.settleHEIC()
+						files := uitest.TempDirJPEGURIs(t, "old.jpg", "added.jpg")
+						old, added := files[0], files[1]
+						if existing == "unavailable" {
+							old = storage.NewFileURI(uitest.WriteTempFile(t, "old.heic", []byte("unavailable")))
+						}
+						if incoming == "unavailable" {
+							added = storage.NewFileURI(uitest.WriteTempFile(t, "added.heic", []byte("unavailable")))
+						}
+						v.OpenFavorite("favorite-A", []fyne.URI{old})
+						waitForScan(t, v)
+						if existing == "browsable" {
+							waitForSort(t, v)
+							waitUntilLoaded(t, v)
+						} else {
+							fynetest.Tap(explorerDialogButton(t, v, "Close"))
+						}
+						before := v.state.Observe()
+						v.SetMergeMode(true)
+						want := ""
+						if kind == "favorite" {
+							want = "favorite-B"
+							v.OpenFavorite(want, []fyne.URI{added})
+						} else {
+							v.OpenFiles([]fyne.URI{added})
+						}
+						waitForScan(t, v)
+						if incoming == "browsable" {
+							waitForSort(t, v)
+							waitUntilLoaded(t, v)
+						}
+						after := v.state.Observe()
+						if after.Favorite() != want || after.Generation() != before.Generation()+1 {
+							t.Fatal("admitted merge did not atomically apply incoming association")
+						}
+						retained := after.Retained()
+						if len(retained) != 2 || retained[0].uri.String() != old.String() || retained[1].uri.String() != added.String() {
+							t.Fatalf("merge changed retained input order: %v", retained)
+						}
+						if incoming == "browsable" {
+							if uri, _, ok := after.Current(); !ok || uri.String() != added.String() {
+								t.Fatal("merge did not choose its first browsable addition")
+							}
+						} else if uri, _, ok := after.Current(); ok != (existing == "browsable") || ok && uri.String() != old.String() {
+							t.Fatal("unavailable-only addition changed the chosen image")
+						}
+					})
+				}
+			}
+		}
+	})
 	t.Run("replacement", func(t *testing.T) {
 		for _, favorite := range []bool{false, true} {
 			t.Run(map[bool]string{false: "ordinary", true: "favorite"}[favorite], func(t *testing.T) {
@@ -247,27 +467,34 @@ func TestCollectionFavoriteAssociation(t *testing.T) {
 }
 
 func TestCollectionReconciliation(t *testing.T) {
-	t.Run("replacement", func(t *testing.T) {
-		v, publish := streamingSearch(t)
-		publish(similarity.SearchFinal, 2, 1)
-		before := v.state.Observe()
-		files := uitest.TempDirJPEGURIs(t, "replacement-a.jpg", "replacement-b.jpg")
-		v.OpenFavorite("replacement-favorite", files)
-		waitForScan(t, v)
-		waitForSort(t, v)
-		waitUntilLoaded(t, v)
-		v.visualsearch.Settle()
-		after := v.state.Observe()
-		if after.Generation() != before.Generation()+1 || after.Count() != 2 || after.Favorite() != "replacement-favorite" {
-			t.Fatal("replacement did not publish complete collection facts once")
-		}
-		if v.searchActive() || v.grid.Visible() || v.browsing.current().binding.kind != browsingCollection {
-			t.Fatal("retired ranking restored its obsolete browsing surface")
-		}
-		mounted := false
-		explorerWalk(v.win.Content(), func(object fyne.CanvasObject) { mounted = mounted || object == v.img })
-		if uri, ok := v.DisplayedFile(); !ok || uri.String() != files[0].String() || !mounted {
-			t.Fatal("replacement did not hand off its chosen image to the mounted display")
-		}
-	})
+	for _, kind := range []string{"replacement", "merge"} {
+		t.Run(kind, func(t *testing.T) {
+			v, publish := streamingSearch(t)
+			publish(similarity.SearchFinal, 2, 1)
+			before := v.state.Observe()
+			v.SetMergeMode(kind == "merge")
+			files := uitest.TempDirJPEGURIs(t, "replacement-a.jpg", "replacement-b.jpg")
+			v.OpenFavorite("replacement-favorite", files)
+			waitForScan(t, v)
+			waitForSort(t, v)
+			waitUntilLoaded(t, v)
+			v.visualsearch.Settle()
+			after := v.state.Observe()
+			wantCount := 2
+			if kind == "merge" {
+				wantCount += before.Count()
+			}
+			if after.Generation() != before.Generation()+1 || after.Count() != wantCount || after.Favorite() != "replacement-favorite" {
+				t.Fatal("replacement did not publish complete collection facts once")
+			}
+			if v.searchActive() || v.grid.Visible() || v.browsing.current().binding.kind != browsingCollection {
+				t.Fatal("retired ranking restored its obsolete browsing surface")
+			}
+			mounted := false
+			explorerWalk(v.win.Content(), func(object fyne.CanvasObject) { mounted = mounted || object == v.img })
+			if uri, ok := v.DisplayedFile(); !ok || uri.String() != files[0].String() || !mounted {
+				t.Fatal("replacement did not hand off its chosen image to the mounted display")
+			}
+		})
+	}
 }

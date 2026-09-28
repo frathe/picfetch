@@ -31,10 +31,15 @@ type sourceChange struct {
 // Open preparation has already retired its feature surfaces. Commit complete
 // collection facts before rebinding derived readers or admitting display work.
 func (v *viewer) commitOpenedCollection(input collectionInput, merging bool, present func()) {
-	defer v.beginBrowsingUpdate()()
+	finishUpdate := v.beginBrowsingUpdate()
 	v.closeVisualSearch()
 	v.grid.Close()
-	change := v.state.Replace(input)
+	var change collectionChange
+	if merging {
+		change = v.state.Merge(input)
+	} else {
+		change = v.state.Replace(input)
+	}
 	if !merging {
 		v.dupes.WipeIfStale()
 	}
@@ -42,8 +47,11 @@ func (v *viewer) commitOpenedCollection(input collectionInput, merging bool, pre
 	// The closed Grid rebuilds its generation-bound indexes on next entry.
 	// FilesChanged would start fresh duplicate hashing behind a closed surface.
 	v.locationMap.SetSources(change.after.DisplayFiles())
-	present()
 	v.ForceRepaint()
+	finishUpdate()
+	// Display admission must be last: startup tests use Fyne's inline worker
+	// delivery, so neither repaint nor deferred menu publication may follow it.
+	present()
 }
 
 // reconcileSources returns an image requested by origin restoration, or -1.

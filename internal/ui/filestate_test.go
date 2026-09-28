@@ -137,8 +137,10 @@ func TestStaleFileStateCompletionsDoNotOverwriteNewerState(t *testing.T) {
 	staleScanToken := v.scanOp.lifecycle.begin()
 	v.scanOp.lifecycle.begin()
 	var scanSignal completion.Signal
-	v.applyScanResult(staleScanToken, false, stale, stale, false, filescan.DefaultMax, scanSignal.Begin(), "", nil, nil)
-	waitFor(t, "the stale scan completion", &scanSignal)
+	for _, merging := range []bool{false, true} {
+		v.applyScanResult(staleScanToken, merging, stale, stale, false, filescan.DefaultMax, scanSignal.Begin(), "stale-favorite", nil, nil)
+		waitFor(t, "the stale scan completion", &scanSignal)
+	}
 	assertEquivalentFileSlices(t, v)
 	if got := namesOfURIs(v.state.files); !slices.Equal(got, []string{"current.jpg"}) {
 		t.Errorf("files = %v, want newer scan state retained", got)

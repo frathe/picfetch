@@ -19,8 +19,9 @@ type collectionData struct {
 	favorite      string
 }
 
-// collectionInput is a fully prepared collection. Preparation owns source I/O
-// and ordering; the model copies these values and publishes them together.
+// collectionInput carries prepared orders and a candidate association. Replace
+// takes full membership; Merge takes source/retained additions and a full display
+// order. Preparation owns source I/O; the model copies and publishes the values.
 type collectionInput struct {
 	source, display []fyne.URI
 	retained        []collectionSource
@@ -148,3 +149,24 @@ func (s *appState) Replace(input collectionInput) collectionChange {
 }
 
 func (s *appState) Clear() collectionChange { return s.Replace(collectionInput{}) }
+
+// Merge takes additions in source/retained order and an already-prepared full
+// display order. Appending committed membership belongs to the model.
+func (s *appState) Merge(input collectionInput) collectionChange {
+	before := s.Observe()
+	if len(input.source) == 0 && len(input.retained) == 0 {
+		return collectionChange{before: before, after: before}
+	}
+	if len(input.source) == 0 {
+		input.display = before.DisplayFiles()
+		input.index = before.index
+	}
+	if input.retained == nil {
+		for _, uri := range input.source {
+			input.retained = append(input.retained, collectionSource{uri: uri})
+		}
+	}
+	input.source = append(before.SourceFiles(), input.source...)
+	input.retained = append(before.Retained(), input.retained...)
+	return s.Replace(input)
+}
