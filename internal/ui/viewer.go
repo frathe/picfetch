@@ -154,7 +154,7 @@ type viewer struct {
 	// outlives the navigation that started it and is superseded only by
 	// the next favorite opened or saved, a preference disable, or shutdown.
 	// favThumbWorkers tracks every pass; favThumbClosed is owned by the UI.
-	favThumbLifecycle requestLifecycle
+	favThumbLifecycle requestlife.Owner
 	favThumbWorkers   sync.WaitGroup
 	favThumbClosed    bool
 
@@ -445,13 +445,13 @@ type viewer struct {
 	// updater owns client preparation, the release-check/download policy, the
 	// staged-update lifecycle, the What's-New cache, and the last-check-day
 	// storage - see internal/ui/autoupdate. updateOp mirrors
-	// scanOp/display's navigation lifecycle: one requestLifecycle for the background
+	// scanOp/display's navigation lifecycle: one requestlife.Owner for the background
 	// check/download, kept here rather than promoted into that package (this
 	// refactor's locked decision on cancellation), so
 	// maybeStartUpdateCheck (autoupdate.go) prepares the client, then begins
 	// the token and hands Updater.Start its context and a staleness func.
 	updater  *autoupdate.Updater
-	updateOp requestLifecycle
+	updateOp requestlife.Owner
 
 	// settings is the whole settings-backed state - see memlimits.go's
 	// settings for what it holds and why it's grouped.

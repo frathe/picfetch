@@ -101,8 +101,8 @@ func TestExportUnrelatedDestinationPreservesDerivedState(t *testing.T) {
 	v.grid.StoreThumb(source, thumb)
 	v.dupes.PutHash(source.String(), 42)
 	v.dupes.PutNativeSize(source.String(), image.Pt(8, 16))
-	preview := v.favThumbLifecycle.begin()
-	defer preview.cancel()
+	preview := v.favThumbLifecycle.Begin(context.Background())
+	defer preview.Release()
 	thumbs, facts := v.grid.CaptureThumbs(), v.dupes.CaptureFacts()
 	uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return dest, nil })
 	v.exportAs(".png")
@@ -110,7 +110,7 @@ func TestExportUnrelatedDestinationPreservesDerivedState(t *testing.T) {
 	if _, err := os.Stat(dest.Path()); err != nil {
 		t.Fatal(err)
 	}
-	if !preview.current() || !thumbs.Current() || !facts.Current() {
+	if !preview.Current() || !thumbs.Current() || !facts.Current() {
 		t.Error("unrelated export invalidated favorite previews, thumbnails or duplicate facts")
 	}
 	if got, ok := v.grid.CachedThumb(source); !ok || got != thumb {
@@ -138,8 +138,8 @@ func TestFileMutationInvalidatesNoncurrentLoadedAlias(t *testing.T) {
 	pixels := v.img.Image
 	v.grid.StoreThumb(alias, image.NewRGBA(image.Rect(0, 0, 4, 4)))
 	v.dupes.PutNativeSize(alias.String(), image.Pt(4, 4))
-	preview := v.favThumbLifecycle.begin()
-	defer preview.cancel()
+	preview := v.favThumbLifecycle.Begin(context.Background())
+	defer preview.Release()
 	thumbs, facts := v.grid.CaptureThumbs(), v.dupes.CaptureFacts()
 	result, err := imaging.ExportContext(context.Background(), target, image.NewRGBA(image.Rect(0, 0, 16, 8)), nil, imaging.ExportOptions{})
 	if err != nil {
@@ -147,7 +147,7 @@ func TestFileMutationInvalidatesNoncurrentLoadedAlias(t *testing.T) {
 	}
 	v.AfterFileExported(result)
 	drainFileWork(t, v)
-	if preview.current() || thumbs.Current() || facts.Current() {
+	if preview.Current() || thumbs.Current() || facts.Current() {
 		t.Error("write through a noncurrent loaded alias retained derived state")
 	}
 	if v.img.Image != pixels {
@@ -177,12 +177,12 @@ func TestFileMutationInvalidationRechecksLoadedSetBeforeDelivery(t *testing.T) {
 				files = append(files, target)
 			}
 			v.state.Replace(collectionInput{source: files, display: files, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
-			preview := v.favThumbLifecycle.begin()
-			defer preview.cancel()
+			preview := v.favThumbLifecycle.Begin(context.Background())
+			defer preview.Release()
 			thumbs := v.grid.CaptureThumbs()
 			drainFileWork(t, v)
-			if preview.current() == add || thumbs.Current() == add {
-				t.Errorf("invalidation used the obsolete loaded set: added=%v previewCurrent=%v thumbsCurrent=%v", add, preview.current(), thumbs.Current())
+			if preview.Current() == add || thumbs.Current() == add {
+				t.Errorf("invalidation used the obsolete loaded set: added=%v previewCurrent=%v thumbsCurrent=%v", add, preview.Current(), thumbs.Current())
 			}
 		})
 	}

@@ -259,7 +259,7 @@ func drain(t *testing.T, v *viewer) {
 	v.closeFavoritePreviews()
 	v.grid.Stop()
 	v.exif.Stop()
-	v.updateOp.invalidate()
+	v.updateOp.Invalidate()
 	v.slides.Exit()
 	v.compare.Close()
 	v.spiral.Close()

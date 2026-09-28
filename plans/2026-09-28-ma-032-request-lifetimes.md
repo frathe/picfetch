@@ -1,6 +1,6 @@
 # MA-032 implementation and evidence
 
-Status: tickets 01-06 complete; ticket 07 next; extraction accepted.
+Status: tickets 01-07 complete; ticket 09 next; fallback 08 inapplicable.
 Base: `04cb74c`. Draft PR: https://github.com/frathe/picfetch/pull/71.
 Authorization: 2026-09-28 `/implement MA-032`, TDD/SDD, a commit after each
 ticket, draft PR/CI, then ready-for-review and the GitHub Codex review loop.
@@ -46,9 +46,9 @@ The authorized GitHub full suite supplies the final broad race gate; use
 | 04 | root asyncop/drop/openfiles/explorer/locationmap and composition/tests; four basic owners | T0; 0 spawns (mechanical rule S), focused V1-V5 | Complete |
 | 05 | filework/save/export/search reconciliation and tests; committed callbacks stay explicit | T0; no spawn, focused V1-V4 | Complete |
 | 06 | clipboardwork/clipboard/batch/copyselection, viewer/harness and tests; retain capture and delivery completion | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
-| 07 | favthumbs/autoupdate/viewer/harness and affected tests; basic tokens only | T0; 0 spawns (mechanical rule S), focused V1-V4 | Ready |
+| 07 | favthumbs/autoupdate/viewer/harness and affected tests; basic tokens only | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
 | 08 | Restore only pilot runtime changes; test-only shared local contract | T0; no spawn, focused V1-V4 | Inapplicable: extraction accepted |
-| 09 | Remove remaining duplicate request mechanics; retain independent revisions; docs/metadata/evidence and full qualification | T0; no spawn, final gate | Blocked by selected branch |
+| 09 | Remove remaining duplicate request mechanics; retain independent revisions; docs/metadata/evidence and full qualification | T0; no spawn, final gate | Ready |
 
 Every ticket updates exact Qodana exclusions, root test shards, architecture when
 needed, local issue checkboxes and this record before its commit. GoLand changed
@@ -86,7 +86,7 @@ The historical model names in the working agreement are interpreted as tiers.
 - [x] Clean starting branch `feature/ma-032-request-lifetimes`, base `04cb74c`.
 - [x] 01 shared request and sorting pilot.
 - [x] 02 SVG pilot and recorded verdict.
-- [ ] Selected migration/fallback tickets committed separately.
+- [x] Selected migration/fallback tickets committed separately.
 - [ ] 09 convergence, final CI and inspections.
 - [ ] PR ready, latest-commit clean Codex/security/CodeQL/Qodana/CI round.
 
@@ -279,6 +279,8 @@ and fixes. One recon turn budget, not delegated code review.
 
 ### Ticket 06 — clipboard and region copy (parent `fe49175`)
 
+Committed as `cbf4279`, pushed to draft PR 71.
+
 Both clipboard owners now use shared basic tokens. Whole-image/Grid dispatch
 retains busy admission, encoding cancellation and the queued result/menu-bound
 completion; shutdown can finish cancelled returned work without UI delivery.
@@ -300,3 +302,33 @@ Windows recon returned an existing native clipboard multiple-path test failure,
 but its connector could not expose the artifact payload. One bounded follow-up
 also hit download DNS/cache limits. Lead will retrieve raw events through gh;
 no defect or clean platform gate inferred from the summary alone.
+
+### Ticket 07 — previews and updates (parent `cbf4279`)
+
+The final two root owners use shared basic tokens. Favorite preview capability
+capture now precedes Begin; captured Favorite owner, full membership, source
+versions and cache writers are unchanged. All-generation preview workers still
+outlive superseded operation signals. Updater retains its serialized staging,
+manual/automatic admission, UI event checks and worker barrier. No shared manager,
+new release point or FinalDelivery wrapping. All inferred preview test adapters
+and shutdown/source invalidations migrated; root-local types now have no runtime
+consumers and remain for ticket 09 removal only.
+
+19 enumerated V1/V2 top-level suites passed under uncached race before (3.640s)
+and after migration (3.631s). Omitting queued event currentness failed the existing
+updater callback test, then was restored. Another 15 affected preview/collection/
+file-write adapter tests passed (11.055s). No skips/race reports. Logs:
+`.scratch/ma-032/ticket07-{baseline,stale-event-red,ui,ui-list,adapters,adapters-list}.log`.
+Root vet, formatting, whitespace, exact exclusions and Docker inventory (743/3)
+passed. GoLand inspected all 10 changed Go files including weak warnings:
+favthumbs/autoupdate/viewer/sourcechange/run/harness_test and favthumbs_test,
+autoupdate_test, exportwork_test, collection_effects_test. No actionable findings:
+viewer's old suggestions unchanged; autoupdate_test duplicate fixtures at
+445/641/776/906 are intentional and covered by its existing exact exclusion.
+One lead protocol review, zero implementation spawns, no broad local suite.
+
+Lead retrieved the `9bda248` Windows artifact via gh. Its multiple-path PowerShell
+decode exited status 1 at 30.03s with no decoded paths, matching the fixture's
+30-second context limit. Neither this package nor that subprocess changed in
+MA-032. Root cause remains unproven; do not change unrelated platform behavior
+from this one timeout-shaped failure. Latest-head Windows CI must pass.

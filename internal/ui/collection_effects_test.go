@@ -123,8 +123,8 @@ func collectionCommittedWriteCallers(t *testing.T) {
 			v.grid.StoreThumb(alias, image.NewRGBA(image.Rect(0, 0, 24, 16)))
 			v.dupes.PutHash(alias.String(), 42)
 			thumbs, facts := v.grid.CaptureThumbs(), v.dupes.CaptureFacts()
-			preview := v.favThumbLifecycle.begin()
-			defer preview.cancel()
+			preview := v.favThumbLifecycle.Begin(context.Background())
+			defer preview.Release()
 			unblock()
 			switch caller {
 			case "save":
@@ -141,7 +141,7 @@ func collectionCommittedWriteCallers(t *testing.T) {
 			if after.Generation() != before.Generation() || after.Favorite() != "current" || !slices.Equal(after.Retained(), before.Retained()) || after.index != before.index || v.img.Image != pixels || v.display.Rotation() != rotation || v.toast.text.Text != toast {
 				t.Fatal("stale committed effect rebound collection, navigation, pixels, rotation or toast")
 			}
-			if preview.current() || thumbs.Current() || facts.Current() {
+			if preview.Current() || thumbs.Current() || facts.Current() {
 				t.Fatal("committed effect missed the current collection's noncurrent source alias")
 			}
 		})
@@ -199,13 +199,13 @@ func collectionCommittedWriteLifecycle(t *testing.T) {
 						waitUntilLoaded(t, v)
 					}
 					before := v.state.Observe()
-					preview := v.favThumbLifecycle.begin()
-					defer preview.cancel()
+					preview := v.favThumbLifecycle.Begin(context.Background())
+					defer preview.Release()
 					drainFileWork(t, v)
 					v.display.Settle()
 					after := v.state.Observe()
 					wantInvalidation := committed && stage == "sources" && action == "same_membership"
-					if completions.Load() != 1 || preview.current() == wantInvalidation || after.Generation() != before.Generation() || after.Favorite() != before.Favorite() || !slices.Equal(after.Retained(), before.Retained()) || after.index != before.index {
+					if completions.Load() != 1 || preview.Current() == wantInvalidation || after.Generation() != before.Generation() || after.Favorite() != before.Favorite() || !slices.Equal(after.Retained(), before.Retained()) || after.index != before.index {
 						t.Fatal("queued reconciliation lost completion, revalidation or current collection facts")
 					}
 					written, err := imaging.LoadImage(source, imaging.DefaultImgCacheBytes)
@@ -245,8 +245,8 @@ func collectionContentAndPolicyEffects(t *testing.T) {
 				t.Fatal("fixture did not select a visible nonduplicate source")
 			}
 			writer, thumbs, facts := v.imgCache.Capture(), v.grid.CaptureThumbs(), v.dupes.CaptureFacts()
-			preview := v.favThumbLifecycle.begin()
-			defer preview.cancel()
+			preview := v.favThumbLifecycle.Begin(context.Background())
+			defer preview.Release()
 			visit := v.browsing.revision
 			switch kind {
 			case "content":
@@ -269,7 +269,7 @@ func collectionContentAndPolicyEffects(t *testing.T) {
 			after := v.state.Observe()
 			content := kind == "content" || kind == "validation"
 			noop := kind == "same_analysis" || kind == "same_duplicate"
-			if writer.Current() == (kind == "validation") || thumbs.Current() == content || facts.Current() == content || preview.current() == content {
+			if writer.Current() == (kind == "validation") || thumbs.Current() == content || facts.Current() == content || preview.Current() == content {
 				t.Fatal("content, validation and policy invalidations lost their distinct cache/producer semantics")
 			}
 			if after.Generation() != before.Generation() || after.Favorite() != before.Favorite() || !slices.Equal(after.Retained(), before.Retained()) || (v.browsing.revision == visit) != noop {

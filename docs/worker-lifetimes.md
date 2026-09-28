@@ -178,6 +178,12 @@ Operation completion follows that reconciliation, not initiating-token release.
 Ticket 06 migrates whole-image/Grid clipboard and region-copy basic tokens.
 Shared busy admission, captured pixels, acquisition-bound pause release, native
 worker tracking and queued clipboard completion remain separate local policies.
+Ticket 07 completes Favorite preview synchronization and update requests. Preview
+HEIC capability is captured before Begin; owner/version/cache policy and retired
+preview workers remain local. Updater admission, serialized durable staging and
+queued stale-event checks still use their existing worker/completion protocol.
+All 15 inventoried owners are migrated; ticket 09 removes the unused root request
+implementation and qualifies the combined result.
 No ADR is needed for this small reversible extraction decision. General
 concurrency vocabulary stays in this document, leaving the domain glossary
 unchanged. Dependencies and native distribution inputs remain unchanged.

@@ -116,7 +116,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 		v.compare.Close()
 	}
 	if change.kind == sourcesRevalidated || change.kind == sourceWritten {
-		v.favThumbLifecycle.invalidate()
+		v.favThumbLifecycle.Invalidate()
 	}
 	if change.kind == sourcesRevalidated {
 		v.imgCache.Purge()
