@@ -108,6 +108,13 @@ func (s collectionSnapshot) FileSet() dupes.Snapshot {
 func (s collectionSnapshot) Generation() uint64 { return s.FileSet().Generation() }
 func (s collectionSnapshot) Count() int         { return s.FileSet().Count() }
 
+func (s collectionSnapshot) Occurrences() fileidentity.Index {
+	if s.data == nil {
+		return fileidentity.Index{}
+	}
+	return s.data.occurrences
+}
+
 func (s collectionSnapshot) FileAt(i int) fyne.URI { return s.data.files[i] }
 
 func (s collectionSnapshot) SourceFiles() []fyne.URI {
@@ -201,6 +208,25 @@ func (s *appState) Replace(input collectionInput) collectionChange {
 }
 
 func (s *appState) Clear() collectionChange { return s.Replace(collectionInput{}) }
+
+// Reorder publishes an already-prepared stable order of the same membership.
+// Selection is captured at commit, not when background sorting was admitted.
+func (s *appState) Reorder(files []fyne.URI) collectionChange {
+	before := s.Observe()
+	bookmark, chosen := before.Bookmark(before.index)
+	s.files = slices.Clone(files)
+	if chosen {
+		identities := fileidentity.NewIndex(len(files), func(i int) string {
+			if files[i] != nil {
+				return files[i].Path()
+			}
+			return ""
+		})
+		s.index = identities.Resolve(bookmark.occurrence)
+	}
+	s.publish()
+	return collectionChange{before: before, after: s.Observe()}
+}
 
 // Merge takes additions in source/retained order and an already-prepared full
 // display order. Appending committed membership belongs to the model.

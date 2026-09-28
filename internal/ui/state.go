@@ -112,15 +112,6 @@ func (s *appState) replaceFiles(unsorted, files []fyne.URI) {
 	s.setFiles(unsorted, files)
 }
 
-// reorder replaces files with an already-sorted list of the same members,
-// leaving unsortedFiles and index alone. It exists so a reorder goes
-// through a mutator like every other write does, rather than assigning
-// the field directly and skipping publish.
-func (s *appState) reorder(files []fyne.URI) {
-	s.files = append([]fyne.URI(nil), files...)
-	s.publish()
-}
-
 func (s *appState) clearFiles() {
 	s.Clear()
 }

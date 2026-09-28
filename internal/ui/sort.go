@@ -16,17 +16,12 @@ func (v *viewer) toggleSort() {
 	v.SetSortMode(v.state.SortMode().Next())
 }
 
-// SetSortMode sets the sort order directly - the settings window's binding
-// for the cycle above. Re-derives v.state.files from v.state.unsortedFiles under the
-// new mode in the background (see filesort.Order's own doc comment: the
-// capture-date/modified/size modes each stat or Exif-read every file, which
-// visibly pauses a large recursive folder scan if done inline on the UI
-// goroutine), keeping whichever file is currently on screen in view across
-// the switch instead of jumping to wherever position 0 lands. Safe to call
-// before any files are ever loaded, unlike toggleSort's own S-key call
-// site, which is gated behind handleKeyEvent's len(v.state.files)<2 guard.
+// SetSortMode prepares display order from a captured source order. Commit keeps
+// the latest requested occurrence, including navigation made during preparation.
+// Metadata-heavy modes run off UI; empty collections only change the preference.
 func (v *viewer) SetSortMode(m filesort.Mode) {
-	if len(v.state.files) == 0 {
+	collection := v.state.Observe()
+	if collection.Count() == 0 {
 		v.invalidateSort()
 		v.state.SetSortMode(m)
 		v.applyTitle()
@@ -34,17 +29,6 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 
 		return
 	}
-
-	current := v.currentImageOccurrence()
-
-	// Defensively copied rather than aliased: v.state.unsortedFiles's backing
-	// array can be mutated in place by RemoveFile (a failed-decode retry
-	// dropping a file, or a Shift+Delete) while this snapshot is still
-	// being read by startSort's background goroutine - a concurrent
-	// read/write on the same backing array that filesort.Order's own copy
-	// of its argument doesn't protect against, since that copy only happens
-	// after this handoff.
-	unsorted := append([]fyne.URI(nil), v.state.unsortedFiles...)
 
 	// The title's sort-mode prefix updates immediately, even before the
 	// reorder itself finishes - there's no reason to make the user wait for
@@ -57,23 +41,7 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 	v.applyTitle()
 	v.syncMenus()
 
-	v.startSort(m, unsorted, func(ordered []fyne.URI) {
-		defer v.beginBrowsingUpdate()()
-		browsing := v.captureBrowsingReconciliation(nil)
-		v.state.reorder(ordered)
-		v.browsing.reconcile(v.Generation(), browsing.survivors)
-		v.grid.FilesChanged()
-		index := v.finishBrowsingReconciliation(browsing)
-		v.ForceRepaint()
-		if index < 0 {
-			if candidate, ok := v.captureBrowsingScope().RestoreImage(current, v.sourceOccurrences(current.Path)); ok {
-				index = candidate
-			}
-		}
-		if index >= 0 {
-			v.loadImage(index)
-		}
-	})
+	v.startSort(m, collection.SourceFiles(), v.commitCollectionReorder)
 }
 
 // invalidateSort advances sortOp.lifecycle and, if a reorder is currently in

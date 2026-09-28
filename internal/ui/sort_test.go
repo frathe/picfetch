@@ -373,7 +373,7 @@ func TestCaptureSort_CancelsHeldReadWithoutInstallingOrder(t *testing.T) {
 	applied := false
 	v.startSort(filesort.ByCaptureDate, []fyne.URI{source}, func(ordered []fyne.URI) {
 		applied = true
-		v.state.reorder(ordered)
+		v.state.Reorder(ordered)
 	})
 	completion := v.sortOp.done.Current()
 	select {
@@ -432,11 +432,15 @@ func TestCaptureSort_CancellationRestoresMenuAndAllowsRetry(t *testing.T) {
 	v.state.Select(1)
 	v.applyTitle()
 	v.syncMenus()
+	collection := v.state.Observe()
 	title := v.win.Title()
 	assertRestored := func() {
 		t.Helper()
 		if !slices.Equal(v.state.files, before) || v.state.index != 1 {
 			t.Errorf("cancelled sort changed files/index: %v/%d", v.state.files, v.state.index)
+		}
+		if v.Generation() != collection.Generation() {
+			t.Fatal("canceled sort published a collection generation")
 		}
 		for _, mode := range filesort.Modes() {
 			item := requireSortChild(t, v, filesort.DisplayName(mode))
@@ -508,6 +512,7 @@ func TestCaptureSort_SupersededCompletionPreservesCancellationBaseline(t *testin
 		}, nil
 	})
 	v.state.setFiles([]fyne.URI{b, source}, []fyne.URI{b, source})
+	collection := v.state.Observe()
 	waitRead := func() func() {
 		t.Helper()
 		select {
@@ -533,7 +538,7 @@ func TestCaptureSort_SupersededCompletionPreservesCancellationBaseline(t *testin
 	if err := old.Wait(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if !v.sortOp.active || !requireSortChild(t, v, filesort.DisplayName(filesort.ByCaptureDate)).Checked {
+	if !v.sortOp.active || !requireSortChild(t, v, filesort.DisplayName(filesort.ByCaptureDate)).Checked || v.Generation() != collection.Generation() {
 		t.Error("old completion changed the replacement sort's presentation")
 	}
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
@@ -546,5 +551,8 @@ func TestCaptureSort_SupersededCompletionPreservesCancellationBaseline(t *testin
 	releaseCurrent()
 	if err := current.Wait(ctx); err != nil {
 		t.Fatal(err)
+	}
+	if v.Generation() != collection.Generation() {
+		t.Fatal("canceled replacement sort published a collection generation")
 	}
 }

@@ -320,7 +320,7 @@ func TestGridBrowseDuringAnalysis(t *testing.T) {
 				synctest.Wait()
 				ordered := slices.Clone(f.v.state.files)
 				slices.Reverse(ordered)
-				f.v.state.reorder(ordered)
+				f.v.state.Reorder(ordered)
 				f.v.grid.FilesChanged()
 				f.assertResult(t, 3, 2)
 				f.deliver()

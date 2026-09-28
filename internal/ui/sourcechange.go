@@ -28,6 +28,32 @@ type sourceChange struct {
 	written []fyne.URI
 }
 
+// Reorder retains collection facts but retires generation-bound producers and
+// reconciles retained visits before choosing the one authoritative image load.
+func (v *viewer) commitCollectionReorder(ordered []fyne.URI) {
+	finishUpdate := v.beginBrowsingUpdate()
+	browsing := v.captureBrowsingReconciliation(nil)
+	change := v.state.Reorder(ordered)
+	v.browsing.reconcile(change.after.Generation(), browsing.survivors)
+	v.grid.FilesChanged()
+	index := v.finishBrowsingReconciliation(browsing)
+	if index < 0 {
+		if current, ok := change.after.Bookmark(change.after.index); ok {
+			if candidate, eligible := v.captureBrowsingScope().RestoreImage(current.occurrence, change.after.Occurrences()); eligible {
+				index = candidate
+			}
+		}
+	}
+	if index < 0 {
+		v.invalidateLoad()
+	}
+	v.ForceRepaint()
+	finishUpdate()
+	if index >= 0 {
+		v.loadImage(index)
+	}
+}
+
 // Open preparation has already retired its feature surfaces. Commit complete
 // collection facts before rebinding derived readers or admitting display work.
 func (v *viewer) commitOpenedCollection(input collectionInput, merging bool, present func()) {

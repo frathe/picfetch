@@ -1,6 +1,6 @@
 # MA-030: authoritative collection identity and committed transitions
 
-Status: implementation in progress; tickets 01-04 complete, ticket 05 next.
+Status: implementation in progress; tickets 01-05 complete, ticket 06 next.
 Baseline: `1f92396367acc41c663710ee4b4b981c43d1c184`.
 Branch: `feature/ma-030-collection-transitions`.
 Authority: [accepted design](../docs/collection-transitions.md),
@@ -224,8 +224,9 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 | 02 | 1/0 | 1 | no | Complete; evidence below |
 | 03 | 1/0 | 2 | no | Complete; merge and CI race evidence below |
 | 04 | 1/1 | 1 | no | Complete; replay/capture evidence below |
-| 05 | 1/1 | 0 | no | Held-sort test-seam scout complete |
-| 06-08 | 1 each/0 | 0 | no | Pending |
+| 05 | 1/1 | 1 | no | Complete; sort handoff evidence below |
+| 06 | 1/1 | 0 | no | Batch-removal test-seam scout complete |
+| 07-08 | 1 each/0 | 0 | no | Pending |
 | 09 | 1/0 | 0 | CI | Pending |
 
 ### Progress
@@ -236,7 +237,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 - [x] 02 atomic replacement and Favorite association.
 - [x] 03 retained merge.
 - [x] 04 saved replay and capture.
-- [ ] 05 latest-choice sort handoff.
+- [x] 05 latest-choice sort handoff.
 - [ ] 06 batch removals and shared survivor result.
 - [ ] 07 unavailable retention and scoped recovery.
 - [ ] 08 committed writes and policy distinctions.
@@ -348,6 +349,12 @@ capability replay pass; ordinary discovery semantics must remain unchanged.
 checked by targeted reads; G3 no writes; G4 interaction tests span root browsing,
 sorting and display packages; G5 the lead has not traced those test barriers.
 S/W do not apply to flow tracing. Reuse the read-only scout while lead implements 03.
+
+06 scout gate: G1 bounded removal/completion/retained-visit test inventory; G2
+source locations verifiable by targeted reads; G3 no writes; G4 deletion and
+root browsing, URI identity and cache effects span several test families; G5
+lead has not traced those barriers. S/W do not replace flow tracing. Reuse the
+scout while the lead owns ticket 05 design, implementation and review.
 
 ### Ticket 03 evidence
 
@@ -491,3 +498,74 @@ only manipulate captured values. Both pending-HEIC admission passes share the
 same kind/budget. Retained capture clones its outputs. CI on ticket 03 revision
 7580808 is now entirely green, including all race shards and both macOS native
 guards; final SARIF and fresh review gates still await the final implementation.
+
+### Ticket 05 evidence
+
+`Reorder` captures the latest model selection at commit and publishes its mapped
+path/ordinal with the prepared display order in one generation. Source order,
+retained gaps and Favorite association survive unchanged. `SetSortMode` captures
+source preparation only; its former parallel commit sequence now lives at the
+root collection boundary. The old lowercase reorder mutator is removed from
+production and fixtures. Root detaches search, publishes, rebinds visits and Grid,
+rebuilds map facts, honors explicit origin restoration, then admits one display
+request after synchronous menu/repaint work. Empty restricted scopes cancel an
+obsolete request without loading outside their scope. No new workers or caches.
+
+Acceptance mapping:
+
+- Model/operations/reorder pins later repeated occurrence, one generation,
+  association/source/retained preservation, anchored capture, input copying and
+  immutable old snapshots/bookmarks.
+- SortHandoff/{loaded_latest,pending_latest} holds sort metadata and image open
+  independently. A later navigation selects the second occurrence while sorting
+  waits; sort commits before the old held decode returns. The old LoadDone ends
+  without releasing the reader, exactly one fresh request is admitted, and late
+  old pixels cannot replace either display or cache. Navigation continues from
+  the remapped occurrence. canceled/superseded reuse the established deterministic
+  held-reader regressions, strengthened with no-publication assertions.
+- Reconciliation/reorder/{empty_scope,explicit_origin,notifications,cohort,cluster}
+  pins restricted emptiness, an explicit repeated image origin over a newer
+  ranked image, withheld menu publication, retained cohort selection/return, and
+  a frozen repeated map cluster's exact selection/return.
+- ChangeKinds/reorder pins ordinary Grid selection clearing, unchanged image
+  cache and writer admission, retained duplicate facts, and rejection of old
+  generation-bound duplicate producers. Display's whole PresentationContract
+  verifies existing retry/cache/preload/animation/capture ownership.
+
+TDD and negative evidence: model reorder initially selected index 1 instead of
+the remapped second occurrence at 2. Both held root cases initially restored the
+start-time/outgoing b.jpg at 0. Deliberately restoring start-of-sort selection
+reproduced both failures. Discarding captured origin/Grid visits failed all four
+corresponding reconciliation cases. A blanket image-cache purge failed the
+change-kind guard. Skipping a pending load handoff and bypassing empty scope
+eligibility failed their respective guards. Every mutation was restored before
+final acceptance, race, vet and reinspection. An initial held-reader fixture
+needed a cache entry under its test URI scheme to avoid blocking its own preload;
+that harness mistake was corrected before the stated root red evidence.
+
+Verification on 96d8ce1 + ticket 05 working tree:
+
+- Final uncached verbose Model, SortHandoff, Reconciliation and ChangeKinds:
+  PASS, 0.998s; all named subcases ran, no skips.
+- Collection/sort/BrowsingCollectionChanges/FindMoreLikeThisSourceAndSortRetirement/
+  deletion regressions: PASS, 7.747s. GridBrowseDuringAnalysis, BrowsingScope and
+  BrowsingRoundTrips: PASS, 1.888s; exact BrowsingEmptyScope: PASS, 0.429s.
+- Display PresentationContract, all subcases: PASS, 0.199s.
+- Focused race across all Collection families, CaptureSort, BrowsingCollectionChanges
+  and FindMoreLikeThisSourceAndSortRetirement: PASS, 90.722s.
+- Focused UI vet, make fmt/fmt-check, shard inventory (738 runnables), exact Qodana
+  test exclusions and git diff --check: PASS.
+
+GoLand Inspect Code fallback covered all nine changed code files: collection.go,
+state.go, sort.go, sourcechange.go, collection_test.go, collection_sort_test.go,
+sort_test.go, grid_test.go and delete_test.go; weak warnings included, no skipped
+files or timeouts. Seven files are clean. Grid's existing independent variants
+title/hover fixtures (20 lines each) and shutdown setup (9 lines), plus deletion's
+shutdown setup (13 lines), remain intentional test duplication covered by their
+existing exact qodana.yaml exclusions. No new suppression or production finding.
+Restored sort/sourcechange and final test refinements were reinspected clean.
+
+Lead review confirms no source I/O in the model, no blanket purge, no bypass of
+origin priority or duplicate/visit policies, and no dependency/UI-string changes.
+Ticket 04's latest GitHub jobs are green on 96d8ce1; this is not a substitute for
+the final revision's post-suppression SARIF and fresh Codex code/security reviews.

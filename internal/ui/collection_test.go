@@ -34,7 +34,7 @@ func TestCollectionModel(t *testing.T) {
 		}
 		source[0], display[0], retained[1].uri = u, u, a
 		state.Select(2)
-		state.reorder([]fyne.URI{b, a, a})
+		state.Reorder([]fyne.URI{b, a, a})
 		after := state.Observe()
 		if got := before.SourceFiles(); !slices.EqualFunc(got, []fyne.URI{b, a, a}, sameURI) {
 			t.Fatalf("source input changed retained snapshot: %v", got)
@@ -61,6 +61,31 @@ func TestCollectionModel(t *testing.T) {
 		}
 	})
 	t.Run("operations", func(t *testing.T) {
+		t.Run("reorder", func(t *testing.T) {
+			a, b := storage.NewFileURI("/images/a.jpg"), storage.NewFileURI("/images/b.jpg")
+			u := storage.NewFileURI("/images/u.heic")
+			state := newAppState(0, false)
+			state.Replace(collectionInput{source: []fyne.URI{b, a, a}, display: []fyne.URI{a, a, b}, retained: []collectionSource{{b, false}, {u, true}, {a, false}, {u, true}, {a, false}}, favorite: "favorite"})
+			state.Select(1)
+			before := state.Observe()
+			bookmark, _ := before.Bookmark(1)
+			ordered := []fyne.URI{b, a, a}
+			state.Reorder(ordered)
+			after := state.Observe()
+			ordered[0] = u
+			if uri, index, ok := after.Current(); !ok || uri != a || index != 2 {
+				t.Fatalf("reorder requested occurrence = %v/%d/%v; want second a at 2", uri, index, ok)
+			}
+			if after.Generation() != before.Generation()+1 || after.Favorite() != "favorite" || !slices.Equal(after.SourceFiles(), before.SourceFiles()) || !slices.Equal(after.Retained(), before.Retained()) {
+				t.Fatal("reorder changed membership, association or publication count")
+			}
+			if !slices.Equal(after.Capture(collectionDisplayOrder), []fyne.URI{b, u, a, u, a}) || after.FileAt(0) != b {
+				t.Fatal("reorder lost anchored unavailable gaps or aliased caller order")
+			}
+			if before.Resolve(bookmark) != 1 || after.Resolve(bookmark) != -1 || before.FileAt(0) != a || before.index != 1 {
+				t.Fatal("reorder mutated the old snapshot or accepted an unremapped bookmark")
+			}
+		})
 		t.Run("merge", func(t *testing.T) {
 			a := storage.NewFileURI("/images/a.jpg")
 			u := storage.NewFileURI("/images/u.heic")
@@ -467,6 +492,7 @@ func TestCollectionFavoriteAssociation(t *testing.T) {
 }
 
 func TestCollectionReconciliation(t *testing.T) {
+	t.Run("reorder", collectionReorderReconciliation)
 	for _, kind := range []string{"replacement", "merge"} {
 		t.Run(kind, func(t *testing.T) {
 			v, publish := streamingSearch(t)

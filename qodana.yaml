@@ -213,6 +213,7 @@ exclude:
       - "internal/ui/clipboardwork_test.go"
       - "internal/ui/collection_test.go"
       - "internal/ui/collection_replay_test.go"
+      - "internal/ui/collection_sort_test.go"
       - "internal/ui/compare/async_tile_test.go"
       - "internal/ui/compare/compare_test.go"
       - "internal/ui/compare/renderer_test.go"
