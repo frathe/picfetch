@@ -62,7 +62,7 @@ func (v *viewer) showViewer() {
 	if _, ok := v.admitCommand(commandRequest{command: commandViewer, intent: intentShow}); !ok {
 		return
 	}
-	if v.locationMap.Active() {
+	if v.locationVisitActive() {
 		v.LeaveLocationMap()
 		return
 	}
@@ -70,7 +70,7 @@ func (v *viewer) showViewer() {
 		v.visualsearch.Exit()
 		return
 	}
-	if v.explorer.Surface().Visible() || v.explorer.HasCohort() {
+	if v.browsing.has(browsingExplorerMap) {
 		v.LeaveSimilarityMap()
 		return
 	}
@@ -102,11 +102,11 @@ func (v *viewer) showWindowGrid() {
 	if _, ok := v.admitCommand(commandRequest{command: commandGrid, intent: intentShow}); !ok {
 		return
 	}
-	if v.locationInput.cluster {
+	if v.browsing.current().binding.kind == browsingCluster {
 		v.openLocationGrid()
 		return
 	}
-	if v.locationMap.Active() {
+	if v.locationVisitActive() {
 		v.closeLocationMap()
 	}
 	if v.searchActive() {
@@ -116,10 +116,8 @@ func (v *viewer) showWindowGrid() {
 	if v.grid.Visible() || v.slides.Active() || v.FileCount() == 0 {
 		return
 	}
-	if v.explorer.HasCohort() {
-		v.openExplorerGrid(v.explorer.Cohort())
-		v.explorer.Surface().Show()
-		v.ForceRepaint()
+	if v.browsing.has(browsingExplorer) {
+		v.returnExplorerGrid()
 		return
 	}
 	if v.dupes.Inspecting() {

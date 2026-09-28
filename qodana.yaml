@@ -362,6 +362,7 @@ exclude:
       - "internal/ui/translations_test.go"
       - "internal/ui/tunnel_test.go"
       - "internal/ui/vector_test.go"
+      - "internal/ui/browsing_test.go"
       - "internal/ui/visibility_test.go"
       - "internal/ui/visualsearch/feature_test.go"
       - "internal/ui/visualsearch/heic_test.go"

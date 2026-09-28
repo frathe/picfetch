@@ -63,7 +63,7 @@ func (v *viewer) imageRequested(_ display.Identity) {
 }
 
 func (v *viewer) imageProbed(bounds image.Rectangle) {
-	if !v.slides.Active() && !v.grid.Visible() && !v.explorer.HasCohort() && !v.explorer.Surface().Visible() && !v.locationMap.Active() {
+	if !v.slides.Active() && !v.grid.Visible() && !v.browsing.has(browsingExplorerMap) && !v.locationVisitActive() {
 		v.undoGridMaximize()
 		v.autoResizeToImage(bounds)
 	}
@@ -87,7 +87,7 @@ func (v *viewer) imagePresented(snapshot display.Snapshot) []fyne.URI {
 	v.syncMenus()
 	v.ForceRepaint()
 	v.exif.Refresh()
-	if v.explorer.HasCohort() {
+	if v.browsing.has(browsingExplorer) {
 		v.recordExplorerView("image-loaded")
 	}
 	return v.preloadCandidates()
@@ -177,20 +177,12 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 		return nil
 	}
 	v.ShowToast(msg)
-	if restoredIndex >= 0 {
-		i = restoredIndex
-	} else if cohort := v.cohortIndexes(); len(cohort) > 0 {
-		next := cohort[0]
-		for _, index := range cohort {
-			if index >= i {
-				next = index
-				break
-			}
-		}
-		i = next
+	next, ok := v.captureBrowsingScope().Recover(i, restoredIndex)
+	if !ok {
+		v.loadingBar.Hide()
+		return nil
 	}
-	n := len(v.state.files)
-	v.state.index = ((i % n) + n) % n
+	v.state.index = next
 	return v.state.files[v.state.index]
 }
 
@@ -204,9 +196,13 @@ func (v *viewer) preloadCandidates() []fyne.URI {
 		return nil
 	}
 	next, prev := (v.state.index+1)%n, (v.state.index-1+n)%n
-	if order := v.cohortIndexes(); len(order) > 0 || v.captureSearchOrder().active {
-		next = neighborInOrder(order, v.state.index, 1)
-		prev = neighborInOrder(order, v.state.index, -1)
+	if scope := v.captureBrowsingScope(); scope.restricted {
+		var ok bool
+		next, ok = scope.Next(v.state.index, 1)
+		if !ok {
+			return nil
+		}
+		prev, _ = scope.Next(v.state.index, -1)
 	}
 	var candidates []fyne.URI
 	if next != v.state.index {

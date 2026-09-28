@@ -116,7 +116,7 @@ func (g *Overview) HandleKey(ev *fyne.KeyEvent) {
 		// and a user part-way through assembling one is far more likely to
 		// have meant Escape's first stage. Escape is the way out either way.
 		if g.sel.Len() == 0 {
-			g.Close()
+			g.closeBrowsingGrid()
 		}
 	case fyne.KeyV:
 		if !g.searching {
@@ -189,7 +189,7 @@ func (g *Overview) escape() {
 			back()
 		}
 	case g.subset != nil:
-		g.Close()
+		g.closeBrowsingGrid()
 	case g.browseHost >= 0:
 		g.SetBrowsingDuplicates(false)
 	case g.dupes.HideDuplicates():

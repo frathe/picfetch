@@ -495,8 +495,9 @@ screen observations belong to the separate native qualification runner.
 ### `internal/ui/visualsearch`
 
 Reference-driven browsing over a captured original source scope. `feature.go`
-owns immutable origin/current visits, the latest 20 successful reference visits,
-Back/Exit and branching; `session.go` owns a retained native provider, queued
+owns current queries, the latest 20 successful reference visits,
+history Back and branching; Exit requests the root browsing owner rather than
+restoring an independently held origin. `session.go` owns a retained native provider, queued
 session/query/revision delivery, and observable suspension and shutdown. Root
 supplies source identity, Grid presentation and origin restoration through a
 narrow Host. The feature's Settle drains finite query delivery without waiting
@@ -515,16 +516,46 @@ An image opened before the first publication retains its Grid anchor until the
 first successful visit commits. Terminal search failures revalidate the captured
 collection through root's tracked file-work lane before restoring the origin;
 request, session and collection identities reject obsolete reconciliation.
-`internal/ui/sourcechange.go` owns admitted source changes: search detaches its
-origin before callbacks, then root reconciles the complete removal/write/recovery,
-retires Explorer, updates Grid and restores the origin. Display failures receive
+`internal/ui/sourcechange.go` owns admitted source changes: the browsing owner
+detaches the search origin and retires the producer before callbacks. One
+occurrence-survivor map remaps all retained visits, subset bookmarks and the
+detached origin after collection publication. Root then retires affected
+analysis, updates Grid/map facts and restores through current bindings. Sorting
+uses the same transaction and exact image occurrence, not first-URI lookup.
+Image restoration chooses exact occurrence, same source within the restored
+scope, then first eligible; an exhausted restriction returns to its parent.
+Display failures receive
 the selected origin index through their existing retry chain instead of starting
 a competing load. Committed writes retain comparison for Grid origins and close
 it when an image origin must be restored.
-`internal/ui/browsing.go` captures ranked subset facts and one immutable index
-order per action or preload pair; command restrictions live in the shared root
-policy. Favorite capture exposes one
+`internal/ui/browsing.go` captures explicit restricted/ordinary scopes, discovery
+completion and collection/visit bindings. It dispatches on the foreground owner;
+data adapters resolve Explorer/search/Location Map orders once per navigation
+action or preload pair, without feature-precedence inference.
+Empty restrictions produce no navigation target. Command restrictions live in
+the shared root policy. Favorite capture exposes one
 `CurrentFiles` snapshot to the naming/overwrite workflow.
+The captured scope also supplies the separate load-recovery policy: an explicit
+restored image origin wins, otherwise recovery selects the first eligible index
+at/after the removed position and wraps within the scope. Unavailable HEIC stops
+before recovery selection; display retains one retry chain. The old cohort-index
+bridge is removed.
+`internal/ui/browsing_visits.go` owns Explorer's retained map/cohort, ranked
+search and Location Map visit stacks, foreground surface, collection/visit binding and validated
+return plans. Search's original image/Grid bookmark and frozen image rank belong
+here, separately from feature-owned query history. Deferred ranked delivery also
+validates the visit's transition revision before checking current admission.
+Grid interaction is captured before image opening and restored through one root
+boundary with fresh callbacks; bookmarks do not authorize navigation. Explorer
+keeps analysis/cohort data and its camera. Direct Location Map visits use live
+mapped facts in collection order, with captured occurrences only as an
+incomplete-discovery fallback. Map entry/return validation checks the captured
+visit and collection before revealing its surface; committed facts still rebuild
+when admission refuses the visible return. Clusters retain frozen exact
+occurrences, their image/Grid bookmark and hidden ordinary-Grid origin in the
+owner. Grid Back requests a validated return without dismissing itself first;
+visibility observers never authorize a return. `locationInput` retains only
+duplicate-preparation effects and committed-source rebuild policy.
 `internal/ui/searchoverlay.go` observes dismissal of generic canvas overlays while
 a result is pending, with one acknowledged UI callback and cancellable, tracked
 worker completion through shutdown and the test harness.

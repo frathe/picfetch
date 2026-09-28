@@ -342,16 +342,18 @@ type viewer struct {
 	// worker pool and reaches back through the Host interface this viewer
 	// satisfies. handleKeyEvent checks its Visible() before its own
 	// dispatch, the same way it does for the delete confirmation.
-	visualsearch  *searchui.Feature
-	analysisCache *analysiscache.Feature
-	analysisDir   string
-	searchView    searchPresentation
-	grid          *grid.Overview
-	explorer      *explorerui.Feature
-	explorerInput explorerInput
-	locationMap   *locationmap.Feature
-	locationTrial *locationTrialSession
-	locationInput locationInput
+	visualsearch    *searchui.Feature
+	analysisCache   *analysiscache.Feature
+	analysisDir     string
+	searchView      searchPresentation
+	browsing        browsingVisits
+	browsingUpdates int // UI-only menu publication barrier during reconciliation.
+	grid            *grid.Overview
+	explorer        *explorerui.Feature
+	explorerInput   explorerInput
+	locationMap     *locationmap.Feature
+	locationTrial   *locationTrialSession
+	locationInput   locationInput
 
 	// compare is the opaque two-image surface stacked above the still-open
 	// grid. The feature owns its widgets and workers; this viewer owns only
@@ -925,10 +927,14 @@ func (v *viewer) Advance() {
 		return
 	}
 	if v.slides.Shuffle() {
-		v.loadImage(v.randomVisibleOther(v.state.index))
+		if i, ok := v.randomVisibleOther(v.state.index); ok {
+			v.loadImage(i)
+		}
 		return
 	}
-	v.loadImage(v.nextVisibleIndex(v.state.index, 1))
+	if i, ok := v.nextVisibleIndex(v.state.index, 1); ok {
+		v.loadImage(i)
+	}
 }
 
 // StepImage moves by delta files (typically +1 or -1), wrapping through
@@ -945,7 +951,11 @@ func (v *viewer) StepImage(delta int) {
 	if _, ok := v.admitCommand(commandRequest{command: commandNavigate}); !ok {
 		return
 	}
-	v.ShowImage(v.nextVisibleIndex(v.state.index, delta))
+	i, ok := v.nextVisibleIndex(v.state.index, delta)
+	if !ok {
+		return
+	}
+	v.ShowImage(i)
 	if v.slides.Active() {
 		v.slides.Kick()
 	}

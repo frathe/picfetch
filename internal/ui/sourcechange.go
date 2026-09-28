@@ -4,6 +4,9 @@ import (
 	"slices"
 
 	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/fileidentity"
+	"github.com/frathe/picfetch/internal/ui/grid"
 )
 
 type sourceChangeKind uint8
@@ -36,18 +39,16 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 	if len(indices) == 0 && (change.kind == sourcesRemoved || change.kind == sourceLoadFailed) {
 		return -1
 	}
-	finishLocation := v.captureLocationReconciliation(indices)
+	defer v.beginBrowsingUpdate()()
+	browsing := v.captureBrowsingReconciliation(indices)
 	if change.kind == sourceWritten {
 		v.locationMap.InvalidateSources(change.written)
 	}
 
-	origin, restore := v.visualsearch.DetachOrigin()
-	if restore {
-		v.resetSearchPresentation()
-	}
+	restore := browsing.origin != nil
 	// Closing comparison can deliver a pending ranking. Detach search first,
 	// before any callback can expose the collection being reconciled.
-	if v.comparisonActive() && (len(indices) > 0 || change.kind == sourcesRevalidated || restore && !origin.Grid.Visible) {
+	if v.comparisonActive() && (len(indices) > 0 || change.kind == sourcesRevalidated || restore && !browsing.origin.grid.Visible) {
 		v.compare.Close()
 	}
 	if change.kind == sourcesRevalidated || change.kind == sourceWritten {
@@ -63,6 +64,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 			v.explorer.RemoveCohortSource(removed.Path())
 		}
 	}
+	v.browsing.reconcile(v.Generation(), browsing.survivors)
 	v.cancelExplorerPreparation()
 	v.explorer.SourcesChanged()
 
@@ -83,14 +85,12 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 	if change.kind == sourceWritten {
 		v.compare.Refresh()
 	}
-	finishLocation()
-
-	index := -1
-	if restore {
-		index = v.restoreSearchOrigin(origin)
-	}
+	index := v.finishBrowsingReconciliation(browsing)
 	if change.kind == sourcesRevalidated && index < 0 && v.FileCount() > 0 {
-		index = v.state.index
+		scope := v.captureBrowsingScope()
+		if !scope.restricted || slices.Contains(scope.indexes, v.state.index) {
+			index = v.state.index
+		}
 	}
 	if index >= 0 && change.kind != sourceLoadFailed {
 		v.loadImage(index)
@@ -100,4 +100,125 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 		v.ForceRepaint()
 	}
 	return index
+}
+
+type browsingReconciliation struct {
+	survivors map[fileidentity.Occurrence]fileidentity.Occurrence
+	grid      *grid.Visit
+	origin    *browsingOrigin
+}
+
+// Capture before mutation and detach search before any feature callback. The
+// occurrence map is shared by every retained visit and the detached origin.
+func (v *viewer) captureBrowsingReconciliation(removed []int) browsingReconciliation {
+	change := browsingReconciliation{}
+	if len(removed) > 0 {
+		change.survivors = make(map[fileidentity.Occurrence]fileidentity.Occurrence, v.FileCount())
+		before, after := map[string]int{}, map[string]int{}
+		for i, source := range v.state.files {
+			path := source.Path()
+			old := fileidentity.Occurrence{Path: path, Ordinal: before[path]}
+			before[path]++
+			if _, deleted := slices.BinarySearch(removed, i); deleted {
+				continue
+			}
+			change.survivors[old] = fileidentity.Occurrence{Path: path, Ordinal: after[path]}
+			after[path]++
+		}
+	}
+	kind := v.browsing.current().binding.kind
+	if (kind == browsingExplorer || kind == browsingCluster) && v.grid.Visible() {
+		bookmark := v.grid.CaptureVisit()
+		if change.survivors != nil {
+			bookmark = bookmark.RemapOccurrences(change.survivors)
+		}
+		change.grid = &bookmark
+	}
+	if v.locationVisitActive() {
+		v.locationInput.prepareOp.invalidate()
+		v.locationInput.prepare = nil
+	}
+	if origin, detached := v.detachSearchOrigin(); detached {
+		remapped := origin.remap(change.survivors)
+		change.origin = &remapped
+	}
+	return change
+}
+
+// Collection and owner rebinding precede this call. Reconcile feature facts and
+// current Grid bindings before publishing any restored origin or parent.
+func (v *viewer) finishBrowsingReconciliation(change browsingReconciliation) int {
+	if change.grid != nil && v.FileCount() > 0 {
+		switch visit := v.browsing.current(); visit.binding.kind {
+		case browsingExplorer:
+			paths, unassigned := v.explorer.Cohort()
+			v.presentExplorerGrid(visit.binding, paths, unassigned, change.grid)
+		case browsingCluster:
+			v.presentLocationGrid(change.grid)
+		default:
+			// Other visits have no retained subset Grid to refresh.
+		}
+	}
+	// Rebuild retires validation; only the new source generation can return.
+	v.rebuildLocationMap()
+	if change.origin != nil {
+		return v.restoreBrowsingOrigin(*change.origin)
+	}
+	v.returnExhaustedBrowsingScope(v.captureBrowsingScope())
+	return -1
+}
+
+func (v *viewer) returnExhaustedBrowsingScope(scope browsingScope) {
+	if !scope.restricted || !scope.complete || len(scope.indexes) != 0 {
+		return
+	}
+	switch scope.binding.kind {
+	case browsingExplorer:
+		v.returnExplorerMap(scope.binding)
+	case browsingCluster, browsingLocation:
+		v.returnLocationMapFrom(scope.binding)
+	default:
+		return
+	}
+}
+
+// restoreBrowsingOrigin restores interaction and selects an image without
+// starting a load. Its caller owns either fresh admission or a display retry.
+func (v *viewer) restoreBrowsingOrigin(origin browsingOrigin) int {
+	v.fileWork.searchLifecycle.invalidate()
+	v.grid.Close()
+	if v.FileCount() == 0 {
+		v.clearToDropzone()
+		return -1
+	}
+	scope := v.captureBrowsingScope()
+	if scope.restricted && len(scope.indexes) == 0 {
+		v.returnExhaustedBrowsingScope(scope)
+		return -1
+	}
+	if origin.grid.Visible {
+		if origin.grid.Subset != nil && v.browsing.has(browsingExplorer) {
+			paths, unassigned := v.explorer.Cohort()
+			v.presentExplorerGrid(v.browsing.current().binding, paths, unassigned, &origin.grid)
+		} else {
+			v.grid.RestoreVisit(origin.grid)
+		}
+		return -1
+	}
+	i, ok := scope.RestoreImage(origin.image, v.sourceOccurrences(origin.image.Path))
+	if !ok {
+		return -1
+	}
+	v.state.index = i
+	return i
+}
+
+// Defer native menu publication across the synchronous root transaction. This
+// is an effect barrier, not visit authority or a queue of deferred commands.
+func (v *viewer) beginBrowsingUpdate() func() {
+	v.browsingUpdates++
+	return func() {
+		v.browsingUpdates--
+		v.syncMenus()
+	}
 }

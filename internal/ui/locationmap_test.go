@@ -113,7 +113,7 @@ func TestLocationMap(t *testing.T) {
 						v.locationMap.Settle()
 						v.grid.Settle()
 						if busy || key == fyne.KeyEscape {
-							if v.locationMap.Visible() || v.grid.Visible() || !v.locationInput.image {
+							if v.locationMap.Visible() || v.grid.Visible() || !v.locationImageVisit() {
 								t.Fatal("Copy Selection key left its map-origin image visit")
 							}
 						} else if !v.grid.Visible() {
@@ -1144,7 +1144,7 @@ func TestLocationMap(t *testing.T) {
 				}
 			}
 			waitUntilLoaded(t, v)
-			if v.locationMap.Visible() || !v.locationInput.image {
+			if v.locationMap.Visible() || !v.locationImageVisit() {
 				t.Fatal("provider image visit did not open")
 			}
 			content.Store(uitest.GPSJPEG(t, 24, 16, 40.7, -74))

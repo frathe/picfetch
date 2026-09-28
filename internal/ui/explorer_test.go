@@ -1189,6 +1189,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		v.settleExplorer()
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+		// The restored filename filter keeps its normal Escape stage.
+		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 		v.LeaveSimilarityMap()
 		if err := v.explorer.Options().Trial.Close(); err != nil {
 			t.Fatal(err)

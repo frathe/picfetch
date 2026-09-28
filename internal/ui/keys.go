@@ -205,18 +205,15 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 				return
 			}
 		}
-		if v.explorer.HasCohort() && ev.Name == fyne.KeyV && !v.grid.Searching() {
+		if v.browsing.has(browsingExplorer) && ev.Name == fyne.KeyV && !v.grid.Searching() {
 			v.LeaveSimilarityMap()
 			return
 		}
-		if v.locationInput.cluster && ev.Name == fyne.KeyV && !v.grid.Searching() {
+		if v.browsing.current().binding.kind == browsingCluster && ev.Name == fyne.KeyV && !v.grid.Searching() {
 			v.LeaveLocationMap()
 			return
 		}
 		v.grid.HandleKey(ev)
-		if !v.grid.Visible() && v.explorerMapActive() {
-			v.recordExplorerView("map-return")
-		}
 		return
 	}
 
@@ -426,9 +423,13 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		v.StepImage(-1)
 		return
 	case fyne.KeyHome:
-		v.ShowImage(v.firstVisibleIndex())
+		if i, ok := v.firstVisibleIndex(); ok {
+			v.ShowImage(i)
+		}
 	case fyne.KeyEnd:
-		v.ShowImage(v.lastVisibleIndex())
+		if i, ok := v.lastVisibleIndex(); ok {
+			v.ShowImage(i)
+		}
 	case fyne.KeyS:
 		v.toggleSort()
 	default:

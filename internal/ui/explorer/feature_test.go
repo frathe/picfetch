@@ -227,11 +227,14 @@ type featureHost struct {
 	toasts []string
 }
 
-func (h *featureHost) Window() fyne.Window             { return h.win }
-func (h *featureHost) Changed()                        {}
-func (h *featureHost) BrowseCohort(_ []string, _ bool) { h.grid = true }
-func (h *featureHost) LeaveExplorer()                  {}
-func (h *featureHost) ReturnToMap()                    { h.grid = false }
+func (h *featureHost) Window() fyne.Window { return h.win }
+func (h *featureHost) Changed()            {}
+func (h *featureHost) BrowseCohort(_ []string, _ bool) bool {
+	h.grid = true
+	return true
+}
+func (h *featureHost) LeaveExplorer() {}
+func (h *featureHost) ReturnToMap()   { h.grid = false }
 func (h *featureHost) Presentation() explorer.Presentation {
 	surface := "map"
 	if h.grid {

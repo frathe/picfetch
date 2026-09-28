@@ -105,7 +105,7 @@ func (v *viewer) menuStateFor(context commandContext) menus.State {
 // syncMenus publishes all feature menu decisions together, once, only when
 // their rendered state changed. Native reconstruction sees the complete update.
 func (v *viewer) syncMenus() {
-	if v.stopping || v.menus == nil {
+	if v.stopping || v.menus == nil || v.browsingUpdates > 0 {
 		return
 	}
 	context := v.commandContext()

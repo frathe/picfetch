@@ -132,7 +132,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	})
 	view.visualsearch = searchui.New(searchHost{view}, searchui.Options{})
 	view.grid.SetOnRankedOpen(view.searchImageOpened)
-	view.grid.SetOnSubsetOpen(view.locationImageOpened)
+	view.grid.SetOnSubsetOpen(view.browsingImageOpened)
 	view.compare = compareui.New(
 		func(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
 			return view.compareLoad(ctx, uri)

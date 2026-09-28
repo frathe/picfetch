@@ -22,7 +22,8 @@ type Visit struct {
 type Host interface {
 	CaptureVisit() Visit
 	Present(Visit, grid.Progress)
-	Restore(Visit, bool)
+	Restore(Visit)
+	LeaveSearch()
 	Changed()
 	Failed(error)
 }
@@ -42,7 +43,6 @@ type Options struct {
 type StartRequest struct {
 	Paths         []string
 	ReferencePath string
-	Origin        Visit
 	Cache         similarity.CachePolicy
 	After         <-chan struct{}
 }
@@ -65,7 +65,6 @@ type Feature struct {
 	stopped, awaiting, queryFailed bool
 	cacheWarned                    bool
 	scope                          []string
-	origin                         Visit
 	history                        []Visit
 	initialGrid                    *grid.Visit
 	cache                          similarity.CachePolicy
@@ -116,7 +115,6 @@ func (f *Feature) Start(request StartRequest) bool {
 	f.clear()
 	f.active = true
 	f.scope = slices.Clone(request.Paths)
-	f.origin = cloneVisit(request.Origin)
 	f.cache = request.Cache
 	f.progress = grid.Progress{Total: len(f.scope)}
 	f.preparing = true
@@ -190,30 +188,26 @@ func (f *Feature) Back() bool {
 		return true
 	}
 	last := f.history[len(f.history)-1]
-	f.host.Restore(cloneVisit(last), false)
+	f.host.Restore(cloneVisit(last))
 	f.host.Changed()
 	return true
 }
 
 func (f *Feature) Exit() {
-	origin, active := f.DetachOrigin()
-	if !active {
+	if !f.active {
 		return
 	}
-	f.host.Restore(origin, true)
-	f.host.Changed()
+	f.host.LeaveSearch()
 }
 
-// DetachOrigin retires the session and transfers an owned origin snapshot to
-// root without invoking presentation callbacks. Source reconciliation restores
-// it only after all collection and surface changes have completed.
-func (f *Feature) DetachOrigin() (Visit, bool) {
+// Detach retires search without presentation callbacks. Root owns whether and
+// when its separately retained browsing origin may be restored.
+func (f *Feature) Detach() bool {
 	if !f.active {
-		return Visit{}, false
+		return false
 	}
-	origin := cloneVisit(f.origin)
 	f.clear()
-	return origin, true
+	return true
 }
 
 // Active observes admission without copying a potentially large saved visit.
@@ -270,7 +264,6 @@ func (f *Feature) clear() {
 	f.active, f.preparing = false, false
 	f.scope, f.history = nil, nil
 	f.initialGrid = nil
-	f.origin = Visit{}
 	f.progress = grid.Progress{}
 }
 
@@ -281,9 +274,5 @@ func cloneVisit(visit Visit) Visit {
 }
 
 func cloneGrid(visit grid.Visit) grid.Visit {
-	visit.Paths = slices.Clone(visit.Paths)
-	visit.Results = slices.Clone(visit.Results)
-	visit.Selected = slices.Clone(visit.Selected)
-	visit.Subset = slices.Clone(visit.Subset)
-	return visit
+	return visit.Clone()
 }

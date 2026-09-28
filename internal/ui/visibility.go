@@ -50,7 +50,7 @@ func (s dupeFileSet) Snapshot() dupes.Snapshot { return s.v.state.snapshot() }
 // sit on an extra - the file committed out of the variants grid - so it
 // is left alone.
 func (v *viewer) jumpIfHiddenExtra() {
-	if v.dupes.Inspecting() || v.explorer.HasCohort() || v.searchActive() || v.locationMap != nil && v.locationMap.Active() {
+	if v.dupes.Inspecting() || v.browsing.has(browsingExplorer) || v.searchActive() || v.locationVisitActive() {
 		return
 	}
 	vis := v.dupes.Visibility()
@@ -88,28 +88,28 @@ func (v *viewer) pushHideDuplicates(on bool) {
 // With hide off the result is deliberately unclamped - NextVisible hands
 // back from+delta as it is, and ShowImage is what folds it into range.
 // Do not add a bounds check on this path.
-func (v *viewer) nextVisibleIndex(from, delta int) int {
-	if indexes := v.cohortIndexes(); len(indexes) > 0 {
-		return neighborInOrder(indexes, from, delta)
+func (v *viewer) nextVisibleIndex(from, delta int) (int, bool) {
+	if scope := v.captureBrowsingScope(); scope.restricted {
+		return scope.Next(from, delta)
 	}
-	return v.dupes.NextVisible(from, delta)
+	return v.dupes.NextVisible(from, delta), v.FileCount() > 0
 }
 
 // firstVisibleIndex is where Home lands: the first file that is not a
 // hidden duplicate extra, or 0 when nothing qualifies.
-func (v *viewer) firstVisibleIndex() int {
-	if indexes := v.cohortIndexes(); len(indexes) > 0 {
-		return indexes[0]
+func (v *viewer) firstVisibleIndex() (int, bool) {
+	if scope := v.captureBrowsingScope(); scope.restricted {
+		return scope.First()
 	}
-	return v.dupes.FirstVisible()
+	return v.dupes.FirstVisible(), v.FileCount() > 0
 }
 
 // lastVisibleIndex is End's counterpart to firstVisibleIndex.
-func (v *viewer) lastVisibleIndex() int {
-	if indexes := v.cohortIndexes(); len(indexes) > 0 {
-		return indexes[len(indexes)-1]
+func (v *viewer) lastVisibleIndex() (int, bool) {
+	if scope := v.captureBrowsingScope(); scope.restricted {
+		return scope.Last()
 	}
-	return v.dupes.LastVisible()
+	return v.dupes.LastVisible(), v.FileCount() > 0
 }
 
 // randomVisibleOther picks the slideshow's next shuffle target. The draw
@@ -119,18 +119,21 @@ func (v *viewer) lastVisibleIndex() int {
 // With hide off there is no candidate list worth building - every index
 // but current qualifies - so it keeps going through randomOtherIndex
 // (load.go), the same draw the shuffle has always used.
-func (v *viewer) randomVisibleOther(current int) int {
-	if indexes := v.cohortIndexes(); len(indexes) > 0 {
-		return indexes[rand.IntN(len(indexes))]
+func (v *viewer) randomVisibleOther(current int) (int, bool) {
+	if scope := v.captureBrowsingScope(); scope.restricted {
+		if len(scope.indexes) == 0 {
+			return 0, false
+		}
+		return scope.indexes[rand.IntN(len(scope.indexes))], true
 	}
 	if !v.dupes.HideDuplicates() {
-		return randomOtherIndex(len(v.state.files), current)
+		return randomOtherIndex(len(v.state.files), current), v.FileCount() > 0
 	}
 
 	vis := v.dupes.VisibleIndexesExcept(current)
 	if len(vis) == 0 {
-		return current
+		return current, v.FileCount() > 0
 	}
 
-	return vis[rand.IntN(len(vis))]
+	return vis[rand.IntN(len(vis))], true
 }

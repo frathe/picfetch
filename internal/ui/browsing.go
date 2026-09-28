@@ -1,6 +1,163 @@
 package ui
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/fileidentity"
+)
+
+type browsingKind uint8
+
+const (
+	browsingCollection browsingKind = iota
+	browsingExplorer
+	browsingSearch
+	browsingLocation
+	browsingCluster
+	browsingExplorerMap
+	browsingLocationMap
+)
+
+type browsingBinding struct {
+	kind       browsingKind
+	collection uint64
+	visit      uint64
+}
+
+// browsingScope is one immutable restricted order. Restriction is independent
+// of membership: a visit with no surviving members is not the collection.
+type browsingScope struct {
+	indexes    []int
+	restricted bool
+	complete   bool
+	binding    browsingBinding
+	collection dupes.Snapshot
+}
+
+// captureBrowsingScope resolves the foreground owner's data into one immutable
+// action scope. Feature visibility and nonempty membership never choose a visit.
+func (v *viewer) captureBrowsingScope() browsingScope {
+	visit := v.browsing.current()
+	scope := browsingScope{complete: true, collection: v.state.snapshot(), binding: visit.binding}
+	scope.binding.collection = v.Generation()
+	scope.restricted = visit.binding.kind != browsingCollection
+	switch visit.binding.kind {
+	case browsingCollection:
+		// Ordinary and duplicate browsing retain the baseline model adapter.
+	case browsingLocation:
+		scope.indexes = v.locationIndexes()
+		scope.complete = v.locationMap.Counts().Complete
+	case browsingCluster:
+		scope.indexes = v.locationIndexes()
+	case browsingLocationMap:
+		scope.complete = v.locationMap.Counts().Complete
+	case browsingSearch:
+		scope.indexes = v.captureRankedIndexes(visit)
+		scope.complete = v.visualsearch.State().Progress.Complete
+	case browsingExplorerMap:
+		scope.complete = v.explorer.State().Complete
+	case browsingExplorer:
+		paths, _ := v.explorer.Cohort()
+		members := make(map[string]bool, len(paths))
+		for _, path := range paths {
+			members[path] = true
+		}
+		var indexes []int
+		for i := range v.FileCount() {
+			if members[v.FileAt(i).Path()] {
+				indexes = append(indexes, i)
+			}
+		}
+		scope.indexes = indexes
+	}
+	return scope
+}
+
+func (s browsingScope) Next(from, delta int) (int, bool) {
+	if len(s.indexes) == 0 {
+		return 0, false
+	}
+	return neighborInOrder(s.indexes, from, delta), true
+}
+
+func (s browsingScope) First() (int, bool) {
+	if len(s.indexes) == 0 {
+		return 0, false
+	}
+	return s.indexes[0], true
+}
+
+func (s browsingScope) Last() (int, bool) {
+	if len(s.indexes) == 0 {
+		return 0, false
+	}
+	return s.indexes[len(s.indexes)-1], true
+}
+
+// RestoreImage prefers the exact bookmark, then another occurrence of that
+// source, then the first eligible image. A restriction never widens implicitly.
+func (s browsingScope) RestoreImage(origin fileidentity.Occurrence, identities fileidentity.Index) (int, bool) {
+	eligible := func(i int) bool {
+		return i >= 0 && i < s.collection.Count() && (!s.restricted || slices.Contains(s.indexes, i))
+	}
+	if i := identities.Resolve(origin); eligible(i) {
+		return i, true
+	}
+	for ordinal := 0; ; ordinal++ {
+		i := identities.Resolve(fileidentity.Occurrence{Path: origin.Path, Ordinal: ordinal})
+		if i < 0 {
+			break
+		}
+		if eligible(i) {
+			return i, true
+		}
+	}
+	if s.restricted {
+		return s.First()
+	}
+	return 0, s.collection.Count() > 0
+}
+
+// Recover follows source-removal policy, not ordinary Next: the removed
+// collection position is reused when eligible, then the scoped order wraps.
+// An explicitly restored image origin takes priority over that successor.
+func (s browsingScope) Recover(failed, restored int) (int, bool) {
+	if restored >= 0 {
+		return restored, restored < s.collection.Count() && (!s.restricted || slices.Contains(s.indexes, restored))
+	}
+	if s.restricted {
+		for _, index := range s.indexes {
+			if index >= failed {
+				return index, true
+			}
+		}
+		return s.First()
+	}
+	if count := s.collection.Count(); count > 0 {
+		return ((failed % count) + count) % count, true
+	}
+	return 0, false
+}
+
+// sourceOccurrences captures only the bookmarked path, without retaining an
+// index for unrelated collection members.
+func (v *viewer) sourceOccurrences(path string) fileidentity.Index {
+	return fileidentity.NewIndex(len(v.state.files), func(i int) string {
+		if uri := v.state.files[i]; uri != nil && uri.Path() == path {
+			return path
+		}
+		return ""
+	})
+}
+
+func (v *viewer) currentImageOccurrence() fileidentity.Occurrence {
+	if uri, position, ok := v.CurrentFile(); ok {
+		identity, _ := v.sourceOccurrences(uri.Path()).Capture(uri.Path(), position)
+		return identity
+	}
+	return fileidentity.Occurrence{}
+}
 
 // browsingContext observes the source subset for payload/order capture.
 // It deliberately does not copy ranked paths just to answer a capability check.
@@ -13,29 +170,17 @@ func (v *viewer) browsingContext() browsingContext {
 	return browsingContext{ranked: ranked, grid: v.grid.Visible()}
 }
 
-// searchOrder is one immutable index snapshot for an action or both preloads.
-// An opened image uses its frozen order; the Grid uses its current visible rank.
-type searchOrder struct {
-	indexes []int
-	active  bool
-}
-
-func (v *viewer) captureSearchOrder() searchOrder {
-	mode := v.browsingContext()
-	order := searchOrder{active: mode.ranked}
-	if !order.active {
-		return order
+// An opened search image uses frozen rank; the current Grid supplies live rank.
+func (v *viewer) captureRankedIndexes(visit browsingVisit) []int {
+	if visit.surface == browsingGrid && v.grid.Visible() {
+		return v.grid.ResultIndexes()
 	}
-	if mode.grid {
-		order.indexes = v.grid.ResultIndexes()
-		return order
-	}
-	paths := v.searchView.imageOrder
-	if paths == nil {
+	paths := visit.order
+	if visit.surface != browsingImage {
 		paths = v.visualsearch.State().Visit.Paths
 	}
 	if len(paths) == 0 {
-		return order
+		return nil
 	}
 	byPath := make(map[string]int, len(paths))
 	for _, path := range paths {
@@ -61,8 +206,7 @@ func (v *viewer) captureSearchOrder() searchOrder {
 			indexes = append(indexes, i)
 		}
 	}
-	order.indexes = indexes
-	return order
+	return indexes
 }
 
 func neighborInOrder(indexes []int, from, delta int) int {

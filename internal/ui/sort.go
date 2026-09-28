@@ -26,9 +26,6 @@ func (v *viewer) toggleSort() {
 // before any files are ever loaded, unlike toggleSort's own S-key call
 // site, which is gated behind handleKeyEvent's len(v.state.files)<2 guard.
 func (v *viewer) SetSortMode(m filesort.Mode) {
-	if v.searchActive() {
-		v.visualsearch.Exit()
-	}
 	if len(v.state.files) == 0 {
 		v.invalidateSort()
 		v.state.SetSortMode(m)
@@ -38,7 +35,7 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 		return
 	}
 
-	current := v.state.files[v.state.index]
+	current := v.currentImageOccurrence()
 
 	// Defensively copied rather than aliased: v.state.unsortedFiles's backing
 	// array can be mutated in place by RemoveFile (a failed-decode retry
@@ -61,12 +58,21 @@ func (v *viewer) SetSortMode(m filesort.Mode) {
 	v.syncMenus()
 
 	v.startSort(m, unsorted, func(ordered []fyne.URI) {
-		finishLocation := v.captureLocationReconciliation(nil)
+		defer v.beginBrowsingUpdate()()
+		browsing := v.captureBrowsingReconciliation(nil)
 		v.state.reorder(ordered)
+		v.browsing.reconcile(v.Generation(), browsing.survivors)
 		v.grid.FilesChanged()
-		finishLocation()
+		index := v.finishBrowsingReconciliation(browsing)
 		v.ForceRepaint()
-		v.showFileIfPresent(current)
+		if index < 0 {
+			if candidate, ok := v.captureBrowsingScope().RestoreImage(current, v.sourceOccurrences(current.Path)); ok {
+				index = candidate
+			}
+		}
+		if index >= 0 {
+			v.loadImage(index)
+		}
 	})
 }
 

@@ -32,6 +32,16 @@
 
 #### Internal
 
+- MA-029 browsing ownership is complete: all nine tickets and acceptance points
+  are resolved. Focused TDD, all 31 changed-file IDE inspections, full Linux
+  race/native, Windows/macOS CI, CodeQL and fresh post-suppression Qodana
+  evidence are in the [archived plan](finished_refactorings/2026-09-27-ma-029-browsing-visits.md).
+  CI also verified the shutdown-test isolation and HEIC queued-stop fixes.
+  PR round 1's nested-search and stale cohort-Grid retirement findings are
+  repaired with real-transition regressions; fresh review remains a PR gate.
+  [PR 68](https://github.com/frathe/picfetch/pull/68) maintains final review
+  dispositions and latest-head checks; merge/release is not authorized.
+
 - MA-028 shared command admission is complete across menus, shortcuts, keys,
   direct actions and open delivery. All ten tickets are resolved. Linux,
   Windows and macOS native qualification passed, with physical editor-input
@@ -50,12 +60,12 @@
 
 ## Open
 
-- **Application architecture:** MA-028's shared command policy is complete.
-  The [remaining assessment proposals](needs_refactoring.md) are explicit
-  browsing ownership and collection transitions (MA-029/030), followed by
-  Favorite ownership, a bounded worker-lifetime pilot and launch policy
-  (MA-031 through MA-033). These remain proposals, not accepted implementation
-  work. Keep feature state local and preserve explicit composition.
+- **Application architecture:** MA-028's shared command policy and MA-029's
+  browsing ownership implementation are complete.
+  The [remaining refactoring backlog](needs_refactoring.md) covers collection
+  transitions, Favorite ownership, a bounded worker-lifetime pilot and launch
+  policy (MA-030 through MA-033), which remain proposals.
+  Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with
   independently verified pan/zoom transforms before enabling formal latency

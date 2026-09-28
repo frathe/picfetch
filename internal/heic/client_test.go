@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -174,6 +175,48 @@ func TestHEICWorkerLifecycle(t *testing.T) {
 		}
 		if err := client.Check(context.Background()); !errors.Is(err, context.Canceled) {
 			t.Fatalf("admission after Stop = %v", err)
+		}
+	})
+	t.Run("queued_work_observes_stop_before_context_cancel", func(t *testing.T) {
+		client := fakeClient(t, "valid")
+		for range cap(client.slots) {
+			client.slots <- struct{}{}
+		}
+		var launches atomic.Int32
+		command := client.command
+		client.command = func(ctx context.Context, executable string) *exec.Cmd {
+			launches.Add(1)
+			return command(ctx, executable)
+		}
+		completed := make(chan error, 1)
+		go func() { completed <- client.Check(context.Background()) }()
+		deadline := time.NewTimer(5 * time.Second)
+		defer deadline.Stop()
+		for {
+			client.mu.Lock()
+			if len(client.active) == 1 {
+				// Model Stop's published boundary before this queued request's
+				// individual cancel, while another cancelled child frees a slot.
+				// This observes admission, not a worker completion barrier.
+				client.stopped = true
+				client.mu.Unlock()
+				break
+			}
+			client.mu.Unlock()
+			select {
+			case <-deadline.C:
+				t.Fatal("request did not reach queue admission")
+			default:
+				runtime.Gosched()
+			}
+		}
+		<-client.slots
+		if err := <-completed; !errors.Is(err, context.Canceled) {
+			t.Fatalf("queued check after stop boundary = %v, want cancellation", err)
+		}
+		client.Wait()
+		if got := launches.Load(); got != 0 {
+			t.Fatalf("created %d child commands after stop boundary", got)
 		}
 	})
 	t.Run("deadline_retires_hung_process", func(t *testing.T) {

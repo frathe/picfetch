@@ -23,6 +23,16 @@ func (g *Overview) OpenOccurrences(members []fileidentity.Occurrence, label stri
 
 func (g *Overview) SetOnSubsetOpen(open func(Visit)) { g.onSubsetOpen = open }
 
+// Subset returns are owned by their root visit, including admission and any
+// source validation before dismissal.
+func (g *Overview) closeBrowsingGrid() {
+	if g.subset != nil && g.onSubsetBack != nil {
+		g.onSubsetBack()
+		return
+	}
+	g.Close()
+}
+
 // OpenUnassigned adds the selection-only analysis action to this subset visit.
 func (g *Overview) OpenUnassigned(paths []string, back, analyze func()) {
 	g.OpenSubset(paths, back)

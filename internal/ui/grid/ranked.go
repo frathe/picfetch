@@ -2,6 +2,7 @@ package grid
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 
@@ -24,6 +25,15 @@ type Visit struct {
 	highlightIdentity                fileidentity.Occurrence
 	occurrenceSubset                 map[fileidentity.Occurrence]bool
 	subsetLabel                      string
+}
+
+// Clone owns the bookmark independently of its caller's slices and maps.
+func (v Visit) Clone() Visit {
+	v.Paths, v.Results = slices.Clone(v.Paths), slices.Clone(v.Results)
+	v.Selected, v.Subset = slices.Clone(v.Selected), slices.Clone(v.Subset)
+	v.selectedOccurrences = maps.Clone(v.selectedOccurrences)
+	v.occurrenceSubset = maps.Clone(v.occurrenceSubset)
+	return v
 }
 
 // RemapOccurrences applies an admitted collection removal to immutable bookmarks.
@@ -240,6 +250,11 @@ func (g *Overview) RestoreVisit(visit Visit) {
 	}
 	g.restoreVisitState(visit)
 }
+
+// RestoreInteraction applies a bookmark to bindings installed by the current
+// visit owner. It cannot revive a saved subset or any of its old callbacks.
+func (g *Overview) RestoreInteraction(visit Visit) { g.restoreVisitState(visit) }
+
 func (g *Overview) restoreVisitState(visit Visit) {
 	g.query, g.searching = visit.Query, visit.Searching
 	g.applyFilter()

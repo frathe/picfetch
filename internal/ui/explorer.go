@@ -5,6 +5,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/preferences"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
+	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/winpos"
 )
 
@@ -32,6 +33,7 @@ func (v *viewer) showExplorer() {
 	v.closeLocationMap()
 	v.closeVisualSearch()
 	v.grid.Close()
+	v.browsing.enterExplorer(v.Generation())
 	winpos.Maximize(v.win)
 	v.explorerInput.maximized = true
 	if v.dupes.HideDuplicates() {
@@ -86,12 +88,72 @@ func (v *viewer) analyzeSimilaritySelection() {
 	}
 	v.explorer.AnalyzeSelection(paths)
 }
-func (v *viewer) openExplorerGrid(paths []string, unassigned bool) {
-	if unassigned {
-		v.grid.OpenUnassigned(paths, v.backToSimilarityMap, v.analyzeSimilaritySelection)
-	} else {
-		v.grid.OpenSubset(paths, v.backToSimilarityMap)
+func (v *viewer) openExplorerGrid(paths []string, unassigned bool) bool {
+	if _, ok := v.admitCommand(commandRequest{command: commandExplorer, route: routeDelivery}); !ok {
+		return false
 	}
+	v.grid.Close()
+	binding := v.browsing.openExplorerCohort(v.Generation())
+	v.presentExplorerGrid(binding, paths, unassigned, nil)
+	return true
+}
+
+// presentExplorerGrid is the only Explorer bookmark restoration boundary.
+// Reinstall live bindings before restoring interaction; saved callbacks are data
+// from a retired presentation and never authorize a return.
+func (v *viewer) presentExplorerGrid(binding browsingBinding, paths []string, unassigned bool, bookmark *grid.Visit) {
+	back := func() { v.returnExplorerMap(binding) }
+	if unassigned {
+		v.grid.OpenUnassigned(paths, back, v.analyzeSimilaritySelection)
+	} else {
+		v.grid.OpenSubset(paths, back)
+	}
+	if bookmark != nil {
+		v.grid.RestoreInteraction(*bookmark)
+	}
+	v.explorer.Surface().Show()
+	v.syncMenus()
+	v.ForceRepaint()
+}
+
+func (v *viewer) returnExplorerGrid() {
+	v.restoreExplorerGrid(nil)
+}
+
+func (v *viewer) restoreExplorerGrid(bookmark *grid.Visit) {
+	plan, ok := v.browsing.planReturn(v.browsing.current().binding, v.Generation(), browsingReturnGrid)
+	if !ok {
+		return
+	}
+	if _, admitted := v.admitCommand(commandRequest{command: commandGrid, route: routeDelivery}); !admitted {
+		return
+	}
+	if !v.browsing.commitReturn(plan, v.Generation()) {
+		return
+	}
+	paths, unassigned := v.explorer.Cohort()
+	if bookmark != nil {
+		plan.grid = bookmark
+	}
+	v.presentExplorerGrid(plan.source, paths, unassigned, plan.grid)
+}
+
+func (v *viewer) returnExplorerMap(binding browsingBinding) {
+	plan, ok := v.browsing.planReturn(binding, v.Generation(), browsingReturnParent)
+	if !ok {
+		return
+	}
+	if _, admitted := v.admitCommand(commandRequest{command: commandExplorer, route: routeDelivery}); !admitted {
+		return
+	}
+	if !v.browsing.commitReturn(plan, v.Generation()) {
+		return
+	}
+	v.grid.Close()
+	v.explorer.Surface().Show()
+	v.syncMenus()
+	v.ForceRepaint()
+	v.recordExplorerView("map-return")
 }
 
 func (v *viewer) LeaveSimilarityMap() {
@@ -110,6 +172,13 @@ func (v *viewer) cancelExplorerPreparation() {
 	}
 }
 func (v *viewer) closeExplorer() {
+	if v.browsing.has(browsingExplorerMap) {
+		// Retire child work and presentation bindings before forgetting their
+		// parent. A later feature must not capture this Grid as an ordinary one.
+		v.closeVisualSearch()
+		v.browsing.leaveExplorer()
+		v.grid.Close()
+	}
 	v.cancelExplorerPreparation()
 	v.explorer.Close()
 }
@@ -121,20 +190,29 @@ func (v *viewer) settleExplorer() {
 		}
 	}
 }
-func (v *viewer) explorerGridChanged() { v.locationGridChanged(); v.syncMenus() }
+func (v *viewer) explorerGridChanged() {
+	v.syncMenus()
+}
 func (v *viewer) explorerCanRetry() bool {
 	return v.explorer.State().CanRetry && v.explorerInput.prepare == nil
 }
 func (v *viewer) explorerMapActive() bool {
-	return v.explorer != nil && v.explorer.Surface().Visible() && !v.grid.Visible()
+	return v.browsing.current().binding.kind == browsingExplorerMap
 }
+
+func (v *viewer) browsingImageOpened(bookmark grid.Visit) {
+	if kind := v.browsing.current().binding.kind; kind == browsingExplorer || kind == browsingCluster {
+		v.browsing.openImage(v.browsing.current().binding, v.Generation(), bookmark)
+	}
+}
+
 func (v *viewer) explorerImageOpened() {
-	if v.explorer.HasCohort() {
+	if v.browsing.has(browsingExplorer) && !v.searchActive() {
 		v.explorer.Surface().Hide()
 	}
 }
 func (v *viewer) explorerKey(key fyne.KeyName) bool {
-	if v.explorer.Surface().Visible() {
+	if v.explorerMapActive() {
 		switch key {
 		case fyne.KeyEscape, fyne.KeyV:
 			v.LeaveSimilarityMap()
@@ -145,51 +223,25 @@ func (v *viewer) explorerKey(key fyne.KeyName) bool {
 		}
 		return true
 	}
-	if v.explorer.HasCohort() && (key == fyne.KeyEscape || key == fyne.KeyG) {
-		v.openExplorerGrid(v.explorer.Cohort())
-		v.explorer.Surface().Show()
-		v.ForceRepaint()
+	if v.browsing.has(browsingExplorer) && (key == fyne.KeyEscape || key == fyne.KeyG) {
+		v.returnExplorerGrid()
 		return true
 	}
 	return false
 }
 
-func (v *viewer) cohortIndexes() []int {
-	if indexes := v.locationIndexes(); len(indexes) > 0 {
-		return indexes
-	}
-	if order := v.captureSearchOrder(); order.active {
-		return order.indexes
-	}
-	paths, _ := v.explorer.Cohort()
-	if len(paths) == 0 {
-		return nil
-	}
-	members := make(map[string]bool, len(paths))
-	for _, path := range paths {
-		members[path] = true
-	}
-	var indexes []int
-	for i := range v.FileCount() {
-		if members[v.FileAt(i).Path()] {
-			indexes = append(indexes, i)
-		}
-	}
-	return indexes
-}
-
-func (v *viewer) backToSimilarityMap()           { v.explorer.ReturnToMap() }
+func (v *viewer) backToSimilarityMap()           { v.returnExplorerMap(v.browsing.current().binding) }
 func (v *viewer) recordExplorerView(kind string) { v.explorer.RecordView(kind) }
 
 type explorerHost struct{ v *viewer }
 
 func (h explorerHost) Window() fyne.Window { return h.v.win }
 func (h explorerHost) Changed()            { h.v.syncMenus() }
-func (h explorerHost) BrowseCohort(paths []string, unassigned bool) {
-	h.v.openExplorerGrid(paths, unassigned)
+func (h explorerHost) BrowseCohort(paths []string, unassigned bool) bool {
+	return h.v.openExplorerGrid(paths, unassigned)
 }
 func (h explorerHost) LeaveExplorer()              { h.v.LeaveSimilarityMap() }
-func (h explorerHost) ReturnToMap()                { h.v.grid.Close() }
+func (h explorerHost) ReturnToMap()                { h.v.backToSimilarityMap() }
 func (h explorerHost) ShowToast(message string)    { h.v.ShowToast(message) }
 func (h explorerHost) Unfocus()                    { h.v.Unfocus() }
 func (h explorerHost) Modifiers() fyne.KeyModifier { return h.v.Modifiers() }
@@ -207,7 +259,7 @@ func (h explorerHost) Presentation() explorerui.Presentation {
 		for _, i := range v.grid.ResultIndexes() {
 			paths = append(paths, v.FileAt(i).Path())
 		}
-	case !v.explorer.Surface().Visible():
+	case v.browsing.current().surface == browsingImage || v.searchActive():
 		surface = "image"
 		if uri, _, ok := v.CurrentFile(); ok {
 			paths = append(paths, uri.Path())
