@@ -29,8 +29,11 @@ interview decisions. Its [local specification](.scratch/ma-031/spec.md) is resol
 all nine tickets are complete and CI-qualified in the
 [archived record](finished_refactorings/2026-09-28-ma-031-favorite-ownership.md).
 [PR 70](https://github.com/frathe/picfetch/pull/70) records latest-head reviews and checks.
-MA-032 and MA-033 remain proposals. These are not accepted implementation plans
-or unresolved PR defects.
+MA-032 has an [accepted design](docs/worker-lifetimes.md) and a
+[ready-for-agent specification](.scratch/ma-032/spec.md) covering its conditional
+pilot and fallback, plus [nine approved tickets](.scratch/ma-032/issues/README.md).
+Implementation planning remains next. MA-033 remains a proposal. Neither is an
+unresolved PR defect.
 
 Historical inspection baseline: `main` at `54fd7c3` (v1.1.2). At that revision,
 the root `internal/ui` package contained 55 production Go files, 10,835 non-test
@@ -42,7 +45,7 @@ explicit cross-feature composition in `internal/ui`.
 | --- | --- | --- | --- |
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | All nine tickets complete and CI-qualified; latest review/checks in PR 69 |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | All nine tickets complete and CI-qualified; latest review/checks in PR 70 |
-| [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Conditional extraction; medium scope |
+| [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Accepted design; nine tickets ready-for-agent |
 | [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | Recommended independent small task |
 
 Priorities express architectural value, not the severity of a currently open bug.
@@ -503,6 +506,18 @@ ownership. No disk-format migration is part of this design.
 <a id="ma-032"></a>
 
 ## MA-032 — Consolidate proven worker-lifetime mechanics
+
+**Design status:** all nine decisions are accepted in the
+[consolidated design](docs/worker-lifetimes.md). The
+[ready-for-agent specification](.scratch/ma-032/spec.md) defines 60 user stories,
+test boundaries and 20 acceptance criteria for extraction or fallback.
+[Nine approved implementation tickets](.scratch/ma-032/issues/README.md) are
+published as `ready-for-agent`, with explicit pilot and conditional branch gates.
+Pilot root sorting and display SVG final delivery; require reduced caller
+responsibilities before completing basic-token migration within root/display.
+Preserve feature-owned admission, completion and shutdown policies. If the
+pilot cannot meet that bar, retain local implementations and share contract
+tests/documentation. No implementation has begun.
 
 **P2; medium confidence.** The need for consistent contracts is strong; a
 universal task manager is not justified. Pilot a small extraction before any
