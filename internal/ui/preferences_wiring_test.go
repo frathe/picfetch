@@ -6,6 +6,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -42,7 +43,12 @@ func TestRun_RejectsUnavailableFavoriteStorageBeforeBuildingViewer(t *testing.T)
 
 	// A nil app makes accidental viewer construction fail instead of starting
 	// workers after the storage failure.
-	err := Run(nil, nil, launch.Options{}, testLaunchPolicy(t, launch.Options{}, false), "", "")
+	prepared, err := launch.Prepare(context.Background(), testLaunchPolicy(t, launch.Options{}, false), launch.PreparationOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = prepared.Close() }()
+	err = Run(nil, nil, launch.Options{}, prepared, "", "")
 	if !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "create private favorites directory") {
 		t.Fatalf("Run error = %v, want the private-storage creation failure", err)
 	}

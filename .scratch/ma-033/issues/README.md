@@ -10,7 +10,7 @@ Baseline: `a5caf73a9031723b42b0bfd13b1fbd25ac893be9`.
 Implementation began on 2026-09-28 under `/implement MA-033`, authorizing
 per-ticket commits, pushes, a draft PR/CI and a review loop after all tickets.
 The [active Deep SDD plan](../../../plans/2026-09-28-ma-033-launch-policy.md)
-records interfaces, routing and evidence. Tickets 01-02 are complete; 03-09 remain
+records interfaces, routing and evidence. Tickets 01-03 are complete; 04-09 remain
 pending. All ten design decisions remain settled. No merge/release is authorized.
 
 ## Ticket graph and frontier

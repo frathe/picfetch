@@ -16,10 +16,12 @@ It parses the command line (`launchArgs`, see
 subprocess modes before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
 cleanup for Store-managed builds and explicit Explorer or Location Map trials,
-captures `launch.Policy` from options and compiled distribution, checks Explorer
-prerequisites, then admits predecessor cleanup and selects the app identity before
-building the `fyne.App`. The same explicit policy enters UI composition before
-preferences/session access. It loads embedded
+captures `launch.Policy` from options and compiled distribution, and acquires
+`launch.Prepared` (including Explorer's offline prerequisite and exclusive trial
+reservation) before predecessor cleanup or `fyne.App` construction. The entry
+point owns finalization on every return; `ui.Run` borrows recorders and joins their
+producers after the production shutdown hook before returning. The same explicit
+policy enters UI composition before preferences/session access. It loads embedded
 `translations/*.json`, embeds `THIRD-PARTY-NOTICES.md` and `PRIVACY.md`, converts CLI paths to URIs
 (`argsToURIs`), and passes the immutable documents to `ui.Run`, which supplies
 Help's offline Licenses and Privacy policy windows before startup. `main_darwin_test.go` asserts the graft landed — this is the only
@@ -1089,8 +1091,10 @@ bounded admission loop without discovering directories or collapsing occurrences
 ### `internal/launch`
 
 Command-line flag parsing into the `Options` value `ui.Run` applies at startup.
-`Options.ApplicationID` owns pre-app Explorer trial offline validation and
-isolated identity selection; the ordinary app ID passes through unchanged.
+`Policy` captures identity, purpose and permissions without effects; `Prepared`
+separately acquires and owns trial evidence before app construction. The legacy
+`Options.ApplicationID` adapter remains temporarily for migration compatibility;
+production no longer calls it. The ordinary app ID passes through unchanged.
 Hand-rolled rather than `flag`, so flags may appear anywhere among the paths;
 rejects an unknown flag, ignores macOS's `-psn_*`, and validates `--sort`
 against the `preferences.SortBy*` vocabulary. No Fyne import.
@@ -1099,6 +1103,7 @@ against the `preferences.SortBy*` vocabulary. No Fyne import.
 |------|----------------|
 | `launch.go` | `Options`, `Options.ApplicationID`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
 | `policy.go` | Explicit immutable `Policy`, `UpdatePermission` and storage selection, independent of trial resources and offline prerequisites. |
+| `preparation.go` | Per-launch prerequisite/reservation operations and `Prepared`, the single evidence owner; partial acquisition and finalization preserve joined errors and retained evidence. |
 
 ### `internal/filesort`
 

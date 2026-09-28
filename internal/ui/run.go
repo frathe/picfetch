@@ -4,15 +4,12 @@
 package ui
 
 import (
-	"errors"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
 	"fyne.io/fyne/v2"
-
-	"github.com/frathe/picfetch/internal/explorertrial"
 
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/launch"
@@ -40,21 +37,18 @@ const (
 // already parsed and validated by internal/launch; the zero value is a
 // plain launch that overrides nothing. notices and privacy are this build's
 // embedded documents, supplied by main alongside its other resources.
-func Run(application fyne.App, initial []fyne.URI, opts launch.Options, policy launch.Policy, notices, privacy string) error {
+// prepared lends the captured policy and trial recorders; its caller retains
+// ownership and closes them after Run joins their producers and returns.
+func Run(application fyne.App, initial []fyne.URI, opts launch.Options, prepared *launch.Prepared, notices, privacy string) error {
+	policy := prepared.Policy()
 	if !policy.Valid() {
 		return launch.ErrInvalidPolicy
 	}
-	var trial *explorertrial.Session
+	trial := prepared.ExplorerTrial()
 	var err error
 	var favoritesDir string
-	if opts.ExplorerTrial != "" {
-		trial, err = explorertrial.New(opts.ExplorerTrial)
-		if err != nil {
-			return err
-		}
-		favoritesDir = filepath.Join(opts.ExplorerTrial, "favorites")
-	} else if opts.LocationMapTrial != "" {
-		favoritesDir = filepath.Join(opts.LocationMapTrial, "favorites")
+	if policy.Purpose() != launch.Ordinary {
+		favoritesDir = filepath.Join(policy.TrialDir(), "favorites")
 	} else {
 		favoritesDir, err = favstore.DefaultDir()
 		if err != nil {
@@ -63,11 +57,9 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, policy l
 	}
 	view, window, err := buildStartupViewer(application, policy)
 	if err != nil {
-		return errors.Join(err, trial.Close())
+		return err
 	}
-	if err := view.configureLocationTrial(opts.LocationMapTrial); err != nil {
-		return errors.Join(err, trial.Close())
-	}
+	view.borrowLocationTrial(prepared.LocationMapTrial())
 	view.help.SetLicenses(notices)
 	view.help.SetPrivacyPolicy(privacy)
 
@@ -140,7 +132,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, policy l
 	application.Run()
 	stopSignals()
 	view.waitForShutdown()
-	return errors.Join(trial.Close(), view.waitLocationTrial())
+	return nil
 }
 
 func (v *viewer) waitForShutdown() {
@@ -196,7 +188,6 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.help.Stop()
 		view.closeLocationMap()
 		view.locationMap.Stop()
-		view.stopLocationTrial()
 		view.spiral.Close()
 		view.closeExplorer()
 		view.closeVisualSearch()

@@ -1,6 +1,6 @@
 # MA-033: captured launch policy implementation
 
-Status: active, tickets 01-02 complete; ticket 03 is the frontier.
+Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`) and 03 complete; 04 next.
 Baseline: `9549e3b` (approved specification), runtime baseline `a5caf73`.
 Route: Deep SDD with vertical TDD slices.
 Authorization: 2026-09-28 `/implement MA-033`: implementation, per-ticket commits,
@@ -181,8 +181,8 @@ must record G1-G5 before spawning.
 | --- | --- | --- | --- | --- |
 | 01 | 0/0 | 1 | no | done |
 | 02 | 1/1 | 1 | no | done |
-| 03/04 recon | 1/1 | n/a | no | complete; acquisition/producer/storage inventory |
-| 03 | 0/0 | 0 | no | pending |
+| 03/04 recon | 2/2 | n/a | no | complete; acquisition/producer/storage inventory |
+| 03 | 1/1 | 1 | no | done |
 | 04 | 0/0 | 0 | no | pending |
 | 05 | 1/0 | 0 | no | pending |
 | 06 | 0/0 | 0 | no | pending |
@@ -266,3 +266,63 @@ production implementation; no source suppression or unrelated refactor needed.
 No new actionable findings. Scoped vet passed. Shard check reports 740 runnable
 tests across three shards. Format and exact exclusion checks passed after
 formatting the final test callback. Actual native qualification remains open.
+
+### Ticket 03 acquisition contract and routing refinement
+
+The recon closed the ownership questions: Explorer reserves via exclusive
+Mkdir/OpenFile and closes idempotently; Location reserves via Mkdir and owns one
+Stop/Wait recorder worker. Existing `waitForShutdown` already joins Explorer and
+Location Map producers after their Stop calls. Preparation will reuse both.
+
+Precise API: `Prepare(ctx context.Context, policy Policy, options PreparationOptions)
+(*Prepared, error)`. Per-call options expose only external acquisition operations:
+`VerifyOffline func(context.Context) error`,
+`NewExplorer func(string) (*explorertrial.Session,error)`,
+`NewLocation func(string) (*locationtrial.Recorder,error)`; nil uses production
+operations. Default options are not a default policy. Prepared exposes `Policy`,
+`ExplorerTrial`, `LocationMapTrial`, and idempotent `Close() error`, with nil-safe
+observations. Failed partial acquisition closes nonnil returned resources and
+joins acquisition/finalization errors. Context cancellation also closes acquired
+resources. Retain directories and original evidence formats.
+
+Lead owns main/UI borrowing and production shutdown proof. One T1 Sol task owns
+only new preparation.go/preparation_test.go within internal/launch; G1 exact
+bounded contract, G2 ticket03 V1, G3 two disjoint files, G4 acquisition-only
+context, G5 unimplemented acquisition loop. S/W: comprehension and resource
+tests, contract only. This raises ticket03's implementation-spawn budget from
+zero to one to overlap independent module work with lead-owned lifecycle wiring;
+the earlier T3 scout remains separately recorded. No review or fixes delegated.
+
+### Ticket 03 completion evidence
+
+Analyzed/tested tree: `5ea960f` plus this ticket's named changes (recorded by the
+ticket 03 commit). Launch acquisition, main owner lifetime and UI borrowing are
+implemented. Only the existing evidence-producer waits are retained; no unrelated
+shutdown join was added. The production hook now leaves Location's recorder open
+until the post-run worker join and entry-point owner close.
+
+Behavioral reds: root app/run/normal-return tests lost Explorer cleanup errors or
+returned before Location flush; held Location metadata demonstrated recorder stop
+before producer join. Green V1 runs reservation/resources/evidence including
+exclusive competing paths, cancellation, partial-acquisition joined errors,
+stable cleanup, flush failures and actual default prerequisite refusal. V2 runs
+all four required startup parents. V3 runs named held Explorer and Location Map
+production-hook/post-run children, also under `-race`. V4 runs recorder tests and
+all seven manual-launcher fixtures; Explorer recorder is build-only there, with
+its resource behavior supplied by V1/V3. Root/launch/UI contracts also pass with
+`microsoft_store`; native Windows execution is still ticket 09, not inferred.
+Logs: `.scratch/ma-033/evidence/03-*-{red,green}.log` (local raw evidence).
+
+Lead assessment: acquisition fails closed before app construction, resource-free
+policy stays separate, error joining preserves original failures, evidence
+formats/incomplete meaning remain unchanged, signals still perform orderly stop.
+All ten changed Go files inspected through GoLand with weak warnings and no
+timeouts. Two intentional error-identity comparisons now have narrow
+`GoDirectComparisonOfErrors` suppressions explaining that memoization, not
+wrapping equivalence, is under test; affected files reinspected clean. Scoped vet
+and formatting/exclusion/shard gates run before landing. No dependency changes.
+
+A second bounded T3 storage scout mapped current constructor/default accesses and
+the test harness's late overrides for ticket 04 while the lead verified 03. This
+expands the shared recon budget to two; it wrote no files and made no review or
+design decisions. The lead retains the resulting cross-package storage work.

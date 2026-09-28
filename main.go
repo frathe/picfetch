@@ -140,11 +140,8 @@ func productionStartup() startupOps {
 		capture: func(opts launch.Options) (launch.Policy, error) {
 			return launch.NewPolicy(opts, appID, distribution.StoreManaged)
 		},
-		prerequisites: func(ctx context.Context, policy launch.Policy) error {
-			if policy.Purpose() == launch.ExplorerTrial {
-				return similarity.VerifyOffline(ctx)
-			}
-			return nil
+		prepare: func(ctx context.Context, policy launch.Policy) (*launch.Prepared, error) {
+			return launch.Prepare(ctx, policy, launch.PreparationOptions{})
 		},
 		newApp: func(identity string) (fyne.App, error) {
 			application := app.NewWithID(identity)
@@ -153,8 +150,8 @@ func productionStartup() startupOps {
 			}
 			return application, nil
 		},
-		run: func(application fyne.App, initial []fyne.URI, opts launch.Options, policy launch.Policy) error {
-			return ui.Run(application, initial, opts, policy, thirdPartyNotices, privacyPolicy)
+		run: func(application fyne.App, initial []fyne.URI, opts launch.Options, prepared *launch.Prepared) error {
+			return ui.Run(application, initial, opts, prepared, thirdPartyNotices, privacyPolicy)
 		},
 	}
 }

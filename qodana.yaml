@@ -175,6 +175,7 @@ exclude:
       - "internal/imaging/vector_test.go"
       - "internal/launch/launch_test.go"
       - "internal/launch/policy_test.go"
+      - "internal/launch/preparation_test.go"
       - "internal/locationtrial/recorder_test.go"
       - "internal/mosaic/generator_test.go"
       - "internal/mosaic/heic_test.go"

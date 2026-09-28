@@ -670,9 +670,7 @@ func TestLocationMap(t *testing.T) {
 	})
 	t.Run("native_trial_update_isolation", func(t *testing.T) {
 		v := newTestViewer(t)
-		if err := v.configureLocationTrial(filepath.Join(t.TempDir(), "trial")); err != nil {
-			t.Fatal(err)
-		}
+		prepareTestLocationTrial(t, v, filepath.Join(t.TempDir(), "trial"))
 		v.updater.SetCurrentVersion("0.2.6")
 		stale := saveVerifiedUpdateStage(t, v, "v0.2.5", "old stage")
 		v.SetCheckForUpdates(true)
@@ -719,9 +717,7 @@ func TestLocationMap(t *testing.T) {
 	t.Run("native_trial_observations", func(t *testing.T) {
 		v := newTestViewer(t)
 		dir := filepath.Join(t.TempDir(), "native")
-		if err := v.configureLocationTrial(dir); err != nil {
-			t.Fatal(err)
-		}
+		prepareTestLocationTrial(t, v, dir)
 		extensionless := uitest.TempGPSJPEGURI(t, "extensionless", 24, 16, 48.85, 2.35)
 		// A URI provider may know the MIME type even without a file extension.
 		dropAndWait(t, v,

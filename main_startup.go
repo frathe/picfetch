@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"fyne.io/fyne/v2"
@@ -17,12 +18,12 @@ type startupOps struct {
 	installOpenWith  func()
 	cleanup          func()
 	capture          func(launch.Options) (launch.Policy, error)
-	prerequisites    func(context.Context, launch.Policy) error
+	prepare          func(context.Context, launch.Policy) (*launch.Prepared, error)
 	newApp           func(string) (fyne.App, error)
-	run              func(fyne.App, []fyne.URI, launch.Options, launch.Policy) error
+	run              func(fyne.App, []fyne.URI, launch.Options, *launch.Prepared) error
 }
 
-func runStartup(args []string, stdout, stderr io.Writer, ops startupOps) (int, error) {
+func runStartup(args []string, stdout, stderr io.Writer, ops startupOps) (code int, err error) {
 	paths, opts, exit := launchArgs(args, stdout, stderr)
 	if exit >= 0 {
 		return exit, nil
@@ -39,8 +40,21 @@ func runStartup(args []string, stdout, stderr io.Writer, ops startupOps) (int, e
 	if !policy.Valid() {
 		return 1, launch.ErrInvalidPolicy
 	}
-	if err := ops.prerequisites(context.Background(), policy); err != nil {
+	prepared, err := ops.prepare(context.Background(), policy)
+	// The entry point retains ownership even when construction or Run fails.
+	// Run joins evidence producers before returning; Close then flushes evidence
+	// before main can call os.Exit, preserving both startup and cleanup errors.
+	defer func() {
+		if closeErr := prepared.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+			code = 1
+		}
+	}()
+	if err != nil {
 		return 1, err
+	}
+	if prepared.Policy() != policy {
+		return 1, launch.ErrInvalidPolicy
 	}
 	// A relaunch waits for its predecessor before opening app preferences.
 	cleanupLaunchPredecessor(policy, ops.cleanup)
@@ -48,7 +62,7 @@ func runStartup(args []string, stdout, stderr io.Writer, ops startupOps) (int, e
 	if err != nil {
 		return 1, err
 	}
-	if err := ops.run(application, argsToURIs(paths), opts, policy); err != nil {
+	if err := ops.run(application, argsToURIs(paths), opts, prepared); err != nil {
 		return 1, err
 	}
 	return 0, nil
