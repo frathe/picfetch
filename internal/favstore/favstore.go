@@ -2,6 +2,7 @@
 package favstore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"strings"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/trash"
 )
@@ -148,28 +148,12 @@ func Save(dir, name string, files []fyne.URI) error {
 	return os.Rename(tmpPath, filepath.Join(favoriteDir, fileListName))
 }
 
-// readList reads and decodes the favorite named name's file-list.json into
-// its raw index-to-path map, rejecting only an invalid name or data that
-// isn't valid JSON. It does not validate that each key is a well-formed
-// index - Load and Count each decide for themselves what to do with a key
-// that isn't, since they disagree about whether they need to know the index
-// at all. Load and Count both build on this so they never disagree about
-// what is actually stored on disk.
-func readList(dir, name string) (map[string]string, error) {
+// readList returns the complete definition through the shared ownership path.
+func readList(dir, name string) (Definition, error) {
 	if !ValidName(name) {
-		return nil, fmt.Errorf("invalid favorite name %q", name)
+		return Definition{}, fmt.Errorf("invalid favorite name %q", name)
 	}
-
-	data, err := os.ReadFile(filepath.Join(dir, name, fileListName))
-	if err != nil {
-		return nil, err
-	}
-
-	var list map[string]string
-	if err := json.Unmarshal(data, &list); err != nil {
-		return nil, err
-	}
-	return list, nil
+	return Open(context.Background(), Dir(dir, name))
 }
 
 // Load returns the files stored in the favorite named name.
@@ -179,25 +163,7 @@ func Load(dir, name string) ([]fyne.URI, error) {
 		return nil, err
 	}
 
-	type indexedPath struct {
-		index int
-		path  string
-	}
-	paths := make([]indexedPath, 0, len(list))
-	for key, path := range list {
-		index, err := strconv.Atoi(key)
-		if err != nil || index < 0 {
-			return nil, fmt.Errorf("invalid file index %q", key)
-		}
-		paths = append(paths, indexedPath{index: index, path: path})
-	}
-	sort.Slice(paths, func(i, j int) bool { return paths[i].index < paths[j].index })
-
-	files := make([]fyne.URI, len(paths))
-	for i, item := range paths {
-		files[i] = storage.NewFileURI(item.path)
-	}
-	return files, nil
+	return list.Files(), nil
 }
 
 // Count returns how many files the favorite named name stores.
@@ -216,12 +182,7 @@ func Count(dir, name string) (int, error) {
 		return 0, err
 	}
 
-	for key := range list {
-		if index, err := strconv.Atoi(key); err != nil || index < 0 {
-			return 0, fmt.Errorf("invalid file index %q", key)
-		}
-	}
-	return len(list), nil
+	return len(list.Paths), nil
 }
 
 // Remove moves the favorite named name to the operating system's trash.

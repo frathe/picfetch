@@ -450,8 +450,9 @@ measured checks, then indeterminate final grouping; retirement stops animation.
 `work.go` and Favorite reads project away unrelated EXIF strings before retaining
 points or facts. `favorites.go` stores
 versioned records only for saved Favorite members in the operation's live source
-scope; unrelated memberships and owner handles are not retained. Captured directory
-handles and membership namespaces preventing retired-owner publication.
+scope; `favstore.Inventory` validates complete definitions and retains shared
+owner observations without idle handles. Bounded `Owner.Acquire` operations and
+full-list membership namespaces prevent retired-owner publication.
 Committed source writes retire live facts immediately and schedule tracked disk
 invalidation, serialized with revalidated raw-fact publication. Each saved member
 owns at most one record, with its current source version inside the record.
@@ -826,6 +827,9 @@ unavailable.
 | File | Responsibility |
 |------|----------------|
 | `favstore.go` | `Save` / `Load` / `Count` / `DefaultDir`; trash-backed remove. |
+| `membership.go` | One strict numeric-position decoder, cancellable reads and the 64 MiB encoded definition limit. |
+| `ownership.go` | `Open` / `Definition`, captured directory/list `Owner`, short-lived `Access`, permanent observed retirement, full-list fingerprint and captured relative-path interpretation. `Observe` supports unknown-membership maintenance. |
+| `inventory.go` | Cancellable 64-entry enumeration, complete validation with scoped retained membership, healthy/unknown outcomes and enumeration completeness. |
 | `cohorts.go` | Favorite-owned named source memberships, preset links and explicit Unassigned overrides in version-2 `cohorts.json`; legacy arrays migrate on the next save; cancellable atomic writes bound to the observed file-list identity, with removed members filtered on load. |
 
 ### `internal/favthumbs`

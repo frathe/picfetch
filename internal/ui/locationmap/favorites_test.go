@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -18,6 +19,46 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func TestFavoriteSharedOwnership(t *testing.T) {
+	dir := t.TempDir()
+	source := storage.NewFileURI(uitest.WriteTempFile(t, "photo.jpg", []byte("version")))
+	if err := favstore.Save(dir, "Saved", []fyne.URI{source}); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadDir("/proc/self/fd")
+	owners, err := openFavoriteFacts(context.Background(), dir, []fyne.URI{source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owners.close()
+	after, _ := os.ReadDir("/proc/self/fd")
+	if runtime.GOOS == "linux" && len(after) > len(before) {
+		t.Errorf("idle Map retains %d directory handles", len(after)-len(before))
+	}
+	version, _ := favthumbs.EntryName(source)
+	fact := Fact{Version: version, Metadata: imaging.Metadata{HasGPS: true, Latitude: 52, Longitude: 13}}
+	if err := favstore.Save(dir, "Saved", []fyne.URI{source}); err != nil {
+		t.Fatal(err)
+	}
+	if err := owners.store(context.Background(), source, fact); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := openFavoriteFacts(context.Background(), dir, []fyne.URI{source})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.close()
+	if _, hit, err := fresh.load(context.Background(), source, version); err != nil || hit {
+		t.Fatalf("old owner published after identical replacement: hit=%v err=%v", hit, err)
+	}
+	if err := fresh.store(context.Background(), source, fact); err != nil {
+		t.Fatal(err)
+	}
+	if _, hit, err := fresh.load(context.Background(), source, version); err != nil || !hit {
+		t.Fatalf("fresh owner cannot publish: hit=%v err=%v", hit, err)
+	}
+}
 
 func TestFavoriteFactsRetainOnlyLocation(t *testing.T) {
 	dir := t.TempDir()
@@ -52,7 +93,7 @@ func TestFavoriteFactsRetainOnlyLocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := owners.owners[0].records.WriteFile(gpsRecordName(path), data, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(owners.owners[0].owner.Path(), favoriteGPSDirectory, owners.owners[0].namespace, gpsRecordName(path)), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if got, ok, err := owners.load(context.Background(), source, version); err != nil || !ok || got != want {
@@ -102,7 +143,7 @@ func TestFavoriteRetiredCleanup(t *testing.T) {
 			if scenario == "cancelled" {
 				scanContext = &resolutionCancelContext{Context: ctx, cancel: cancel, checks: 2}
 			} else if scenario == "cancelled_during" {
-				scanContext = &resolutionCancelContext{Context: ctx, cancel: cancel, checks: 12}
+				scanContext = &favoriteCleanupContext{Context: ctx, cancel: cancel, dir: retired, initial: count}
 			}
 			owners, err = openFavoriteFacts(scanContext, dir, sources)
 			defer owners.close()
@@ -127,6 +168,21 @@ func TestFavoriteRetiredCleanup(t *testing.T) {
 			}
 		})
 	}
+}
+
+type favoriteCleanupContext struct {
+	context.Context
+	cancel  context.CancelFunc
+	dir     string
+	initial int
+}
+
+func (c *favoriteCleanupContext) Err() error {
+	entries, err := os.ReadDir(c.dir)
+	if err == nil && len(entries) < c.initial {
+		c.cancel()
+	}
+	return c.Context.Err()
 }
 
 func TestFavoriteFactsLiveScope(t *testing.T) {
