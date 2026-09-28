@@ -1,6 +1,6 @@
 # MA-031 implementation and evidence
 
-Status: tickets 01-08 complete; qualifying convergence/native behavior in 09. Baseline: `f09af93` (planning branch), code
+Status: all nine tickets complete and CI-qualified. Baseline: `f09af93` (planning branch), code
 baseline `7e52ea5b5fe95ae7d0995e88fa765ab57d549b86`.
 
 Deliver shared validated Favorite membership and captured ownership to every
@@ -196,9 +196,13 @@ Lead owns review, Explorer/root qualification, fixes and the ticket commit.
 - [x] 05 UI reads/lifetime
 - [x] 06 saves
 - [x] 07 removal
-- [ ] 08 previews
-- [ ] 09 complete qualification
-- [ ] Ready PR; latest-head clean Codex code/security, required CI and CodeQL
+- [x] 08 previews
+- [x] 09 complete qualification
+
+Post-implementation gate: [PR 70](https://github.com/frathe/picfetch/pull/70)
+records readiness, latest-head Codex code/security reviews, dispositions and
+required CI/CodeQL/Qodana results. This implementation record does not substitute
+for a fresh clean review on the final PR revision.
 
 Raw focused output will live under `.scratch/ma-031/evidence/`; this tracked
 record retains commands, required cases, outcomes and revision references.
@@ -217,7 +221,7 @@ to include weak warnings rather than warning-threshold batch filtering.
 | 06 | 0/0 | lead gates below | no | complete |
 | 07 | 0/0 | lead gates below | no | complete |
 | 08 | 1/1 | 2 | no | complete; lead independently verified |
-| 09 | 1/1 | 0 | CI | claimed; native scout completed during 06 |
+| 09 | 1/1 | 2 | CI passed | complete; native scout completed during 06 |
 
 ### Ticket 01 evidence
 
@@ -591,6 +595,7 @@ required. No codec-exception flag applies. Retain raw JSON and fail missing,
 skipped or failed registered parents/children using the existing event validator.
 
 Required parents and children:
+
 - favstore `TestFavoriteOwnership`: move, directory_replacement, list_replacement,
   list_change, idle_removal, new active_release (cancel, explicit close, then move).
 - favstore `TestFavoriteCancellation`: cancelled, changed_while_reading, growth,
@@ -615,9 +620,9 @@ Required parents and children:
 T0 implements this cross-package qualification; the bounded native scout was
 already completed in 06. No further delegate can improve the hot final-gate work.
 
-The qualification implementation is pushed before closing ticket 09 because
-native CI must execute a real committed revision. Ticket 09 remains claimed;
-its completion/evidence commit follows verified native/full results. Local
+The qualification implementation was pushed before closing ticket 09 because
+native CI must execute a real committed revision. Ticket 09 remained claimed
+until the completion/evidence commit followed verified native/full results. Local
 `nativeguards -suite favorite-ownership` passed all 76 exact requirements on
 Linux/amd64, with raw JSON in `09-native-linux.json`. Runner tests reject every
 required result when missing, skipped or failed. Initial unknown-suite and
@@ -627,4 +632,122 @@ missing-workflow reds are `09-native-inventory-red.txt` and
 changed Go files including weak warnings on the c58a07f-based tree: clean,
 no timeouts/skips. Focused vet, runner tests and Make formatting/exclusions/shards
 pass; no new test file or root top-level name. Complete platform/CI acceptance
-is still pending and is not inferred from local success.
+is recorded below, independently of local success.
+
+### Ticket 09 convergence audit and local evidence
+
+Lead review compared `7e52ea5b5fe95ae7d0995e88fa765ab57d549b86...c1f47b4`
+against the accepted spec and standing standards. The code-review skill's two
+axes were assessed by T0, following the repository's explicit review-ownership
+rule instead of that skill's generic parallel-review-agent procedure.
+
+| Consumer | Shared authority and retained local policy |
+| --- | --- |
+| List/Count/Load/Save/Remove | List counts and Load/Count call complete Open; Save uses the same validity/byte bound and captured Target. Remove revalidates the confirmed target and releases access before Trash. Legacy wrappers delegate, not decode independently. The unused-by-production Exists compatibility query is presence-only, never membership or mutation authority. |
+| Cohorts | OpenCohorts derives containment from complete Open and SourceKey; reads and atomic saves use Owner access/currentness. Legacy array/v2 documents, presets, surviving groups and rollback remain local. Its independent list identity checker is gone. |
+| Similarity and retained search | Shared scoped Inventory supplies every relevant owner. Full captured sourceScope is separate from preparation/ranking and reduced writeScope. Explicit-save refresh preserves both, query state and prepared work. Unknown inventory blocks general fallback; leases, record format and cache opt-outs stay in similarity. |
+| Maintenance | Shared full/unknown observations plus value-only directory/record identities replace idle roots. AcquireDirectory supports explicit unknown-owner clear; automatic stale classification remains conservative. Each unlink rechecks owner/cache-directory/record identity while leases, quiescence and committed accounting remain consumer policy. |
+| Location Map | Shared scoped Inventory and Owner replace the 16 MiB decoder and independent directory/list checks. Source versions, raw-only GPS facts, existing namespace fingerprint, live intersections, 1024-entry cleanup, persistence mutex and newer-fact restoration are unchanged. |
+| Previews | Complete-open/committed-save owners reach Sync directly; reads, publication and cleanup use bounded root-relative access. No pathname recovery bridge remains. Source versions, codecs, decode limit, cached tail, memory sink and full/offline membership cleanup stay independent. |
+| UI/root | Feature-local Storage/UIQueue, serial mutation lane and coalesced reads own all Favorite I/O. Queued opening rechecks admission and feeds the existing collection replay. Committed notifications survive view cancellation but not terminal Stop. Root closes admission on UI and joins finite/current/retired work off UI before dependent cleanup. |
+
+No other file-list parser or Favorite identity authority remains in consumers.
+`sameVersion` in similarity is a source/cache-record check, not a second Favorite
+list interpretation. Consumer JSON decoders still describe their own records.
+No watcher, registry, generic scheduler, cache-format migration, dependency or
+asset update was added. Existing dependency notices remain unchanged.
+
+Final selected parents were enumerated and current uncached verbose executions
+passed without skips on the c1f47b4 code tree:
+
+| AC | Concrete current evidence |
+| --- | --- |
+| 1-3 | `TestFavoriteMembership/{valid,invalid,paths}`; `TestAnalysisCacheFileURIPathsReopen/{general,favorite}`. |
+| 4 | `TestFavoriteMembershipLimits` including exact reader/writer boundary, excess/escaped save rejection and old-list preservation; `TestFavoriteCancellation/growth`. |
+| 5, 8-9 | Complete `TestFavoriteOwnership`, `TestFavoriteCancellation`, `TestFavoriteConflicts`; native runner also requires every named mutation/retirement child. |
+| 6-7 | `TestFavoriteInventory/{membership,resources}`; `TestFavoriteAnalysisOwnership/retained_resources`; `TestAnalysisCacheMaintenanceOwnership/resources`. |
+| 10-11 | All `TestAnalysisCache*`, complete `TestFavoriteAnalysisOwnership`, and `TestSearchSessionFavoriteSaveRetainsQueryAndPreparation`. |
+| 12 | All Location Map `TestFavorite*`; root `TestLocationMap/gps_cache_lifecycle` and `/gps_cache_policy`, including held removal/replacement and partial cancellation. |
+| 13 | Complete `TestCohorts`; `TestFeatureFavoriteSaveRollback/{cohort,preset}`; actual root `TestVisualSimilarityExplorer/create_cohort_favorite`. |
+| 14 | Full favthumbs suite, including all nine `TestSyncFavoriteOwnership` children, cached/offline tails and source replacement. |
+| 15-17 | Full Favorites suite, including StorageReads/Mutations/CommittedEffects and pre-naming capture; root `TestFindMoreLikeThisActionsCaptureRankedSources` including current and retired save-during-inspection cases. |
+| 18-19 | Complete `TestFavoriteOwnershipIntegration`, CollectionReplay, CollectionCapture, CommandAdmissionRoutes/ModalOwnership, StorageLifecycle, ShutdownCancelsFavoritePreviews and commit-before-notification source guard. |
+| 20 | Exact 76-case native runner and retained events; platform completion recorded below. |
+| 21 | Consumer-by-consumer baseline audit above, shared-contract tests and negative verification in tickets 01-08. |
+| 22 | Manifests/format checks plus full IDE inspection below; final CI/CodeQL/Qodana status recorded below. |
+
+Repeatable local commands and raw output (toolchain path omitted here):
+
+```
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/favstore ./internal/favthumbs ./internal/ui/favorites
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/similarity -run '^(TestAnalysisCache.*|TestFavoriteAnalysisOwnership|TestSearchSessionFavoriteSaveRetainsQueryAndPreparation)$'
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui/locationmap ./internal/ui/explorer -run '^(TestFavorite.*|TestFeatureFavoriteSaveRollback)$'
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run '^(TestFavoriteOwnershipIntegration|TestCollectionReplay|TestCollectionCapture|TestFindMoreLikeThisActionsCaptureRankedSources|TestFavoritePreviewAfterCommitBeforeNotificationRejectsOldMemoryHit|TestShutdownCancelsFavoritePreviews|TestCommandAdmissionRoutes|TestCommandAdmissionModalOwnership)$'
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run '^(TestLocationMap|TestVisualSimilarityExplorer)$/^(gps_cache.*|create_cohort_favorite)$'
+```
+
+Logs are `09-storage-preview-feature.txt`, `09-similarity.txt`,
+`09-map-explorer.txt`, `09-root.txt`, `09-root-map-cohort.txt`. Exact parent
+inventories and all nested PASS results were compared; no empty selection or
+skipped required test is counted. Full tagged native Explorer additionally
+retains ticket 06's explicit 23-case evidence, not an untagged parent match.
+
+Resource measurements at 32 / 130 Favorites: Inventory retained 0 / 0 unrelated
+owners and 32 / 130 matching owners with one requested source per owner, zero
+idle handles and peak delta 3 / 3. Post-GC heap deltas were -34,800 / 6,352 bytes
+for unrelated inventory and 38,720 / 126,296 bytes for matching associations.
+Similarity retained one source with 32 / 130 owners, no idle Favorite handles,
+and every directory could move; heap deltas -19,008 / 124,048 bytes. Deferred
+maintenance retained 32 / 130 value records, zero idle handles and peak 3 / 3;
+heap deltas 31,144 / 233,968 bytes. These observations include runtime/GC noise,
+not allocation guarantees. Inventory's serial 64-entry loop decodes one complete
+definition at a time, then discards unrelated membership. Relevant associations
+and explicit full maintenance inventory still consume proportional memory.
+The 64 MiB encoded limit does not bound total process memory.
+
+GoLand fallback inspection was repeated on **all 73 changed Go files** at
+`c1f47b47b90fde662ae7f4b3d91c697d3c53b07b`, via the current IDE's file inspection
+tool with `errorsOnly=false` (Project Default, not claimed equivalent to
+qodana.starter). No IDE-local Qodana invocation is exposed in this session;
+the documented fallback and CI's actual Qodana scan supply separate evidence.
+All files completed, no timeout/skips. Raw scope/results:
+`09-goland-c1f47b4.json`. Twenty-one weak duplicate fragments across nine files:
+nineteen are intentional independent test fixtures covered by exact qodana.yaml
+paths; the two viewer.go fragments match the ignored historical
+`.scratch/ma-028/linux-reset-repair-2026-09-27/mutant-viewer.go`, not another shipped
+implementation. No new suppression or unrelated artifact edit was introduced.
+Standards assessment: no actionable findings. Spec assessment: no missing
+implementation; native/full CI gates completed as recorded below.
+
+Inspected fresh Qodana artifacts, `/end/qodana.sarif.json`, not CSV totals:
+run 36438964901 for c58a07f and run 36439872249 for c1f47b4 both report
+executionSuccessful=true, exitCode=0 and **zero post-suppression results**.
+These PR-mode scans cover changed files with qodana.starter/config exclusions;
+their explicit revision provenance was checked.
+
+### Ticket 09 native/full acceptance
+
+Revision `c1f47b47b90fde662ae7f4b3d91c697d3c53b07b` passed the complete
+[CI run 36439872221](https://github.com/frathe/picfetch/actions/runs/36439872221):
+validation (format/TUF, vet, build), all four Linux/amd64 Docker race shards,
+Windows tests and native guards on Linux, Windows, macOS arm64 and macOS amd64.
+The native Favorite suite produced the same **76 run and 76 pass events** on
+each host, with no skipped/failed requirement. Exact package/test names were
+compared across all four retained JSON artifacts, not inferred from green jobs.
+Local copies are `native-c1f47b4/{linux,windows,macos-arm64,macos-amd64}/` under
+the evidence directory; CI retains each platform's native-guards artifact.
+Tests use temporary directories and safe native-call stubs, never desktop Trash.
+
+[CodeQL run 36439872420](https://github.com/frathe/picfetch/actions/runs/36439872420)
+passed Go/actions analysis and its gate. The successful
+[Qodana run 36439872249](https://github.com/frathe/picfetch/actions/runs/36439872249)
+has the fresh zero-result post-suppression SARIF inspected above. This is
+native CI qualification, not an emulated or duplicated broad local race suite.
+AC1-AC22 and every ticket acceptance point are complete; no required test,
+platform or changed-code inspection remains unverified at this revision.
+
+The completion commit only updates/archives records. It carries forward the
+unchanged-code GoLand evidence at c1f47b4 with that original revision explicit.
+PR 70 must still obtain fresh latest-head code/security reviews and CI gates;
+any subsequent code fixes require focused tests, affected-file reinspection and
+another fresh review after all finding dispositions. No merge is authorized.

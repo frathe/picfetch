@@ -1,6 +1,6 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-28 after design acceptance of MA-031.
+Updated 2026-09-28 after implementation and qualification of MA-031.
 The cross-feature architecture assessment of PR review history and
 implementation is dated 2026-09-26.
 
@@ -25,8 +25,10 @@ MA-030 has an [accepted design](docs/collection-transitions.md) and
 and CI-qualified in the [archived record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md).
 [PR 69](https://github.com/frathe/picfetch/pull/69) records latest-head reviews and checks.
 MA-031's [accepted design](docs/favorite-ownership.md) resolves all twelve
-interview decisions. Its [local specification](.scratch/ma-031/spec.md) is
-`ready-for-agent`; implementation planning remains pending.
+interview decisions. Its [local specification](.scratch/ma-031/spec.md) is resolved;
+all nine tickets are complete and CI-qualified in the
+[archived record](finished_refactorings/2026-09-28-ma-031-favorite-ownership.md).
+[PR 70](https://github.com/frathe/picfetch/pull/70) records latest-head reviews and checks.
 MA-032 and MA-033 remain proposals. These are not accepted implementation plans
 or unresolved PR defects.
 
@@ -39,7 +41,7 @@ explicit cross-feature composition in `internal/ui`.
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | All nine tickets complete and CI-qualified; latest review/checks in PR 69 |
-| [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | Design accepted; spec ready-for-agent; implementation pending |
+| [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | All nine tickets complete and CI-qualified; latest review/checks in PR 70 |
 | [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Conditional extraction; medium scope |
 | [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | Recommended independent small task |
 
@@ -450,8 +452,11 @@ It also requires scoped retention and bounded handle lifetimes, tracked Favorite
 UI storage workers, preservation of committed effects after cancellation and
 identity revalidation for overwrite/removal confirmation. All twelve interview
 decisions are resolved. The [local specification](.scratch/ma-031/spec.md) is
-`ready-for-agent`, with 70 stories and 22 acceptance criteria; implementation
-planning remains pending.
+resolved, with 70 stories and 22 acceptance criteria. All nine implementation
+tickets are complete in the
+[archived record](finished_refactorings/2026-09-28-ma-031-favorite-ownership.md),
+including full CI, four-platform native qualification and changed-code inspections
+at c1f47b4. [PR 70](https://github.com/frathe/picfetch/pull/70) tracks final reviews.
 
 **Evidence:** Explorer had
 [pathname reads against a retained directory owner](https://github.com/frathe/picfetch/pull/18#discussion_r3987044215);
@@ -463,13 +468,12 @@ rules, including [live-scope bounds](https://github.com/frathe/picfetch/pull/58#
 The preview finding in [PR 45](https://github.com/frathe/picfetch/pull/45#discussion_r4047794447)
 also demonstrates that a bounded work prefix is not the complete membership.
 
-**Current seam:** `favstore.readList`/`Load`,
-[OpenCohorts](internal/favstore/cohorts.go),
-[similarity.loadFavoriteAnalysis](internal/similarity/cache_favorites.go), and
-[locationmap.openFavoriteOwner](internal/ui/locationmap/favorites.go) separately
-decode membership and implement different ownership/version checks. Some use
-whole-file reads; Location Map applies a 16 MiB bound and scoped membership.
-The inconsistency is observable in code; this assessment does not claim a new
+**Pre-implementation seam (historical):** `favstore.readList`/`Load`,
+`OpenCohorts`, `similarity.loadFavoriteAnalysis`, and
+`locationmap.openFavoriteOwner` separately decoded membership and implemented
+different ownership/version checks. Some used whole-file reads; Location Map
+applied a 16 MiB bound and scoped membership.
+The inconsistency was observable in code; this assessment did not claim a new
 exploitable defect in each reader.
 
 **Refactor:** put bounded membership decoding, ordered entries, directory/list

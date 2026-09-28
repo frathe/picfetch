@@ -82,16 +82,18 @@
   interview decisions: incremental migration, ownership/retirement, the common
   64 MiB definition limit, validation, partial inventories, freshness, scoped
   retention, bounded handles, UI storage workers, cancellation and confirmation
-  conflicts. The [local specification](.scratch/ma-031/spec.md) is published as
-  `ready-for-agent`, with 70 stories, test boundaries and 22 acceptance criteria
+  conflicts. The [local specification](.scratch/ma-031/spec.md) is resolved,
+  with 70 stories, test boundaries and 22 acceptance criteria
   covering both migration stages. The approved
   [nine implementation tickets](.scratch/ma-031/issues/README.md) are published
-  with blockers and verification commands. Tickets 01-08 are complete (shared
+  with blockers and verification commands. All nine tickets are complete (shared
   bounded ownership, Location Map, scoped similarity/search, maintenance and
   cohorts, asynchronous UI reads/lifecycle, validated saves and identity-bound
-  removal and owner-bound previews); 09 convergence/native qualification is next.
-  [Deep SDD implementation and evidence](plans/2026-09-28-ma-031-favorite-ownership.md)
-  records the nine-ticket sequence, shared contract and verification gates.
+  removal, owner-bound previews and convergence/native qualification).
+  The [archived Deep SDD record](finished_refactorings/2026-09-28-ma-031-favorite-ownership.md)
+  records all ACs, full CI, four-platform native evidence and inspected Qodana
+  SARIF on c1f47b4. [PR 70](https://github.com/frathe/picfetch/pull/70) records
+  latest-head code/security reviews, dispositions and final checks.
   MA-032 and MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 
