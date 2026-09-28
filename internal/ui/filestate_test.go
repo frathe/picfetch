@@ -131,7 +131,8 @@ func TestStaleFileStateCompletionsDoNotOverwriteNewerState(t *testing.T) {
 	stale := []fyne.URI{
 		uitest.FakeURI{FileName: "stale.jpg", Ext: ".jpg"},
 	}
-	v.state.replaceFiles(current, current)
+	v.state.Replace(collectionInput{source: current, display: current, favorite: "current-favorite"})
+	before := v.state.Observe()
 
 	staleScanToken := v.scanOp.lifecycle.begin()
 	v.scanOp.lifecycle.begin()
@@ -158,6 +159,9 @@ func TestStaleFileStateCompletionsDoNotOverwriteNewerState(t *testing.T) {
 
 	if called {
 		t.Error("stale sort completion should not invoke its state-writing callback")
+	}
+	if v.Generation() != before.Generation() || v.state.Observe().Favorite() != "current-favorite" {
+		t.Fatal("stale preparation changed committed collection identity or association")
 	}
 	if !v.sortOp.active {
 		t.Error("stale sort completion should not clear a newer sort's in-flight state")

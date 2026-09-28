@@ -22,6 +22,7 @@ type appState struct {
 	// Retained for saved collections while a system decoder is unavailable.
 	unavailableOrder []collectionSource
 	index            int
+	favoriteDir      string
 	sortMode         filesort.Mode
 	mergeMode        bool
 
@@ -66,7 +67,7 @@ func (s *appState) publishGeneration(generation uint64) {
 		}
 	}
 	snap := collectionSnapshot{data: &collectionData{
-		files: files, source: slices.Clone(s.unsortedFiles), retained: retained,
+		files: files, source: slices.Clone(s.unsortedFiles), retained: retained, favorite: s.favoriteDir,
 		fileSet: dupes.NewSnapshot(keys, generation),
 		occurrences: fileidentity.NewIndex(len(files), func(i int) string {
 			if files[i] != nil {
@@ -121,11 +122,7 @@ func (s *appState) reorder(files []fyne.URI) {
 }
 
 func (s *appState) clearFiles() {
-	s.files = nil
-	s.unsortedFiles = nil
-	s.unavailableOrder = nil
-	s.index = 0
-	s.publish()
+	s.Clear()
 }
 
 func (s *appState) removeFile(i int) fyne.URI {

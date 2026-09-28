@@ -1,6 +1,6 @@
 # MA-030: collection identity and committed transitions
 
-Status: accepted design; ticket 01 implemented; tickets 02-09 remain open.
+Status: accepted design; tickets 01-02 implemented; tickets 03-09 remain open.
 Date: 2026-09-28
 Source: `/grill-with-docs MA-030`
 Inspected revision: `eb2ea0b2b3072f6baada09d7da81b68f577f863d`.
@@ -15,7 +15,7 @@ acceptance criteria. The approved [nine implementation tickets](../.scratch/ma-0
 are published with blockers and per-ticket model assignments. The tracker is
 gitignored by repository convention. The
 [Deep SDD plan](../plans/2026-09-28-ma-030-collection-transitions.md) records
-completed ticket 01 and the remaining migration/qualification work.
+completed tickets 01-02 and the remaining migration/qualification work.
 
 ## Accepted decisions
 

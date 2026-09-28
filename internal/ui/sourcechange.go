@@ -28,6 +28,24 @@ type sourceChange struct {
 	written []fyne.URI
 }
 
+// Open preparation has already retired its feature surfaces. Commit complete
+// collection facts before rebinding derived readers or admitting display work.
+func (v *viewer) commitOpenedCollection(input collectionInput, merging bool, present func()) {
+	defer v.beginBrowsingUpdate()()
+	v.closeVisualSearch()
+	v.grid.Close()
+	change := v.state.Replace(input)
+	if !merging {
+		v.dupes.WipeIfStale()
+	}
+	v.browsing.rebind(change.after.Generation())
+	// The closed Grid rebuilds its generation-bound indexes on next entry.
+	// FilesChanged would start fresh duplicate hashing behind a closed surface.
+	v.locationMap.SetSources(change.after.DisplayFiles())
+	present()
+	v.ForceRepaint()
+}
+
 // reconcileSources returns an image requested by origin restoration, or -1.
 // A failed load consumes that index through display's existing retry chain;
 // all other changes admit any required load here, after reconciliation.

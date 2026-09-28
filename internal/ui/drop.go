@@ -296,11 +296,21 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 			// Nothing to add - leave the existing set exactly as it
 			// was instead of wiping it out from under the user.
 			v.ShowToast(msg)
+			v.retainUnavailableHEIC(true, skipped, sourceOrder)
 		} else {
-			v.ShowEmptyStateError(msg)
+			input := collectionInput{retained: retainedSources(skipped, sourceOrder)}
+			if len(input.retained) > 0 {
+				input.favorite = favoriteDir
+			}
+			v.commitOpenedCollection(input, false, func() {
+				v.pendingPictureFrame = false
+				v.slides.Exit()
+				v.resetFade()
+				v.presentDropzone()
+				v.showEmptyCollectionError(msg)
+			})
 		}
 
-		v.retainUnavailableHEIC(merging, skipped, sourceOrder)
 		v.explainUnavailableHEIC(skipped, true)
 		if truncated {
 			v.ShowToast(fmt.Sprintf(lang.L("scan limit of %d reached - some files may not have been included"), maxScan))
@@ -397,46 +407,41 @@ func (v *viewer) applyScannedCollection(merging bool, images, dropped []fyne.URI
 	}
 
 	v.startSort(v.state.SortMode(), unsorted, func(ordered []fyne.URI) {
-		// Collection identity belongs to the committed file set, including
-		// when a replacement scan or its reorder is cancelled.
-		v.explorerInput.favoriteDir = favoriteDir
-		v.retainUnavailableHEIC(merging, skipped, sourceOrder)
-		if !merging {
-			v.state.replaceFiles(unsorted, ordered)
-		} else {
-			v.state.setFiles(unsorted, ordered)
-		}
-		v.locationMap.SetSources(v.state.files)
-		v.ForceRepaint()
-
-		// Here rather than anywhere earlier because this is the first point
-		// at which the files a --slideshow launch asked to frame exist:
-		// picture-frame mode no-ops at zero files. Before the ShowImage
-		// calls below, so entering full-screen and showing the first image
-		// are one repaint rather than two.
-		if v.explorerInput.pendingLaunch {
-			v.explorerInput.pendingLaunch = false
-			v.pendingPictureFrame = false
-			v.showExplorer()
-			return
-		}
-		v.startPendingPictureFrame()
-
+		retained := retainedSources(skipped, sourceOrder)
 		if merging {
-			if !v.showFileIfPresent(images[0]) {
-				v.loadImage(0)
+			retained = append(v.retainedOrder(), retained...)
+		}
+		input := collectionInput{source: unsorted, display: ordered, retained: retained, favorite: favoriteDir}
+		var target fyne.URI
+		if merging {
+			target = images[0]
+		} else if len(dropped) == 1 {
+			target = dropped[0]
+		}
+		if target != nil {
+			for i, uri := range ordered {
+				if uri.String() == target.String() {
+					input.index = i
+					break
+				}
 			}
-			return
 		}
-		// Keep the opened file on screen after a single-file replace
-		// (sibling expansion). A folder drop's dropped[0] is a directory
-		// and is never in the image list, so showFileIfPresent fails and
-		// we fall through to ShowImage(0). Do not call IsSupportedImage
-		// here: a directory URI would fall through to MimeType() and
-		// content-sniff the folder.
-		if len(dropped) == 1 && v.showFileIfPresent(dropped[0]) {
-			return
-		}
-		v.loadImage(0)
+		v.commitOpenedCollection(input, merging, func() {
+
+			// Here rather than anywhere earlier because this is the first point
+			// at which the files a --slideshow launch asked to frame exist:
+			// picture-frame mode no-ops at zero files. Before the ShowImage
+			// calls below, so entering full-screen and showing the first image
+			// are one repaint rather than two.
+			if v.explorerInput.pendingLaunch {
+				v.explorerInput.pendingLaunch = false
+				v.pendingPictureFrame = false
+				v.showExplorer()
+				return
+			}
+			v.startPendingPictureFrame()
+
+			v.loadImage(input.index)
+		})
 	})
 }

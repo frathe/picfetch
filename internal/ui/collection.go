@@ -16,6 +16,20 @@ type collectionData struct {
 	retained      []collectionSource
 	fileSet       dupes.Snapshot
 	occurrences   fileidentity.Index
+	favorite      string
+}
+
+// collectionInput is a fully prepared collection. Preparation owns source I/O
+// and ordering; the model copies these values and publishes them together.
+type collectionInput struct {
+	source, display []fyne.URI
+	retained        []collectionSource
+	index           int
+	favorite        string
+}
+
+type collectionChange struct {
+	before, after collectionSnapshot
 }
 
 type collectionSnapshot struct {
@@ -55,6 +69,20 @@ func (s collectionSnapshot) Retained() []collectionSource {
 		return nil
 	}
 	return slices.Clone(s.data.retained)
+}
+
+func (s collectionSnapshot) Favorite() string {
+	if s.data == nil {
+		return ""
+	}
+	return s.data.favorite
+}
+
+func (s collectionSnapshot) DisplayFiles() []fyne.URI {
+	if s.data == nil {
+		return nil
+	}
+	return slices.Clone(s.data.files)
 }
 
 func (s collectionSnapshot) Current() (fyne.URI, int, bool) {
@@ -101,3 +129,22 @@ func (s *appState) Select(i int) bool {
 	s.published.Store(&observation)
 	return true
 }
+
+func (s *appState) Replace(input collectionInput) collectionChange {
+	before := s.Observe()
+	s.unsortedFiles = slices.Clone(input.source)
+	s.files = slices.Clone(input.display)
+	s.unavailableOrder = slices.Clone(input.retained)
+	s.favoriteDir = input.favorite
+	if len(s.files) == 0 && len(s.unavailableOrder) == 0 {
+		s.favoriteDir = ""
+	}
+	s.index = 0
+	if count := len(s.files); count > 0 {
+		s.index = ((input.index % count) + count) % count
+	}
+	s.publish()
+	return collectionChange{before: before, after: s.Observe()}
+}
+
+func (s *appState) Clear() collectionChange { return s.Replace(collectionInput{}) }

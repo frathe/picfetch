@@ -13,7 +13,6 @@ import (
 type explorerInput struct {
 	prepare                  func()
 	prepareOp                requestLifecycle
-	favoriteDir              string
 	pendingLaunch, maximized bool
 }
 
@@ -57,14 +56,15 @@ func (v *viewer) beginExplorerAnalysis() {
 		v.closeExplorer()
 		return
 	}
-	paths := make([]string, 0, v.FileCount())
+	collection := v.state.Observe()
+	paths := make([]string, 0, collection.Count())
 	visibility := v.dupes.Visibility()
-	for i := range v.FileCount() {
+	for i := range collection.Count() {
 		if visibility.Visible(i) {
-			paths = append(paths, v.FileAt(i).Path())
+			paths = append(paths, collection.FileAt(i).Path())
 		}
 	}
-	request := explorerui.OpenRequest{Sources: paths, FavoriteDir: v.explorerInput.favoriteDir, FavoritesDir: v.favorites.Dir()}
+	request := explorerui.OpenRequest{Sources: paths, FavoriteDir: collection.Favorite(), FavoritesDir: v.favorites.Dir()}
 	cache := v.searchCachePolicy()
 	if cache.LooseEnabled {
 		request.GeneralAnalysisDir, request.GeneralAnalysisLimitBytes = cache.Roots.GeneralDir, cache.GeneralLimitBytes

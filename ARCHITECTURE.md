@@ -345,8 +345,9 @@ The consumer-side `WorkflowHost` carries window/input access, separate menu
 and repaint notifications, cohort/exit/return transitions and presentation
 facts for trial recording. Repaint is distinct from menu notification because
 source reconciliation may still be updating Grid indexes when analysis retires.
-Root's `explorerInput` retains duplicate preparation, selected Favorite identity,
-trial launch admission and maximize consumption. No worker or workflow field
+Root's `explorerInput` retains duplicate preparation, trial launch admission and
+maximize consumption. Favorite identity comes from the committed collection
+observation captured with the analyzed paths. No worker or workflow field
 is exposed to the viewer. `feature_test.go`, `setup_test.go` and
 `cohort_workflow_test.go` exercise the module without the full viewer harness;
 root tests retain cross-feature transitions and native trial integration.
@@ -654,7 +655,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `windowmenu_notdarwin.go` | No-op twin of the Darwin native-menu merge. |
 | `testdata/` | Golden screenshots for the e2e suite. |
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |
-| `collection.go` | Immutable `collectionSnapshot`, bound path bookmarks, `Observe` and `Select`; source/display/retained order and URI-key worker adapter share one publication. |
+| `collection.go` | Immutable `collectionSnapshot`, bound path bookmarks, `Observe`, `Select`, atomic `Replace` and `Clear`; source/display/retained order, chosen occurrence, Favorite association and URI-key worker adapter share one publication. |
 | `sourcechange.go` | Complete source-removal, committed-write, validation-recovery and analysis-policy transitions. Detaches search before callback delivery and restores browsing after collection/cohort/Grid reconciliation; display keeps retry ownership. |
 | `lifecycle.go` | `requestLifecycle` / `requestToken` for root scan/sort/copy-selection and other root work. Display owns its load/GIF/SVG lifecycles internally. |
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / comparison ownership / `applyTitle`), reset/close (`clearToDropzone` releases cached and recycled-cell images through `grid.InvalidateContent`), merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |

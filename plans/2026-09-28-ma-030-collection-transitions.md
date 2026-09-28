@@ -1,6 +1,6 @@
 # MA-030: authoritative collection identity and committed transitions
 
-Status: implementation in progress; ticket 01 complete, ticket 02 next.
+Status: implementation in progress; tickets 01-02 complete, ticket 03 next.
 Baseline: `1f92396367acc41c663710ee4b4b981c43d1c184`.
 Branch: `feature/ma-030-collection-transitions`.
 Authority: [accepted design](../docs/collection-transitions.md),
@@ -70,8 +70,8 @@ retain named replacement/merge/reorder/removal/unavailable/write/policy effects.
 | analysis/duplicate policy adapters | Named effects, no membership mutation or blanket purge | 08 |
 | clear/reset/shutdown and remaining adapters | Authoritative clear and existing stop/join barriers | 09 |
 
-Favorite association remains a documented legacy adapter on `explorerInput`
-during 01 only; do not claim it is atomic until 02. Model-local mutable fields
+Favorite association moved from `explorerInput` into atomic collection
+observations in 02. Model-local mutable fields
 may remain behind operations during migration; consumers must not acquire a new
 writable mirror. Each ticket records the authority/ordering obligation retired.
 
@@ -212,7 +212,10 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 | Ticket | Spawns budget/actual | Lead reviews | Full suite | Evidence/status |
 | --- | --- | --- | --- | --- |
 | 01 | 2/1 | 1 | no | Complete; evidence below |
-| 02-08 | 1 each/0 | 0 | no | Pending |
+| 02 | 1/0 | 1 | no | Complete; evidence below |
+| 03 | 1/0 | 0 | no | Pending |
+| 04 | 1/1 | 0 | no | Read-only replay scout complete |
+| 05-08 | 1 each/0 | 0 | no | Pending |
 | 09 | 1/0 | 0 | CI | Pending |
 
 ### Progress
@@ -220,7 +223,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 - [x] Frame, settled specification and agreed test seams read.
 - [x] Deep plan, task graph, file map, routing, contracts and budgets recorded.
 - [x] 01 coherent snapshots and navigation.
-- [ ] 02 atomic replacement and Favorite association.
+- [x] 02 atomic replacement and Favorite association.
 - [ ] 03 retained merge.
 - [ ] 04 saved replay and capture.
 - [ ] 05 latest-choice sort handoff.
@@ -274,3 +277,59 @@ callable automation; CI post-suppression SARIF is still a separate required gate
 Lead review: no source I/O in observations, no new lifecycle, dependency, string,
 platform behavior or writable feature mirror. Fixture breadth follows from live
 reader migration; assertions preserved. Atomic association/batches remain open.
+
+### Ticket 02 evidence
+
+Retired `explorerInput.favoriteDir`: the model now publishes Favorite association,
+orders, unavailable membership and requested index together through Replace/Clear.
+Root open commit retires search/Grid, publishes, invalidates stale duplicates,
+rebinds browsing/map, hands off display and presents within the browsing update.
+Closed Grid rebuilds on next entry; calling FilesChanged here would unnecessarily
+restart hashing behind the closed surface. Empty-state presentation no longer
+clears an unavailable-only Favorite's committed facts. Legacy merge/unavailable,
+sort and removal adapters remain explicitly assigned to 03/05/06/07/09.
+
+AC mapping: proposed Admission/replacement is covered by the extended existing
+`TestVisualSimilarityExplorer/favorite_identity_cancel/{scan,sort}` and
+`TestStaleFileStateCompletionsDoNotOverwriteNewerState`: generation and association
+now join membership/progress assertions. Run those with the new Admission/empty_input
+case; there is deliberately no empty proposed replacement test. Existing Explorer
+Favorite containment tests remain unchanged and run in the whole Explorer family.
+
+Behavioral red: unavailable-only Favorite lost its candidate association; model
+replacement with no retained members kept an association. Both pass after their
+respective changes. Negative publication guard: deliberately publishing twice
+failed model replacement/clear, both ordinary/Favorite replacement cases and root
+reconciliation with their expected single-publication messages; restored and reran.
+Mounted-surface assertions traverse widget render trees with the existing harness
+walker. A mistaken container-only assertion was corrected, not counted as product red.
+
+Focused uncached suite passed (`internal/ui`, 15.635s):
+`go test -tags no_emoji,nodynamic -count=1 ./internal/ui -run
+'^(TestCollection.*|TestVisualSimilarityExplorer|TestCommandAdmissionVisits|TestBrowsingCollectionChanges|TestStaleFileStateCompletionsDoNotOverwriteNewerState|TestHandleDrop_SupersededScanGoroutineExits)$'`.
+An earlier affected Drop/Sort/HEIC/Generation/AppState regression run passed
+(21.582s). `go vet -tags no_emoji,nodynamic ./internal/ui`, `make fmt`, and
+`make fmt-check check-test-shards check-qodana-test-exclusions` passed; 733 runnables.
+One redirected test invocation exited without output and is not used as evidence;
+the direct focused invocation above succeeded.
+
+GoLand fallback: current IDE profile, errorsOnly=false, revision d76e8da plus
+ticket 02 working diff. All 11 changed code files inspected: collection.go,
+collection_test.go, drop.go, explorer.go, explorer_test.go, filestate_test.go,
+heic.go, menu_test.go, sourcechange.go, state.go and viewer.go. No timeouts,
+errors or ordinary warnings. Two weak duplicate fragments each in filestate and
+menu tests are independent fixtures under existing exact exclusions. Viewer's
+same four intentional title/reset/Trash fragments remain; no blanket suppression.
+collection.go and collection_test.go reinspected clean after their final changes.
+CI's post-suppression Qodana result remains a separate final gate.
+
+Lead review confirms no new workers, I/O in model, cache authority, dependency or
+UI string. All collection effects remain on root composition; the model has no
+feature callbacks added. Existing onRemove callback is still scheduled for 06.
+
+04 scout gate: G1 bounded saved-replay/admission question; G2 returned source
+locations checked against targeted reads; G3 read-only; G4 traversal, HEIC,
+persistence and capture span multiple packages; G5 not yet traced by lead.
+Rule S cannot replace the flow tracing and Rule W did not specify implementation.
+The reused scout found both path and URI deduplication layers and the pending
+capability replay pass; ordinary discovery semantics must remain unchanged.

@@ -576,12 +576,12 @@ func (v *viewer) gridHighlightTitle(i int) string {
 // which art (welcomeArt or emptyStateArt) belongs in the box afterward and
 // are responsible for repainting.
 func (v *viewer) clearToDropzone() {
+	defer v.beginBrowsingUpdate()()
 	v.locationMap.SetSources(nil)
 	v.closeLocationMap()
 	v.closeVisualSearch()
 	v.closeExplorer()
 	v.grid.Close()
-	v.explorerInput.favoriteDir = ""
 	v.pendingPictureFrame = false
 	v.explorerInput.pendingLaunch = false
 	// A full-screen dropzone would look broken, and there's nothing left to
@@ -594,6 +594,12 @@ func (v *viewer) clearToDropzone() {
 	v.scanOp.invalidate() // same shape: supersede the token and finish the overlay if a scan is in flight
 
 	v.state.clearFiles()
+	v.presentDropzone()
+}
+
+// presentDropzone clears pixels and presents an empty browsing surface without
+// changing retained collection membership or its Favorite association.
+func (v *viewer) presentDropzone() {
 	v.dupes.ClearInspect()
 
 	// Purged, not left to age out: with no files open, every decode the
@@ -739,7 +745,10 @@ func (v *viewer) showWelcomeState() {
 // decode ends with nothing to display.
 func (v *viewer) ShowEmptyStateError(msg string) {
 	v.clearToDropzone()
+	v.showEmptyCollectionError(msg)
+}
 
+func (v *viewer) showEmptyCollectionError(msg string) {
 	v.welcomeArt.Hide()
 	v.restoreLink.Hide()
 	v.emptyStateArt.Show()

@@ -88,14 +88,20 @@ func (v *viewer) retainUnavailableHEIC(merging bool, skipped, order []fyne.URI) 
 	if merging {
 		retained = v.retainedOrder()
 	}
+	retained = append(retained, retainedSources(skipped, order)...)
+	v.state.retainOrder(retained)
+}
+
+func retainedSources(skipped, order []fyne.URI) []collectionSource {
 	missing := make(map[string]bool, len(skipped))
 	for _, uri := range skipped {
 		missing[uri.String()] = true
 	}
+	retained := make([]collectionSource, 0, len(order))
 	for _, uri := range order {
 		retained = append(retained, collectionSource{uri, missing[uri.String()]})
 	}
-	v.state.retainOrder(retained)
+	return retained
 }
 
 func (v *viewer) explainUnavailableHEIC(skipped []fyne.URI, explicit bool) {

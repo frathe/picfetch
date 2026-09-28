@@ -860,7 +860,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Run(stage, func(t *testing.T) {
 				v := openGridWith(t, "current.jpg")
 				current := v.FileAt(0)
-				v.explorerInput.favoriteDir = "original-favorite"
+				v.state.Replace(collectionInput{source: []fyne.URI{current}, display: []fyne.URI{current}, favorite: "original-favorite"})
+				before := v.state.Observe()
 				entered, release := make(chan struct{}), make(chan struct{})
 				var once sync.Once
 				unblock := func() { once.Do(func() { close(release) }) }
@@ -897,8 +898,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				if stage == "sort" {
 					waitForSort(t, v)
 				}
-				if v.explorerInput.favoriteDir !=
-					"original-favorite" || v.FileCount() != 1 || v.FileAt(0) != current {
+				if v.state.Observe().Favorite() !=
+					"original-favorite" || v.FileCount() != 1 || v.FileAt(0) != current || v.Generation() != before.Generation() {
 					t.Fatal("cancelled replacement changed the existing collection identity or files")
 				}
 			})

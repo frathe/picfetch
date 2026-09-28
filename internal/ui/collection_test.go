@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/fileidentity"
+	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -19,8 +20,7 @@ func TestCollectionModel(t *testing.T) {
 		display := []fyne.URI{a, a, b}
 		retained := []collectionSource{{b, false}, {u, true}, {a, false}, {a, false}}
 		state := newAppState(0, false)
-		state.retainOrder(retained)
-		state.replaceFiles(source, display)
+		state.Replace(collectionInput{source: source, display: display, retained: retained, favorite: "snapshot-favorite"})
 		state.Select(1)
 		before := state.Observe()
 		bookmark, ok := before.Bookmark(1)
@@ -43,6 +43,9 @@ func TestCollectionModel(t *testing.T) {
 		if after.Retained()[1].uri != u || before.Retained()[1].uri != u {
 			t.Fatal("caller mutation changed retained unavailable membership")
 		}
+		if before.Favorite() != "snapshot-favorite" || after.Favorite() != before.Favorite() {
+			t.Fatal("snapshot association did not stay with its collection")
+		}
 		if after.Generation() <= before.Generation() || after.FileSet().Generation() != after.Generation() {
 			t.Fatal("published generation does not describe the complete order")
 		}
@@ -53,6 +56,42 @@ func TestCollectionModel(t *testing.T) {
 		}
 	})
 	t.Run("operations", func(t *testing.T) {
+		t.Run("replacement", func(t *testing.T) {
+			a, b := storage.NewFileURI("/images/a.jpg"), storage.NewFileURI("/images/b.jpg")
+			u := storage.NewFileURI("/images/u.heic")
+			state := newAppState(0, false)
+			change := state.Replace(collectionInput{
+				source: []fyne.URI{b, a}, display: []fyne.URI{a, b},
+				retained: []collectionSource{{b, false}, {u, true}, {a, false}},
+				index:    1, favorite: "favorite-A",
+			})
+			if change.before.Count() != 0 || change.after.Generation() != change.before.Generation()+1 {
+				t.Fatal("replacement did not publish exactly one complete change")
+			}
+			if uri, index, ok := change.after.Current(); uri != b || index != 1 || !ok || change.after.Favorite() != "favorite-A" {
+				t.Fatal("replacement did not commit association and requested order together")
+			}
+			state.Replace(collectionInput{retained: []collectionSource{{u, true}}, favorite: "favorite-B"})
+			if state.Observe().Favorite() != "favorite-B" || change.after.Favorite() != "favorite-A" || change.after.Count() != 2 {
+				t.Fatal("replacement lost unavailable association or mutated an old snapshot")
+			}
+			state.Replace(collectionInput{favorite: "empty-favorite"})
+			if state.Observe().Favorite() != "" {
+				t.Fatal("replacement with no retained members kept an association")
+			}
+		})
+		t.Run("clear", func(t *testing.T) {
+			u := storage.NewFileURI("/images/u.heic")
+			state := newAppState(0, false)
+			state.Replace(collectionInput{retained: []collectionSource{{u, true}}, favorite: "favorite"})
+			change := state.Clear()
+			if change.after.Count() != 0 || len(change.after.Retained()) != 0 || len(change.after.SourceFiles()) != 0 || change.after.Favorite() != "" {
+				t.Fatal("clear left collection facts behind")
+			}
+			if change.before.Favorite() != "favorite" || len(change.before.Retained()) != 1 || change.after.Generation() != change.before.Generation()+1 {
+				t.Fatal("clear mutated its old snapshot or published multiple generations")
+			}
+		})
 		t.Run("selection", func(t *testing.T) {
 			a, b := storage.NewFileURI("/images/a.jpg"), storage.NewFileURI("/images/b.jpg")
 			state := newAppState(0, false)
@@ -119,6 +158,116 @@ func TestCollectionCompatibility(t *testing.T) {
 		waitUntilLoaded(t, v)
 		if uri, index, ok := v.CurrentFile(); uri.String() != files[1].String() || index != 2 || !ok {
 			t.Fatalf("ordinary next after repeated occurrence = %v, %d, %v", uri, index, ok)
+		}
+	})
+}
+
+func TestCollectionUnavailable(t *testing.T) {
+	t.Run("favorite_open", func(t *testing.T) {
+		v := newTestViewer(t)
+		v.startHEICCheck(false)
+		v.settleHEIC()
+		uri := storage.NewFileURI(uitest.WriteTempFile(t, "saved.heic", []byte("unavailable")))
+		dir := t.TempDir()
+		v.OpenFavorite(dir, []fyne.URI{uri})
+		waitForScan(t, v)
+		if v.state.Observe().Favorite() != dir {
+			t.Fatal("unavailable-only Favorite lost its candidate association")
+		}
+		collection := v.state.Observe()
+		if collection.Count() != 0 || len(collection.Retained()) != 1 || !collection.Retained()[0].unavailable {
+			t.Fatal("unavailable-only Favorite lost its retained membership")
+		}
+		if _, _, chosen := collection.Current(); chosen {
+			t.Fatal("unavailable collection has a browsable selection")
+		}
+		mounted := false
+		explorerWalk(v.win.Content(), func(object fyne.CanvasObject) { mounted = mounted || object == v.emptyStateArt })
+		if !mounted || !v.dropzone.Visible() || !v.emptyStateArt.Visible() || v.win.Canvas().Overlays().Top() == nil {
+			t.Fatal("unavailable collection lost its empty-state guidance")
+		}
+	})
+}
+
+func TestCollectionAdmission(t *testing.T) {
+	t.Run("empty_input", func(t *testing.T) {
+		v := newTestViewer(t)
+		files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
+		v.OpenFavorite("favorite-A", files)
+		waitForScan(t, v)
+		waitForSort(t, v)
+		waitUntilLoaded(t, v)
+		before := v.state.Observe()
+		token := v.scanOp.lifecycle.begin()
+		defer token.cancelContext()
+		v.OpenFavorite("favorite-B", nil)
+		if !token.current() || v.state.Observe().Generation() != before.Generation() || v.state.Observe().Favorite() != "favorite-A" {
+			t.Fatal("literal empty input changed committed facts or canceled work")
+		}
+		unsupported := storage.NewFileURI(uitest.WriteTempFile(t, "notes.txt", []byte("not an image")))
+		v.OpenFavorite("favorite-B", []fyne.URI{unsupported})
+		waitForScan(t, v)
+		after := v.state.Observe()
+		if after.Count() != 0 || len(after.Retained()) != 0 || after.Favorite() != "" || !v.emptyStateArt.Visible() {
+			t.Fatal("unsuccessful nonempty replacement did not clear collection and association")
+		}
+	})
+}
+
+func TestCollectionFavoriteAssociation(t *testing.T) {
+	t.Run("replacement", func(t *testing.T) {
+		for _, favorite := range []bool{false, true} {
+			t.Run(map[bool]string{false: "ordinary", true: "favorite"}[favorite], func(t *testing.T) {
+				v := newTestViewer(t)
+				files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
+				v.OpenFavorite("favorite-A", files)
+				waitForScan(t, v)
+				waitForSort(t, v)
+				waitUntilLoaded(t, v)
+				before := v.state.Observe()
+				want := ""
+				if favorite {
+					want = "favorite-B"
+					v.OpenFavorite(want, files)
+				} else {
+					v.OpenFiles(files)
+				}
+				waitForScan(t, v)
+				waitForSort(t, v)
+				waitUntilLoaded(t, v)
+				if v.state.Observe().Favorite() != want || before.Favorite() != "favorite-A" {
+					t.Fatal("incoming replacement did not select its candidate association")
+				}
+				if v.state.Observe().Generation() != before.Generation()+1 {
+					t.Fatal("replacement published incomplete intermediate facts")
+				}
+			})
+		}
+	})
+}
+
+func TestCollectionReconciliation(t *testing.T) {
+	t.Run("replacement", func(t *testing.T) {
+		v, publish := streamingSearch(t)
+		publish(similarity.SearchFinal, 2, 1)
+		before := v.state.Observe()
+		files := uitest.TempDirJPEGURIs(t, "replacement-a.jpg", "replacement-b.jpg")
+		v.OpenFavorite("replacement-favorite", files)
+		waitForScan(t, v)
+		waitForSort(t, v)
+		waitUntilLoaded(t, v)
+		v.visualsearch.Settle()
+		after := v.state.Observe()
+		if after.Generation() != before.Generation()+1 || after.Count() != 2 || after.Favorite() != "replacement-favorite" {
+			t.Fatal("replacement did not publish complete collection facts once")
+		}
+		if v.searchActive() || v.grid.Visible() || v.browsing.current().binding.kind != browsingCollection {
+			t.Fatal("retired ranking restored its obsolete browsing surface")
+		}
+		mounted := false
+		explorerWalk(v.win.Content(), func(object fyne.CanvasObject) { mounted = mounted || object == v.img })
+		if uri, ok := v.DisplayedFile(); !ok || uri.String() != files[0].String() || !mounted {
+			t.Fatal("replacement did not hand off its chosen image to the mounted display")
 		}
 	})
 }
