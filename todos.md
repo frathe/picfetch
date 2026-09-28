@@ -64,7 +64,11 @@
   browsing ownership implementation are complete.
   The [remaining refactoring backlog](needs_refactoring.md) covers collection
   transitions, Favorite ownership, a bounded worker-lifetime pilot and launch
-  policy (MA-030 through MA-033), which remain proposals.
+  policy (MA-030 through MA-033).
+  [MA-030's accepted design](docs/collection-transitions.md) resolves all eleven
+  interview decisions and requires both collection-model and reconciliation
+  slices. Specification, implementation planning and implementation remain
+  open. MA-031 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

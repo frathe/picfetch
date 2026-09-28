@@ -72,6 +72,31 @@ The complete set of image files currently represented by Grid View after its
 active filtering, including files outside the visible scroll area.
 _Avoid_: Visible cells, current files
 
+**Loaded collection**:
+The image-file entries currently held by the viewer, including retained entries
+that are temporarily unavailable for browsing.
+_Avoid_: Browsing scope, Grid result, displayed image
+
+**Collection occurrence**:
+One appearance of an image file in the loaded collection. The same file can
+have several distinct occurrences.
+_Avoid_: Unique file, source-content version
+
+**Unavailable occurrence**:
+A collection occurrence retained for saving and reopening while required
+decoding support is unavailable.
+_Avoid_: Deleted file, missing file, hidden duplicate
+
+**Favorite association**:
+The Favorite chosen as a candidate home for Explorer's saved cohorts, usable
+only when all analyzed images belong to that Favorite.
+_Avoid_: Exact collection match, per-file cache ownership
+
+**Saved list**:
+The ordered image-file occurrences recorded in a Favorite or session for later
+reopening, including repeated entries.
+_Avoid_: Unique-file set, persisted browsing visit
+
 **Browsing visit**:
 A browsing context retained while moving between its image list and individual
 images, with a scope and a destination for return.
