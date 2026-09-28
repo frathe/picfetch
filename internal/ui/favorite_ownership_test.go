@@ -2,6 +2,8 @@ package ui
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -17,6 +19,77 @@ import (
 )
 
 func TestFavoriteOwnershipIntegration(t *testing.T) {
+	for _, change := range []string{"close", "root", "shutdown"} {
+		t.Run("native_removal_"+change, func(t *testing.T) {
+			v := newTestViewer(t)
+			file := uitest.TempJPEGURI(t, "current.jpg", 4, 4, color.White)
+			dropAndWait(t, v, file)
+			dir := storeFavorite(t, v, "Trip", file)
+			started, resume := make(chan struct{}), make(chan struct{})
+			var once sync.Once
+			release := func() { once.Do(func() { close(resume) }) }
+			t.Cleanup(release)
+			trashDir := filepath.Join(t.TempDir(), "Trashed")
+			uitest.StubTrashMove(t, func(path string) error {
+				if path != dir {
+					return fmt.Errorf("unexpected captured target %q", path)
+				}
+				close(started)
+				<-resume
+				return os.Rename(path, trashDir)
+			})
+			v.favorites.ShowManage()
+			v.favorites.Settle()
+			panel := v.win.Canvas().Focused()
+			if panel == nil {
+				t.Fatal("Manage did not own input")
+			}
+			panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+			panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			v.favorites.Settle()
+			panel = v.win.Canvas().Focused()
+			if panel == nil || len(v.win.Canvas().Overlays().List()) != 2 {
+				t.Fatal("removal did not raise its captured confirmation")
+			}
+			panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+			panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			waitFavoriteStorageBoundary(t, started)
+			scan := v.scanOp.done.Current()
+			switch change {
+			case "close":
+				v.favorites.Close()
+			case "root":
+				v.favorites.SetDir(t.TempDir())
+			case "shutdown":
+				lifecycle := v.app.Lifecycle().(interface{ OnStopped() func() })
+				previous := lifecycle.OnStopped()
+				registerShutdown(v.app, v)
+				shutdown := lifecycle.OnStopped()
+				v.app.Lifecycle().SetOnStopped(previous)
+				shutdown()
+				joined := make(chan struct{})
+				go func() { v.waitForShutdown(); close(joined) }()
+				select {
+				case <-joined:
+					t.Fatal("root shutdown missed native Favorite removal")
+				default:
+				}
+				release()
+				waitFavoriteStorageBoundary(t, joined)
+			}
+			release()
+			v.favorites.Settle()
+			if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("committed native removal lost: %v", err)
+			}
+			if v.scanOp.done.Current() != scan || v.FileCount() != 1 || v.FileAt(0).String() != file.String() {
+				t.Fatal("removal changed the current collection")
+			}
+			if len(v.win.Canvas().Overlays().List()) != 0 {
+				t.Fatal("native completion revived a closed dialog")
+			}
+		})
+	}
 	for _, change := range []string{"close", "opt_out", "shutdown"} {
 		t.Run("committed_save_"+change, func(t *testing.T) {
 			v := newTestViewer(t)

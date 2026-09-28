@@ -9,9 +9,12 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 func TestFavoriteConflicts(t *testing.T) {
+	testFavoriteRemovalConflicts(t)
 	t.Run("publication", func(t *testing.T) {
 		ctx := context.Background()
 		dir, name := putDefinition(t, `{"0":"/original"}`)
@@ -112,6 +115,74 @@ func TestFavoriteConflicts(t *testing.T) {
 				t.Fatal(err)
 			}
 			_ = access.Close()
+		})
+	}
+}
+
+func testFavoriteRemovalConflicts(t *testing.T) {
+	for _, change := range []string{"identical_list", "directory", "move", "missing_list", "malformed", "cancelled", "committed_after_cancel"} {
+		t.Run("removal_"+change, func(t *testing.T) {
+			dir, name := putDefinition(t, `{"0":"/original"}`)
+			if change == "missing_list" {
+				if err := os.Remove(filepath.Join(Dir(dir, name), fileListName)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if change == "malformed" {
+				if err := os.WriteFile(filepath.Join(Dir(dir, name), fileListName), []byte(`{"0":""}`), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			store := &Store{}
+			target, err := store.Capture(ctx, dir, name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			moves := 0
+			uitest.StubTrashMove(t, func(path string) error {
+				moves++
+				if path != Dir(dir, name) {
+					t.Errorf("retargeted move: %s", path)
+				}
+				if change == "committed_after_cancel" {
+					cancel()
+				}
+				return os.Rename(path, Dir(dir, "Trashed"))
+			})
+			conflict := change == "identical_list" || change == "directory" || change == "move"
+			if change == "directory" || change == "move" {
+				if err := os.Rename(Dir(dir, name), Dir(dir, "Moved")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if change == "directory" || change == "identical_list" {
+				if err := Save(dir, name, []fyne.URI{storage.NewFileURI("/original")}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if change == "cancelled" {
+				cancel()
+			}
+			result, err := store.Remove(ctx, target)
+			switch {
+			case conflict:
+				if !errors.Is(err, ErrConflict) || result.Committed || moves != 0 {
+					t.Fatalf("stale target reached Trash: %+v %v moves=%d", result, err, moves)
+				}
+			case change == "cancelled":
+				if !errors.Is(err, context.Canceled) || result.Committed || moves != 0 {
+					t.Fatalf("unstarted removal ignored cancellation: %+v %v", result, err)
+				}
+			default:
+				if err != nil || !result.Committed || moves != 1 {
+					t.Fatalf("captured removal failed: %+v %v moves=%d", result, err, moves)
+				}
+				if _, err := os.Stat(Dir(dir, name)); !errors.Is(err, os.ErrNotExist) {
+					t.Fatal("committed move did not remove captured directory")
+				}
+			}
 		})
 	}
 }

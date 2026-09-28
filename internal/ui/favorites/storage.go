@@ -15,6 +15,7 @@ type Storage interface {
 	Open(context.Context, string) (favstore.Definition, error)
 	Capture(context.Context, string, string) (*favstore.Target, error)
 	Save(context.Context, *favstore.Target, []fyne.URI) (favstore.SaveResult, error)
+	Remove(context.Context, *favstore.Target) (favstore.RemovalResult, error)
 }
 
 // UIQueue marshals storage completions onto UI. Tests use a drainable queue.
@@ -76,6 +77,7 @@ func (f *Feature) CancelOpen() {
 // action may start a fresh view; committed disk effects remain independently live.
 func (f *Feature) Close() {
 	f.CancelOpen()
+	f.cancelRemove()
 	if f.viewCancel != nil {
 		f.viewCancel()
 		f.viewCtx, f.viewCancel = nil, nil

@@ -1,6 +1,6 @@
 # MA-031 implementation and evidence
 
-Status: tickets 01-06 complete; identity-bound removal 07 next. Baseline: `f09af93` (planning branch), code
+Status: tickets 01-07 complete; preview ownership 08 next. Baseline: `f09af93` (planning branch), code
 baseline `7e52ea5b5fe95ae7d0995e88fa765ab57d549b86`.
 
 Deliver shared validated Favorite membership and captured ownership to every
@@ -184,7 +184,7 @@ Lead owns review, Explorer/root qualification, fixes and the ticket commit.
 - [x] 04 cohorts
 - [x] 05 UI reads/lifetime
 - [x] 06 saves
-- [ ] 07 removal
+- [x] 07 removal
 - [ ] 08 previews
 - [ ] 09 complete qualification
 - [ ] Ready PR; latest-head clean Codex code/security, required CI and CodeQL
@@ -483,3 +483,46 @@ Favorites and visual-search tests retain their existing exact exclusions. Agent
 guide records the mutation/commit rules using writing-for-agents guidance. T0
 owned this cross-package implementation; independent T3 native-runner discovery
 for 09 ran alongside it. Complete latest-commit CI remains the later PR gate.
+
+### Ticket 07 evidence
+
+Removal now captures a shared Target on the same serialized queue as Save,
+before presenting confirmation. Its storage operation revalidates directory/list
+identity, closes all acquired handles before native Trash, and reports Committed
+separately from cancellation. Legacy Remove delegates to that operation. A
+conflict recaptures only to ask a fresh question, never to retry automatically.
+Manage close retires its capture/prompt/unstarted work; active native calls stay
+tracked until return. Committed completion refreshes current menus after Close or
+root changes, while stale errors/toasts/dialogs and collection replay stay blocked.
+Cached owners retain the existing next-access retirement policy; preview disk
+ownership is still the explicitly scheduled 08 migration.
+
+T0 owned the slice; no second scheduler or extra worker lifetime. Observed
+red -> green: actual Manage confirmation trashed an identical replacement.
+Disabling Target.current negatively verified all three storage move/directory/
+identical-list guards: the native stub was called and replacements were removed.
+Restoring the gate passed. Logs: `07-removal-red.txt`, `07-owner-guard-red.txt`.
+
+Enumerated exact suites and retained uncached output:
+
+```
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/favstore -run '^(TestFavoriteOwnership|TestFavoriteConflicts|TestRemove.*)$'
+go test -race -tags no_emoji,nodynamic -count=1 -v ./internal/ui/favorites
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run '^TestFavoriteOwnershipIntegration$'
+go vet -tags no_emoji,nodynamic ./internal/favstore ./internal/ui/favorites ./internal/ui
+make fmt-check check-qodana-test-exclusions check-test-shards-direct
+```
+
+All passed without skips (`07-storage.txt`, `07-feature.txt`, `07-root.txt`).
+Cases include malformed/missing lists, pre-submission cancellation, cancellation
+inside a committed native move, held capture retired by Manage/root/Stop,
+native success/failure after close, root replacement and production shutdown;
+existing focus/superseded-dialog/removal regressions remain green. Root uses real
+Manage input and temporary native-move stubs, preserving its collection and scan
+handle. No test source or top-level root name added; exact manifest remains 742.
+
+GoLand inspected all twelve changed/new Go files including weak warnings on the
+tree based on c5e5a83: clean, no timeouts/skips. Architecture and agent guide record
+the captured-removal and Manage-close lifetimes. No dependency/format changes.
+CI on ticket 06's pushed commit is fully green; post-suppression SARIF inspection
+and latest-commit native/full verification remain 09's gates, not implied here.

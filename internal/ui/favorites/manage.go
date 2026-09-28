@@ -1,8 +1,6 @@
 package favorites
 
 import (
-	"fmt"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -10,7 +8,6 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
@@ -298,6 +295,7 @@ func (f *Feature) buildManage() {
 		}
 
 		f.manageDialog, f.managePanel = nil, nil
+		f.cancelRemove()
 		f.dialogChanged()
 		// The release grid.Overview.Close performs, for the same reason:
 		// every other key binding in this app is dispatched from the
@@ -339,47 +337,11 @@ func (f *Feature) focusManage() {
 // history is now the shared rule for every confirmation this package raises,
 // not just this one.
 func (f *Feature) removeFavorite(name string) {
-	f.showConfirm(confirmation{
-		title:      lang.L("Remove Favorite"),
-		message:    fmt.Sprintf(lang.L("Remove %q from favorites?"), name),
-		action:     lang.L("Remove"),
-		importance: widget.DangerImportance,
-		onConfirm:  func() { f.performRemove(name) },
-		// The confirmation is a second overlay and owns the keyboard while it
-		// is up; whichever way it goes, the panel underneath has to get it
-		// back. Fyne happens to hand it back on its own, because removing the
-		// top overlay drops only that overlay's focus manager and the
-		// dialog's below it still has the panel focused - but a dialog left
-		// unable to answer Escape is a dead end for the user, so this does
-		// not lean on it.
-		onClosed: f.focusManage,
-	})
+	f.beginRemove(name, true)
 }
 
 func (f *Feature) performRemove(name string) {
-	if f.stopped {
-		return
-	}
-	ctx, dir := f.viewContext(), f.dir
-	f.enqueueMutation(ctx, func() func() {
-		err := favstore.Remove(dir, name)
-		return func() {
-			if f.stopped {
-				return
-			}
-			if err != nil {
-				if ctx.Err() == nil {
-					f.reportError(lang.L("could not remove favorite %q: %v"), name, err)
-				}
-				return
-			}
-
-			f.refreshMenu()
-			if ctx.Err() == nil {
-				f.host.ShowToast(fmt.Sprintf(lang.L("removed favorite %q"), name))
-			}
-		}
-	})
+	f.beginRemove(name, false)
 }
 
 // rebuildManage reopens the dialog on the list as it now stands, keeping

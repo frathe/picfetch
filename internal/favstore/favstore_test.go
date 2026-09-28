@@ -724,7 +724,11 @@ func TestRemoveRejectsInvalidNameAndPropagatesError(t *testing.T) {
 
 	wantErr := errors.New("trash failed")
 	uitest.StubTrashMove(t, func(string) error { return wantErr })
-	if err := Remove(t.TempDir(), "Set"); !errors.Is(err, wantErr) {
+	dir := t.TempDir()
+	if err := Save(dir, "Set", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := Remove(dir, "Set"); !errors.Is(err, wantErr) {
 		t.Errorf("Remove error = %v, want %v", err, wantErr)
 	}
 }

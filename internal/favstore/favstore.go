@@ -9,8 +9,6 @@ import (
 	"strings"
 
 	"fyne.io/fyne/v2"
-
-	"github.com/frathe/picfetch/internal/trash"
 )
 
 const fileListName = "file-list.json"
@@ -117,8 +115,11 @@ func Count(dir, name string) (int, error) {
 
 // Remove moves the favorite named name to the operating system's trash.
 func Remove(dir, name string) error {
-	if !ValidName(name) {
-		return fmt.Errorf("invalid favorite name %q", name)
+	store := &Store{}
+	target, err := store.Capture(context.Background(), dir, name)
+	if err != nil {
+		return err
 	}
-	return trash.Move(filepath.Join(dir, name))
+	_, err = store.Remove(context.Background(), target)
+	return err
 }

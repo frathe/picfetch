@@ -538,6 +538,7 @@ func TestManageConfirmationHandsTheKeyboardBack(t *testing.T) {
 	f.ShowManage()
 	f.Settle()
 	test.Tap(f.managePanel.rows[0].buttons[removeCol])
+	f.Settle()
 	dismissConfirm(t, f.win)
 
 	if f.win.Canvas().Focused() != f.managePanel {

@@ -120,6 +120,63 @@ func TestFavoriteStorageReads(t *testing.T) {
 }
 
 func TestFavoriteStorageMutations(t *testing.T) {
+	for _, change := range []string{"manage_close", "root", "stop"} {
+		t.Run("removal_capture_"+change, func(t *testing.T) {
+			f := newFeature(t, &fakeHost{})
+			saveFavorites(t, f, "Trip")
+			f.ShowManage()
+			f.Settle()
+			started, resume, release := storageGate(t)
+			f.SetStorage(&controlledStorage{Store: &favstore.Store{}, capture: func(ctx context.Context, dir, name string) (*favstore.Target, error) {
+				target, err := (&favstore.Store{}).Capture(ctx, dir, name)
+				close(started)
+				<-resume
+				return target, err
+			}})
+			f.removeFavorite("Trip")
+			waitStorage(t, started)
+			switch change {
+			case "manage_close":
+				f.hideManage()
+			case "root":
+				f.SetDir(t.TempDir())
+			case "stop":
+				f.Stop()
+			}
+			release()
+			f.Settle()
+			if f.removeDialog != nil || f.confirmDialog != nil {
+				t.Fatal("retired capture raised a removal prompt")
+			}
+		})
+	}
+	t.Run("removal_identical_replacement", func(t *testing.T) {
+		f := newFeature(t, &fakeHost{})
+		saveFavorites(t, f, "Trip")
+		moves := 0
+		uitest.StubTrashMove(t, func(path string) error { moves++; return os.RemoveAll(path) })
+		f.ShowManage()
+		f.Settle()
+		f.removeFavorite("Trip")
+		f.Settle()
+		files, err := favstore.Load(f.dir, "Trip")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := favstore.Save(f.dir, "Trip", files); err != nil {
+			t.Fatal(err)
+		}
+		confirmStorageAction(t, f)
+		f.Settle()
+		if moves != 0 || !favstore.Exists(f.dir, "Trip") || f.confirmDialog == nil {
+			t.Fatal("stale confirmation removed the replacement instead of asking again")
+		}
+		confirmStorageAction(t, f)
+		f.Settle()
+		if moves != 1 || favstore.Exists(f.dir, "Trip") {
+			t.Fatal("fresh confirmation did not remove its captured owner")
+		}
+	})
 	t.Run("queued_save", func(t *testing.T) {
 		host := &fakeHost{files: []fyne.URI{storage.NewFileURI("/captured.jpg")}}
 		f := newFeature(t, host)
@@ -217,6 +274,9 @@ func TestFavoriteStorageMutations(t *testing.T) {
 		var captures atomic.Int32
 		var overlapped atomic.Bool
 		f.SetStorage(&controlledStorage{Store: &favstore.Store{}, capture: func(ctx context.Context, dir, name string) (*favstore.Target, error) {
+			if name == "Old" {
+				return (&favstore.Store{}).Capture(ctx, dir, name)
+			}
 			select {
 			case <-nativeDone:
 			default:
@@ -242,6 +302,54 @@ func TestFavoriteStorageMutations(t *testing.T) {
 }
 
 func TestFavoriteStorageCommittedEffects(t *testing.T) {
+	for _, change := range []string{"close", "root", "stop", "failed_after_close"} {
+		t.Run("removal_"+change, func(t *testing.T) {
+			host := &fakeHost{}
+			f := newFeature(t, host)
+			saveFavorites(t, f, "Trip")
+			original := f.dir
+			started, resume, release := storageGate(t)
+			uitest.StubTrashMove(t, func(path string) error {
+				if path != favstore.Dir(original, "Trip") {
+					return errors.New("wrong captured removal path")
+				}
+				close(started)
+				<-resume
+				if change == "failed_after_close" {
+					return errors.New("late native failure")
+				}
+				return os.Rename(path, favstore.Dir(original, "Trashed"))
+			})
+			f.ShowManage()
+			f.Settle()
+			f.removeFavorite("Trip")
+			f.Settle()
+			confirmStorageAction(t, f)
+			waitStorage(t, started)
+			switch change {
+			case "close", "failed_after_close":
+				f.Close()
+			case "root":
+				f.SetDir(t.TempDir())
+			case "stop":
+				f.Stop()
+			}
+			release()
+			f.Settle()
+			if favstore.Exists(original, "Trip") != (change == "failed_after_close") {
+				t.Fatal("native disk outcome was misreported")
+			}
+			if len(host.toasts) != 0 || len(host.opened) != 0 || f.manageDialog != nil || f.confirmDialog != nil {
+				t.Fatal("late native result revived presentation")
+			}
+			if change == "close" && slices.Contains(f.names, "Trip") {
+				t.Fatal("committed removal did not refresh the current menu")
+			}
+			if change == "root" && len(f.names) != 0 {
+				t.Fatal("old removal installed its menu in the new root")
+			}
+		})
+	}
 	for _, change := range []string{"close", "root", "stop", "replacement", "refresh_failure"} {
 		t.Run(change, func(t *testing.T) {
 			host := &fakeHost{files: []fyne.URI{storage.NewFileURI("/captured.jpg")}}

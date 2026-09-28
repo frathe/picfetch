@@ -28,6 +28,12 @@ type Target struct {
 // Occupied reports the captured name's occupancy, not its membership validity.
 func (t *Target) Occupied() bool { return t.owner != nil }
 
+func (t *Target) finishMutation(committed bool, err error) {
+	if committed || errors.Is(err, ErrConflict) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		t.retired.Store(true)
+	}
+}
+
 // Capture observes a mutation target without reading its membership.
 func (_ *Store) Capture(ctx context.Context, dir, name string) (*Target, error) {
 	if err := ctx.Err(); err != nil {
@@ -183,11 +189,7 @@ type SaveResult struct {
 
 // Save writes the captured target and returns its committed ownership.
 func (s *Store) Save(ctx context.Context, target *Target, files []fyne.URI) (result SaveResult, err error) {
-	defer func() {
-		if result.Committed || errors.Is(err, ErrConflict) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			target.retired.Store(true)
-		}
-	}()
+	defer func() { target.finishMutation(result.Committed, err) }()
 	data, paths, err := encodeMembership(ctx, files)
 	if err != nil {
 		return SaveResult{}, err

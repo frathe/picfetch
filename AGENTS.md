@@ -155,6 +155,8 @@ reviews and the full GitHub test suite remain required on the latest commit.
   Settle joins and drains repeatedly. Saves and removals share one instance queue;
   cancelled queued work cannot bypass an active native call. Capture lists before
   naming and targets on workers; a changed target requires a fresh decision.
+  Manage close cancels pending removal capture/confirmation and unstarted moves;
+  already submitted native calls remain tracked and keep their committed effects.
   Committed saves notify current consumers and refresh menus after view close,
   but cannot revive stale prompts/toasts or reopen the collection. Carry the
   published owner to preview work, never recover its identity by reopening a name.

@@ -87,6 +87,8 @@ type Feature struct {
 	confirmDialog   dialog.Dialog
 	mutationTail    <-chan struct{}
 	saveRevision    uint64
+	removeCancel    context.CancelFunc
+	removeDialog    dialog.Dialog
 
 	menu         *fyne.Menu
 	addItem      *fyne.MenuItem
