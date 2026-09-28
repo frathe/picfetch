@@ -100,9 +100,11 @@
   criteria. It defines a root sort/display SVG pilot, a conditional root/display
   token migration and a contracts-and-tests fallback. Its
   [nine approved tickets](.scratch/ma-032/issues/README.md) are published as
-  `ready-for-agent`; ticket 01 is the frontier and ticket 02's verdict gates
-  migration or fallback. Implementation planning remains next; implementation
-  has not begun. MA-033 remains a proposal.
+  with [Deep SDD implementation and evidence](plans/2026-09-28-ma-032-request-lifetimes.md)
+  underway. Ticket 01 is complete (shared contract and sorting); ticket 02's verdict
+  gates migration or fallback. Each completed ticket gets its own commit;
+  final qualification and the latest-head GitHub review loop remain open.
+  MA-033 remains a proposal.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

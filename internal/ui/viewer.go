@@ -237,10 +237,13 @@ type viewer struct {
 	// the still-computing reorder. sortOp.lifecycle owns the cancellable
 	// filesort.Order request, staying separate from display's navigation lifecycle so
 	// reordering cannot stop an unrelated decode, preload, or playing GIF.
-	// sortOp.done is finished by finishSort once that request's reorder has
+	// sortOp.done is finished by final delivery once that request's reorder has
 	// finished applying (or been discarded as stale), mirroring v.scanOp.done
 	// and display.LoadDone so tests can wait on it deterministically.
-	sortOp asyncOpUI
+	sortOp sortOpUI
+	// sortDo captures the UI dispatcher before each worker starts. Nil uses
+	// fyne.Do; held-delivery tests install an instance-owned queue.
+	sortDo func(func())
 	// sortModeBefore is the mode of the retained order while a new mode is
 	// pending. Superseding requests share this rollback point until one lands.
 	sortModeBefore *filesort.Mode

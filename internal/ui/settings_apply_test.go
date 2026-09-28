@@ -32,7 +32,7 @@ func TestApplySettings_AppliesOnlyChangedFields(t *testing.T) {
 	dropAndWait(t, v, a, b)
 
 	startSort := v.SortMode()
-	startRev := v.sortOp.lifecycle.currentRevision()
+	startRev := v.sortOp.lifecycle.Revision()
 	startBudget := v.imgCache.Budget()
 	startTheme := v.ThemeMode()
 	if startTheme == appearance.Dark {
@@ -50,7 +50,7 @@ func TestApplySettings_AppliesOnlyChangedFields(t *testing.T) {
 	if v.SortMode() != startSort {
 		t.Errorf("SortMode = %v, want unchanged %v", v.SortMode(), startSort)
 	}
-	if got := v.sortOp.lifecycle.currentRevision(); got != startRev {
+	if got := v.sortOp.lifecycle.Revision(); got != startRev {
 		t.Errorf("sort revision = %d, want %d (theme-only apply must not restart sort)", got, startRev)
 	}
 	if got := v.imgCache.Budget(); got != startBudget {
@@ -66,7 +66,7 @@ func TestApplySettings_RetunesImageCacheWithoutSorting(t *testing.T) {
 	b := uitest.TempJPEGURI(t, "b.jpg", 8, 8, color.White)
 	dropAndWait(t, v, a, b)
 
-	startRev := v.sortOp.lifecycle.currentRevision()
+	startRev := v.sortOp.lifecycle.Revision()
 	startSort := v.SortMode()
 	startTheme := v.ThemeMode()
 
@@ -81,7 +81,7 @@ func TestApplySettings_RetunesImageCacheWithoutSorting(t *testing.T) {
 	if v.SortMode() != startSort {
 		t.Errorf("SortMode = %v, want unchanged %v", v.SortMode(), startSort)
 	}
-	if got := v.sortOp.lifecycle.currentRevision(); got != startRev {
+	if got := v.sortOp.lifecycle.Revision(); got != startRev {
 		t.Errorf("sort revision = %d, want %d", got, startRev)
 	}
 	if v.ThemeMode() != startTheme {

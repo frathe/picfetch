@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"context"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
@@ -80,8 +82,7 @@ func (v *viewer) invalidateSort() uint64 {
 // the reorder finishes - see sortOp's field comment for every way it can be
 // superseded.
 func (v *viewer) startSort(mode filesort.Mode, unsorted []fyne.URI, onDone func(ordered []fyne.URI)) {
-	token, sortDone := v.sortOp.begin()
-	token.ctx = v.heicContext(token.context())
+	token, sortDone := v.sortOp.begin(v.heicContext(context.Background()))
 	v.syncMenus()
 
 	v.sortOp.show()
@@ -89,45 +90,24 @@ func (v *viewer) startSort(mode filesort.Mode, unsorted []fyne.URI, onDone func(
 	// no canvas of its own to mark dirty on Show/Refresh - see
 	// ForceRepaint's own doc comment.
 	v.ForceRepaint()
+	dispatch := v.sortDo
+	if dispatch == nil {
+		dispatch = fyne.Do
+	}
 
 	go func() {
-		ordered := filesort.Order(token.context(), mode, unsorted)
-		fyne.Do(func() {
-			v.finishSort(token, ordered, sortDone, onDone)
-		})
+		delivery := token.FinalDelivery()
+		defer delivery.Abandon()
+		ordered := filesort.Order(token.Context(), mode, unsorted)
+		delivery.Dispatch(dispatch, func() { v.finishSort(ordered, onDone) }, sortDone)
 	}()
 }
 
-// finishSort is startSort's completion step, shaped like drop.go's
-// applyScanResult: it must run on the UI goroutine (startSort's goroutine
-// wraps it in fyne.Do), always finishes sortDone (honoring that generation's
-// contract even when a newer request has made this result stale), and always
-// releases this invocation's own token context.
-func (v *viewer) finishSort(token requestToken, ordered []fyne.URI, sortDone func(), onDone func([]fyne.URI)) {
-	defer sortDone()
-	defer token.cancelContext()
-
-	// Superseded either by a newer sort or by something else that changed
-	// collection membership while this one was still computing
-	// (Shift+Delete, or Escape/File>Close - see those call sites' own
-	// invalidateSort call). Applying ordered in either case would silently
-	// clobber newer state, so just drop it.
-	if !token.current() {
-		return
-	}
-
-	// v.sortOp.active and the progress widgets are finalized here, inside
-	// the staleness check: if two sorts overlap (a
-	// second large first-drop landing before the first one's reorder
-	// finishes, say), the earlier, stale one's finishSort must not report
-	// "no sort in flight" while the current one is still computing - that
-	// would reopen the Escape-quits-mid-reorder bug v.sortOp.active exists
-	// to close, just for a narrower window. Only the token that's still
-	// current when it finishes gets to clear it.
-	//
-	// The generation bump now rides on the file-set write itself
-	// (the collection commit), so it happens inside onDone rather than ahead of
-	// it - a worker can no longer see the new generation over the old list.
+// finishSort applies a current result on UI. FinalDelivery owns currentness,
+// token release and this operation's completion, including discarded results.
+func (v *viewer) finishSort(ordered []fyne.URI, onDone func([]fyne.URI)) {
+	// Only current delivery can clear progress. The collection commit in onDone
+	// publishes its generation together with the reordered file set.
 	v.sortOp.finish()
 	v.sortModeBefore = nil
 

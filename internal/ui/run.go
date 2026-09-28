@@ -213,7 +213,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.mosaicWin.StopTracking()
 		view.slides.Close()
 		view.scanOp.lifecycle.invalidate()
-		view.sortOp.lifecycle.invalidate()
+		view.sortOp.lifecycle.Invalidate()
 		view.display.Stop()
 		view.regionCopyLifecycle.invalidate()
 		view.updateOp.invalidate()

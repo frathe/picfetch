@@ -253,7 +253,7 @@ func drain(t *testing.T, v *viewer) {
 	// since leaving picture-frame mode touches the window.
 	v.invalidateLoad()
 	v.scanOp.lifecycle.invalidate()
-	v.sortOp.lifecycle.invalidate()
+	v.sortOp.lifecycle.Invalidate()
 	v.regionCopyLifecycle.invalidate()
 	v.display.Stop()
 	v.closeFavoritePreviews()

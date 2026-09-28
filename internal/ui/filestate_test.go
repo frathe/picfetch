@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"image/color"
 	"slices"
 	"testing"
@@ -146,17 +147,19 @@ func TestStaleFileStateCompletionsDoNotOverwriteNewerState(t *testing.T) {
 		t.Errorf("files = %v, want newer scan state retained", got)
 	}
 
-	staleSortToken := v.sortOp.lifecycle.begin()
-	newSortToken := v.sortOp.lifecycle.begin()
-	defer newSortToken.cancelContext()
+	staleSortToken := v.sortOp.lifecycle.Begin(context.Background())
+	newSortToken := v.sortOp.lifecycle.Begin(context.Background())
+	defer newSortToken.Release()
 	v.sortOp.active = true
 	v.sortOp.spinner.Show()
 	v.sortOp.label.Show()
 	var sortSignal completion.Signal
 	called := false
-	v.finishSort(staleSortToken, stale, sortSignal.Begin(), func([]fyne.URI) {
-		called = true
-	})
+	delivery := staleSortToken.FinalDelivery()
+	defer delivery.Abandon()
+	delivery.Dispatch(func(apply func()) { apply() }, func() {
+		v.finishSort(stale, func(_ []fyne.URI) { called = true })
+	}, sortSignal.Begin())
 	waitFor(t, "the stale sort completion", &sortSignal)
 
 	if called {

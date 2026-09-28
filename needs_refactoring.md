@@ -517,7 +517,8 @@ Pilot root sorting and display SVG final delivery; require reduced caller
 responsibilities before completing basic-token migration within root/display.
 Preserve feature-owned admission, completion and shutdown policies. If the
 pilot cannot meet that bar, retain local implementations and share contract
-tests/documentation. No implementation has begun.
+tests/documentation. [Implementation and evidence](plans/2026-09-28-ma-032-request-lifetimes.md)
+are underway, beginning with ticket 01; the SVG verdict still gates adoption.
 
 **P2; medium confidence.** The need for consistent contracts is strong; a
 universal task manager is not justified. Pilot a small extraction before any

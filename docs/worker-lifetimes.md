@@ -1,6 +1,6 @@
 # MA-032: request lifetimes and disposable result delivery
 
-Status: accepted design; all nine decisions resolved; implementation pending.
+Status: accepted design; implementation in progress, ticket 01 sorting pilot.
 Date: 2026-09-28
 Source: `/grill-with-docs ma-032`
 Implementation inspected at `4c759b2`; unchanged in the relevant paths at `68477a9`.
@@ -13,9 +13,11 @@ source observations. The [local specification](../.scratch/ma-032/spec.md) is
 published as `ready-for-agent`, with 60 user stories and 20 acceptance criteria
 covering the conditional extraction and fallback. The user approved
 [nine implementation tickets](../.scratch/ma-032/issues/README.md) and requested
-a feature branch and documentation commit. The tickets are published as
-`ready-for-agent`; implementation has not been requested or begun. The local
-specification and tickets remain gitignored.
+a feature branch and documentation commit. On 2026-09-28 the user authorized
+implementation, per-ticket commits, a draft PR/CI and the subsequent review
+loop. The [Deep SDD record](../plans/2026-09-28-ma-032-request-lifetimes.md)
+tracks selected tickets and revision-bound evidence. Local specification and
+tickets remain gitignored.
 
 ## Purpose and completion
 
@@ -154,10 +156,12 @@ or determine what feature completion means. It does not consolidate Explorer,
 Grid, search, analysis-cache or other feature workers; change durable-effect
 policy; or introduce shared Stop/Wait/Settle choreography.
 
-The local specification and approved tickets are published as `ready-for-agent`.
-The next step is implementation planning, with ticket 01 first and ticket 02's
-pilot verdict gating either the migration batches or the fallback. Final
-qualification depends only on the selected branch; no implementation has begun.
+Implementation begins with ticket 01; ticket 02's pilot verdict gates either
+the migration batches or fallback. Final qualification depends only on the
+selected branch. Sorting now uses the candidate Owner/Token/FinalDelivery
+contract; scan retains its local lifetime through a temporary progress seam.
+Ticket 04 reunifies that seam after acceptance, or ticket 08 removes it on
+fallback. No broader migration is accepted until SVG proves the second caller.
 No ADR is needed for this small reversible extraction decision. General
 concurrency vocabulary stays in this document, leaving the domain glossary
 unchanged. Dependencies and native distribution inputs remain unchanged.

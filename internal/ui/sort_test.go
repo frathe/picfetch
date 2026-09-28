@@ -217,14 +217,14 @@ func TestSetSortMode_SafeWithNoFilesLoaded(t *testing.T) {
 func TestInvalidateSortCancelsAndFinalizesCurrentProgress(t *testing.T) {
 	v := newTestViewer(t)
 
-	token := v.sortOp.lifecycle.begin()
+	token := v.sortOp.lifecycle.Begin(context.Background())
 	v.sortOp.active = true
 	v.sortOp.spinner.Show()
 	v.sortOp.label.Show()
 
 	v.invalidateSort()
 
-	if token.current() || token.context().Err() == nil {
+	if token.Current() || token.Context().Err() == nil {
 		t.Fatal("invalidateSort should cancel and supersede the current sort token")
 	}
 	if v.sortOp.active || v.sortOp.spinner.Visible() || v.sortOp.label.Visible() {
@@ -284,7 +284,7 @@ func TestSetSortMode_SnapshotDoesNotAliasUnsortedFiles(t *testing.T) {
 func TestHandleKeyEvent_EscapeDuringFirstDropReorderDoesNotCloseWindow(t *testing.T) {
 	v, _, closed := newTestUI(t)
 
-	v.sortOp.lifecycle.begin()
+	v.sortOp.lifecycle.Begin(context.Background())
 	v.sortOp.active = true
 	v.syncMenus()
 	if v.menus.CloseFiles().Disabled {
@@ -323,7 +323,7 @@ func TestHandleKeyEvent_EscapeDuringResortOfExistingFilesDoesNotClearThem(t *tes
 	filesBefore := append([]fyne.URI(nil), v.state.Observe().DisplayFiles()...)
 	indexBefore := v.state.Observe().index
 
-	v.sortOp.lifecycle.begin()
+	v.sortOp.lifecycle.Begin(context.Background())
 	v.sortOp.active = true
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
