@@ -12,6 +12,8 @@ import (
 	"testing/synctest"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/storage"
+	fynetest "fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/locationtrial"
@@ -55,7 +57,10 @@ func (a unopenedLaunchApp) Preferences() fyne.Preferences {
 func TestLaunchPolicyIntegration(t *testing.T) {
 	t.Run("construction", func(t *testing.T) {
 		t.Run("absent_policy_before_storage", func(t *testing.T) {
-			view, window, err := buildStartupViewer(unopenedLaunchApp{t: t}, launch.Policy{})
+			view, window, err := buildStartupViewer(unopenedLaunchApp{t: t}, launch.Policy{}, func(_ fyne.App) (launch.Storage, error) {
+				t.Fatal("absent policy resolved storage")
+				return launch.Storage{}, nil
+			})
 			if !errors.Is(err, launch.ErrInvalidPolicy) || view != nil || window != nil {
 				t.Fatalf("absent policy: view=%v window=%v err=%v", view, window, err)
 			}
@@ -72,6 +77,112 @@ func TestLaunchPolicyIntegration(t *testing.T) {
 				t.Fatalf("explicit ordinary composition: %+v", v.launchPolicy)
 			}
 		})
+		t.Run("denied_storage_before_preferences_and_consumers", func(t *testing.T) {
+			refusal := errors.New("ordinary storage unavailable")
+			view, window, err := buildStartupViewer(unopenedLaunchApp{t: t}, testLaunchPolicy(t, launch.Options{}, false), func(_ fyne.App) (launch.Storage, error) { return launch.Storage{}, refusal })
+			if !errors.Is(err, refusal) || view != nil || window != nil {
+				t.Fatalf("storage refusal: view=%v window=%v err=%v", view, window, err)
+			}
+		})
+		t.Run("ordinary_fallbacks_and_identity_derived_cache", func(t *testing.T) {
+			configDir, err := os.UserConfigDir()
+			if err != nil {
+				t.Fatal(err)
+			}
+			cacheDir, err := os.UserCacheDir()
+			if err != nil {
+				cacheDir = os.TempDir()
+			}
+			application := fynetest.NewApp()
+			cache := &launchRootCache{Cache: application.Cache(), root: storage.NewFileURI(t.TempDir())}
+			identified := launchRootApp{App: application, cache: cache}
+			roots, err := ordinaryLaunchStorage(identified)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := launch.Storage{FavoritesDir: filepath.Join(configDir, "picfetch", "favorites"), PresetsDir: filepath.Join(configDir, "picfetch", "presets"), AnalysisDir: filepath.Join(cache.root.Path(), "image-analysis"), UpdatesDir: filepath.Join(cacheDir, "picfetch", "updates")}
+			if roots != want || cache.reads != 1 {
+				t.Fatalf("ordinary defaults/app cache: %+v, want %+v; app-root reads=%d", roots, want, cache.reads)
+			}
+		})
+		for _, tc := range []struct {
+			name    string
+			purpose launch.Purpose
+			store   bool
+		}{
+			{"ordinary_portable", launch.Ordinary, false}, {"ordinary_store", launch.Ordinary, true},
+			{"explorer_portable", launch.ExplorerTrial, false}, {"explorer_store", launch.ExplorerTrial, true},
+			{"location_map_portable", launch.LocationMapTrial, false}, {"location_map_store", launch.LocationMapTrial, true},
+		} {
+			t.Run(tc.name+"_consumer_construction", func(t *testing.T) {
+				dir := filepath.Join(t.TempDir(), "trial")
+				opts := launch.Options{}
+				if tc.purpose == launch.ExplorerTrial {
+					opts.ExplorerTrial = dir
+				}
+				if tc.purpose == launch.LocationMapTrial {
+					opts.LocationMapTrial = dir
+				}
+				policy := testLaunchPolicy(t, opts, tc.store)
+				prepared, err := launch.Prepare(context.Background(), policy, launch.PreparationOptions{VerifyOffline: func(_ context.Context) error { return nil }})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = prepared.Close() })
+				application := fynetest.NewApp()
+				fallback, err := testLaunchStorage(t)(application)
+				if err != nil {
+					t.Fatal(err)
+				}
+				resolved := 0
+				view, window, err := buildStartupViewer(application, prepared.Policy(), func(app fyne.App) (launch.Storage, error) {
+					resolved++
+					if app != application || tc.purpose != launch.Ordinary {
+						t.Fatal("trial resolved ordinary storage or used another app")
+					}
+					return fallback, nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(window.Close)
+				t.Cleanup(func() { drain(t, view) })
+				want := fallback
+				if tc.purpose != launch.Ordinary {
+					want = launch.Storage{FavoritesDir: filepath.Join(dir, "favorites"), PresetsDir: filepath.Join(dir, "presets"), AnalysisDir: filepath.Join(dir, "image-analysis"), UpdatesDir: filepath.Join(dir, "updates")}
+				}
+				if (tc.purpose == launch.Ordinary && resolved != 1) || (tc.purpose != launch.Ordinary && resolved != 0) {
+					t.Errorf("ordinary fallback calls: %d", resolved)
+				}
+				// Observe the completed construction boundary, before flags/runtime can
+				// retarget anything, then exercise the cache's captured worker roots.
+				if view.favorites.Dir() != want.FavoritesDir {
+					t.Errorf("Favorites construction root: %q, want %q", view.favorites.Dir(), want.FavoritesDir)
+				}
+				if view.explorer.Options().Presets.Dir != want.PresetsDir {
+					t.Errorf("Explorer constructor root: %q, want %q", view.explorer.Options().Presets.Dir, want.PresetsDir)
+				}
+				if view.updater.Dir() != want.UpdatesDir {
+					t.Errorf("updater constructor root: %q, want %q", view.updater.Dir(), want.UpdatesDir)
+				}
+				provider := &launchCacheProbe{roots: make(chan similarity.CacheRoots, 1)}
+				cacheOptions := view.analysisCache.Options()
+				cacheOptions.Provider, cacheOptions.Queue = provider, &uitest.UIQueue{}
+				view.analysisCache.Configure(cacheOptions)
+				view.analysisCache.Content(true, 2048)
+				view.analysisCache.Settle()
+				got := <-provider.roots
+				if got.GeneralDir != want.AnalysisDir || got.FavoritesDir != want.FavoritesDir {
+					t.Errorf("analysis-cache constructor roots reached worker: %+v, want %+v", got, want)
+				}
+				view.applyLaunchOptions(launch.Options{LocationMapTrial: filepath.Join(t.TempDir(), "replacement")})
+				view.explorer.Close()
+				view.locationMap.Close()
+				if view.favorites.Dir() != want.FavoritesDir || view.explorer.Options().Presets.Dir != want.PresetsDir || view.updater.Dir() != want.UpdatesDir || view.analysisDir != want.AnalysisDir {
+					t.Fatal("later flags/feature close retargeted captured storage")
+				}
+			})
+		}
 	})
 	t.Run("feature_lifetime", func(t *testing.T) {
 		for _, purpose := range []string{"explorer", "location_map"} {
@@ -193,6 +304,31 @@ func TestLaunchPolicyIntegration(t *testing.T) {
 			})
 		})
 	})
+}
+
+type launchCacheProbe struct {
+	similarity.CacheMaintenanceProvider
+	roots chan similarity.CacheRoots
+}
+
+type launchRootApp struct {
+	fyne.App
+	cache fyne.Cache
+}
+
+func (a launchRootApp) Cache() fyne.Cache { return a.cache }
+
+type launchRootCache struct {
+	fyne.Cache
+	root  fyne.URI
+	reads int
+}
+
+func (c *launchRootCache) RootURI() fyne.URI { c.reads++; return c.root }
+
+func (p *launchCacheProbe) Inspect(_ context.Context, roots similarity.CacheRoots, _ func(similarity.CacheProgress)) (similarity.CacheUsage, error) {
+	p.roots <- roots
+	return similarity.CacheUsage{}, nil
 }
 
 func runProductionShutdownHook(v *viewer) {

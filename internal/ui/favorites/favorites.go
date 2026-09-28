@@ -111,9 +111,9 @@ type Feature struct {
 	workers sync.WaitGroup
 }
 
-// New builds the Favorites menu without reading from disk.
-func New(host Host, win fyne.Window) *Feature {
-	f := &Feature{host: host, win: win, availability: Availability{Open: true, Manage: true}, storage: &favstore.Store{}, ui: fyneQueue{}}
+// New captures the selected root and builds the menu without reading from disk.
+func New(host Host, win fyne.Window, dir string) *Feature {
+	f := &Feature{host: host, win: win, dir: dir, availability: Availability{Open: true, Manage: true}, storage: &favstore.Store{}, ui: fyneQueue{}}
 	f.addItem = fyne.NewMenuItem(lang.L("Add Current List to Favorites…"), f.AddCurrentList)
 	f.addItem.Disabled = true
 	// Display-only, mirroring Manage Favorites… below: the binding itself

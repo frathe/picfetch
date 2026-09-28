@@ -6,17 +6,14 @@ package ui
 import (
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"fyne.io/fyne/v2"
 
-	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/session"
-	"github.com/frathe/picfetch/internal/ui/autoupdate"
 )
 
 const (
@@ -45,17 +42,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, prepared
 		return launch.ErrInvalidPolicy
 	}
 	trial := prepared.ExplorerTrial()
-	var err error
-	var favoritesDir string
-	if policy.Purpose() != launch.Ordinary {
-		favoritesDir = filepath.Join(policy.TrialDir(), "favorites")
-	} else {
-		favoritesDir, err = favstore.DefaultDir()
-		if err != nil {
-			return err
-		}
-	}
-	view, window, err := buildStartupViewer(application, policy)
+	view, window, err := buildStartupViewer(application, policy, ordinaryLaunchStorage)
 	if err != nil {
 		return err
 	}
@@ -72,7 +59,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, prepared
 	// the command line asked for.
 	view.applyLaunchOptions(opts)
 
-	startViewerRuntime(view, window, favoritesDir)
+	startViewerRuntime(view, window)
 	registerShutdown(application, view)
 
 	// Show() (not ShowAndRun) so we can fold Darwin's Window menus after
@@ -154,13 +141,10 @@ func (v *viewer) waitForShutdown() {
 // Runtime side effects start only after feature construction and geometry
 // restoration, so polling cannot observe a nil slideshow or replace a saved
 // position before it has been applied.
-func startViewerRuntime(view *viewer, window fyne.Window, favoritesDir string) {
+func startViewerRuntime(view *viewer, window fyne.Window) {
 	view.startHEICCheck(false)
-	view.favorites.SetDir(favoritesDir)
+	view.favorites.SetDir(view.favorites.Dir())
 	view.stopWinPosPoll = startWindowPosPolling(view, window)
-	if view.updater.Dir() == "" {
-		view.updater.SetDir(autoupdate.DefaultDir())
-	}
 	view.maybeStartUpdateCheck()
 }
 

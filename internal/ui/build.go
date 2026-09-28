@@ -86,6 +86,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		toast:         toastComp,
 		info:          info,
 		launchPolicy:  startup.policy,
+		analysisDir:   startup.storage.AnalysisDir,
 		storeManaged:  startup.policy.StoreManaged(),
 		state:         newAppState(filesort.FromPref(prefs.SortMode), prefs.MergeMode),
 		baseTitle:     appTitle,
@@ -98,7 +99,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 			imgCacheMB: prefs.MaxImageCacheMB,
 		},
 		wallpaperDir: defaultWallpaperDir(),
-		updater: autoupdate.New(application, autoupdate.DefaultDir(), func(day string) {
+		updater: autoupdate.New(application, startup.storage.UpdatesDir, func(day string) {
 			preferences.SaveLastUpdateCheckDay(application, day)
 		}),
 		keyModifiers:   defaultKeyModifiers,
@@ -132,7 +133,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		dz.restoreLink.Show()
 	}
 
-	registerFeatures(view, application, window, prefs)
+	registerFeatures(view, application, window, prefs, startup.storage)
 	view.configureHEIC(heic.NewClient(""))
 
 	// The bar lives in its own overlay layer on top of the stack, pinned to

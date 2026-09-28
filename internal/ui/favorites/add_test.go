@@ -451,7 +451,7 @@ func TestShowAddDismissesBeforeOnChosenRuns(t *testing.T) {
 	host := &addGuardDuringSave{fakeHost: &fakeHost{
 		files: []fyne.URI{storage.NewFileURI("/photos/a.jpg")},
 	}}
-	f := New(host, win)
+	f := New(host, win, "")
 	f.SetUIQueue(&uitest.UIQueue{})
 	t.Cleanup(func() { f.Stop(); f.Settle() })
 	f.SetDir(t.TempDir())

@@ -1116,7 +1116,7 @@ func TestStartViewerRuntime_DefaultOffDoesNotAssignClient(t *testing.T) {
 	if v.updater.Client() != nil {
 		t.Fatal("newTestUI must not assign v.updater's client")
 	}
-	startViewerRuntime(v, win, t.TempDir())
+	startViewerRuntime(v, win)
 	t.Cleanup(v.stopWinPosPoll)
 	if v.updater.Client() != nil {
 		t.Fatal("startViewerRuntime with CheckForUpdates=false must not construct a Client")

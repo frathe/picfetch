@@ -1,6 +1,6 @@
 # MA-033: captured launch policy implementation
 
-Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`) and 03 complete; 04 next.
+Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`) and 04 complete; 05 next.
 Baseline: `9549e3b` (approved specification), runtime baseline `a5caf73`.
 Route: Deep SDD with vertical TDD slices.
 Authorization: 2026-09-28 `/implement MA-033`: implementation, per-ticket commits,
@@ -183,7 +183,7 @@ must record G1-G5 before spawning.
 | 02 | 1/1 | 1 | no | done |
 | 03/04 recon | 2/2 | n/a | no | complete; acquisition/producer/storage inventory |
 | 03 | 1/1 | 1 | no | done |
-| 04 | 0/0 | 0 | no | pending |
+| 04 | 0/0 | 1 | no | done |
 | 05 | 1/0 | 0 | no | pending |
 | 06 | 0/0 | 0 | no | pending |
 | 07 | 0/0 | 0 | no | pending |
@@ -326,3 +326,51 @@ A second bounded T3 storage scout mapped current constructor/default accesses an
 the test harness's late overrides for ticket 04 while the lead verified 03. This
 expands the shared recon budget to two; it wrote no files and made no review or
 design decisions. The lead retains the resulting cross-package storage work.
+
+### Ticket 04 construction contract
+
+Keep `buildStartupViewer` as the shared boundary, adding a per-call ordinary-root
+resolver `func(fyne.App) (launch.Storage, error)`. Only explicit ordinary policy
+calls it; trials select captured roots without consulting ordinary fallbacks.
+Production supplies existing defaults, with Favorites' fallible fallback first
+and general analysis derived from the already identified app's cache. Tests supply
+temporary ordinary roots before construction instead of retargeting afterward.
+The selected value enters `startupState` and is supplied directly to updater,
+Explorer presets, Favorites and analysis-cache. Favorites' constructor captures
+the root without starting reads; runtime refresh starts only after queues and
+complete composition are installed. Runtime no longer accepts another root.
+Remove path retargeting from launch overrides. Capture pending trial behavior from
+policy, preserving all unrelated flags. `analysiscache.Options()` mirrors Explorer's
+existing value accessor, letting its existing per-instance provider/queue seam
+preserve and observe constructor inputs rather than replace roots in the harness.
+Lead implements/reviews; no further delegation is useful with this hot context.
+
+### Ticket 04 completion evidence
+
+Analyzed/tested tree: `de5cb5c` plus this ticket's named changes. Construction now
+selects roots once before persistence/consumers; ordinary resolution failure
+returns before app Cache/Preferences, and trials never call the ordinary resolver.
+Favorites captures without I/O; its runtime refresh starts after full composition.
+The harness supplies temporary ordinary roots before construction and preserves
+analysis-cache/Explorer constructor inputs while replacing only external adapters.
+Existing Explorer launch fixtures now construct their trial policy and resource
+first, rather than trying to create a new launch purpose through mutable flags.
+
+Red: all six construction combinations exposed empty/default consumer roots;
+denied ordinary storage still reached app cache; later trial flags retargeted
+storage. Green V1 identity/storage; V2 all construction/lifetime children including
+ordinary fallback and the correctly identified app's cache, no fallback calls for
+trials, all four consumers and actual analysis-cache worker roots; V3 startup
+validation/cleanup; V4 ten launch-option tests and seven manual-runner fixtures.
+Additional saved-settings, runtime-start, trial-recording regressions and complete
+Favorites/analysis-cache package tests pass. Store-tagged construction/lifetime and
+Explorer trial-launch/truncation pass. Raw logs are `04-*-green.log`; initial
+construction red is `04-construction-red.log` in local evidence.
+
+Lead assessment: no production late retarget remains, cached launch roots survive
+feature close and altered options, ordinary defaults and Favorite ownership are
+unchanged. All 16 changed Go files inspected with weak warnings, no timeouts.
+Only nine existing duplicate fragments in autoupdate_test.go and
+favorites/favorites_test.go remain, covered by their existing exact Qodana paths;
+no source suppression or test refactor needed. Scoped vet, format, exact exclusions
+and shard check pass (740 runnable UI tests). No new dependencies or test files.

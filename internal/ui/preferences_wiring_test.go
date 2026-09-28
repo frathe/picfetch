@@ -405,12 +405,11 @@ func TestStartViewerRuntime_ReplacesConstructionStopAfterGeometryRestoration(t *
 		ExifWindow:        exifGeometry,
 	})
 
-	favoritesDir := t.TempDir()
-	if err := favstore.Save(favoritesDir, "Runtime Favorite", nil); err != nil {
+	v, win := buildTestStartupViewer(t, application)
+	if err := favstore.Save(v.favorites.Dir(), "Runtime Favorite", nil); err != nil {
 		t.Fatalf("save temporary favorite: %v", err)
 	}
 
-	v, win := buildTestStartupViewer(t, application)
 	v.favorites.SetUIQueue(&uitest.UIQueue{})
 	t.Cleanup(func() { v.favorites.Stop(); v.favorites.Settle() })
 	t.Cleanup(win.Close)
@@ -441,7 +440,7 @@ func TestStartViewerRuntime_ReplacesConstructionStopAfterGeometryRestoration(t *
 		t.Errorf("EXIF geometry = %+v, want restored %+v", got, exifGeometry)
 	}
 
-	startViewerRuntime(v, win, favoritesDir)
+	startViewerRuntime(v, win)
 	v.favorites.Settle()
 	runtimeStop := v.stopWinPosPoll
 	if runtimeStop == nil {

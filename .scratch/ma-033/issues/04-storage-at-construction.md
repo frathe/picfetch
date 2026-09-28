@@ -1,6 +1,6 @@
 # 04: Select storage before constructing consumers
 
-Status: ready-for-agent
+Status: done
 Parent: [MA-033 specification](../spec.md)
 **Blocked by:** [03: Prepare and finalize isolated trials](03-prepared-trial-lifetime.md).
 
@@ -10,18 +10,18 @@ and retargeting consumers afterward; ordinary launches keep their existing data.
 
 ## Acceptance criteria
 
-- [ ] Application identity, Favorites, Explorer presets, general analysis and
+- [x] Application identity, Favorites, Explorer presets, general analysis and
   updater storage agree with the captured launch input from first construction.
   Both trial types and Store/trial combinations select the existing layouts.
   Verify: V1, V2.
-- [ ] Analysis-cache and Explorer consumers receive the complete selected roots
+- [x] Analysis-cache and Explorer consumers receive the complete selected roots
   before construction can observe them. Fyne cache resolution uses the correctly
   identified app; an identity-derived isolated cache is not misreported as an
   ordinary-install leak. Verify: V2.
-- [ ] All effectful trial consumer startup follows successful reservation;
+- [x] All effectful trial consumer startup follows successful reservation;
   failed preparation cannot fall back, create ordinary roots or start a consumer.
   Runtime feature close/replacement cannot retarget launch storage. Verify: V2, V3.
-- [ ] Preserve ordinary fallback locations, preferences/session restoration,
+- [x] Preserve ordinary fallback locations, preferences/session restoration,
   launch overrides and native-launcher identity agreement. Existing Favorite
   ownership and shared model/runtime storage retain their own contracts.
   Verify: V1, V4.
@@ -43,3 +43,10 @@ fields inspected after all late retargeting has already happened.
 Follow the [shared execution rules](README.md#execution-and-evidence-rules).
 Reuse existing construction/harness interfaces. Storage routing is not a
 filesystem sandbox or a promise that later disk writes cannot fail.
+
+Completed on 2026-09-28. V1-V4 ran uncached, including all six consumer
+construction combinations, actual cache-worker inputs, denied storage before
+preferences, ordinary fallback/cache resolution and immutable roots after later
+flags/feature close. Store-tagged construction and existing trial-launch cases
+also pass. Lead review and full changed-file inspection scope are in the
+[active plan](../../../plans/2026-09-28-ma-033-launch-policy.md).

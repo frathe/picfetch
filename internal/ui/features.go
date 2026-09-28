@@ -7,7 +7,9 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/assets"
@@ -36,7 +38,7 @@ var _ mosaicwin.Host = (*viewer)(nil)
 // registerFeatures constructs every feature in dependency order. It only
 // assigns the viewer's feature fields; build.go still decides how their
 // widgets compose, and menu.go still decides how their menus compose.
-func registerFeatures(view *viewer, application fyne.App, window fyne.Window, prefs preferences.State) {
+func registerFeatures(view *viewer, application fyne.App, window fyne.Window, prefs preferences.State, roots launch.Storage) {
 	view.help = help.New(application, appTitle, assets.ComparingWebP)
 	view.help.SetAdmission(func() bool {
 		_, ok := view.admitCommand(commandRequest{command: commandHelp})
@@ -119,7 +121,8 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.grid = grid.New(view, window, view.dupes)
 	view.locationMap = locationmap.New(view, locationmap.Options{Context: view.heicContext, Thumbnails: view.grid.CaptureThumbs})
 	view.explorer = explorerui.NewFeature(explorerHost{view}, explorerui.Options{
-		App: application, Discussions: view.help.OpenDiscussionsLink, Supported: similarity.SupportedPlatform(),
+		Presets: &explorerpresets.Store{Dir: roots.PresetsDir},
+		App:     application, Discussions: view.help.OpenDiscussionsLink, Supported: similarity.SupportedPlatform(),
 		CachePressure: func(needBytes uint64) {
 			if view.analysisCache == nil {
 				return
@@ -196,7 +199,7 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	view.slides.SetShuffle(prefs.SlideShuffle)
 
 	view.settingsWin = settingswin.New(application, view)
-	view.favorites = favorites.New(favoriteListHost{view}, window)
+	view.favorites = favorites.New(favoriteListHost{view}, window, roots.FavoritesDir)
 	view.favorites.SetOnDialogClosed(view.flushSearchPresentation)
 	view.favorites.SetOnDialogChanged(view.syncMenus)
 	view.favorites.SetOnSaved(view.favoriteSaved)
