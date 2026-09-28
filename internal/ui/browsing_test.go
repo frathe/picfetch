@@ -14,6 +14,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/storage"
 	fynetest "fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/favstore"
@@ -640,6 +641,58 @@ func TestBrowsingEmptyScope(t *testing.T) {
 }
 
 func TestBrowsingVisitLifecycle(t *testing.T) {
+	for _, route := range []string{"leave_parent", "empty_drop", "ranked_v"} {
+		t.Run("nested_search_retirement/"+route, func(t *testing.T) {
+			v := explorerFixture(t)
+			v.OpenSimilarityCohort([]string{v.FileAt(0).Path(), v.FileAt(1).Path()})
+			publish := streamingSearchFrom(t, v)
+			publish(similarity.SearchFinal, 2, 1)
+			retired := searchDelivery{visit: v.visualsearch.State().Visit, binding: v.browsing.current().binding, revision: v.browsing.revision}
+			switch route {
+			case "leave_parent":
+				v.LeaveSimilarityMap()
+			case "empty_drop":
+				v.SetMergeMode(true)
+				v.handleDrop([]fyne.URI{storage.NewFileURI(t.TempDir())})
+				waitForScan(t, v)
+				if v.FileCount() != 18 {
+					t.Fatal("empty merge fixture replaced its existing collection")
+				}
+			case "ranked_v":
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyV})
+			}
+			v.visualsearch.Settle()
+			if v.searchActive() || v.visualsearch.Active() {
+				t.Fatal("retired root search left its feature/producer active")
+			}
+			v.applySearchDelivery(retired)
+			if route == "ranked_v" {
+				if !v.browsing.has(browsingExplorer) || !v.grid.Visible() {
+					t.Fatal("ranked V no longer returns to its retained cohort")
+				}
+			} else if v.browsing.has(browsingExplorerMap) || v.grid.Visible() {
+				t.Fatal("retired search delivery revived its closed parent")
+			}
+		})
+	}
+	for _, key := range []fyne.KeyName{fyne.KeyEscape, fyne.KeyG} {
+		t.Run("explorer_to_map_then_ordinary_grid/"+string(key), func(t *testing.T) {
+			v := explorerFixture(t)
+			v.OpenSimilarityCohort([]string{v.FileAt(0).Path(), v.FileAt(1).Path()})
+			locationMenu(t, v).Action()
+			v.locationMap.Settle()
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			v.showWindowGrid()
+			v.grid.Settle()
+			if visit := v.grid.CaptureVisit(); visit.Subset != nil || len(v.grid.ResultIndexes()) != v.FileCount() {
+				t.Error("ordinary Grid revived a retired Explorer subset")
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: key})
+			if v.grid.Visible() || v.browsing.has(browsingExplorerMap) {
+				t.Fatal("stale subset return trapped the ordinary Grid")
+			}
+		})
+	}
 	t.Run("retired_cluster_request", func(t *testing.T) {
 		v := newTestViewer(t)
 		a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)

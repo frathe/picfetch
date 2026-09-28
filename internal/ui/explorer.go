@@ -172,7 +172,13 @@ func (v *viewer) cancelExplorerPreparation() {
 	}
 }
 func (v *viewer) closeExplorer() {
-	v.browsing.leaveExplorer()
+	if v.browsing.has(browsingExplorerMap) {
+		// Retire child work and presentation bindings before forgetting their
+		// parent. A later feature must not capture this Grid as an ordinary one.
+		v.closeVisualSearch()
+		v.browsing.leaveExplorer()
+		v.grid.Close()
+	}
 	v.cancelExplorerPreparation()
 	v.explorer.Close()
 }

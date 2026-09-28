@@ -811,3 +811,46 @@ skip on Linux, recorded there and not counted as browsing acceptance. No native
 UI glue changed; existing manual native UI qualification is not re-claimed.
 No dependency closure, native runtime, model, translations or golden assets
 changed. MA-030 and later proposals remain outside this work.
+
+### PR 68 review round 1 (`4daa068`)
+
+Latest-head CI and Qodana SARIF passed again on documentation closure `4daa068`;
+SARIF reports that exact revision, successful execution and zero results.
+Security completed without posted findings. Code review found two retirement
+edges: parent Explorer close clears nested search authority without retiring its
+producer; Location Map can capture a retired cohort Grid callback as its hidden
+ordinary origin. Both are lead-owned fixes, with no delegation of review/fixes.
+The cited ranked-V example is checked separately because searchKey handles V
+before the Explorer branch; that route must still return to the retained cohort.
+
+Regression contract: direct parent leave and empty scan retire search ownership
+and feature work, reject saved stale delivery, and preserve ranked V's origin
+return. Switching cohort -> Location Map -> leave -> ordinary Grid must drop
+retired subset callbacks and allow Escape/G to close. Keep Grid's refusal behavior
+for a *current* subset return unchanged. This is a bounded root retirement fix,
+not a new generic callback/replay contract.
+
+Both defects confirmed. Initial characterization failed direct parent leave and
+both Escape/G cases (`FAIL 0.510s`); ranked V already passed because searchKey
+returns to the cohort. The no-replacement reproduction specifically needs an
+empty **merge** drop: an empty replacement calls full reset and already retires
+search. The refined negative run failed direct leave, empty merge and both stale
+Grid exits (`FAIL 0.471s`); ranked V remained green. Fix restored afterward.
+
+`closeExplorer` now retires nested search feature work before clearing its
+parent visit, then closes the cohort Grid so its subset/return callbacks cannot
+be captured as ordinary state by the next feature. The guard only runs when
+Explorer owns a retained family, preserving ordinary Grid/map bookmarks and
+Grid's current-return admission/validation behavior. No callback API changes.
+
+Final uncached focused suite passed (35.373s), no skips:
+`go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run
+'^(TestBrowsing.*|TestFindMoreLikeThis.*|TestVisualSimilarityExplorer|TestLocationMap|TestLocationMapReleaseQualification|TestCommandAdmissionVisits|TestWindowCommandAdmissionMatrix|TestEscapeUnwindsModesBeforeReset|TestHandleDrop.*|TestCancelScan.*)$'`.
+The five new lifecycle subcases also passed three repeated runs. Formatting,
+vet, exact Qodana exclusions and diff checks passed. No new top-level runnable
+or test file: existing lifecycle shard assignment/exclusion remains exact.
+GoLand inspected both changed code files, all severities: explorer.go clear;
+browsing_test.go retains only the previously assessed nine-line comparison
+fixture duplicate (now line 131). No new native, dependency or worker seam.
+Fresh latest-head CI/SARIF and another code/security review are required after
+these dispositions; round 1 is not claimed as a clean final review.

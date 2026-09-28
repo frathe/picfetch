@@ -37,6 +37,8 @@
   race/native, Windows/macOS CI, CodeQL and fresh post-suppression Qodana
   evidence are in the [archived plan](finished_refactorings/2026-09-27-ma-029-browsing-visits.md).
   CI also verified the shutdown-test isolation and HEIC queued-stop fixes.
+  PR round 1's nested-search and stale cohort-Grid retirement findings are
+  repaired with real-transition regressions; fresh review remains a PR gate.
   [PR 68](https://github.com/frathe/picfetch/pull/68) maintains final review
   dispositions and latest-head checks; merge/release is not authorized.
 
