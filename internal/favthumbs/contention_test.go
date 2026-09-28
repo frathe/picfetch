@@ -97,6 +97,7 @@ func (s *contentionSink) Store(u fyne.URI, img image.Image) {
 func benchmarkPreviewContention(b *testing.B, sources, foreground []fyne.URI, condition string) {
 	b.StopTimer()
 	favDir := b.TempDir()
+	owner := testFavoriteOwner(b, favDir)
 	var opens atomic.Int64
 	files := make([]fyne.URI, len(sources))
 	for i, u := range sources {
@@ -106,7 +107,7 @@ func benchmarkPreviewContention(b *testing.B, sources, foreground []fyne.URI, co
 		})
 	}
 	if condition == "disk-warm" {
-		if err := Sync(context.Background(), favDir, files, 256, nil); err != nil {
+		if err := Sync(context.Background(), owner, files, 256, nil); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -132,7 +133,7 @@ func benchmarkPreviewContention(b *testing.B, sources, foreground []fyne.URI, co
 		b.StartTimer()
 		if condition != "alone" {
 			go func() {
-				err := Sync(ctx, favDir, files, 256, sink)
+				err := Sync(ctx, owner, files, 256, sink)
 				finished = time.Now()
 				done <- err
 			}()
@@ -176,7 +177,7 @@ func benchmarkPreviewContention(b *testing.B, sources, foreground []fyne.URI, co
 				b.Fatal("preview pass did not converge within the memory budget")
 			}
 			for _, u := range files {
-				if _, ok, err := ReadContext(context.Background(), favDir, u); err != nil || !ok {
+				if _, ok, err := ReadContext(context.Background(), owner, u); err != nil || !ok {
 					b.Fatalf("missing readable preview for %s: %v", u, err)
 				}
 			}

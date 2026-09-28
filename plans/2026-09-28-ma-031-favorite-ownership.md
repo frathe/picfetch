@@ -1,6 +1,6 @@
 # MA-031 implementation and evidence
 
-Status: tickets 01-07 complete; preview ownership 08 next. Baseline: `f09af93` (planning branch), code
+Status: tickets 01-08 complete; qualifying convergence/native behavior in 09. Baseline: `f09af93` (planning branch), code
 baseline `7e52ea5b5fe95ae7d0995e88fa765ab57d549b86`.
 
 Deliver shared validated Favorite membership and captured ownership to every
@@ -166,6 +166,17 @@ Other delegations are candidates only; record G1-G5 before assigning them.
 The user requested the best suited agents per ticket, not a separate implementer
 for every cross-cutting slice. Keep hot context and design-bearing work with T0.
 
+Preview 08 fixture adapter: G1 yes, existing tests receive the fixed owner-valued
+API; G2 yes, complete `internal/favthumbs` test command after lead implementation;
+G3 deviation: four existing test files exceeded the three-file gate; the fourth
+was the benchmark's mechanical call-site adaptation and should have stayed
+inline. All four remained disjoint and were independently verified. G4 yes, fixtures are disjoint from
+lead production/root and new ownership tests; G5 yes, lead holds production
+context but has not loaded their full fixture corpus. T1 gpt-6-sol adapts fixtures
+without new test design or review; lead owns new ownership guards and all fixes.
+S alone cannot preserve held-operation fixture setup. W: signatures and fixture
+contracts only, no implementation delegated.
+
 Cohort ticket 04: G1 yes (two-file adapter and specified retirement matrix);
 G2 yes (`go test ... ./internal/favstore -run '^TestCohorts$'`); G3 yes
 (`cohorts.go` and `favstore_test.go`, disjoint from lead maintenance); G4 yes
@@ -202,11 +213,11 @@ to include weak warnings rather than warning-threshold batch filtering.
 | 02 | 1/1 | 2 | no | complete |
 | 03 | 0/0 | 2 | no | complete |
 | 04 | 1/1 | 1 | no | complete; lead independently verified |
-| 05 | 1/0 | 0 | no | claimed |
-| 06 | 0/0 | 0 | no | blocked by 05 |
-| 07 | 0/0 | 0 | no | blocked by 06 |
-| 08 | 1/0 | 0 | no | blocked by 06 |
-| 09 | 1/0 | 0 | CI | blocked by terminal migrations |
+| 05 | 1/0 | lead gates below | no | complete |
+| 06 | 0/0 | lead gates below | no | complete |
+| 07 | 0/0 | lead gates below | no | complete |
+| 08 | 1/1 | 2 | no | complete; lead independently verified |
+| 09 | 1/1 | 0 | CI | claimed; native scout completed during 06 |
 
 ### Ticket 01 evidence
 
@@ -526,3 +537,47 @@ tree based on c5e5a83: clean, no timeouts/skips. Architecture and agent guide re
 the captured-removal and Manage-close lifetimes. No dependency/format changes.
 CI on ticket 06's pushed commit is fully green; post-suppression SARIF inspection
 and latest-commit native/full verification remain 09's gates, not implied here.
+
+### Ticket 08 evidence
+
+All preview disk APIs now consume the Owner captured by complete Favorite Open
+or committed Save. Root's pathname bridge is removed. Each bounded read, write
+and sweep reacquires that observation without rediscovery; operations are
+directory-relative, publication/corrupt cleanup/sibling cleanup check currentness,
+and sweep additionally rechecks the inventoried record before unlink. Only the
+thumbs child can be created. Original decoding retains no Favorite access.
+Existing JPEG/PNG formats, quality, names, source versions, decode prefix,
+cached tails, memory admission and full-membership/offline cleanup stay intact.
+
+Observed red -> green: all four moved/removed/identical-list/replaced-directory
+held cache hits created preview storage. Deliberately reopening owners or removing
+final guards then failed held original, publication, corrupt cleanup, sweep and
+fresh-record tests. Root's temporary fresh-name lookup failed both queued actual
+open and save cases. Restored implementations pass. Raw negatives:
+`08-owner-red.txt`, `08-preview-guard-red.txt`, `08-root-guard-red.txt`.
+
+Uncached verified commands (Go toolchain path as above):
+
+```
+go test -race -tags no_emoji,nodynamic -count=1 -v ./internal/favthumbs ./internal/ui/favorites
+go test -race -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run '^(TestFavoriteOwnershipIntegration|TestFavoritePreviewAfterCommitBeforeNotificationRejectsOldMemoryHit|TestShutdownCancelsFavoritePreviews)$'
+go test -race -tags no_emoji,nodynamic -count=1 ./internal/ui -run 'Test(SyncFavoritePreviews|FavoritePreview|ShutdownCancelsFavoritePreviews|HEIC)'
+go vet -tags no_emoji,nodynamic ./internal/favthumbs ./internal/ui/favorites ./internal/ui
+make fmt-check check-qodana-test-exclusions check-test-shards-direct
+```
+
+All test selections passed without skips; full preview/feature logs are
+`08-preview-feature.txt`, root ownership/shutdown output `08-root.txt`. Broader
+root preview/HEIC regression selection passed in 20.041s. Source replacement,
+committed-file notification, held-read/slot-waiter cancellation, cache budgets,
+offline tail and fresh-owner completion remained green. Exact root inventory
+remains 742; the new preview test file has its exact Qodana exclusion.
+
+GoLand inspected all thirteen changed/new Go files including weak warnings on
+the tree based on d7626ca. No timeouts/skips. The only two weak duplicate fragments
+are the independent cancellation/retirement publication fixtures in store_test
+and ownership_test, covered by exact test exclusions. Lead independently verified
+the agent's four-file fixture adaptation and reviewed currentness boundaries.
+Architecture and agent guide now document captured preview ownership, with the
+writing-for-agents skill keeping this beside the existing source-version rule.
+No dependencies, shipped assets or persistent formats changed.

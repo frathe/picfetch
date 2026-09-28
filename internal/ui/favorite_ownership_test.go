@@ -15,10 +15,69 @@ import (
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/favthumbs"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
 func TestFavoriteOwnershipIntegration(t *testing.T) {
+	for _, operation := range []string{"open", "save"} {
+		t.Run("preview_queued_"+operation, func(t *testing.T) {
+			v := newTestViewer(t)
+			file := uitest.TempJPEGURI(t, "source.jpg", 4, 4, color.White)
+			dropAndWait(t, v, file)
+			root := t.TempDir()
+			v.favorites.SetDir(root)
+			v.favorites.Settle()
+			dir := favstore.Dir(root, "Trip")
+			if operation == "open" {
+				if err := favstore.Save(root, "Trip", []fyne.URI{file}); err != nil {
+					t.Fatal(err)
+				}
+				v.favorites.SetDir(root)
+				v.favorites.Settle()
+				v.favorites.Open(0)
+			} else {
+				v.favorites.AddCurrentList()
+				entry, ok := v.win.Canvas().Focused().(interface {
+					SetText(string)
+					TypedKey(*fyne.KeyEvent)
+				})
+				if !ok {
+					t.Fatal("Favorite naming was not admitted")
+				}
+				entry.SetText("Trip")
+				entry.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			}
+			// The complete read or committed save is queued but has not yet
+			// delivered its captured owner to the root preview consumer.
+			v.favorites.Wait()
+			if v.favThumb.Begun() {
+				t.Fatal("preview work escaped queued Favorite delivery")
+			}
+			if err := favstore.Save(root, "Trip", []fyne.URI{file}); err != nil {
+				t.Fatal(err)
+			}
+			v.favorites.Settle()
+			settleFavoritePreviews(t, v)
+			if _, err := os.Stat(favthumbs.Dir(dir)); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("queued %s adopted a replacement owner: %v", operation, err)
+			}
+			if operation == "open" {
+				waitForScan(t, v)
+				waitForSort(t, v)
+				waitUntilLoaded(t, v)
+			}
+			v.favorites.Open(0)
+			v.favorites.Settle()
+			settleFavoritePreviews(t, v)
+			waitForScan(t, v)
+			waitForSort(t, v)
+			waitUntilLoaded(t, v)
+			if names := previewNames(t, dir); len(names) != 1 {
+				t.Fatalf("fresh opening did not publish current previews: %v", names)
+			}
+		})
+	}
 	for _, change := range []string{"close", "root", "shutdown"} {
 		t.Run("native_removal_"+change, func(t *testing.T) {
 			v := newTestViewer(t)

@@ -9,6 +9,7 @@ import (
 
 	"fyne.io/fyne/v2"
 
+	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -72,7 +73,7 @@ func (p *Preview) RGBA64At(x, y int) color.RGBA64 {
 //
 // sink may be nil, which reads as "nothing is cached, and storing is a
 // no-op": the pass still fills the on-disk cache for a later opener.
-func Sync(ctx context.Context, favDir string, files []fyne.URI, limit int, sink Sink) error {
+func Sync(ctx context.Context, owner *favstore.Owner, files []fyne.URI, limit int, sink Sink) error {
 	// The app's merge mode loads one path at two indices whenever the same
 	// file arrives from two dropped folders. Two workers on that path would
 	// duplicate a full decode and then race each other to write a single
@@ -139,7 +140,7 @@ loop:
 				return
 			}
 
-			if err := syncFile(ctx, favDir, u, sink, true); err != nil {
+			if err := syncFile(ctx, owner, u, sink, true); err != nil {
 				fail(err)
 			}
 		})
@@ -167,7 +168,7 @@ loop:
 				continue
 			}
 			admitted[path] = true
-			if err := syncFile(ctx, favDir, u, sink, false); err != nil {
+			if err := syncFile(ctx, owner, u, sink, false); err != nil {
 				fail(err)
 			}
 		}
@@ -182,7 +183,7 @@ loop:
 		return err
 	}
 
-	if err := sweepContext(ctx, favDir, files); err != nil {
+	if err := sweepContext(ctx, owner, files); err != nil {
 		fail(err)
 	}
 	if err := ctx.Err(); err != nil {
@@ -198,7 +199,7 @@ loop:
 // syncFile brings one file's preview up to date, taking the cheapest of the
 // three routes that applies. It is the body of a worker goroutine, so it
 // touches nothing shared beyond sink, which the caller owns and guards.
-func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink, decodeOriginal bool) error {
+func syncFile(ctx context.Context, owner *favstore.Owner, u fyne.URI, sink Sink, decodeOriginal bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -221,14 +222,14 @@ func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink, decodeO
 			// churn. Disk still has to catch up if it is behind, and
 			// hasCurrentPreview answers that with a stat rather than the
 			// decode Read would cost to reach the same conclusion.
-			if hasCurrentPreview(favDir, u) {
+			if hasCurrentPreview(owner, u) {
 				return ctx.Err()
 			}
-			return writeEntryContext(ctx, favDir, name, thumb)
+			return writeEntryContext(ctx, owner, name, thumb)
 		}
 	}
 
-	thumb, ok, err := ReadContext(ctx, favDir, u)
+	thumb, ok, err := ReadContext(ctx, owner, u)
 	if err != nil {
 		return err
 	}
@@ -250,7 +251,7 @@ func syncFile(ctx context.Context, favDir string, u fyne.URI, sink Sink, decodeO
 	// The sink is offered the thumbnail even when the write fails: a full
 	// disk or a read-only volume is no reason to make the caller decode
 	// this file again for the display it is about to paint.
-	err = writeEntryContext(ctx, favDir, name, thumb)
+	err = writeEntryContext(ctx, owner, name, thumb)
 	if cancelled := ctx.Err(); cancelled != nil {
 		return cancelled
 	}

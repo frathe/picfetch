@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"golang.org/x/image/draw"
 
+	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -46,6 +47,24 @@ func newSourceFile(t *testing.T, dir, name string) fyne.URI {
 	return storage.NewFileURI(path)
 }
 
+// testFavoriteOwner creates a real empty Favorite if needed and captures its owner.
+// Source lists remain explicit inputs to the preview operation under test.
+func testFavoriteOwner(tb testing.TB, favDir string) *favstore.Owner {
+	tb.Helper()
+	_, err := os.Stat(filepath.Join(favDir, "file-list.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		err = favstore.Save(filepath.Dir(favDir), filepath.Base(favDir), nil)
+	}
+	if err != nil {
+		tb.Fatal(err)
+	}
+	definition, err := favstore.Open(context.Background(), favDir)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return definition.Owner
+}
+
 // sampleRGBA converts c to 8-bit-per-channel RGBA for tolerance comparisons
 // against JPEG's lossy round trip.
 func sampleRGBA(c color.Color) color.RGBA {
@@ -65,9 +84,10 @@ func TestWriteOpaqueUsesJPEGExtension(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	thumb := newOpaqueThumb(2, 2, color.RGBA{R: 10, G: 20, B: 30, A: 255})
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -103,9 +123,10 @@ func TestWriteTransparentUsesPNGExtensionAndRoundTripsExactly(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	thumb := newTransparentThumb(3, 2)
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -122,7 +143,7 @@ func TestWriteTransparentUsesPNGExtensionAndRoundTripsExactly(t *testing.T) {
 		t.Errorf("did not expect a .jpg preview at %q", unwantedPath)
 	}
 
-	got, ok := Read(favDir, src)
+	got, ok := Read(owner, src)
 	if !ok {
 		t.Fatalf("Read reported false after Write")
 	}
@@ -153,13 +174,14 @@ func TestWriteCreatesThumbsDirWhenMissing(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	if _, err := os.Stat(Dir(favDir)); !os.IsNotExist(err) {
 		t.Fatalf("thumbs dir already exists before Write: %v", err)
 	}
 
 	thumb := newOpaqueThumb(2, 2, color.RGBA{R: 1, G: 2, B: 3, A: 255})
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -178,8 +200,9 @@ func TestReadMissesWhenNothingWritten(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
-	img, ok := Read(favDir, src)
+	img, ok := Read(owner, src)
 	if ok {
 		t.Fatalf("Read reported true with nothing written, image = %v", img)
 	}
@@ -197,9 +220,10 @@ func TestReadMissesWhenSourceModTimeChangesButOldFileSurvives(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	thumb := newOpaqueThumb(2, 2, color.RGBA{R: 5, G: 6, B: 7, A: 255})
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -217,7 +241,7 @@ func TestReadMissesWhenSourceModTimeChangesButOldFileSurvives(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	img, ok := Read(favDir, src)
+	img, ok := Read(owner, src)
 	if ok {
 		t.Fatalf("Read reported true after mtime changed, image = %v", img)
 	}
@@ -241,8 +265,9 @@ func (c cleanupContext) Err() error {
 
 func TestCorruptPreviewCleanupSerializesWithReplacement(t *testing.T) {
 	dir := t.TempDir()
+	owner := testFavoriteOwner(t, dir)
 	source := newSourceFile(t, dir, "source.jpg")
-	if err := Write(dir, source, newOpaqueThumb(1, 1, color.RGBA{A: 255})); err != nil {
+	if err := Write(owner, source, newOpaqueThumb(1, 1, color.RGBA{A: 255})); err != nil {
 		t.Fatal(err)
 	}
 	path := previewPath(t, dir, source, ".jpg")
@@ -259,11 +284,17 @@ func TestCorruptPreviewCleanupSerializesWithReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = failed.Close(); _ = delayed.Close() })
+	access, err := owner.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = access.Close() })
+	relativePath := filepath.Join("thumbs", filepath.Base(path))
 	entered, release, removed := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	unblock := sync.OnceFunc(func() { close(release) })
 	defer unblock()
-	ctx := cleanupContext{Context: context.Background(), check: func() { close(entered); <-release }}
-	go func() { discardCorruptPreview(ctx, path, failed); close(removed) }()
+	ctx := cleanupContext{Context: context.Background(), check: sync.OnceFunc(func() { close(entered); <-release })}
+	go func() { discardCorruptPreview(ctx, access, relativePath, failed); close(removed) }()
 	<-entered
 	if previewCommitMu.TryLock() {
 		previewCommitMu.Unlock()
@@ -276,7 +307,7 @@ func TestCorruptPreviewCleanupSerializesWithReplacement(t *testing.T) {
 	}
 	written := make(chan error, 1)
 	go func() {
-		written <- Write(dir, source, newOpaqueThumb(2, 1, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
+		written <- Write(owner, source, newOpaqueThumb(2, 1, color.RGBA{R: 255, G: 255, B: 255, A: 255}))
 	}()
 	unblock()
 	<-removed
@@ -284,8 +315,8 @@ func TestCorruptPreviewCleanupSerializesWithReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A delayed failed reader must also preserve a completed replacement.
-	discardCorruptPreview(context.Background(), path, delayed)
-	if preview, ok := Read(dir, source); !ok || preview.Bounds() != image.Rect(0, 0, 2, 1) {
+	discardCorruptPreview(context.Background(), access, relativePath, delayed)
+	if preview, ok := Read(owner, source); !ok || preview.Bounds() != image.Rect(0, 0, 2, 1) {
 		t.Fatal("failed reader removed the healthy replacement")
 	}
 }
@@ -296,6 +327,7 @@ func TestReadMissesWhenStoredFileIsGarbage(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	name, ok := EntryName(src)
 	if !ok {
@@ -309,7 +341,7 @@ func TestReadMissesWhenStoredFileIsGarbage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	img, ok := Read(favDir, src)
+	img, ok := Read(owner, src)
 	if ok {
 		t.Fatalf("Read reported true for garbage file, image = %v", img)
 	}
@@ -321,9 +353,10 @@ func TestWriteErrorsWhenSourceCannotBeStated(t *testing.T) {
 	dir := t.TempDir()
 	missing := storage.NewFileURI(filepath.Join(dir, "does-not-exist.jpg"))
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	thumb := newOpaqueThumb(2, 2, color.RGBA{R: 1, G: 1, B: 1, A: 255})
-	if err := Write(favDir, missing, thumb); err == nil {
+	if err := Write(owner, missing, thumb); err == nil {
 		t.Fatalf("Write with unstat-able source returned nil error")
 	}
 }
@@ -334,9 +367,10 @@ func TestWriteLeavesNoTempFilesBehind(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	thumb := newOpaqueThumb(2, 2, color.RGBA{R: 9, G: 9, B: 9, A: 255})
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -359,13 +393,14 @@ func TestWriteReadRoundTripOpaque(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	thumb := newOpaqueThumb(4, 3, color.RGBA{R: 200, G: 100, B: 50, A: 255})
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
-	got, ok := Read(favDir, src)
+	got, ok := Read(owner, src)
 	if !ok {
 		t.Fatalf("Read reported false after Write")
 	}
@@ -394,11 +429,12 @@ func TestWriteReplacesSiblingExtension(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
-	if err := Write(favDir, src, newOpaqueThumb(2, 2, color.RGBA{R: 10, G: 20, B: 30, A: 255})); err != nil {
+	if err := Write(owner, src, newOpaqueThumb(2, 2, color.RGBA{R: 10, G: 20, B: 30, A: 255})); err != nil {
 		t.Fatalf("Write opaque: %v", err)
 	}
-	if err := Write(favDir, src, newTransparentThumb(2, 2)); err != nil {
+	if err := Write(owner, src, newTransparentThumb(2, 2)); err != nil {
 		t.Fatalf("Write transparent: %v", err)
 	}
 
@@ -414,7 +450,7 @@ func TestWriteReplacesSiblingExtension(t *testing.T) {
 		t.Errorf("thumbs dir holds %d entries %v, want exactly 1", len(entries), names)
 	}
 
-	got, ok := Read(favDir, src)
+	got, ok := Read(owner, src)
 	if !ok {
 		t.Fatal("Read reported false after two writes")
 	}
@@ -432,7 +468,7 @@ func TestWriteRejectsNilThumbnail(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 
-	if err := Write(filepath.Join(dir, "Trip"), src, nil); err == nil {
+	if err := Write(testFavoriteOwner(t, filepath.Join(dir, "Trip")), src, nil); err == nil {
 		t.Error("Write(nil thumbnail) = nil, want an error")
 	}
 }
@@ -448,17 +484,18 @@ func TestHasCurrentPreviewTracksSourceVersion(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
-	if hasCurrentPreview(favDir, src) {
+	if hasCurrentPreview(owner, src) {
 		t.Error("hasCurrentPreview = true before anything was written")
 	}
 
 	thumb := newOpaqueThumb(2, 2, color.RGBA{R: 9, G: 8, B: 7, A: 255})
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
-	if !hasCurrentPreview(favDir, src) {
+	if !hasCurrentPreview(owner, src) {
 		t.Error("hasCurrentPreview = false right after Write")
 	}
 
@@ -467,7 +504,7 @@ func TestHasCurrentPreviewTracksSourceVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if hasCurrentPreview(favDir, src) {
+	if hasCurrentPreview(owner, src) {
 		t.Error("hasCurrentPreview = true for a source whose mod time moved on")
 	}
 }
@@ -475,6 +512,7 @@ func TestHasCurrentPreviewTracksSourceVersion(t *testing.T) {
 func TestReadMissesSameSizeSubsecondEdit(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	owner := testFavoriteOwner(t, dir)
 	src := newSourceFile(t, dir, "a.jpg")
 	before := time.Unix(1700000000, 100000000)
 	after := time.Unix(1700000000, 900000000)
@@ -485,10 +523,10 @@ func TestReadMissesSameSizeSubsecondEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Write(dir, src, newOpaqueThumb(2, 2, color.RGBA{R: 255, A: 255})); err != nil {
+	if err := Write(owner, src, newOpaqueThumb(2, 2, color.RGBA{R: 255, A: 255})); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := Read(dir, src); !ok {
+	if _, ok := Read(owner, src); !ok {
 		t.Fatal("unchanged source missed its current preview")
 	}
 	first, _ := EntryName(src)
@@ -517,7 +555,7 @@ func TestReadMissesSameSizeSubsecondEdit(t *testing.T) {
 	if first == next {
 		t.Error("same-size edited bytes retained old preview identity")
 	}
-	if _, ok := Read(dir, src); ok {
+	if _, ok := Read(owner, src); ok {
 		t.Error("same-size subsecond edit returned stale preview")
 	}
 }
@@ -532,8 +570,9 @@ func (i cancelOnEncodeImage) At(x, y int) color.Color { i.cancel(); return i.Ima
 
 func TestWriteContext_CancelledEncodingPreservesExistingPreview(t *testing.T) {
 	dir := t.TempDir()
+	owner := testFavoriteOwner(t, dir)
 	src := newSourceFile(t, t.TempDir(), "source.jpg")
-	if err := Write(dir, src, newOpaqueThumb(4, 4, color.RGBA{G: 255, A: 255})); err != nil {
+	if err := Write(owner, src, newOpaqueThumb(4, 4, color.RGBA{G: 255, A: 255})); err != nil {
 		t.Fatal(err)
 	}
 	path := previewPath(t, dir, src, ".jpg")
@@ -544,7 +583,7 @@ func TestWriteContext_CancelledEncodingPreservesExistingPreview(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	img := cancelOnEncodeImage{Image: newOpaqueThumb(4, 4, color.RGBA{R: 255, A: 255}), cancel: cancel}
-	if err := WriteContext(ctx, dir, src, img); !errors.Is(err, context.Canceled) {
+	if err := WriteContext(ctx, owner, src, img); !errors.Is(err, context.Canceled) {
 		t.Errorf("WriteContext = %v, want cancellation", err)
 	}
 	after, err := os.ReadFile(path)
@@ -579,13 +618,14 @@ func TestDecodePreview_RejectsCancellationDuringRead(t *testing.T) {
 
 func TestReadContext_CancelledBeforeCacheLookup(t *testing.T) {
 	dir := t.TempDir()
+	owner := testFavoriteOwner(t, dir)
 	src := newSourceFile(t, t.TempDir(), "source.jpg")
-	if err := Write(dir, src, newOpaqueThumb(4, 4, color.RGBA{A: 255})); err != nil {
+	if err := Write(owner, src, newOpaqueThumb(4, 4, color.RGBA{A: 255})); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	img, ok, err := ReadContext(ctx, dir, src)
+	img, ok, err := ReadContext(ctx, owner, src)
 	if img != nil || ok || !errors.Is(err, context.Canceled) {
 		t.Errorf("cancelled cache lookup = %T, %v, %v", img, ok, err)
 	}

@@ -92,7 +92,7 @@ func TestHEICFeatureIntegration(t *testing.T) {
 	if err := os.WriteFile(favoritePath, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	v.SyncFavoritePreviews(favoriteDir, []fyne.URI{storage.NewFileURI(favoritePath)})
+	v.SyncFavoritePreviews(previewOwner(t, favoriteDir), []fyne.URI{storage.NewFileURI(favoritePath)})
 	settleFavoritePreviews(t, v)
 	if names := previewNames(t, favoriteDir); len(names) != 1 {
 		t.Fatalf("HEIC favorite preview missing: %v", names)

@@ -123,6 +123,7 @@ exclude:
       - "internal/favstore/saving_test.go"
       - "internal/favthumbs/contention_test.go"
       - "internal/favthumbs/name_test.go"
+      - "internal/favthumbs/ownership_test.go"
       - "internal/favthumbs/store_test.go"
       - "internal/favthumbs/sweep_test.go"
       - "internal/favthumbs/sync_test.go"

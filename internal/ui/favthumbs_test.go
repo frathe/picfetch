@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"testing"
@@ -54,6 +55,22 @@ func storeFavorite(t *testing.T, v *viewer, name string, files ...fyne.URI) stri
 	v.favorites.Settle()
 
 	return favstore.Dir(dir, name)
+}
+
+// Legacy preview-policy fixtures supply their membership directly. Give their
+// bare directories valid definitions without replacing an already captured one.
+func previewOwner(t *testing.T, dir string) *favstore.Owner {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(dir, "file-list.json")); errors.Is(err, os.ErrNotExist) {
+		if err := favstore.Save(filepath.Dir(dir), filepath.Base(dir), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	definition, err := favstore.Open(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return definition.Owner
 }
 
 // previewNames lists the preview files currently stored for a favorite.
@@ -184,7 +201,7 @@ func TestFavoritePreviewLimitAppliesAndCancelsCurrentPass(t *testing.T) {
 		uitest.TempJPEGURI(t, "second.jpg", 1, 1, color.Black),
 	}
 	dir := t.TempDir()
-	v.SyncFavoritePreviews(dir, files)
+	v.SyncFavoritePreviews(previewOwner(t, dir), files)
 	settleFavoritePreviews(t, v)
 	if len(previewNames(t, dir)) != 1 {
 		t.Fatal("preview pass ignored the selected limit")
@@ -203,7 +220,7 @@ func TestSyncFavoritePreviews_DoesNotEvictGridThumbnails(t *testing.T) {
 		if !v.grid.StoreThumb(older, &favthumbs.Preview{Image: pixels, SourceVersion: name}) || !v.grid.StoreThumb(recent, &favthumbs.Preview{Image: pixels}) {
 			t.Fatal("could not seed both thumbnails")
 		}
-		v.SyncFavoritePreviews(t.TempDir(), []fyne.URI{older})
+		v.SyncFavoritePreviews(previewOwner(t, t.TempDir()), []fyne.URI{older})
 		settleFavoritePreviews(t, v)
 		if !v.grid.StoreThumb(incoming, &favthumbs.Preview{Image: pixels}) {
 			t.Fatal("could not store the newly viewed thumbnail")
@@ -222,12 +239,12 @@ func TestSyncFavoritePreviews_DoesNotEvictGridThumbnails(t *testing.T) {
 		t.Fatal("could not seed the foreground thumbnail")
 	}
 	dir := t.TempDir()
-	v.SyncFavoritePreviews(dir, []fyne.URI{second})
+	v.SyncFavoritePreviews(previewOwner(t, dir), []fyne.URI{second})
 	settleFavoritePreviews(t, v)
 	if !v.grid.Cached(first) || v.grid.Cached(second) {
 		t.Fatal("background preview displaced the foreground thumbnail")
 	}
-	if _, ok := favthumbs.Read(dir, second); !ok {
+	if _, ok := favthumbs.Read(previewOwner(t, dir), second); !ok {
 		t.Fatal("declined memory admission prevented the disk preview")
 	}
 }
@@ -244,10 +261,10 @@ func TestSyncFavoritePreviews_RefreshesChangedGridThumbnails(t *testing.T) {
 				t.Fatal("could not seed the grid thumbnails")
 			}
 			dir := t.TempDir()
-			if err := favthumbs.Write(dir, source, image.NewRGBA(image.Rect(0, 0, 4, 4))); err != nil {
+			if err := favthumbs.Write(previewOwner(t, dir), source, image.NewRGBA(image.Rect(0, 0, 4, 4))); err != nil {
 				t.Fatal(err)
 			}
-			v.SyncFavoritePreviews(dir, []fyne.URI{source})
+			v.SyncFavoritePreviews(previewOwner(t, dir), []fyne.URI{source})
 			settleFavoritePreviews(t, v)
 			thumb, ok := v.grid.CachedThumb(source)
 			if budget == 256 {
@@ -275,13 +292,13 @@ func TestSyncFavoritePreviews_EmptyListSweepsStalePreviews(t *testing.T) {
 	source := uitest.TempJPEGURI(t, "one.jpg", 64, 48, color.White)
 	favDir := storeFavorite(t, v, "Trip", source)
 
-	v.SyncFavoritePreviews(favDir, []fyne.URI{source})
+	v.SyncFavoritePreviews(previewOwner(t, favDir), []fyne.URI{source})
 	settleFavoritePreviews(t, v)
 	if got := previewNames(t, favDir); len(got) != 1 {
 		t.Fatalf("preview files = %v, want one for the single favorited file", got)
 	}
 
-	v.SyncFavoritePreviews(favDir, nil)
+	v.SyncFavoritePreviews(previewOwner(t, favDir), nil)
 	settleFavoritePreviews(t, v)
 
 	if got := previewNames(t, favDir); len(got) != 0 {
@@ -362,10 +379,10 @@ func TestFavoritePreviews_SupersededWorkersRemainTracked(t *testing.T) {
 				CloseFunc: func() error { return nil },
 			}, nil
 		})
-		v.SyncFavoritePreviews(oldDir, []fyne.URI{u})
+		v.SyncFavoritePreviews(previewOwner(t, oldDir), []fyne.URI{u})
 		<-entered
 		old := v.favThumb.Current()
-		v.SyncFavoritePreviews(newDir, nil)
+		v.SyncFavoritePreviews(previewOwner(t, newDir), nil)
 		synctest.Wait()
 		settled := make(chan struct{})
 		go func() { v.favThumbWorkers.Wait(); close(settled) }()
@@ -387,7 +404,7 @@ func TestFavoritePreviews_SupersededWorkersRemainTracked(t *testing.T) {
 			t.Fatal(err)
 		}
 		previous := v.favThumb.Current()
-		v.SyncFavoritePreviews(newDir, nil)
+		v.SyncFavoritePreviews(previewOwner(t, newDir), nil)
 		synctest.Wait()
 		if v.favThumb.Current() != previous {
 			t.Error("closed viewer admitted another preview pass")
@@ -434,7 +451,7 @@ func TestShutdownCancelsFavoritePreviews(t *testing.T) {
 		}, nil
 	})
 	dir := t.TempDir()
-	v.SyncFavoritePreviews(dir, []fyne.URI{u})
+	v.SyncFavoritePreviews(previewOwner(t, dir), []fyne.URI{u})
 	select {
 	case <-entered:
 	case <-time.After(testTimeout):
@@ -454,14 +471,14 @@ func TestShutdownCancelsFavoritePreviews(t *testing.T) {
 	if reads != 1 {
 		t.Errorf("shutdown source reads=%d, want 1", reads)
 	}
-	if _, ok := favthumbs.Read(dir, u); ok {
+	if _, ok := favthumbs.Read(previewOwner(t, dir), u); ok {
 		t.Error("shutdown allowed a disk preview write")
 	}
 	if _, ok := v.grid.CachedThumb(u); ok {
 		t.Error("shutdown allowed a thumbnail cache write")
 	}
 	previous := v.favThumb.Current()
-	v.SyncFavoritePreviews(dir, nil)
+	v.SyncFavoritePreviews(previewOwner(t, dir), nil)
 	settleFavoritePreviews(t, v)
 	if v.favThumb.Current() != previous {
 		t.Error("shutdown admitted a new preview pass")
@@ -483,9 +500,9 @@ func TestFavoritePreviewAfterCommitBeforeNotificationRejectsOldMemoryHit(t *test
 	// the old thumbnail-cache invalidation have not run yet.
 	v.SetFavoritePreviewCache(true)
 	dir := t.TempDir()
-	v.SyncFavoritePreviews(dir, []fyne.URI{source})
+	v.SyncFavoritePreviews(previewOwner(t, dir), []fyne.URI{source})
 	v.favThumbWorkers.Wait()
-	preview, ok := favthumbs.Read(dir, source)
+	preview, ok := favthumbs.Read(previewOwner(t, dir), source)
 	if !ok {
 		t.Fatal("favorite pass did not produce a current preview")
 	}

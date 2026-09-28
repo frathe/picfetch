@@ -15,7 +15,8 @@ import (
 func TestSweepCancellationDuringMembershipScanKeepsPreviews(t *testing.T) {
 	source := newSourceFile(t, t.TempDir(), "kept.jpg")
 	dir := t.TempDir()
-	if err := Write(dir, source, newOpaqueThumb(1, 1, color.RGBA{A: 255})); err != nil {
+	owner := testFavoriteOwner(t, dir)
+	if err := Write(owner, source, newOpaqueThumb(1, 1, color.RGBA{A: 255})); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -26,10 +27,10 @@ func TestSweepCancellationDuringMembershipScanKeepsPreviews(t *testing.T) {
 			t.Error("cancelled sweep continued examining sources")
 		}},
 	}
-	if err := sweepContext(ctx, dir, files); !errors.Is(err, context.Canceled) {
+	if err := sweepContext(ctx, owner, files); !errors.Is(err, context.Canceled) {
 		t.Fatalf("sweep = %v, want cancellation", err)
 	}
-	if _, ok := Read(dir, source); !ok {
+	if _, ok := Read(owner, source); !ok {
 		t.Fatal("cancelled sweep removed a current preview")
 	}
 }
@@ -44,9 +45,10 @@ func TestSweepDeletesStalePreviewForChangedSource(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	thumb := newOpaqueThumb(2, 2, color.RGBA{R: 5, G: 6, B: 7, A: 255})
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -61,7 +63,7 @@ func TestSweepDeletesStalePreviewForChangedSource(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := Sweep(favDir, []fyne.URI{src}); err != nil {
+	if err := Sweep(owner, []fyne.URI{src}); err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
 
@@ -76,9 +78,10 @@ func TestSweepDeletesPreviewForRemovedSource(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	thumb := newOpaqueThumb(2, 2, color.RGBA{R: 1, G: 2, B: 3, A: 255})
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 	name, ok := EntryName(src)
@@ -89,7 +92,7 @@ func TestSweepDeletesPreviewForRemovedSource(t *testing.T) {
 
 	// src is no longer part of the favorite's file list at all - not just
 	// changed, gone from the set - so nothing should keep its preview.
-	if err := Sweep(favDir, []fyne.URI{}); err != nil {
+	if err := Sweep(owner, []fyne.URI{}); err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
 
@@ -104,9 +107,10 @@ func TestSweepKeepsCurrentPreview(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	thumb := newOpaqueThumb(2, 2, color.RGBA{R: 4, G: 5, B: 6, A: 255})
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 	name, ok := EntryName(src)
@@ -115,7 +119,7 @@ func TestSweepKeepsCurrentPreview(t *testing.T) {
 	}
 	previewPath := filepath.Join(Dir(favDir), name+".jpg")
 
-	if err := Sweep(favDir, []fyne.URI{src}); err != nil {
+	if err := Sweep(owner, []fyne.URI{src}); err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
 
@@ -136,9 +140,10 @@ func TestSweepKeepsPreviewsForUnstatableSource(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	thumb := newOpaqueThumb(2, 2, color.RGBA{R: 7, G: 8, B: 9, A: 255})
-	if err := Write(favDir, src, thumb); err != nil {
+	if err := Write(owner, src, thumb); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 	name, ok := EntryName(src)
@@ -153,7 +158,7 @@ func TestSweepKeepsPreviewsForUnstatableSource(t *testing.T) {
 
 	// src is still listed among the favorite's files, but can no longer be
 	// stat-ed - the offline-volume case.
-	if err := Sweep(favDir, []fyne.URI{src}); err != nil {
+	if err := Sweep(owner, []fyne.URI{src}); err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
 
@@ -167,6 +172,7 @@ func TestSweepLeavesNonPreviewFileAlone(t *testing.T) {
 
 	dir := t.TempDir()
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 	if err := os.MkdirAll(Dir(favDir), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +181,7 @@ func TestSweepLeavesNonPreviewFileAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := Sweep(favDir, []fyne.URI{}); err != nil {
+	if err := Sweep(owner, []fyne.URI{}); err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
 
@@ -189,12 +195,13 @@ func TestSweepMissingThumbsDirIsNoOp(t *testing.T) {
 
 	dir := t.TempDir()
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	if _, err := os.Stat(Dir(favDir)); !os.IsNotExist(err) {
 		t.Fatalf("thumbs dir already exists before Sweep: %v", err)
 	}
 
-	if err := Sweep(favDir, []fyne.URI{}); err != nil {
+	if err := Sweep(owner, []fyne.URI{}); err != nil {
 		t.Fatalf("Sweep on missing thumbs dir = %v, want nil", err)
 	}
 }
@@ -209,6 +216,7 @@ func TestSweepDeletesLeftoverTempFile(t *testing.T) {
 
 	dir := t.TempDir()
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 	if err := os.MkdirAll(Dir(favDir), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +225,7 @@ func TestSweepDeletesLeftoverTempFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := Sweep(favDir, []fyne.URI{}); err != nil {
+	if err := Sweep(owner, []fyne.URI{}); err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
 
@@ -231,20 +239,21 @@ func TestSweepWithEmptyFilesDeletesEveryPreview(t *testing.T) {
 
 	dir := t.TempDir()
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	srcA := newSourceFile(t, dir, "a.jpg")
 	srcB := newSourceFile(t, dir, "b.jpg")
-	if err := Write(favDir, srcA, newOpaqueThumb(2, 2, color.RGBA{R: 1, G: 1, B: 1, A: 255})); err != nil {
+	if err := Write(owner, srcA, newOpaqueThumb(2, 2, color.RGBA{R: 1, G: 1, B: 1, A: 255})); err != nil {
 		t.Fatalf("Write a: %v", err)
 	}
-	if err := Write(favDir, srcB, newOpaqueThumb(2, 2, color.RGBA{R: 2, G: 2, B: 2, A: 255})); err != nil {
+	if err := Write(owner, srcB, newOpaqueThumb(2, 2, color.RGBA{R: 2, G: 2, B: 2, A: 255})); err != nil {
 		t.Fatalf("Write b: %v", err)
 	}
 
 	// The favorite's file list is now empty - every preview under it should
 	// go, not just the ones for sources that were merely removed from a
 	// still-nonempty list.
-	if err := Sweep(favDir, []fyne.URI{}); err != nil {
+	if err := Sweep(owner, []fyne.URI{}); err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
 
@@ -267,9 +276,10 @@ func TestSweepDeletesPNGPreviewForRemovedSource(t *testing.T) {
 	dir := t.TempDir()
 	src := newSourceFile(t, dir, "a.jpg")
 	favDir := filepath.Join(dir, "Trip")
+	owner := testFavoriteOwner(t, favDir)
 
 	// newTransparentThumb forces Write onto the .png path.
-	if err := Write(favDir, src, newTransparentThumb(2, 2)); err != nil {
+	if err := Write(owner, src, newTransparentThumb(2, 2)); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 	name, ok := EntryName(src)
@@ -281,7 +291,7 @@ func TestSweepDeletesPNGPreviewForRemovedSource(t *testing.T) {
 		t.Fatalf("expected .png preview at %q right after Write", previewPath)
 	}
 
-	if err := Sweep(favDir, []fyne.URI{}); err != nil {
+	if err := Sweep(owner, []fyne.URI{}); err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
 

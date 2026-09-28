@@ -675,7 +675,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. The combined pending set is cleared before that shared path refuses an active comparison, so deliveries cannot queue behind it. |
 | `memlimits.go` | `settings` value, `settingsState` / `ApplySettings`, memory-limit get/set that retune caches and `imaging.SetMaxEncodedBytes`. |
 | `theme.go` | Settings-facing appearance getter/setter; applies `internal/appearance` modes live. |
-| `favthumbs.go` | Viewer glue for `favthumbs.Sync` and `gridSink`; captures the saved Favorite preview limit (default 1000) and retires active work on edits; per-request completion plus all-pass worker tracking and terminal shutdown cancellation. |
+| `favthumbs.go` | Viewer glue for `favthumbs.Sync` and `gridSink`; carries the owner captured by complete opening or committed saving, captures the saved preview limit (default 1000), and retires active work on edits; per-request completion plus all-pass worker tracking and terminal shutdown cancellation. |
 | `load.go` | `ShowImage` admits fresh image selection; private `loadImage` continues already-admitted collection reconciliation and slideshow lifetimes through the same display path. Display retains requested/probed/presented/failure, retry and neighbor ownership; window/zoom sizing remains here. |
 | `toast.go` | Self-dismissing notification card and `ShowToast`. |
 | `info.go` | Persistent info overlay (I); EXIF link; RAW `(preview)` mark. |
@@ -844,13 +844,16 @@ unavailable.
 ### `internal/favthumbs`
 
 Disk-cached grid previews under `<favorite>/thumbs/`. `Sync` is the
-background pass; `Sink` is the caller’s in-memory thumb cache.
+background pass; `Sink` is the caller’s in-memory thumb cache. Disk operations
+take the original captured `favstore.Owner`, acquire bounded directory-relative
+access, and recheck ownership before publication/cleanup. Original image decoding
+retains no Favorite handles; preview work can create only the cache child.
 
 | File | Responsibility |
 |------|----------------|
 | `store.go` / `name.go` | On-disk lookup and filename scheme; `ReadContext` / `WriteContext` check cancellation through cache decode/encode and before atomic replacement. |
 | `sync.go` | Cancellable `Sync` walk: memory → disk → decode, then `Sink`; bounds original-decode preparation to the configured number of unique source paths (default 1000) and serializes those decodes. Later entries reuse memory/disk previews without original reads. A completed pass prunes against the full Favorite membership. |
-| `sweep.go` | Deletes stale preview files; Sync's membership scan and deletion walk check cancellation, preserving current tail previews and the offline-source guard. |
+| `sweep.go` | Deletes stale preview files; Sync's full-membership scan and deletion walk check cancellation and captured owner/record identity, preserving fresh replacements, current tail previews and the offline-source guard. |
 
 ### `internal/session`
 
