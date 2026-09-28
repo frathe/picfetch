@@ -1,6 +1,6 @@
 # 02: Capture immutable launch decisions
 
-Status: ready-for-agent
+Status: done
 Parent: [MA-033 specification](../spec.md)
 **Blocked by:** [01: Make production startup testable](01-production-startup.md).
 
@@ -10,20 +10,20 @@ viewer composition. Predecessor cleanup must obey that captured permission.
 
 ## Acceptance criteria
 
-- [ ] The six distribution/purpose combinations produce the accepted permission
+- [x] The six distribution/purpose combinations produce the accepted permission
   and complete reason set; both trial flags are invalid. Capture actual compiled
   distribution, never infer it from paths or features. Verify: V1, V5.
-- [ ] Explicit construction from zero options means ordinary launch. Missing or
+- [x] Explicit construction from zero options means ordinary launch. Missing or
   invalid policy rejects composition before preferences/session or features;
   later input mutation and another viewer cannot alter the captured facts.
   The passive value owns no callbacks, live features or resources. Verify: V1, V2.
-- [ ] Preserve ordinary and both trial identities, the native Explorer identity
+- [x] Preserve ordinary and both trial identities, the native Explorer identity
   agreement and current path-selection rules, including ordinary fallback
   semantics without introducing new canonicalization. Verify: V1.
-- [ ] Production selects application identity and predecessor cleanup from the
+- [x] Production selects application identity and predecessor cleanup from the
   same validated decision. Restricted launches leave predecessor artifacts
   untouched; ordinary waiting remains before app creation. Verify: V3.
-- [ ] Real viewer construction and shared test composition receive explicit
+- [x] Real viewer construction and shared test composition receive explicit
   policy; ordinary saved state and one-shot launch overrides remain compatible.
   Existing downstream guards remain until their owning tickets migrate them.
   Verify: V2, V4.
@@ -50,3 +50,27 @@ Follow the [shared execution rules](README.md#execution-and-evidence-rules).
 Keep necessary existing prerequisite probes separate from passive policy.
 Never add an implicit ordinary fallback to ease call-site migration. Tagged
 tests on this host do not establish native Windows Store qualification.
+
+## Completion evidence
+
+2026-09-28, ticket-02 commit: V1-V5 passed with all required children. Lead
+independently reran the delegated passive-policy tests and reviewed the patch.
+New root composition requires explicit policy; every existing construction test
+uses a shared helper that constructs one through the production API. The two
+runtime composition gates reject before cache/preferences or trial acquisition.
+Production captures the compiled distribution and selects identity/cleanup from
+that same decision. Existing downstream guards remain for their owning tickets.
+
+Behavioral reds observed: absent policy opened app cache; public Run attempted
+trial acquisition; production forwarded an absent policy; removing viewer policy
+propagation failed ordinary, both immutable-trial and independent-viewer children.
+The policy's four vertical slices also failed before their implementations.
+Retained uncached greens: `.scratch/ma-033/evidence/02-*-green.log`.
+Native Windows/Store execution remains ticket 09, distinct from local tagged tests.
+
+GoLand inspected all 25 changed Go files including weak warnings, with no
+timeouts. Details/dispositions: `.scratch/ma-033/evidence/02-inspections.json`.
+Intentional fixture duplicates and explicit mosaic fixture types match existing
+exact Qodana exclusions. Unchanged viewer duplicates point only to ignored local
+MA-028 mutation evidence, absent from committed CI input. Tagged focused vet,
+format/exclusion checks and the exact 740-test shard inventory passed.

@@ -16,9 +16,10 @@ type startupOps struct {
 	similarityWorker func() bool
 	installOpenWith  func()
 	cleanup          func()
-	identity         func(context.Context, launch.Options) (string, error)
+	capture          func(launch.Options) (launch.Policy, error)
+	prerequisites    func(context.Context, launch.Policy) error
 	newApp           func(string) (fyne.App, error)
-	run              func(fyne.App, []fyne.URI, launch.Options) error
+	run              func(fyne.App, []fyne.URI, launch.Options, launch.Policy) error
 }
 
 func runStartup(args []string, stdout, stderr io.Writer, ops startupOps) (int, error) {
@@ -31,17 +32,23 @@ func runStartup(args []string, stdout, stderr io.Writer, ops startupOps) (int, e
 	}
 	// The native delegate must be installed before Fyne/GLFW initialization.
 	ops.installOpenWith()
+	policy, err := ops.capture(opts)
+	if err != nil {
+		return 1, err
+	}
+	if !policy.Valid() {
+		return 1, launch.ErrInvalidPolicy
+	}
+	if err := ops.prerequisites(context.Background(), policy); err != nil {
+		return 1, err
+	}
 	// A relaunch waits for its predecessor before opening app preferences.
-	cleanupLaunchPredecessor(opts, ops.cleanup)
-	identity, err := ops.identity(context.Background(), opts)
+	cleanupLaunchPredecessor(policy, ops.cleanup)
+	application, err := ops.newApp(policy.ApplicationID())
 	if err != nil {
 		return 1, err
 	}
-	application, err := ops.newApp(identity)
-	if err != nil {
-		return 1, err
-	}
-	if err := ops.run(application, argsToURIs(paths), opts); err != nil {
+	if err := ops.run(application, argsToURIs(paths), opts, policy); err != nil {
 		return 1, err
 	}
 	return 0, nil

@@ -40,7 +40,10 @@ const (
 // already parsed and validated by internal/launch; the zero value is a
 // plain launch that overrides nothing. notices and privacy are this build's
 // embedded documents, supplied by main alongside its other resources.
-func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices, privacy string) error {
+func Run(application fyne.App, initial []fyne.URI, opts launch.Options, policy launch.Policy, notices, privacy string) error {
+	if !policy.Valid() {
+		return launch.ErrInvalidPolicy
+	}
 	var trial *explorertrial.Session
 	var err error
 	var favoritesDir string
@@ -58,7 +61,10 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices,
 			return err
 		}
 	}
-	view, window := buildStartupViewer(application)
+	view, window, err := buildStartupViewer(application, policy)
+	if err != nil {
+		return errors.Join(err, trial.Close())
+	}
 	if err := view.configureLocationTrial(opts.LocationMapTrial); err != nil {
 		return errors.Join(err, trial.Close())
 	}

@@ -106,7 +106,7 @@ func TestCompareShortcut_PhysicalControlOpensComparison(t *testing.T) {
 
 func TestShutdownClosesComparisonWithoutRefreshingRetiredUI(t *testing.T) {
 	application := fynetest.NewApp()
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.compare.SetUIQueue(&uitest.UIQueue{})
 	t.Cleanup(win.Close)

@@ -14,6 +14,7 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/requestlife"
 	"github.com/frathe/picfetch/internal/ui/analysiscache"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
@@ -52,9 +53,10 @@ type viewer struct {
 	// stopping retires title/menu updates before shutdown cancels features.
 	// Fyne may run OnStopped after the native event loop has drained.
 	stopping bool
-	// storeManaged is immutable in production and copied from the build-tag
-	// fact in internal/distribution. Tests can set the per-viewer value to
-	// exercise both delivery channels without mutable package-level seams.
+	// launchPolicy is captured before composition and independent of features.
+	launchPolicy launch.Policy
+	// Transitional consumer of the captured distribution; existing downstream
+	// guards remain until their owning MA-033 tickets migrate them.
 	storeManaged bool
 	heic         *heicWork
 	// quit requests application shutdown after PerformUpdate has successfully

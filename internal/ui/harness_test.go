@@ -13,8 +13,10 @@ import (
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/completion"
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/heic"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/analysiscache"
@@ -89,6 +91,29 @@ func TestMain(m *testing.M) {
 // a window, not just this one.
 func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	t.Helper()
+	return newTestUIWithPolicy(t, testLaunchPolicy(t, launch.Options{}, distribution.StoreManaged))
+}
+
+func testLaunchPolicy(t *testing.T, opts launch.Options, storeManaged bool) launch.Policy {
+	t.Helper()
+	policy, err := launch.NewPolicy(opts, "io.github.frathe.picfetch", storeManaged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return policy
+}
+
+func buildTestStartupViewer(t *testing.T, application fyne.App) (*viewer, fyne.Window) {
+	t.Helper()
+	view, window, err := buildStartupViewer(application, testLaunchPolicy(t, launch.Options{}, distribution.StoreManaged))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return view, window
+}
+
+func newTestUIWithPolicy(t *testing.T, policy launch.Policy) (v *viewer, win fyne.Window, closed func() bool) {
+	t.Helper()
 
 	// Reassert the shared app as the current one before building: the
 	// persistence tests construct their own app, and Fyne makes whichever
@@ -111,7 +136,11 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 		}
 	}
 
-	v, win = buildStartupViewer(testApp)
+	var err error
+	v, win, err = buildStartupViewer(testApp, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
 	v.configureHEIC(unavailableHEICBackend{})
 	v.heic.ui = &uitest.UIQueue{}
 	v.display.SetUIQueue(&uitest.UIQueue{})

@@ -111,9 +111,8 @@ func launchArgs(args []string, stdout, stderr io.Writer) (paths []string, opts l
 
 // cleanupLaunchPredecessor admits the pre-app filesystem cleanup only for
 // ordinary portable launches. The callback keeps this boundary desktop-free.
-func cleanupLaunchPredecessor(opts launch.Options, cleanup func()) {
-	//goland:noinspection GoBoolExpressions
-	if !distribution.StoreManaged && opts.ExplorerTrial == "" && opts.LocationMapTrial == "" {
+func cleanupLaunchPredecessor(policy launch.Policy, cleanup func()) {
+	if policy.Updates().Allowed() {
 		cleanup()
 	}
 }
@@ -138,8 +137,14 @@ func productionStartup() startupOps {
 			openwith.Install()
 		},
 		cleanup: update.CleanupPredecessor,
-		identity: func(ctx context.Context, opts launch.Options) (string, error) {
-			return opts.ApplicationID(ctx, appID)
+		capture: func(opts launch.Options) (launch.Policy, error) {
+			return launch.NewPolicy(opts, appID, distribution.StoreManaged)
+		},
+		prerequisites: func(ctx context.Context, policy launch.Policy) error {
+			if policy.Purpose() == launch.ExplorerTrial {
+				return similarity.VerifyOffline(ctx)
+			}
+			return nil
 		},
 		newApp: func(identity string) (fyne.App, error) {
 			application := app.NewWithID(identity)
@@ -148,8 +153,8 @@ func productionStartup() startupOps {
 			}
 			return application, nil
 		},
-		run: func(application fyne.App, initial []fyne.URI, opts launch.Options) error {
-			return ui.Run(application, initial, opts, thirdPartyNotices, privacyPolicy)
+		run: func(application fyne.App, initial []fyne.URI, opts launch.Options, policy launch.Policy) error {
+			return ui.Run(application, initial, opts, policy, thirdPartyNotices, privacyPolicy)
 		},
 	}
 }

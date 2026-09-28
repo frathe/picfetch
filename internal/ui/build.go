@@ -15,7 +15,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/appearance"
-	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
@@ -86,7 +85,8 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		loadingBar:    loadingBar,
 		toast:         toastComp,
 		info:          info,
-		storeManaged:  distribution.StoreManaged,
+		launchPolicy:  startup.policy,
+		storeManaged:  startup.policy.StoreManaged(),
 		state:         newAppState(filesort.FromPref(prefs.SortMode), prefs.MergeMode),
 		baseTitle:     appTitle,
 		imgCache:      cache,

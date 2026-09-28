@@ -16,8 +16,10 @@ It parses the command line (`launchArgs`, see
 subprocess modes before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
 cleanup for Store-managed builds and explicit Explorer or Location Map trials,
-asks `launch.Options.ApplicationID` to validate and select the app identity before
-building the `fyne.App`, loads embedded
+captures `launch.Policy` from options and compiled distribution, checks Explorer
+prerequisites, then admits predecessor cleanup and selects the app identity before
+building the `fyne.App`. The same explicit policy enters UI composition before
+preferences/session access. It loads embedded
 `translations/*.json`, embeds `THIRD-PARTY-NOTICES.md` and `PRIVACY.md`, converts CLI paths to URIs
 (`argsToURIs`), and passes the immutable documents to `ui.Run`, which supplies
 Help's offline Licenses and Privacy policy windows before startup. `main_darwin_test.go` asserts the graft landed — this is the only
@@ -651,7 +653,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | File(s) | Responsibility |
 |---------|----------------|
 | `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown retires title/menu updates, cancels feature work and flushes preferences without rebuilding retired native menus. Store-managed builds skip GitHub update startup and staged-binary apply. Explicit trial startup reserves new evidence, isolates Favorites/presets/updates, disables update activity, auto-opens Explorer after the ordinary scan, and joins its signal watcher and workers before finalizing evidence. |
-| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, similarity map, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
+| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules with the validated captured launch policy. Overlay tail: copy selection, similarity map, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
 | `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with a compact 17-cell atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position and circle progress. A hover-only surface preserves input across the restore link; ten circles request `Help.ShowFinis`. No timers or background workers. `scripts/appassets` retains the used pixels from `assets/trane/codex-pet/spritesheet.webp`. |
@@ -909,9 +911,8 @@ switching automatically.
 ### `internal/distribution`
 
 Compile-time distribution policy. `StoreManaged` is false for ordinary builds
-and true only with the `microsoftstore` build tag. `internal/ui` snapshots it
-when constructing a viewer so Microsoft Store packages cannot use the GitHub
-self-updater while all other distributions retain the existing behavior.
+and true only with the `microsoftstore` build tag. Production startup captures
+it in `launch.Policy`; UI composition receives that explicit decision.
 
 ### `internal/wingesture`
 
@@ -1097,6 +1098,7 @@ against the `preferences.SortBy*` vocabulary. No Fyne import.
 | File | Responsibility |
 |------|----------------|
 | `launch.go` | `Options`, `Options.ApplicationID`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
+| `policy.go` | Explicit immutable `Policy`, `UpdatePermission` and storage selection, independent of trial resources and offline prerequisites. |
 
 ### `internal/filesort`
 

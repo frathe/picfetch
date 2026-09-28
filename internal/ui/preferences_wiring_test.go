@@ -42,7 +42,7 @@ func TestRun_RejectsUnavailableFavoriteStorageBeforeBuildingViewer(t *testing.T)
 
 	// A nil app makes accidental viewer construction fail instead of starting
 	// workers after the storage failure.
-	err := Run(nil, nil, launch.Options{}, "", "")
+	err := Run(nil, nil, launch.Options{}, testLaunchPolicy(t, launch.Options{}, false), "", "")
 	if !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), "create private favorites directory") {
 		t.Fatalf("Run error = %v, want the private-storage creation failure", err)
 	}
@@ -70,7 +70,7 @@ func TestStartup_LoadsSavedPreferencesIntoViewer(t *testing.T) {
 		DuplicateDistance:    0, DuplicateDistanceSet: true,
 	})
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	defer win.Close()
 	t.Cleanup(func() { imaging.SetMaxEncodedBytes(0) }) // process-wide - see memlimits.go
 
@@ -143,7 +143,7 @@ func TestThemeMode_RestoresAppliesLiveAndPersists(t *testing.T) {
 	application.Settings().SetTheme(base)
 	preferences.Save(application, preferences.State{ThemeMode: appearance.Dark})
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	defer win.Close()
 	t.Cleanup(func() { imaging.SetMaxEncodedBytes(0) })
 
@@ -181,7 +181,7 @@ func TestStartup_LoadsSavedSecondaryWindowGeometry(t *testing.T) {
 		},
 	})
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	defer win.Close()
 	t.Cleanup(func() { imaging.SetMaxEncodedBytes(0) }) // process-wide - see memlimits.go
 
@@ -211,7 +211,7 @@ func TestCurrentPreferences_CarriesSecondaryWindowGeometry(t *testing.T) {
 	saved := preferences.WindowGeometry{X: 70, Y: 80, PositionSet: true, Size: fyne.NewSize(500, 400)}
 	preferences.Save(application, preferences.State{SettingsWindow: saved, ExifWindow: saved})
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	defer win.Close()
 	t.Cleanup(func() { imaging.SetMaxEncodedBytes(0) }) // process-wide - see memlimits.go
 
@@ -240,7 +240,7 @@ func TestMosaicPreferences_RestoreAndCurrentSnapshot(t *testing.T) {
 	}
 	preferences.Save(application, preferences.State{MosaicSettings: settings, MosaicWindow: geometry})
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	defer win.Close()
 	if got := v.mosaicWin.Settings(); got != settings {
 		t.Fatalf("restored mosaic settings = %+v, want %+v", got, settings)
@@ -257,7 +257,7 @@ func TestMosaicPreferences_RestoreAndCurrentSnapshot(t *testing.T) {
 func TestStartup_OmittedPreferencesUseShippedDefaults(t *testing.T) {
 	application := test.NewApp()
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	defer win.Close()
 
 	if v.state.SortMode() != filesort.ByName {
@@ -404,7 +404,7 @@ func TestStartViewerRuntime_ReplacesConstructionStopAfterGeometryRestoration(t *
 		t.Fatalf("save temporary favorite: %v", err)
 	}
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	v.favorites.SetUIQueue(&uitest.UIQueue{})
 	t.Cleanup(func() { v.favorites.Stop(); v.favorites.Settle() })
 	t.Cleanup(win.Close)
@@ -463,7 +463,7 @@ func TestStartViewerRuntime_ReplacesConstructionStopAfterGeometryRestoration(t *
 func TestWindowSizeTracker_RecordsResizes(t *testing.T) {
 	application := test.NewApp()
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	defer win.Close()
 
 	win.Resize(fyne.NewSize(900, 650))
@@ -541,7 +541,7 @@ func TestStartup_RestoresLastUpdateCheckDay(t *testing.T) {
 	application := test.NewApp()
 	preferences.SaveLastUpdateCheckDay(application, "2026-08-26")
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	defer win.Close()
 	t.Cleanup(func() { imaging.SetMaxEncodedBytes(0) })
 

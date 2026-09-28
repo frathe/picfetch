@@ -1,6 +1,6 @@
 # MA-033: captured launch policy implementation
 
-Status: active, ticket 01 complete; ticket 02 is the frontier.
+Status: active, tickets 01-02 complete; ticket 03 is the frontier.
 Baseline: `9549e3b` (approved specification), runtime baseline `a5caf73`.
 Route: Deep SDD with vertical TDD slices.
 Authorization: 2026-09-28 `/implement MA-033`: implementation, per-ticket commits,
@@ -180,7 +180,7 @@ must record G1-G5 before spawning.
 | Ticket | Spawns budget/actual | Review rounds | Full suite | Status |
 | --- | --- | --- | --- | --- |
 | 01 | 0/0 | 1 | no | done |
-| 02 | 1/0 | 0 | no | pending |
+| 02 | 1/1 | 1 | no | done |
 | 03/04 recon | 1/1 | n/a | no | complete; acquisition/producer/storage inventory |
 | 03 | 0/0 | 0 | no | pending |
 | 04 | 0/0 | 0 | no | pending |
@@ -215,3 +215,54 @@ Formatting, Qodana exact test exclusion and root tagged vet passed. GoLand
 with no remaining findings or timeouts. The test's compiled distribution branch
 has a narrow `GoBoolExpressions` suppression because both build tags must run
 the same guard. Reinspection passed. No feature storage/lifetime behavior changed.
+
+### Ticket 02 precise policy contract and delegation
+
+`NewPolicy(Options, normalID string, storeManaged bool) (Policy, error)` captures
+only value facts. Accessors: `Valid`, `ApplicationID`, `Purpose`, `TrialDir`,
+`StoreManaged`, `Updates`; purposes `Ordinary`, `ExplorerTrial`, `LocationMapTrial`.
+`UpdatePermission.Allowed()` and `Reasons() []UpdateReason` return independent
+values; reasons `MissingPolicy`, `StoreManagedUpdates`, `TrialUpdates` in that
+order when applicable. No policy contains caller option pointers or resources.
+`ResolveStorage(ordinary Storage) (Storage, error)` returns ordinary fallbacks
+unchanged, or captured-root children favorites/presets/image-analysis/updates.
+Storage fields: `FavoritesDir`, `PresetsDir`, `AnalysisDir`, `UpdatesDir`.
+`ErrInvalidPolicy` identifies absent/invalid policy. Identity retains existing
+Explorer namespace and Location digest; absolute/clean path resolution introduces
+no symlink/case canonicalization or offline probe.
+
+T1 Sol owns only new `internal/launch/policy.go` and `policy_test.go`.
+G1 yes (bounded contract); G2 yes (ticket 02 V1); G3 yes (two disjoint files);
+G4 yes (pure policy context is smaller than root composition); G5 yes (lead has
+defined interface but has not implemented it). S requires behavior/test judgment;
+W contract only. Lead owns all cross-package integration, negative verification,
+inspection, review and fixes. No subagent commit.
+
+### Ticket 02 evidence
+
+Analyzed/tested revision: `ccf4702` plus the complete ticket-02 patch recorded
+by its commit. Draft PR: https://github.com/frathe/picfetch/pull/72.
+All V1-V5 selections ran and passed, independently executed by the lead, with
+raw local output in `02-policy-green.log`, `02-ui-green.log`,
+`02-startup-green.log`, `02-store-green.log`. Root/UI tests add absent-policy
+refusal before storage/acquisition, immutable independent capture, compiled
+distribution/identity propagation and restricted predecessor admission. Existing
+launch options, startup defaults/geometry/session restoration stayed green.
+
+Behavioral reds retained in tool transcript: UI cache opened before missing
+policy refusal; Run tried trial acquisition; startup forwarded Policy{}; removal
+of the viewer policy initializer failed four new capture tests, then restoration
+passed. Delegated policy reds (transcript, not raw files): matrix saw invalid
+Policy{}; validity accepted empty identity and dual trials; identity returned
+an empty app ID; storage returned ErrInvalidPolicy for explicit ordinary roots.
+Lead inspected implementation and independently verified all green results.
+
+Inspection scope: all 25 changed Go files, GoLand per-file errorsOnly=false;
+complete, no timeouts. Detailed JSON is retained under local evidence. Fixture
+duplicates and mosaic explicit types match existing exact exclusions. Two
+unchanged viewer duplicate fragments match the ignored local
+`.scratch/ma-028/linux-reset-repair-2026-09-27/mutant-viewer.go`, not another
+production implementation; no source suppression or unrelated refactor needed.
+No new actionable findings. Scoped vet passed. Shard check reports 740 runnable
+tests across three shards. Format and exact exclusion checks passed after
+formatting the final test callback. Actual native qualification remains open.

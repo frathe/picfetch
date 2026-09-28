@@ -311,7 +311,7 @@ func TestMosaicDrain_ClosesWindowAndClearsTransientState(t *testing.T) {
 
 func TestMosaicShutdown_ClosesWindowBeforeTheEventLoopStops(t *testing.T) {
 	application := fynetest.NewApp()
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.compare.SetUIQueue(&uitest.UIQueue{})
 	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})

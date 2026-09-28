@@ -56,7 +56,7 @@ func TestDeletion_ShutdownDiscardsQueuedCompletion(t *testing.T) {
 	uitest.StubTrashMove(t, func(path string) error { return os.Remove(path) })
 	// Shutdown persists session/preferences, so it needs its own app/cache.
 	application := fynetest.NewApp()
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.compare.SetUIQueue(&uitest.UIQueue{})
 	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})

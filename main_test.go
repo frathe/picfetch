@@ -28,7 +28,11 @@ func TestTrialLaunchPreservesPredecessorArtifacts(t *testing.T) {
 			if err := os.WriteFile(stage, []byte("normal-session update"), 0600); err != nil {
 				t.Fatal(err)
 			}
-			cleanupLaunchPredecessor(opts, func() {
+			policy, err := launch.NewPolicy(opts, appID, distribution.StoreManaged)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupLaunchPredecessor(policy, func() {
 				if err := os.Remove(stage); err != nil {
 					t.Fatal(err)
 				}

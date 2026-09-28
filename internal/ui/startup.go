@@ -9,6 +9,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/filescan"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/session"
 )
@@ -16,6 +17,7 @@ import (
 // startupState is the persisted input snapshot consumed by buildViewer and
 // geometry restoration.
 type startupState struct {
+	policy       launch.Policy
 	savedSession []fyne.URI
 	prefs        preferences.State
 }
@@ -31,11 +33,15 @@ func loadStartupState(application fyne.App) startupState {
 
 // buildStartupViewer is the shared load, construct, then restore entry point.
 // It leaves noPollerStop installed for startViewerRuntime to replace.
-func buildStartupViewer(application fyne.App) (*viewer, fyne.Window) {
+func buildStartupViewer(application fyne.App, policy launch.Policy) (*viewer, fyne.Window, error) {
+	if !policy.Valid() {
+		return nil, nil, launch.ErrInvalidPolicy
+	}
 	startup := loadStartupState(application)
+	startup.policy = policy
 	view, window := buildViewer(application, startup)
 	restoreStartupGeometry(view, window, startup)
-	return view, window
+	return view, window, nil
 }
 
 // normalizePreferenceDefaults fills only caps. The other zero values remain

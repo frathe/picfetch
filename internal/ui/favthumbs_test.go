@@ -419,7 +419,7 @@ func TestFavoritePreviews_SupersededWorkersRemainTracked(t *testing.T) {
 //goland:noinspection DuplicatedCode
 func TestShutdownCancelsFavoritePreviews(t *testing.T) {
 	application := test.NewApp()
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.compare.SetUIQueue(&uitest.UIQueue{})
 	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})

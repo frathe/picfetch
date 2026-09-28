@@ -371,7 +371,7 @@ func TestStripMetadata_HidesExifLinkAndShrinksReportedSize(t *testing.T) {
 
 func TestShutdownStopsExifAdmission(t *testing.T) {
 	application := test.NewApp()
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.compare.SetUIQueue(&uitest.UIQueue{})
 	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
