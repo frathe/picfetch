@@ -744,6 +744,7 @@ func TestFocusedNativeCIExecutesAndRetainsGuards(t *testing.T) {
 	}
 	var workflow struct {
 		Jobs map[string]struct {
+			Env   map[string]string
 			Steps []struct {
 				Run  string
 				Uses string
@@ -755,6 +756,24 @@ func TestFocusedNativeCIExecutesAndRetainsGuards(t *testing.T) {
 	if err := yaml.Unmarshal(data, &workflow); err != nil {
 		t.Fatal(err)
 	}
+	t.Run("macos_trial_tools", func(t *testing.T) {
+		job := workflow.Jobs["macos-test"]
+		if job.Env["PICFETCH_SIMILARITY_ASSETS"] != "${{ github.workspace }}/.scratch/visual-similarity-explorer/assets" {
+			t.Error("native trial fixture assets do not match its retained compatibility path")
+		}
+		found := false
+		for _, step := range job.Steps {
+			if strings.Contains(step.Run, "^TestNativeLibraryRunner$") {
+				found = true
+				if step.If != "" || !strings.Contains(step.Run, "-tags no_emoji,nodynamic,explorertrial") || !strings.Contains(step.Run, "native-guards-trial-tools.json") || !strings.Contains(step.Run, "jq -e") {
+					t.Error("native trial tool fixture lacks strict, retained native execution")
+				}
+			}
+		}
+		if !found {
+			t.Error("macOS native trial-tool qualification is absent")
+		}
+	})
 	for _, selected := range []struct{ job, suite string }{
 		{"windows-test", "command-admission"}, {"macos-test", "command-admission"},
 		{"linux-native", "favorite-ownership"}, {"windows-test", "favorite-ownership"}, {"macos-test", "favorite-ownership"},

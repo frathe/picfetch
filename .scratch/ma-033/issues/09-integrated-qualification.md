@@ -1,6 +1,6 @@
 # 09: Qualify the integrated implementation
 
-Status: ready-for-agent
+Status: in-progress
 Parent: [MA-033 specification](../spec.md)
 **Blocked by:** [08: Complete policy adoption and native guard coverage](08-convergence-and-native-guards.md).
 

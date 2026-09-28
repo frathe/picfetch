@@ -1,6 +1,6 @@
 # MA-033: captured launch policy implementation
 
-Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`), 04 (`8528f7b`), 05 (`7a5629b`), 06 (`d8f84c0`), 07 (`08dd7b3`) and 08 complete; 09 next.
+Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`), 04 (`8528f7b`), 05 (`7a5629b`), 06 (`d8f84c0`), 07 (`08dd7b3`) and 08 (`99ba962`) complete; 09 active.
 Baseline: `9549e3b` (approved specification), runtime baseline `a5caf73`.
 Route: Deep SDD with vertical TDD slices.
 Authorization: 2026-09-28 `/implement MA-033`: implementation, per-ticket commits,
@@ -188,7 +188,7 @@ must record G1-G5 before spawning.
 | 06 | 0/0 | 1 | no | done |
 | 07 | 0/0 | 1 | no | done |
 | 08 | 1/1 | 1 | no | done |
-| 09 | 0/0 | 0 | CI | pending |
+| 09 | 0/0 | 0 | CI | active |
 
 ## Verification evidence
 
@@ -612,3 +612,13 @@ dirty-state reporting includes untracked files). Lead owns convergence and CI.
   Qodana/CodeQL/full-suite acceptance remains 09. No dependencies/notices changed.
 - Local raw inspection JSON: `08-inspections.json`; CLI output/captures under
   `.scratch/ma-033/evidence/08-*`. No new test files or root top-level tests.
+
+### Ticket 09 qualification wiring
+
+AC18/V3's existing explorertrial-tagged TestNativeLibraryRunner was not selected
+by CI. Add a guarded macOS step on both architectures, retaining raw JSON and
+asserting the exact test passes without skips. Align that job's installed asset
+directory with the fixture's existing compatibility path. This is controlled
+child/launcher compatibility, not real-model or UI latency requalification.
+A qualification-wiring commit is required before CI can furnish its evidence;
+the ticket stays in-progress until all final gates and native captures complete.
