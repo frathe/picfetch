@@ -487,10 +487,10 @@ func TestOpenChooser_ShutdownDiscardsHeldResult(t *testing.T) {
 	// Returns while the external panel is still held. Its worker remains
 	// tracked until it returns, then its invalid token suppresses delivery.
 	shutdown()
-	scanRevision := v.scanOp.lifecycle.currentRevision()
+	scanRevision := v.scanOp.lifecycle.Revision()
 	unblock()
 	settleChooser(t, v)
-	if v.scanOp.lifecycle.currentRevision() != scanRevision {
+	if v.scanOp.lifecycle.Revision() != scanRevision {
 		t.Fatal("held result started a scan after shutdown")
 	}
 	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != before.String() {
@@ -517,9 +517,9 @@ func TestOpenChooser_QueuedDeliveryIsDiscardedAfterReset(t *testing.T) {
 		t.Fatal("result was not queued")
 	}
 	v.reset()
-	revision := v.scanOp.lifecycle.currentRevision()
+	revision := v.scanOp.lifecycle.Revision()
 	queue.Drain()
-	if v.state.Observe().Count() != 0 || v.scanOp.lifecycle.currentRevision() != revision {
+	if v.state.Observe().Count() != 0 || v.scanOp.lifecycle.Revision() != revision {
 		t.Fatal("queued obsolete result restarted opening files after reset")
 	}
 }

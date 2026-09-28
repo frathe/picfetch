@@ -94,7 +94,18 @@
   records all ACs, full CI, four-platform native evidence and inspected Qodana
   SARIF on c1f47b4. [PR 70](https://github.com/frathe/picfetch/pull/70) records
   latest-head code/security reviews, dispositions and final checks.
-  MA-032 and MA-033 remain proposals.
+  [MA-032's design record](docs/worker-lifetimes.md) resolves all nine interview
+  decisions. Its [local specification](.scratch/ma-032/spec.md) is published as
+  accepted, with 60 user stories, test boundaries and 20 acceptance
+  criteria. It defines a root sort/display SVG pilot, a conditional root/display
+  token migration and a contracts-and-tests fallback. Its
+  [nine approved tickets](.scratch/ma-032/issues/README.md) have
+  [archived Deep SDD implementation and evidence](finished_refactorings/2026-09-28-ma-032-request-lifetimes.md).
+  All eight applicable tickets are complete: the accepted sorting/SVG pilot,
+  all 15 root/display request owners and full qualification on `fc7aa32`.
+  Fallback 08 is inapplicable. Per-ticket commits and latest-head GitHub
+  review-loop acceptance are tracked in [PR 71](https://github.com/frathe/picfetch/pull/71).
+  MA-033 remains a proposal.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

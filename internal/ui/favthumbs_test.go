@@ -23,6 +23,7 @@ import (
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/favthumbs"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/requestlife"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -189,11 +190,11 @@ func TestFavoritePreviewLimitAppliesAndCancelsCurrentPass(t *testing.T) {
 	if prev.FavoritePreviewLimit != 1000 {
 		t.Fatalf("default preview limit = %d, want 1000", prev.FavoritePreviewLimit)
 	}
-	token := v.favThumbLifecycle.begin()
+	token := v.favThumbLifecycle.Begin(context.Background())
 	next := prev
 	next.FavoritePreviewLimit = 1
 	v.ApplySettings(prev, next)
-	if token.current() || v.currentPreferences().FavoritePreviewLimit != 1 || v.settingsState().FavoritePreviewLimit != 1 {
+	if token.Current() || v.currentPreferences().FavoritePreviewLimit != 1 || v.settingsState().FavoritePreviewLimit != 1 {
 		t.Fatal("preview-limit edit did not cancel and update persisted/form values")
 	}
 	files := []fyne.URI{
@@ -314,17 +315,17 @@ func TestSyncFavoritePreviews_EmptyListSweepsStalePreviews(t *testing.T) {
 func TestSetFavoritePreviewCacheOffCancelsAnInFlightPass(t *testing.T) {
 	v := newTestViewer(t)
 
-	token := v.favThumbLifecycle.begin()
-	if !token.current() {
+	token := v.favThumbLifecycle.Begin(context.Background())
+	if !token.Current() {
 		t.Fatal("a freshly begun token should be current")
 	}
 
 	v.SetFavoritePreviewCache(false)
 
-	if token.current() {
+	if token.Current() {
 		t.Error("turning the preference off should supersede the pass running under it")
 	}
-	if token.context().Err() == nil {
+	if token.Context().Err() == nil {
 		t.Error("turning the preference off should cancel the running pass's context")
 	}
 }
@@ -334,10 +335,10 @@ func TestSetFavoritePreviewCacheOffCancelsAnInFlightPass(t *testing.T) {
 func TestSetFavoritePreviewCacheOnLeavesAPassAlone(t *testing.T) {
 	v := newTestViewer(t)
 
-	token := v.favThumbLifecycle.begin()
+	token := v.favThumbLifecycle.Begin(context.Background())
 	v.SetFavoritePreviewCache(true)
 
-	if !token.current() {
+	if !token.Current() {
 		t.Error("turning the preference on should not disturb a pass already running")
 	}
 }
@@ -349,7 +350,7 @@ func TestFavoritePreviews_SupersededWorkersRemainTracked(t *testing.T) {
 	// the outer viewer cleanup never selects on a channel from another bubble.
 	t.Cleanup(func() {
 		v.favThumb = completion.Signal{}
-		v.favThumbLifecycle = requestLifecycle{}
+		v.favThumbLifecycle = requestlife.Owner{}
 		v.favThumbWorkers = sync.WaitGroup{}
 	})
 	v.settings.favPreviewCache = true

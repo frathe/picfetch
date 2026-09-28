@@ -274,7 +274,7 @@ func TestUpdateCheck_StoreManagedBuildNeverTouchesGitHubStage(t *testing.T) {
 	if calls != 0 {
 		t.Errorf("verifier factory calls = %d, want 0", calls)
 	}
-	if v.updater.Done().Begun() || v.updateOp.currentRevision() != 0 {
+	if v.updater.Done().Begun() || v.updateOp.Revision() != 0 {
 		t.Error("Store-managed automatic update began background work")
 	}
 	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); err != nil {
@@ -316,22 +316,22 @@ func TestUpdateCheck_VerifierFailurePreservesLifecycle(t *testing.T) {
 		calls++
 		return nil, wantErr
 	})
-	prior := v.updateOp.begin()
-	wantRevision := v.updateOp.currentRevision()
+	prior := v.updateOp.Begin(context.Background())
+	wantRevision := v.updateOp.Revision()
 
 	v.maybeStartUpdateCheck()
 
 	if calls != 1 {
 		t.Errorf("verifier factory calls = %d, want 1", calls)
 	}
-	if got := v.updateOp.currentRevision(); got != wantRevision {
+	if got := v.updateOp.Revision(); got != wantRevision {
 		t.Errorf("update lifecycle revision = %d, want unchanged %d", got, wantRevision)
 	}
-	if !prior.current() {
+	if !prior.Current() {
 		t.Error("prior update lifecycle token is no longer current")
 	}
 	select {
-	case <-prior.context().Done():
+	case <-prior.Context().Done():
 		t.Error("prior update lifecycle context was cancelled")
 	default:
 	}
@@ -530,7 +530,7 @@ func TestAutomaticCheckDoesNotBlockOrSupersedeManualPreparation(t *testing.T) {
 	case <-time.After(testTimeout):
 		t.Fatal("manual verifier preparation did not start")
 	}
-	wantRevision := v.updateOp.currentRevision()
+	wantRevision := v.updateOp.Revision()
 
 	returned := make(chan struct{})
 	go func() {
@@ -542,7 +542,7 @@ func TestAutomaticCheckDoesNotBlockOrSupersedeManualPreparation(t *testing.T) {
 	case <-time.After(testTimeout):
 		t.Fatal("automatic check blocked behind manual verifier preparation")
 	}
-	if gotRevision := v.updateOp.currentRevision(); gotRevision != wantRevision {
+	if gotRevision := v.updateOp.Revision(); gotRevision != wantRevision {
 		t.Errorf("automatic check superseded manual revision: got %d, want %d", gotRevision, wantRevision)
 	}
 
@@ -696,7 +696,7 @@ func TestManualUpdateCheck_CancelledRequestEmitsNoTerminalCallback(t *testing.T)
 	case <-time.After(testTimeout):
 		t.Fatal("manual update check did not reach HTTP")
 	}
-	v.updateOp.invalidate()
+	v.updateOp.Invalidate()
 	unblock()
 	waitFor(t, "cancelled manual update check", v.updater.Done())
 
@@ -707,11 +707,11 @@ func TestManualUpdateCheck_CancelledRequestEmitsNoTerminalCallback(t *testing.T)
 
 func TestCurrentUpdateCallback_DropsEventSupersededWhileQueued(t *testing.T) {
 	v := newTestViewer(t)
-	token := v.updateOp.begin()
+	token := v.updateOp.Begin(context.Background())
 	called := false
 	queued := currentUpdateCallback(token, func() { called = true })
 
-	v.updateOp.invalidate()
+	v.updateOp.Invalidate()
 	queued()
 
 	if called {

@@ -7,6 +7,7 @@ package ui
 
 import (
 	"bytes"
+	"context"
 	"image/color"
 	"io"
 	"sync"
@@ -261,7 +262,7 @@ func TestLaunchOptions_PictureFrameSpentWhenLaunchCancelled(t *testing.T) {
 				if phase == "scan" {
 					// Hold delivery at the scan boundary, as if its worker's
 					// completion were queued behind the user's cancellation.
-					token, done := v.scanOp.begin()
+					token, done := v.scanOp.begin(context.Background())
 					defer done()
 					v.scanOp.show()
 					v.dropzone.Hide()

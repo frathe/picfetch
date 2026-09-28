@@ -330,10 +330,10 @@ func TestCollectionAdmission(t *testing.T) {
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)
 		before := v.state.Observe()
-		token := v.scanOp.lifecycle.begin()
-		defer token.cancelContext()
+		token := v.scanOp.lifecycle.Begin(context.Background())
+		defer token.Release()
 		v.OpenFavorite("favorite-B", nil)
-		if !token.current() || v.state.Observe().Generation() != before.Generation() || v.state.Observe().Favorite() != "favorite-A" {
+		if !token.Current() || v.state.Observe().Generation() != before.Generation() || v.state.Observe().Favorite() != "favorite-A" {
 			t.Fatal("literal empty input changed committed facts or canceled work")
 		}
 		unsupported := storage.NewFileURI(uitest.WriteTempFile(t, "notes.txt", []byte("not an image")))

@@ -20,6 +20,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"image"
 	"image/color"
@@ -258,7 +259,7 @@ func TestE2E_EscapeQuitsWhenNothingLoaded(t *testing.T) {
 func TestE2E_EscapeCancelsScanInsteadOfClosing(t *testing.T) {
 	v, _, closed := newTestUI(t)
 
-	v.scanOp.lifecycle.begin()
+	v.scanOp.lifecycle.Begin(context.Background())
 	v.scanOp.active = true
 	v.scanOp.spinner.Show()
 	v.scanOp.label.Show()

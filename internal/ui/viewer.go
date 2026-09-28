@@ -14,6 +14,7 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/requestlife"
 	"github.com/frathe/picfetch/internal/ui/analysiscache"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	compareui "github.com/frathe/picfetch/internal/ui/compare"
@@ -153,7 +154,7 @@ type viewer struct {
 	// outlives the navigation that started it and is superseded only by
 	// the next favorite opened or saved, a preference disable, or shutdown.
 	// favThumbWorkers tracks every pass; favThumbClosed is owned by the UI.
-	favThumbLifecycle requestLifecycle
+	favThumbLifecycle requestlife.Owner
 	favThumbWorkers   sync.WaitGroup
 	favThumbClosed    bool
 
@@ -237,10 +238,13 @@ type viewer struct {
 	// the still-computing reorder. sortOp.lifecycle owns the cancellable
 	// filesort.Order request, staying separate from display's navigation lifecycle so
 	// reordering cannot stop an unrelated decode, preload, or playing GIF.
-	// sortOp.done is finished by finishSort once that request's reorder has
+	// sortOp.done is finished by final delivery once that request's reorder has
 	// finished applying (or been discarded as stale), mirroring v.scanOp.done
 	// and display.LoadDone so tests can wait on it deterministically.
 	sortOp asyncOpUI
+	// sortDo captures the UI dispatcher before each worker starts. Nil uses
+	// fyne.Do; held-delivery tests install an instance-owned queue.
+	sortDo func(func())
 	// sortModeBefore is the mode of the retained order while a new mode is
 	// pending. Superseding requests share this rollback point until one lands.
 	sortModeBefore *filesort.Mode
@@ -293,7 +297,7 @@ type viewer struct {
 
 	// regionCopyLifecycle cancels stale crop/encode work; regionCopyDoAndWait
 	// is a per-viewer seam for deterministic UI-hop tests.
-	regionCopyLifecycle requestLifecycle
+	regionCopyLifecycle requestlife.Owner
 	regionCopyDoAndWait func(func())
 
 	// info is the persistent info overlay (I key) - see internal/ui/infoview,
@@ -381,7 +385,7 @@ type viewer struct {
 	fileWork             fileMutationWork
 	chooser              completion.Signal
 	chooserUI            chooserUIQueue
-	openChooserLifecycle requestLifecycle
+	openChooserLifecycle requestlife.Owner
 	openChooserWorkers   sync.WaitGroup
 	openChooserClosed    bool
 
@@ -441,13 +445,13 @@ type viewer struct {
 	// updater owns client preparation, the release-check/download policy, the
 	// staged-update lifecycle, the What's-New cache, and the last-check-day
 	// storage - see internal/ui/autoupdate. updateOp mirrors
-	// scanOp/display's navigation lifecycle: one requestLifecycle for the background
+	// scanOp/display's navigation lifecycle: one requestlife.Owner for the background
 	// check/download, kept here rather than promoted into that package (this
 	// refactor's locked decision on cancellation), so
 	// maybeStartUpdateCheck (autoupdate.go) prepares the client, then begins
 	// the token and hands Updater.Start its context and a staleness func.
 	updater  *autoupdate.Updater
-	updateOp requestLifecycle
+	updateOp requestlife.Owner
 
 	// settings is the whole settings-backed state - see memlimits.go's
 	// settings for what it holds and why it's grouped.
@@ -721,7 +725,7 @@ func (v *viewer) showFileIfPresent(target fyne.URI) bool {
 // act as "start over" instead of quitting whenever there's something to
 // clear.
 func (v *viewer) reset() {
-	v.openChooserLifecycle.invalidate()
+	v.openChooserLifecycle.Invalidate()
 	v.clearToDropzone()
 
 	v.showWelcomeState()

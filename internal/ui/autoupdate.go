@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/requestlife"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/update"
@@ -29,7 +31,7 @@ func (v *viewer) CheckForUpdates() bool {
 func (v *viewer) SetCheckForUpdates(on bool) {
 	if v.storeManaged || v.explorer.Trial() != nil || v.locationTrial != nil {
 		v.settings.checkForUpdates = false
-		v.updateOp.invalidate()
+		v.updateOp.Invalidate()
 		return
 	}
 	v.settings.checkForUpdates = on
@@ -37,7 +39,7 @@ func (v *viewer) SetCheckForUpdates(on bool) {
 		v.maybeStartUpdateCheck()
 		return
 	}
-	v.updateOp.invalidate()
+	v.updateOp.Invalidate()
 }
 
 // LastUpdateCheckDay and SetLastUpdateCheckDay round-trip the local
@@ -89,8 +91,8 @@ func (v *viewer) maybeStartUpdateCheck() {
 		return
 	}
 
-	token := v.updateOp.begin()
-	if err := v.updater.Start(token.context(), func() bool { return !token.current() }, cur); err != nil {
+	token := v.updateOp.Begin(context.Background())
+	if err := v.updater.Start(token.Context(), func() bool { return !token.Current() }, cur); err != nil {
 		fyne.LogError("update check failed to start", err)
 	}
 }
@@ -113,7 +115,7 @@ func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
 		}
 		return
 	}
-	token := v.updateOp.begin()
+	token := v.updateOp.Begin(context.Background())
 	runOnUI := func(callback func()) {
 		if callback == nil {
 			return
@@ -132,7 +134,7 @@ func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
 	if update.NormalizeVersion(cur) == "" {
 		err := errors.New("current update version is unavailable")
 		fyne.LogError("update check failed", err)
-		if callbacks.Failed != nil && token.current() {
+		if callbacks.Failed != nil && token.Current() {
 			callbacks.Failed(err)
 		}
 		return
@@ -140,13 +142,13 @@ func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
 	if _, ok := update.AssetName(runtime.GOOS, runtime.GOARCH); !ok {
 		err := errors.New("updates are unavailable for this platform")
 		fyne.LogError("update check failed", err)
-		if callbacks.Failed != nil && token.current() {
+		if callbacks.Failed != nil && token.Current() {
 			callbacks.Failed(err)
 		}
 		return
 	}
 
-	v.updater.StartManual(token.context(), func() bool { return !token.current() }, cur, autoupdate.Events{
+	v.updater.StartManual(token.Context(), func() bool { return !token.Current() }, cur, autoupdate.Events{
 		Downloading: func(version string) {
 			runOnUI(func() {
 				if callbacks.Downloading != nil {
@@ -197,9 +199,9 @@ func (v *viewer) PerformUpdate() error {
 // before the real UI driver runs it. Kept as a named closure builder so tests
 // can exercise that delayed-driver ordering even though Fyne's test driver
 // executes fyne.Do inline.
-func currentUpdateCallback(token requestToken, callback func()) func() {
+func currentUpdateCallback(token requestlife.Token, callback func()) func() {
 	return func() {
-		if token.current() {
+		if token.Current() {
 			callback()
 		}
 	}

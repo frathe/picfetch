@@ -252,14 +252,14 @@ func drain(t *testing.T, v *viewer) {
 	// slideshow is asked to stop for the same reason, on this goroutine,
 	// since leaving picture-frame mode touches the window.
 	v.invalidateLoad()
-	v.scanOp.lifecycle.invalidate()
-	v.sortOp.lifecycle.invalidate()
-	v.regionCopyLifecycle.invalidate()
+	v.scanOp.lifecycle.Invalidate()
+	v.sortOp.lifecycle.Invalidate()
+	v.regionCopyLifecycle.Invalidate()
 	v.display.Stop()
 	v.closeFavoritePreviews()
 	v.grid.Stop()
 	v.exif.Stop()
-	v.updateOp.invalidate()
+	v.updateOp.Invalidate()
 	v.slides.Exit()
 	v.compare.Close()
 	v.spiral.Close()

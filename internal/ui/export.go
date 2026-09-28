@@ -137,23 +137,23 @@ func (v *viewer) exportAs(ext string) {
 	// goroutine", and these two are never in flight at once - both panels
 	// are app-modal, so neither can be reached while the other is up.
 	done := v.chooser.Begin()
-	token := v.fileWork.exportLifecycle.begin()
+	token := v.fileWork.exportLifecycle.Begin(context.Background())
 	v.fileWork.exportPending = true
 	v.syncMenus()
 
 	v.fileWork.workers.Go(func() {
-		result := req.run(token.context())
+		result := req.run(token.Context())
 		if result.write.Committed {
 			v.imgCache.Purge()
 		}
-		if !token.current() && !result.write.Committed {
+		if !token.Current() && !result.write.Committed {
 			done()
 			return
 		}
 		v.fileWork.ui.Do(func() {
-			defer token.cancelContext()
+			defer token.Release()
 			defer v.afterFileWrite(result.write, true, true, done)
-			if !token.current() {
+			if !token.Current() {
 				return
 			}
 			v.fileWork.exportPending = false

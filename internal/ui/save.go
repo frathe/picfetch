@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 
 	"fyne.io/fyne/v2"
@@ -54,25 +55,25 @@ func (v *viewer) saveRotation() {
 		return
 	}
 	u := capture.Identity.Source
-	token := v.fileWork.saveLifecycle.begin()
+	token := v.fileWork.saveLifecycle.Begin(context.Background())
 	done := v.fileWork.saveDone.Begin()
 	v.fileWork.savePending = true
 	v.syncMenus()
 	save := v.fileWork.save
 	v.fileWork.workers.Go(func() {
-		result, err := save(token.context(), u, capture.Pixels)
+		result, err := save(token.Context(), u, capture.Pixels)
 		if result.Committed {
 			v.imgCache.Purge()
 		}
-		if !token.current() && !result.Committed {
+		if !token.Current() && !result.Committed {
 			done()
 			return
 		}
 		v.fileWork.ui.Do(func() {
-			current := token.current()
-			defer token.cancelContext()
+			current := token.Current()
+			defer token.Release()
 			defer v.afterFileWrite(result, !current, true, done)
-			if !token.current() {
+			if !token.Current() {
 				return
 			}
 			v.fileWork.savePending = false

@@ -70,7 +70,7 @@ func (v *viewer) startVisualSearch(reference string) {
 	if _, ok := v.admitCommand(commandRequest{command: commandSearch, route: routeDelivery}); !ok {
 		return
 	}
-	v.fileWork.searchLifecycle.invalidate()
+	v.fileWork.searchLifecycle.Invalidate()
 	if v.searchActive() {
 		v.visualsearch.SetCachePolicy(v.searchCachePolicy())
 		if v.visualsearch.Explore(reference) {
@@ -186,7 +186,7 @@ func (v *viewer) searchKey(key fyne.KeyName) bool {
 	return false
 }
 func (v *viewer) closeVisualSearch() {
-	v.fileWork.searchLifecycle.invalidate()
+	v.fileWork.searchLifecycle.Invalidate()
 	v.browsing.detachSearch()
 	v.resetSearchPresentation()
 	if v.visualsearch != nil {

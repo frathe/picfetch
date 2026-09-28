@@ -4,19 +4,17 @@
 package ui
 
 import (
+	"context"
+
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/completion"
+	"github.com/frathe/picfetch/internal/requestlife"
 )
 
-// asyncOpUI is the shape the folder scan (drop.go) and the background
-// reorder (sort.go) share: one cancellable lifecycle, a flag saying whether
-// that lifecycle's request is still meaningfully pending, a per-request
-// completion signal the test suite waits on, and the progress widgets shown
-// for as long as it runs. Two instances of one type rather than two parallel
-// sets of fields, so the flag-versus-token bookkeeping lives in one place
-// instead of spread across drop.go, sort.go and keys.go.
+// asyncOpUI combines one request owner with the progress state shared by scan
+// and sorting: active flags, completion generations and progress widgets.
 //
 // Deliberately viewer-independent: what to *do* about a cancelled operation
 // - put the drop zone back, repaint, toast - differs between the two and
@@ -25,7 +23,7 @@ import (
 // A value field on viewer, never copied: it holds a lifecycle mutex and a
 // completion mutex.
 type asyncOpUI struct {
-	lifecycle requestLifecycle
+	lifecycle requestlife.Owner
 	active    bool
 	done      completion.Signal
 	art       *canvas.Image // the scan's Trane-digging art; nil for the sort
@@ -38,8 +36,8 @@ type asyncOpUI struct {
 // returned so the caller can capture it: a superseded request must still
 // finish its own generation without touching the one a newer request now
 // owns - see internal/completion.
-func (o *asyncOpUI) begin() (requestToken, func()) {
-	token := o.lifecycle.begin()
+func (o *asyncOpUI) begin(parent context.Context) (requestlife.Token, func()) {
+	token := o.lifecycle.Begin(parent)
 	o.active = true
 
 	return token, o.done.Begin()
@@ -71,7 +69,7 @@ func (o *asyncOpUI) finish() {
 // invalidate supersedes and cancels the current request, finishing the UI
 // only if this operation was actually active. Returns the new revision.
 func (o *asyncOpUI) invalidate() uint64 {
-	revision := o.lifecycle.invalidate()
+	revision := o.lifecycle.Invalidate()
 	if o.active {
 		o.finish()
 	}

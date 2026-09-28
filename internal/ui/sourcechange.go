@@ -116,7 +116,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 		v.compare.Close()
 	}
 	if change.kind == sourcesRevalidated || change.kind == sourceWritten {
-		v.favThumbLifecycle.invalidate()
+		v.favThumbLifecycle.Invalidate()
 	}
 	if change.kind == sourcesRevalidated {
 		v.imgCache.Purge()
@@ -195,7 +195,7 @@ func (v *viewer) captureBrowsingReconciliation() browsingReconciliation {
 		change.grid = &bookmark
 	}
 	if v.locationVisitActive() {
-		v.locationInput.prepareOp.invalidate()
+		v.locationInput.prepareOp.Invalidate()
 		v.locationInput.prepare = nil
 	}
 	if origin, detached := v.detachSearchOrigin(); detached {
@@ -257,7 +257,7 @@ func (v *viewer) returnExhaustedBrowsingScope(scope browsingScope) {
 // restoreBrowsingOrigin restores interaction and selects an image without
 // starting a load. Its caller owns either fresh admission or a display retry.
 func (v *viewer) restoreBrowsingOrigin(origin browsingOrigin) int {
-	v.fileWork.searchLifecycle.invalidate()
+	v.fileWork.searchLifecycle.Invalidate()
 	v.grid.Close()
 	if v.FileCount() == 0 {
 		v.presentCommittedEmptyCollection()

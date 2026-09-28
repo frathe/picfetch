@@ -3,6 +3,7 @@
 package display
 
 import (
+	"context"
 	"image"
 	"sync"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/requestlife"
 )
 
 const (
@@ -28,7 +30,7 @@ type VectorOptions struct {
 type vectorView struct {
 	svg       *imaging.Vector
 	raster    image.Point
-	lifecycle requestLifecycle
+	lifecycle requestlife.Owner
 	pending   sync.WaitGroup
 	options   VectorOptions
 }
@@ -88,33 +90,28 @@ func (f *Feature) RequestVectorRender(scale float32, toPixels func(fyne.Position
 	if w <= 0 || h <= 0 || !vectorNeedsRender(f.vector.raster, image.Pt(w, h)) {
 		return
 	}
-	token := f.vector.lifecycle.begin()
+	token := f.vector.lifecycle.Begin(context.Background())
 	vec, identity := f.vector.svg, f.snapshot.Displayed.Revision
 	options := f.vector.options
 	f.vector.pending.Go(func() {
-		handedOff := false
-		defer func() {
-			if !handedOff {
-				token.cancelContext()
-			}
-		}()
+		delivery := token.FinalDelivery()
+		defer delivery.Abandon()
 		if options.Debounce > 0 {
 			select {
 			case <-options.After(options.Debounce):
-			case <-token.context().Done():
+			case <-token.Context().Done():
 				return
 			}
 		}
-		if !token.current() {
+		if !token.Current() {
 			return
 		}
 		frame, err := options.Rasterize(vec, w, h)
 		if err != nil {
 			return
 		} // Retain the valid softer image on sharpening failure.
-		f.config.Queue.Do(func() {
-			defer token.cancelContext()
-			if !token.current() || f.vector.svg != vec || f.snapshot.Displayed.Revision != identity {
+		delivery.Dispatch(f.config.Queue.Do, func() {
+			if f.vector.svg != vec || f.snapshot.Displayed.Revision != identity {
 				return
 			}
 			f.frames[f.index] = frame
@@ -123,13 +120,12 @@ func (f *Feature) RequestVectorRender(scale float32, toPixels func(fyne.Position
 			if f.config.Callbacks.Repaint != nil {
 				f.config.Callbacks.Repaint()
 			}
-		})
-		handedOff = true
+		}, nil)
 	})
 }
 
 func (f *Feature) clearVector() {
-	f.vector.lifecycle.invalidate()
+	f.vector.lifecycle.Invalidate()
 	f.vector.svg = nil
 	f.vector.raster = image.Point{}
 }

@@ -13,15 +13,16 @@ import (
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/requestlife"
 )
 
 // fileMutationWork owns viewer file actions; imaging owns path transactions.
 // Admission and pending state belong to UI, while workers capture their inputs.
 type fileMutationWork struct {
-	saveLifecycle   requestLifecycle
+	saveLifecycle   requestlife.Owner
 	saveDone        completion.Signal
-	exportLifecycle requestLifecycle
-	searchLifecycle requestLifecycle
+	exportLifecycle requestlife.Owner
+	searchLifecycle requestlife.Owner
 	savePending     bool
 	exportPending   bool
 	closed          bool
@@ -49,20 +50,20 @@ func newFileMutationWork() fileMutationWork {
 }
 
 func (v *viewer) cancelSave() {
-	v.fileWork.saveLifecycle.invalidate()
+	v.fileWork.saveLifecycle.Invalidate()
 	v.fileWork.savePending = false
 }
 
 func (v *viewer) closeFileWork() {
 	v.fileWork.closed = true
 	v.fileWork.cancel()
-	v.fileWork.searchLifecycle.invalidate()
+	v.fileWork.searchLifecycle.Invalidate()
 	v.cancelSave()
 	v.cancelExport()
 }
 
 func (v *viewer) cancelExport() {
-	v.fileWork.exportLifecycle.invalidate()
+	v.fileWork.exportLifecycle.Invalidate()
 	v.fileWork.exportPending = false
 }
 
@@ -75,8 +76,8 @@ func (v *viewer) reconcileSearchOrigin() {
 	}
 	sessionID, collection := v.visualsearch.State().SessionID, v.state.Observe()
 	after := v.visualsearch.Suspend()
-	token := v.fileWork.searchLifecycle.begin()
-	ctx, queue := token.context(), v.fileWork.ui
+	token := v.fileWork.searchLifecycle.Begin(context.Background())
+	ctx, queue := token.Context(), v.fileWork.ui
 	v.fileWork.workers.Go(func() {
 		select {
 		case <-after:
@@ -97,8 +98,8 @@ func (v *viewer) reconcileSearchOrigin() {
 			}
 		}
 		queue.Do(func() {
-			defer token.cancelContext()
-			if !token.current() || v.fileWork.closed || collection.Generation() != v.Generation() || !v.searchActive() || sessionID != v.visualsearch.State().SessionID {
+			defer token.Release()
+			if !token.Current() || v.fileWork.closed || collection.Generation() != v.Generation() || !v.searchActive() || sessionID != v.visualsearch.State().SessionID {
 				return
 			}
 			v.reconcileSources(sourceChange{kind: sourcesRevalidated, removed: missing})

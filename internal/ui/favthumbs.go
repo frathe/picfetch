@@ -33,7 +33,7 @@ func (v *viewer) SetFavoritePreviewCache(on bool) {
 	v.settings.favPreviewCache = on
 
 	if !on {
-		v.favThumbLifecycle.invalidate()
+		v.favThumbLifecycle.Invalidate()
 	}
 }
 
@@ -45,7 +45,7 @@ func (v *viewer) SetFavoritePreviewLimit(n int) {
 	}
 	if v.settings.favPreviewLimit != n {
 		v.settings.favPreviewLimit = n
-		v.favThumbLifecycle.invalidate()
+		v.favThumbLifecycle.Invalidate()
 	}
 }
 
@@ -68,8 +68,7 @@ func (v *viewer) SyncFavoritePreviews(owner *favstore.Owner, files []fyne.URI) {
 	// favorite B while A is still being walked stops A rather than leaving
 	// two passes competing for decodes - and for the thumbnail cache, where
 	// the loser would be evicting the winner's entries.
-	token := v.favThumbLifecycle.begin()
-	token.ctx = v.heicContext(token.context())
+	token := v.favThumbLifecycle.Begin(v.heicContext(context.Background()))
 
 	done := v.favThumb.Begin()
 	sink := gridSink{writer: v.grid.CaptureThumbs()}
@@ -77,9 +76,9 @@ func (v *viewer) SyncFavoritePreviews(owner *favstore.Owner, files []fyne.URI) {
 
 	v.favThumbWorkers.Go(func() {
 		defer done()
-		defer token.cancelContext()
+		defer token.Release()
 
-		if err := favthumbs.Sync(token.context(), owner, files, limit, sink); err != nil {
+		if err := favthumbs.Sync(token.Context(), owner, files, limit, sink); err != nil {
 			// Supersession and external Favorite replacement retire a pass.
 			if errors.Is(err, context.Canceled) || errors.Is(err, favstore.ErrRetired) {
 				return
@@ -124,5 +123,5 @@ func (s gridSink) Store(src fyne.URI, thumb image.Image) {
 // completion, including older passes superseded by the latest Signal.
 func (v *viewer) closeFavoritePreviews() {
 	v.favThumbClosed = true
-	v.favThumbLifecycle.invalidate()
+	v.favThumbLifecycle.Invalidate()
 }

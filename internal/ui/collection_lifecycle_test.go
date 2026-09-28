@@ -154,10 +154,10 @@ func collectionQueuedChooserLifecycle(t *testing.T) {
 				waitForSort(t, v)
 				waitUntilLoaded(t, v)
 			}
-			before, scan := v.state.Observe(), v.scanOp.lifecycle.currentRevision()
+			before, scan := v.state.Observe(), v.scanOp.lifecycle.Revision()
 			queue.Drain()
 			settleChooser(t, v)
-			if after := v.state.Observe(); after.Generation() != before.Generation() || after.Favorite() != before.Favorite() || !slices.Equal(after.Retained(), before.Retained()) || v.scanOp.lifecycle.currentRevision() != scan {
+			if after := v.state.Observe(); after.Generation() != before.Generation() || after.Favorite() != before.Favorite() || !slices.Equal(after.Retained(), before.Retained()) || v.scanOp.lifecycle.Revision() != scan {
 				t.Fatal("queued retired chooser reopened a collection or changed its binding")
 			}
 		})

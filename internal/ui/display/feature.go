@@ -14,6 +14,7 @@ import (
 	"github.com/frathe/picfetch/internal/decodepool"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/requestlife"
 )
 
 // Identity identifies a particular visit to a source, including repeated opens.
@@ -77,13 +78,13 @@ type Feature struct {
 	logical          fyne.Size
 	config           Config
 	delays           []time.Duration
-	animationLife    requestLifecycle
+	animationLife    requestlife.Owner
 	animation        completion.Signal
 	animationWorkers sync.WaitGroup
 	pause            animationPause
 	applied          atomic.Uint64
 	vector           vectorView
-	loadLife         requestLifecycle
+	loadLife         requestlife.Owner
 	load             completion.Signal
 	loadFinish       func()
 	loadWorkers      sync.WaitGroup

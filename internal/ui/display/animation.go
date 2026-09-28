@@ -1,20 +1,24 @@
 package display
 
-import "github.com/frathe/picfetch/internal/completion"
+import (
+	"context"
+
+	"github.com/frathe/picfetch/internal/completion"
+)
 
 // startAnimation admits playback only after the root handoff.
 func (f *Feature) startAnimation() {
 	if f.stopped || !f.snapshot.Animated {
 		return
 	}
-	token := f.animationLife.begin()
+	token := f.animationLife.Begin(context.Background())
 	done := f.animation.Begin()
 	count, delays := f.Count(), f.delays
 	f.animationWorkers.Go(func() {
 		defer done()
 		idx := 0
-		for token.current() {
-			if !f.pause.wait(token.context()) || !token.current() {
+		for token.Current() {
+			if !f.pause.wait(token.Context()) || !token.Current() {
 				return
 			}
 			acquisition, changed, running := f.pause.phase()
@@ -25,7 +29,7 @@ func (f *Feature) startAnimation() {
 			case <-f.config.AnimationAfter(delays[idx]):
 			case <-changed:
 				continue
-			case <-token.context().Done():
+			case <-token.Context().Done():
 				return
 			}
 			next := (idx + 1) % count
@@ -33,7 +37,7 @@ func (f *Feature) startAnimation() {
 			f.config.Queue.Do(func() {
 				advanced := false
 				f.pause.advance(acquisition, func() {
-					if !token.current() {
+					if !token.Current() {
 						return
 					}
 					f.index = next
@@ -43,7 +47,7 @@ func (f *Feature) startAnimation() {
 				applied <- advanced
 			})
 			select {
-			case <-token.context().Done():
+			case <-token.Context().Done():
 				return
 			case advanced := <-applied:
 				if advanced {
@@ -53,7 +57,7 @@ func (f *Feature) startAnimation() {
 		}
 	})
 }
-func (f *Feature) cancelAnimation()                 { f.animationLife.invalidate(); f.pause.unpause() }
+func (f *Feature) cancelAnimation()                 { f.animationLife.Invalidate(); f.pause.unpause() }
 func (f *Feature) AnimationDone() completion.Handle { return f.animation.Current() }
 func (f *Feature) AnimationBegun() bool             { return f.animation.Begun() }
 func (f *Feature) AppliedFrames() uint64            { return f.applied.Load() }

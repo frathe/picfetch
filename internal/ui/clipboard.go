@@ -45,13 +45,13 @@ func (v *viewer) copyImageToClipboard() {
 	encode := v.clipboardWork.encode
 
 	v.clipboardWork.workers.Go(func() {
-		if !token.current() {
+		if !token.Current() {
 			v.completeClipboardCopy(token, done, nil)
 			return
 		}
 		var buf bytes.Buffer
-		err := encode(clipboardContextWriter{ctx: token.context(), out: &buf}, capture.Pixels)
-		if err == nil && token.current() {
+		err := encode(clipboardContextWriter{ctx: token.Context(), out: &buf}, capture.Pixels)
+		if err == nil && token.Current() {
 			err = clipboard.CopyImage(buf.Bytes())
 		}
 		v.completeClipboardCopy(token, done, func() {

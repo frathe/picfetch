@@ -10,10 +10,12 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
+
+	"github.com/frathe/picfetch/internal/requestlife"
 )
 
 type clipboardWork struct {
-	lifecycle  requestLifecycle
+	lifecycle  requestlife.Owner
 	workers    sync.WaitGroup
 	pending    atomic.Bool
 	closed     atomic.Bool
@@ -46,17 +48,17 @@ func (v *viewer) clipboardBusy() bool {
 	return true
 }
 
-func (v *viewer) beginClipboardCopy(imageBound bool) (requestToken, func(), bool) {
+func (v *viewer) beginClipboardCopy(imageBound bool) (requestlife.Token, func(), bool) {
 	if v.clipboardWork.closed.Load() || v.clipboardBusy() {
-		return requestToken{}, nil, false
+		return requestlife.Token{}, nil, false
 	}
 	v.clipboardWork.pending.Store(true)
 	v.clipboardWork.imageBound = imageBound
-	token := v.clipboardWork.lifecycle.begin()
+	token := v.clipboardWork.lifecycle.Begin(context.Background())
 	finished := v.clipboard.Begin()
 	v.syncMenus()
 	done := sync.OnceFunc(func() {
-		token.cancelContext()
+		token.Release()
 		v.clipboardWork.pending.Store(false)
 		finished()
 	})
@@ -67,14 +69,14 @@ func (v *viewer) beginClipboardCopy(imageBound bool) (requestToken, func(), bool
 // before UI delivery; the operation's Signal includes that delivery and restored
 // menu availability. Shutdown cancellation finishes directly without UI delivery.
 // Other cancellations still refresh availability, but discard their result effect.
-func (v *viewer) completeClipboardCopy(token requestToken, done func(), apply func()) {
-	if !token.current() && v.clipboardWork.closed.Load() {
+func (v *viewer) completeClipboardCopy(token requestlife.Token, done func(), apply func()) {
+	if !token.Current() && v.clipboardWork.closed.Load() {
 		done()
 		return
 	}
 	v.clipboardWork.ui.Do(func() {
 		defer done()
-		if token.current() && apply != nil {
+		if token.Current() && apply != nil {
 			apply()
 		}
 		// Release admission before observing it for menus, on the same UI turn
@@ -86,13 +88,13 @@ func (v *viewer) completeClipboardCopy(token requestToken, done func(), apply fu
 
 func (v *viewer) cancelImageClipboard() {
 	if v.clipboardWork.imageBound {
-		v.clipboardWork.lifecycle.invalidate()
+		v.clipboardWork.lifecycle.Invalidate()
 	}
 }
 
 func (v *viewer) closeClipboardWork() {
 	v.clipboardWork.closed.Store(true)
-	v.clipboardWork.lifecycle.invalidate()
+	v.clipboardWork.lifecycle.Invalidate()
 }
 
 // clipboardContextWriter checks cancellation at encoder output boundaries.
