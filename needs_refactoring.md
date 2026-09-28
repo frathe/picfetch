@@ -1,6 +1,6 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-28 after implementation and qualification of MA-031.
+Updated 2026-09-28 after implementation and qualification of MA-031 and MA-032.
 The cross-feature architecture assessment of PR review history and
 implementation is dated 2026-09-26.
 
@@ -29,11 +29,14 @@ interview decisions. Its [local specification](.scratch/ma-031/spec.md) is resol
 all nine tickets are complete and CI-qualified in the
 [archived record](finished_refactorings/2026-09-28-ma-031-favorite-ownership.md).
 [PR 70](https://github.com/frathe/picfetch/pull/70) records latest-head reviews and checks.
-MA-032 has an [accepted design](docs/worker-lifetimes.md) and a
-[ready-for-agent specification](.scratch/ma-032/spec.md) covering its conditional
-pilot and fallback, plus [nine approved tickets](.scratch/ma-032/issues/README.md).
-Implementation planning remains next. MA-033 remains a proposal. Neither is an
-unresolved PR defect.
+MA-032's [accepted design](docs/worker-lifetimes.md) and
+[resolved specification](.scratch/ma-032/spec.md) are implemented: all eight
+applicable [tickets](.scratch/ma-032/issues/README.md) are complete and CI-qualified,
+all 15 root/display request owners are migrated, and fallback 08 is inapplicable.
+The [archived record](finished_refactorings/2026-09-28-ma-032-request-lifetimes.md)
+holds implementation evidence; [PR 71](https://github.com/frathe/picfetch/pull/71)
+tracks latest-head review dispositions and checks. MA-033 remains a proposal,
+not an unresolved PR defect.
 
 Historical inspection baseline: `main` at `54fd7c3` (v1.1.2). At that revision,
 the root `internal/ui` package contained 55 production Go files, 10,835 non-test
@@ -518,9 +521,8 @@ criteria; fallback ticket 08 is inapplicable. All applicable tickets passed full
 qualification in [the archived evidence](finished_refactorings/2026-09-28-ma-032-request-lifetimes.md).
 Latest-head review-loop acceptance is recorded in [PR 71](https://github.com/frathe/picfetch/pull/71).
 
-**P2; medium confidence.** The need for consistent contracts is strong; a
-universal task manager is not justified. Pilot a small extraction before any
-broad migration.
+**Original priority: P2; medium confidence.** The pilot established the value of
+consistent request/delivery contracts; a universal task manager remains unjustified.
 
 **Evidence:** PR 45 found
 [unjoined pool dispatchers](https://github.com/frathe/picfetch/pull/45#discussion_r4049599084)
@@ -538,13 +540,12 @@ features. [run.go](internal/ui/run.go) and
 [harness_test.go](internal/ui/harness_test.go) enumerate different shutdown
 obligations. Some differences are required, not omissions.
 
-**Refactor:** first establish reusable instance-owned request cancellation and
-revision tokens for two matching consumers, including parent-context binding
-and explicit release. Extract worker tracking only where it actually hides
-admission/retirement mechanics; avoid a helper that still makes every caller
-reimplement completion. Name view-bound work, session work and work retained
-after a committed effect. Feature code chooses the lifetime and owns durable
-reconciliation.
+**Refactor result:** instance-owned request cancellation/revision, captured parent
+context and explicit release are shared. Sorting/SVG also share disposable final
+delivery, reducing caller responsibilities before the remaining owners migrated.
+Worker tracking was not extracted. Feature code still chooses its lifetime,
+owns durable reconciliation and distinguishes view-bound, session and retained
+committed-effect work.
 
 Preserve the distinct observations: worker exited, result delivered, finite
 operation settled, continuous producer stopped, and disk effect committed.
@@ -558,12 +559,11 @@ Keep stop/close calls on UI and joins off UI. Keep explicit ordered shutdown;
 do not flatten it into a registry loop. Retain production-specific exceptions
 such as Spiral's uninterruptible source-read handling.
 
-**Verification/done:** deterministic held-worker/queued-callback tests prove
-supersession, close/reopen, Stop admission, all retired generations, callback
-completion and late-result rejection for both migrated consumers. Include an
-actual production shutdown path as well as the stronger test harness. If the
-pilot cannot remove caller obligations without special-case flags, retain the
-local implementations and share contract tests/documentation instead.
+**Verification completed:** deterministic held-worker/queued-callback tests proved
+supersession, close/reopen, Stop admission, retired generations, callback completion
+and late-result rejection, including actual production shutdown separately from
+the stronger harness. Full CI, CodeQL and inspected post-suppression Qodana SARIF
+passed on `fc7aa32`; the archived record maps all applicable acceptance criteria.
 
 <a id="ma-033"></a>
 

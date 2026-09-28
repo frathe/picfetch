@@ -158,8 +158,8 @@ or determine what feature completion means. It does not consolidate Explorer,
 Grid, search, analysis-cache or other feature workers; change durable-effect
 policy; or introduce shared Stop/Wait/Settle choreography.
 
-Implementation begins with ticket 01; ticket 02's pilot verdict gates either
-the migration batches or fallback. Final qualification depends only on the
+Implementation began with ticket 01; ticket 02's pilot verdict gated either
+the migration batches or fallback. Final qualification depended only on the
 selected branch. Sorting and SVG use the accepted Owner/Token/FinalDelivery
 contract. Ticket 04 reunifies scan/sort progress after migrating scan and also
 migrates native chooser and root Explorer/Location Map preparation. Their
@@ -168,7 +168,7 @@ verdict accepts extraction: both real callers
 delegate currentness and release handoff through one contract, and sorting also
 delegates its captured final-delivery finisher. SVG retains feature identities,
 debounce and raster workers. Passing real-consumer and production shutdown tests
-support the verdict. Tickets 03-07 may migrate; fallback 08 is inapplicable.
+support the verdict. This opened tickets 03-07; fallback 08 is inapplicable.
 Ticket 03 completes all three display owners and borrowed preload tokens; the
 display-local request implementation is removed. Load completion still retains
 its token for neighbor preloads; retries, animation acknowledgement, captures

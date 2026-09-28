@@ -414,3 +414,14 @@ reviews and checks. Final review-loop evidence belongs in PR 71, avoiding a
 recursive claim that the evidence commit itself has already been reviewed.
 No merge/release authorized. Two agent instances supported bounded helper TDD
 and read-only SVG/CI recon; the lead owned every review and all caller changes.
+
+### Review-loop follow-up — stale planning summary
+
+Codex review of `f0e500f` found one P2 documentation issue (thread
+PRRT_kwDOT5ODVc6m0Hq-): the backlog introduction still said MA-032 planning was
+next. Confirmed against the completed table and implementation. Corrected the
+opening status and remaining proposal-tense descriptions to distinguish the
+accepted result from the original rationale. No runtime, test or configuration
+changes. Whitespace and source-diff checks passed; code inspections/qualification
+carry forward from `fc7aa32`. Reply/resolve and obtain a fresh latest-head review;
+the findings-containing round is not final acceptance.
