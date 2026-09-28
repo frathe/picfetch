@@ -438,6 +438,7 @@ func TestHEICUnavailableFiles(t *testing.T) {
 	jpegURI := uitest.TempJPEGURI(t, "available.jpg", 2, 1, color.White)
 	storeFavorite(t, v, "Mixed", jpegURI, heicURI)
 	v.favorites.Menu().Items[2].Action()
+	v.favorites.Settle()
 	waitForScan(t, v)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)

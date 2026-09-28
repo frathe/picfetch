@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"fyne.io/fyne/v2"
 )
 
 // MaxDefinitionBytes bounds the complete encoded Favorite definition.
@@ -17,6 +19,37 @@ const MaxDefinitionBytes = 64 * 1024 * 1024
 
 // ErrDefinitionTooLarge rejects a complete encoded definition over the limit.
 var ErrDefinitionTooLarge = errors.New("favorite definition exceeds 64 MiB")
+
+func encodeMembership(ctx context.Context, files []fyne.URI) ([]byte, []string, error) {
+	paths := make([]string, len(files))
+	list := make(map[string]string, len(files))
+	rawBytes := 0
+	for i, file := range files {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+		if file == nil {
+			return nil, nil, fmt.Errorf("favorite file %d is nil", i)
+		}
+		source := file.Path()
+		if source == "" || strings.ContainsRune(source, 0) {
+			return nil, nil, fmt.Errorf("invalid path at file index %d", i)
+		}
+		if len(source) > MaxDefinitionBytes-rawBytes {
+			return nil, nil, ErrDefinitionTooLarge
+		}
+		rawBytes += len(source)
+		paths[i], list[strconv.Itoa(i)] = source, source
+	}
+	data, err := json.Marshal(list)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(data) >= MaxDefinitionBytes {
+		return nil, nil, ErrDefinitionTooLarge
+	}
+	return append(data, '\n'), paths, ctx.Err()
+}
 
 func readDefinition(ctx context.Context, reader io.Reader) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(contextReader{ctx, reader}, MaxDefinitionBytes+1))

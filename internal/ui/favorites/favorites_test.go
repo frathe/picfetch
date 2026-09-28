@@ -20,9 +20,10 @@ import (
 )
 
 type fakeHost struct {
-	files  []fyne.URI
-	opened []fyne.URI
-	toasts []string
+	syncedOwners []*favstore.Owner
+	files        []fyne.URI
+	opened       []fyne.URI
+	toasts       []string
 
 	// syncedDirs/syncedFiles record every SyncFavoritePreviews call, and
 	// calls records the order OpenFavorite and SyncFavoritePreviews arrived
@@ -43,12 +44,14 @@ type fakeHost struct {
 
 func (h *fakeHost) CurrentFiles() []fyne.URI { return slices.Clone(h.files) }
 func (h *fakeHost) OpenFavorite(owner *favstore.Owner, files []fyne.URI) {
-	h.SyncFavoritePreviews(owner.Path(), files)
+	h.SyncFavoritePreviews(owner, files)
 	h.opened = slices.Clone(files)
 	h.calls = append(h.calls, "open")
 }
 func (h *fakeHost) ShowToast(message string) { h.toasts = append(h.toasts, message) }
-func (h *fakeHost) SyncFavoritePreviews(favDir string, files []fyne.URI) {
+func (h *fakeHost) SyncFavoritePreviews(owner *favstore.Owner, files []fyne.URI) {
+	h.syncedOwners = append(h.syncedOwners, owner)
+	favDir := owner.Path()
 	h.syncedDirs = append(h.syncedDirs, favDir)
 	h.syncedFiles = append(h.syncedFiles, slices.Clone(files))
 	h.calls = append(h.calls, "sync")

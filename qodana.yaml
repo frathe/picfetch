@@ -120,6 +120,7 @@ exclude:
       - "internal/favstore/inventory_test.go"
       - "internal/favstore/membership_test.go"
       - "internal/favstore/ownership_test.go"
+      - "internal/favstore/saving_test.go"
       - "internal/favthumbs/contention_test.go"
       - "internal/favthumbs/name_test.go"
       - "internal/favthumbs/store_test.go"

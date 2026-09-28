@@ -1004,6 +1004,7 @@ func saveBrowsingFavorite(t *testing.T, v *viewer, want []fyne.URI) {
 		entry.TypedRune(r)
 	}
 	entry.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+	v.favorites.Settle()
 	got, err := favstore.Load(v.favorites.Dir(), "Captured")
 	if err != nil {
 		t.Fatal(err)

@@ -3,11 +3,9 @@ package favstore
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -71,49 +69,13 @@ func List(dir string) ([]string, error) {
 
 // Save atomically writes files as the favorite named name.
 func Save(dir, name string, files []fyne.URI) error {
-	if !ValidName(name) {
-		return fmt.Errorf("invalid favorite name %q", name)
-	}
-
-	list := make(map[string]string, len(files))
-	for i, file := range files {
-		if file == nil {
-			return fmt.Errorf("favorite file %d is nil", i)
-		}
-		list[strconv.Itoa(i)] = file.Path()
-	}
-
-	favoriteDir := filepath.Join(dir, name)
-	if err := os.MkdirAll(favoriteDir, 0o700); err != nil {
-		return err
-	}
-	if err := os.Chmod(favoriteDir, 0o700); err != nil {
-		return err
-	}
-
-	tmp, err := os.CreateTemp(favoriteDir, ".file-list-*.json")
+	store := &Store{}
+	target, err := store.Capture(context.Background(), dir, name)
 	if err != nil {
 		return err
 	}
-	tmpPath := tmp.Name()
-	defer func() { _ = os.Remove(tmpPath) }()
-
-	if err := tmp.Chmod(0o600); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := json.NewEncoder(tmp).Encode(list); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmpPath, filepath.Join(favoriteDir, fileListName))
+	_, err = store.Save(context.Background(), target, files)
+	return err
 }
 
 // readList returns the complete definition through the shared ownership path.

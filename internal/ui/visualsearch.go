@@ -294,6 +294,10 @@ func (h searchHost) Failed(err error) {
 
 type favoriteListHost struct{ *viewer }
 
+func (h favoriteListHost) SyncFavoritePreviews(owner *favstore.Owner, files []fyne.URI) {
+	h.syncCapturedFavoritePreviews(owner, files)
+}
+
 // OpenFavorite receives the owner captured by the complete storage read. Root
 // keeps preview policy and ordinary collection replay in their existing paths.
 func (h favoriteListHost) OpenFavorite(owner *favstore.Owner, files []fyne.URI) {

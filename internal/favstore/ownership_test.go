@@ -81,6 +81,7 @@ func TestFavoriteOwnership(t *testing.T) {
 }
 
 func TestFavoriteCancellation(t *testing.T) {
+	testFavoriteSaveCancellation(t)
 	for _, change := range []string{"cancelled", "changed_while_reading", "growth"} {
 		t.Run(change, func(t *testing.T) {
 			dir, name := putDefinition(t, `{}`)

@@ -17,6 +17,66 @@ import (
 )
 
 func TestFavoriteOwnershipIntegration(t *testing.T) {
+	for _, change := range []string{"close", "opt_out", "shutdown"} {
+		t.Run("committed_save_"+change, func(t *testing.T) {
+			v := newTestViewer(t)
+			file := uitest.TempJPEGURI(t, "source.jpg", 4, 4, color.White)
+			dropAndWait(t, v, file)
+			v.favorites.SetDir(t.TempDir())
+			v.favorites.Settle()
+			started, resume := make(chan struct{}), make(chan struct{})
+			var once sync.Once
+			release := func() { once.Do(func() { close(resume) }) }
+			t.Cleanup(release)
+			v.favorites.SetStorage(&favoriteSaveGate{Store: &favstore.Store{}, started: started, resume: resume})
+			v.favorites.AddCurrentList()
+			entry, ok := v.win.Canvas().Focused().(interface {
+				SetText(string)
+				TypedKey(*fyne.KeyEvent)
+			})
+			if !ok {
+				t.Fatal("Favorite naming was not admitted")
+			}
+			entry.SetText("Captured")
+			entry.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			waitFavoriteStorageBoundary(t, started)
+			scan := v.scanOp.done.Current()
+			switch change {
+			case "close":
+				v.favorites.Close()
+			case "opt_out":
+				v.SetFavoritePreviewCache(false)
+			case "shutdown":
+				lifecycle := v.app.Lifecycle().(interface{ OnStopped() func() })
+				previous := lifecycle.OnStopped()
+				registerShutdown(v.app, v)
+				shutdown := lifecycle.OnStopped()
+				v.app.Lifecycle().SetOnStopped(previous)
+				shutdown()
+				joined := make(chan struct{})
+				go func() { v.waitForShutdown(); close(joined) }()
+				select {
+				case <-joined:
+					t.Fatal("root shutdown missed a held save result")
+				default:
+				}
+				release()
+				waitFavoriteStorageBoundary(t, joined)
+			}
+			release()
+			v.favorites.Settle()
+			files, err := favstore.Load(v.favorites.Dir(), "Captured")
+			if err != nil || len(files) != 1 || files[0].String() != file.String() {
+				t.Fatalf("committed root save lost: %v, %v", files, err)
+			}
+			if v.scanOp.done.Current() != scan || v.state.Observe().Favorite() != "" {
+				t.Fatal("save notification replayed the collection")
+			}
+			if v.favThumb.Begun() != (change == "close") {
+				t.Fatal("committed preview handoff lost or revived opted-out/stopped work")
+			}
+		})
+	}
 	t.Run("queued_replay", func(t *testing.T) {
 		v := newTestViewer(t)
 		files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
@@ -127,6 +187,19 @@ type favoriteReadGate struct {
 	*favstore.Store
 	started chan struct{}
 	resume  <-chan struct{}
+}
+
+type favoriteSaveGate struct {
+	*favstore.Store
+	started chan struct{}
+	resume  <-chan struct{}
+}
+
+func (s *favoriteSaveGate) Save(ctx context.Context, target *favstore.Target, files []fyne.URI) (favstore.SaveResult, error) {
+	result, err := s.Store.Save(ctx, target, files)
+	close(s.started)
+	<-s.resume
+	return result, err
 }
 
 func (s *favoriteReadGate) Open(ctx context.Context, dir string) (favstore.Definition, error) {

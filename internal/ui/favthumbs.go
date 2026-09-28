@@ -18,7 +18,7 @@ import (
 	"github.com/frathe/picfetch/internal/preferences"
 )
 
-// syncCapturedFavoritePreviews is the complete-open preview handoff.
+// syncCapturedFavoritePreviews receives complete-open and committed-save owners.
 func (v *viewer) syncCapturedFavoritePreviews(owner *favstore.Owner, files []fyne.URI) {
 	v.SyncFavoritePreviews(owner.Path(), files)
 }

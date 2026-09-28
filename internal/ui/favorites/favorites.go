@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -48,11 +46,11 @@ type Host interface {
 	OpenFavorite(owner *favstore.Owner, files []fyne.URI)
 	ShowToast(msg string)
 
-	// SyncFavoritePreviews brings the previews stored under favDir in line
+	// SyncFavoritePreviews brings the previews stored under owner in line
 	// with files, in the background. This feature knows nothing about
 	// thumbnails or caches; it only reports that a favorite's file list is
 	// now this, and leaves what that costs to the host.
-	SyncFavoritePreviews(favDir string, files []fyne.URI)
+	SyncFavoritePreviews(owner *favstore.Owner, files []fyne.URI)
 
 	// RefreshMenus re-publishes the main menu bar. This feature calls it
 	// after changing its own menu's items, because fyne.Menu.Refresh is
@@ -87,6 +85,8 @@ type Feature struct {
 	manageRequested bool
 	stopped         bool
 	confirmDialog   dialog.Dialog
+	mutationTail    <-chan struct{}
+	saveRevision    uint64
 
 	menu         *fyne.Menu
 	addItem      *fyne.MenuItem
@@ -255,80 +255,6 @@ func (f *Feature) AddCurrentList() {
 	f.addFilesPrompt(f.host.CurrentFiles())
 }
 
-func (f *Feature) saveFavorite(name string) {
-	if f.stopped {
-		return
-	}
-	name = strings.TrimSpace(name)
-	if !favstore.ValidName(name) {
-		f.host.ShowToast(lang.L(`enter a name without / \ : * ? " < > |`))
-		return
-	}
-
-	if favstore.Exists(f.dir, name) {
-		// Plain importance, not widget.DangerImportance: replacing a
-		// favorite is not trashing one, and this prompt looked the same
-		// before it went through showConfirm. Cancel is still index 0 and
-		// so the default selection either way, which is what keeps a bare
-		// Return from replacing by itself.
-		f.showConfirm(confirmation{
-			title:     lang.L("Replace Favorite"),
-			message:   fmt.Sprintf(lang.L("A favorite named %q already exists. Replace it?"), name),
-			action:    lang.L("Replace"),
-			onConfirm: func() { f.writeFavorite(name) },
-			// Cancel and Escape both land here (showConfirm runs onCancel
-			// for either), and both mean the same thing: go back to the
-			// field that produced this name, with the name still in it, so
-			// a clash costs one keystroke rather than the whole name. Safe
-			// to reopen from inside onCancel specifically because
-			// showConfirm's own onClosed - which unfocuses the canvas -
-			// always finishes before onCancel starts (see confirm.go), so
-			// this call's own Canvas().Focus(entry) at the end of showAdd
-			// is the last thing to touch focus, not undone by the outgoing
-			// dialog's teardown running late.
-			onCancel: func() { f.showAdd(name) },
-			onClosed: func() { f.win.Canvas().Unfocus() },
-		})
-		return
-	}
-	f.writeFavorite(name)
-}
-
-func (f *Feature) writeFavorite(name string) {
-	if f.stopped {
-		return
-	}
-	files := slices.Clone(f.addFiles)
-	if f.addFiles == nil {
-		files = f.host.CurrentFiles()
-	}
-	if len(files) == 0 {
-		f.host.ShowToast(lang.L("there are no open files to add to favorites"))
-		return
-	}
-
-	if err := favstore.Save(f.dir, name, files); err != nil {
-		f.reportError(lang.L("could not save favorite %q: %v"), name, err)
-		return
-	}
-
-	// Reported as soon as the list is on disk, so the host can act on it
-	// while the favorite sits unopened rather than only when someone
-	// eventually opens it. Placed above refreshMenu because the two are
-	// independent: a menu that could not be rebuilt is no reason to leave
-	// the favorite just written unprepared.
-	f.addFiles = nil
-	if f.onSaved != nil {
-		f.onSaved()
-	}
-	f.host.SyncFavoritePreviews(favstore.Dir(f.dir, name), files)
-
-	if !f.refreshMenu() {
-		return
-	}
-	f.host.ShowToast(fmt.Sprintf(lang.L("saved favorite %q"), name))
-}
-
 func (f *Feature) reportError(format string, args ...any) {
 	message := fmt.Sprintf(format, args...)
 	fyne.LogError("favorites operation failed", errors.New(message))
@@ -347,6 +273,7 @@ func (f *Feature) addFilesPrompt(files []fyne.URI) {
 	if f.addDialog != nil {
 		return
 	}
+	f.saveRevision++
 	f.addFiles = append([]fyne.URI{}, files...)
 	f.showAdd("")
 }

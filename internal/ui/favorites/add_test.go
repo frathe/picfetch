@@ -422,12 +422,11 @@ func TestShowAddOpensWithInitialNameAndAddAlreadyEnabled(t *testing.T) {
 }
 
 // addGuardDuringSave wraps fakeHost to capture f.addDialog at the moment
-// SyncFavoritePreviews runs - deep inside Add's OnChosen (f.saveFavorite ->
-// writeFavorite), which runs entirely synchronously with no goroutine of its
-// own. It exists to pin the ordering ChoicePanel.runChoice guarantees and
-// Stage 5 needs: the panel dismisses the dialog (which clears f.addDialog,
+// SyncFavoritePreviews runs after the save worker delivers its committed result.
+// It pins the ordering ChoicePanel.runChoice guarantees: the panel dismisses
+// the dialog (which clears f.addDialog,
 // through this dialog's own SetOnClosed) before it ever runs a choice's
-// OnChosen, so by the time saveFavorite's own side effects run, the guard
+// OnChosen, so by the time saveFavorite's queued side effects run, the guard
 // against stacking a second Add dialog is already clear rather than still
 // pointing at the one on its way down.
 type addGuardDuringSave struct {
@@ -437,10 +436,10 @@ type addGuardDuringSave struct {
 	called bool
 }
 
-func (h *addGuardDuringSave) SyncFavoritePreviews(dir string, files []fyne.URI) {
+func (h *addGuardDuringSave) SyncFavoritePreviews(owner *favstore.Owner, files []fyne.URI) {
 	h.called = true
 	h.guard = h.f.addDialog
-	h.fakeHost.SyncFavoritePreviews(dir, files)
+	h.fakeHost.SyncFavoritePreviews(owner, files)
 }
 
 func TestShowAddDismissesBeforeOnChosenRuns(t *testing.T) {

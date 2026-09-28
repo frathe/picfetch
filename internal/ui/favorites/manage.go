@@ -360,13 +360,10 @@ func (f *Feature) performRemove(name string) {
 	if f.stopped {
 		return
 	}
-	ctx, dir, queue := f.viewContext(), f.dir, f.ui
-	f.workers.Go(func() {
-		if ctx.Err() != nil {
-			return
-		}
+	ctx, dir := f.viewContext(), f.dir
+	f.enqueueMutation(ctx, func() func() {
 		err := favstore.Remove(dir, name)
-		queue.Do(func() {
+		return func() {
 			if f.stopped {
 				return
 			}
@@ -381,7 +378,7 @@ func (f *Feature) performRemove(name string) {
 			if ctx.Err() == nil {
 				f.host.ShowToast(fmt.Sprintf(lang.L("removed favorite %q"), name))
 			}
-		})
+		}
 	})
 }
 

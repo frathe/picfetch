@@ -466,6 +466,7 @@ func TestFindMoreLikeThisActionsCaptureRankedSources(t *testing.T) {
 				}
 				entry.SetText("Saved during inspection")
 				entry.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+				v.favorites.Settle()
 				select {
 				case query := <-queries:
 					if retired || query.CacheRevision != 1 {

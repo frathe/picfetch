@@ -1,6 +1,6 @@
 # MA-031 implementation and evidence
 
-Status: tickets 01-05 complete; validated saves 06 next. Baseline: `f09af93` (planning branch), code
+Status: tickets 01-06 complete; identity-bound removal 07 next. Baseline: `f09af93` (planning branch), code
 baseline `7e52ea5b5fe95ae7d0995e88fa765ab57d549b86`.
 
 Deliver shared validated Favorite membership and captured ownership to every
@@ -141,6 +141,21 @@ changed Go file including weak warnings; fresh Qodana post-suppression SARIF.
 Budget: 1 mechanical native-inventory task; 2 review rounds plus bot findings;
 full suite once via CI (review-loop rule avoids duplicate broad local race suite).
 
+Native qualification scout (09 reconnaissance overlaps 06): G1 yes, bounded
+runner/workflow inventory; G2 yes, cited paths and exact commands checked by lead;
+G3 yes, read-only; G4 yes, native CI spans independent workflow/runner families;
+G5 yes, unrelated to lead's hot save/lifecycle context. No implementation or
+review delegated. T3 uses available gpt-6-luna. One spawn within ticket-09 budget.
+
+Native frontier from scout, checked against `scripts/nativeguards/main.go`:
+both Windows and macOS suites already enforce exact parent/subtest run/pass
+events and reject missing/skipped descendants. Register shared ownership
+move/idle-removal plus a new explicit `active_release` case, cancelled read and
+save-publication cases, both `TestAnalysisCacheFileURIPathsReopen` cases,
+Favorite storage lifecycle/native-call completion and root ownership integration.
+Add preview ownership cases after 08 names settle. Existing CI runs Windows and
+both macOS architectures and retains raw event artifacts; no new runner is needed.
+
 ## Delegation decisions
 
 Consumer scout: G1 yes (bounded ownership/held-test search); G2 yes (verify cited
@@ -168,7 +183,7 @@ Lead owns review, Explorer/root qualification, fixes and the ticket commit.
 - [x] 03 maintenance
 - [x] 04 cohorts
 - [x] 05 UI reads/lifetime
-- [ ] 06 saves
+- [x] 06 saves
 - [ ] 07 removal
 - [ ] 08 previews
 - [ ] 09 complete qualification
@@ -380,12 +395,16 @@ guards also fail under that mutation. Raw guard: `05-root-guard-red.txt`.
 
 Enumerated and ran uncached shared membership/limits, complete Favorites feature,
 root ownership/admission/replay/capture/shutdown, all Favorite-named root tests,
-startup, Explorer/local Explorer, Map, browsing and modal/compare regressions.
+startup, Explorer, Map, browsing and modal/compare regressions.
 Logs: `05-membership.txt`, `05-feature.txt`, `05-root-ownership.txt`,
 `05-root-focused.txt`, `05-root-consumers.txt` in the local evidence directory.
 All selected cases pass without skips. Focused Favorites race suite and vet for
 favstore, Favorites and root also pass. Formatting and exact exclusions pass;
 root shard inventory contains 742 tests, including the new integration suite.
+Correction found in 06: the optional Explorer-local parent requires the
+`explorertrial` tag and was not included in these untagged runs; it is not
+claimed as ticket-05 runtime evidence. Ticket 06 explicitly qualifies the changed
+native fixture with that tag and pinned assets.
 
 GoLand inspected all 34 changed/new Go files, including weak warnings, on the
 ticket-05 tree based on 013aa9f. Final changed guards re-inspected clean. No
@@ -400,3 +419,67 @@ Temporary bridges remain explicit: synchronous Save/Exists move to the captured
 mutation lane in 06; root's captured-open owner currently forwards to the legacy
 preview API until 08. Neither bridge adds a definition decoder. AGENTS documents
 queue/shutdown ordering using writing-for-agents guidance. No dependency changes.
+
+### Ticket 06 evidence
+
+`Target` captures existing directory/list identities and absent-name/root facts
+without idle handles. Detected conflicts permanently retire it. Save validates
+all occurrences and encoded bytes, checks cancellation while writing a private
+temporary file and revalidates immediately before atomic publication. The result
+explicitly retains Committed plus the published file's own owner; it never reopens
+the name after publication to recover ownership. Legacy Save delegates here.
+
+Favorites captures files before naming and root/name/provider before workers.
+One feature-local admission-ordered queue serializes saves and existing native
+removal, including cancelled jobs between live jobs. Occupied/changed targets
+require a fresh Cancel-default confirmation; a vacated conflicted name returns
+to naming. Committed effects notify current consumers and hand off the captured
+owner even after Close/root replacement or failed menu refresh. Presentation
+stays generation-bound; Stop suppresses delivery. Preview persistence itself
+remains the documented 08 bridge; removal confirmation becomes identity-bound
+in 07 on this same queue.
+
+Observed red -> green: empty/NUL/oversized/escaped oversized saves replaced the
+old list; stale and identical targets were overwritten; pre-publication cancel
+committed and post-publication cancel lost ownership; queued saves delivered
+inline; changed-then-vacated targets revived. Negative verification removed the
+final publication check (both conflict and cancelled-save cases failed), and
+suppressed post-close delivery (committed-effect guard failed). Restored code
+passes. Raw red logs: `06-save-red`, `06-conflicts-red`, `06-ui-red`,
+`06-target-retirement-red`, `06-publication-guard-red`, `06-committed-guard-red`.
+
+Enumerated exact storage/feature/root parents. Uncached green evidence includes:
+
+```
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/favstore -run '^(TestFavoriteConflicts|TestFavoriteCancellation|TestFavoriteMembershipLimits|TestSave.*)$'
+go test -race -tags no_emoji,nodynamic -count=1 -v ./internal/ui/favorites
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/similarity -run '^TestSearchSessionFavoriteSaveRetainsQueryAndPreparation$'
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run '^(TestBrowsingActionTargets|TestFavoriteOwnershipIntegration|TestFindMoreLikeThisActionsCaptureRankedSources|TestCollectionCapture|TestCollectionReplay)$'
+go test -race -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run '^TestHEICUnavailableFiles$'
+go test -tags no_emoji,nodynamic,explorertrial -count=1 -v ./internal/ui -run '^TestVisualSimilarityExplorerLocal$'
+```
+
+All passed without skips. Logs: `06-storage.txt`, `06-feature.txt`, `06-search.txt`,
+`06-root.txt`, `06-heic.txt`, `06-explorer-local.txt` (all 23 native child cases,
+87.05 seconds). Exact root inventory remains 742. Focused vet and Make formatting,
+exclusions and shard checks pass. New storage test has its exact Qodana exclusion.
+
+The diagnosing-bugs loop reproduced the ticket-05 CI ui-3 failure: the HEIC
+Favorite fixture waited for scan before draining Favorite delivery. Its one-line
+settlement fix passes locally under race. The optional Explorer-local suite had
+been omitted by the untagged selection (corrected above). Installed the existing
+checksum-pinned Linux ONNX 1.29.0/model assets via the repository installer,
+retaining its license/notices, no dependency/source/version change. Real-worker
+qualification found an obsolete move-following cache expectation and a preexisting
+literal facts-version-1 expectation. Tests now require frozen records at move,
+fresh-owner completion, and the existing `similarity.FactsVersion` constant.
+Focused reproductions and the complete tagged parent pass. No runtime policy
+was weakened to make these tests pass.
+
+GoLand inspected all 22 changed/new Go files including weak warnings on the tree
+based on 7a9d174; final edited files re-inspected. No timeout/skips or actionable
+production warnings. Remaining test duplicate fragments in browsing, Explorer-local,
+Favorites and visual-search tests retain their existing exact exclusions. Agent
+guide records the mutation/commit rules using writing-for-agents guidance. T0
+owned this cross-package implementation; independent T3 native-runner discovery
+for 09 ran alongside it. Complete latest-commit CI remains the later PR gate.

@@ -152,7 +152,13 @@ reviews and the full GitHub test suite remain required on the latest commit.
   collection replay, rechecking command admission at delivery. Source replacement
   cancels pending opens. Close cancels view work without waiting; Stop ends
   admission. Wait joins current/retired workers, including active native removal;
-  Settle joins and drains repeatedly. Install its test queue before SetDir and
+  Settle joins and drains repeatedly. Saves and removals share one instance queue;
+  cancelled queued work cannot bypass an active native call. Capture lists before
+  naming and targets on workers; a changed target requires a fresh decision.
+  Committed saves notify current consumers and refresh menus after view close,
+  but cannot revive stale prompts/toasts or reopen the collection. Carry the
+  published owner to preview work, never recover its identity by reopening a name.
+  Install its test queue before SetDir and
   stop/settle Favorites before preview and collection cleanup in the root harness.
 
 - Release-note artwork uses Help's per-instance UIQueue. HTTP fetch and image

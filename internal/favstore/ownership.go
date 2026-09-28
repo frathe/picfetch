@@ -159,7 +159,9 @@ func Open(ctx context.Context, dir string) (Definition, error) {
 // Store performs independent Favorite operations. Its zero value uses native
 // storage; each operation owns its handles and captures its working directory.
 type Store struct {
-	readFile func(context.Context, *os.File) ([]byte, error)
+	readFile      func(context.Context, *os.File) ([]byte, error)
+	beforePublish func()
+	afterPublish  func()
 }
 
 // Open reads the complete definition through this store's filesystem seam.
@@ -219,15 +221,19 @@ func (s *Store) open(ctx context.Context, dir, base string) (Definition, error) 
 	if err != nil {
 		return Definition{}, err
 	}
-	hash := sha256.New()
-	_, _ = hash.Write(data)
-	_, _ = hash.Write([]byte(list.ModTime().UTC().Format("20060102T150405.000000000")))
-	owner := &Owner{dir: dir, base: base, directory: directory, list: list, version: hex.EncodeToString(hash.Sum(nil))}
+	owner := &Owner{dir: dir, base: base, directory: directory, list: list, version: definitionVersion(data, list)}
 	access := &Access{Root: root, owner: owner}
 	if err := access.Current(ctx); err != nil {
 		return Definition{}, err
 	}
 	return Definition{Owner: owner, Paths: paths, base: base}, nil
+}
+
+func definitionVersion(data []byte, list os.FileInfo) string {
+	hash := sha256.New()
+	_, _ = hash.Write(data)
+	_, _ = hash.Write([]byte(list.ModTime().UTC().Format("20060102T150405.000000000")))
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 // Observe captures target identity without admitting its membership. This also

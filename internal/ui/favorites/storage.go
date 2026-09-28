@@ -9,10 +9,12 @@ import (
 	"github.com/frathe/picfetch/internal/favstore"
 )
 
-// Storage is the read boundary owned by Favorite storage workers.
+// Storage is the boundary owned by Favorite storage workers.
 type Storage interface {
 	List(context.Context, string) ([]favstore.Entry, error)
 	Open(context.Context, string) (favstore.Definition, error)
+	Capture(context.Context, string, string) (*favstore.Target, error)
+	Save(context.Context, *favstore.Target, []fyne.URI) (favstore.SaveResult, error)
 }
 
 // UIQueue marshals storage completions onto UI. Tests use a drainable queue.

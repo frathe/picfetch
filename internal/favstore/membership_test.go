@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"fyne.io/fyne/v2"
 )
 
 func putDefinition(t *testing.T, data string) (string, string) {
@@ -24,6 +26,41 @@ func putDefinition(t *testing.T, data string) (string, string) {
 
 func TestFavoriteMembershipLimits(t *testing.T) {
 	const limit = 64 * 1024 * 1024
+	t.Run("write", func(t *testing.T) {
+		for _, tc := range []struct {
+			name, path string
+			valid      bool
+		}{
+			{"empty", "", false},
+			{"nul", "a\x00b", false},
+			{"exact", strings.Repeat("x", limit-9), true},
+			{"oversized", strings.Repeat("x", limit-8), false},
+			{"escaped_oversized", strings.Repeat("<", limit/6), false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				dir, name := putDefinition(t, `{"0":"/original"}`)
+				err := Save(dir, name, []fyne.URI{pathURI{value: tc.path}})
+				if (err == nil) != tc.valid {
+					t.Fatalf("Save valid=%v: %v", tc.valid, err)
+				}
+				definition, err := Open(context.Background(), Dir(dir, name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := "/original"
+				if tc.valid {
+					want = tc.path
+					info, err := os.Stat(filepath.Join(Dir(dir, name), fileListName))
+					if err != nil || info.Size() != limit {
+						t.Fatalf("exact encoded boundary: %v, %v", info, err)
+					}
+				}
+				if len(definition.Paths) != 1 || definition.Paths[0] != want {
+					t.Fatal("write did not preserve the complete expected list")
+				}
+			})
+		}
+	})
 	for _, extra := range []int{0, 1} {
 		name := "exact"
 		if extra != 0 {
@@ -47,6 +84,13 @@ func TestFavoriteMembershipLimits(t *testing.T) {
 		})
 	}
 }
+
+type pathURI struct {
+	fyne.URI
+	value string
+}
+
+func (u pathURI) Path() string { return u.value }
 
 func TestFavoriteMembership(t *testing.T) {
 	t.Run("paths", func(t *testing.T) {
