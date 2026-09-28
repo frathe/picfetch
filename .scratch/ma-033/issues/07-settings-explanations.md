@@ -1,6 +1,6 @@
 # 07: Explain update restrictions in Settings
 
-Status: ready-for-agent
+Status: done
 Parent: [MA-033 specification](../spec.md)
 **Blocked by:** [02: Capture immutable launch decisions](02-captured-launch-decisions.md).
 
@@ -10,17 +10,17 @@ instead of update controls, including both reasons for Store trials.
 
 ## Acceptance criteria
 
-- [ ] Root supplies captured permission/reasons to Settings. The mounted Updates
+- [x] Root supplies captured permission/reasons to Settings. The mounted Updates
   tab shows installed version/build, ordinary portable controls, and exactly
   the applicable Store/trial explanation set for restricted cases. Verify: V1, V2.
-- [ ] Prohibited check/apply controls are absent from the mounted tree and
+- [x] Prohibited check/apply controls are absent from the mounted tree and
   restricted Settings does not send update actions to its host. Presentation
   does not reconstruct permissions from feature lifetime or replace root/updater
   effect admission. Verify: V1.
-- [ ] Ordinary controls retain their actions, and closing Settings rejects stale
+- [x] Ordinary controls retain their actions, and closing Settings rejects stale
   callbacks. Existing backend refusal stays intact while 05/06 migrate it;
   integrated stale/direct backend proof remains part of 08. Verify: V1, V2.
-- [ ] Preserve existing Store copy and provide the trial explanation through
+- [x] Preserve existing Store copy and provide the trial explanation through
   the established localization mechanism in every catalogue, with identity-map
   English, parity and font-safe strings. Verify: V3.
 
@@ -40,3 +40,9 @@ The lead owns user-visible wording and translation changes.
 Follow the [shared execution rules](README.md#execution-and-evidence-rules).
 Do not remove the Updates tab, prioritize one reason over another or add a
 separate Settings permission rule.
+
+Completed: seven mounted-tree cases (six combinations and absent policy) went
+red/green, full Settings regressions and localization checks pass. Existing
+catalogued trial wording was reused; no translation additions were needed.
+All five changed code files have complete clean GoLand inspection evidence.
+See the active plan's ticket 07 record.

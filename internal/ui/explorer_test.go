@@ -3649,7 +3649,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		labels := []string{"Save analysis for favorites", "Auto-update every 30 images", "Fit new stacks into view"}
 		findChecks := func(v *viewer) (fyne.Window, map[string]*widget.Check) {
-			v.settingsWin.Show(v.settingsState(), false)
+			v.settingsWin.Show(v.settingsState(), v.launchPolicy.Updates())
 			checks := map[string]*widget.Check{}
 			for _, win := range v.app.Driver().AllWindows() {
 				if win.Title() != lang.L("Settings") {

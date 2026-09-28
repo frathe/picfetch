@@ -1,6 +1,6 @@
 # MA-033: captured launch policy implementation
 
-Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`), 04 (`8528f7b`), 05 (`7a5629b`) and 06 complete; 07 next.
+Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`), 04 (`8528f7b`), 05 (`7a5629b`), 06 (`d8f84c0`) and 07 complete; 08 active.
 Baseline: `9549e3b` (approved specification), runtime baseline `a5caf73`.
 Route: Deep SDD with vertical TDD slices.
 Authorization: 2026-09-28 `/implement MA-033`: implementation, per-ticket commits,
@@ -186,8 +186,8 @@ must record G1-G5 before spawning.
 | 04 | 0/0 | 1 | no | done |
 | 05 | 1/1 | 1 | no | done |
 | 06 | 0/0 | 1 | no | done |
-| 07 | 0/0 | 0 | no | pending |
-| 08 | 1/0 | 0 | no | pending |
+| 07 | 0/0 | 1 | no | done |
+| 08 | 1/1 | 0 | no | runner slice active; convergence pending 07 |
 | 09 | 0/0 | 0 | CI | pending |
 
 ## Verification evidence
@@ -481,3 +481,51 @@ Lead implemented and reviewed; no delegation or changed dependencies.
 - Local raw captures: `.scratch/ma-033/evidence/06-{updater-red,root-red,
   backup-order-negative,shutdown-negative,updater-green,regressions-green}.log`
   and `06-inspections.json`. No new test files or top-level root tests.
+
+### Ticket 07 contract / ticket 08 runner delegation
+
+Settings Show accepts `launch.UpdatePermission` alongside its preference snapshot,
+replacing the Store boolean. It renders Allowed controls or each supplied reason;
+Store copy remains unchanged, Trial uses the existing localized "Updates are
+unavailable in this session". Missing policy also fails closed with that message.
+Mounted tests use literal names `ordinary_portable`, `ordinary_store`,
+`explorer_portable`, `explorer_store`, `location_map_portable`, `location_map_store`
+under `TestUpdatesTabLaunchPolicy`; additional `missing_policy` is defensive.
+Root passes its captured permission. Lead owns UI text, tests and review.
+
+08 runner slice (T1 Sol, <=2 existing files): add launch-policy and
+launch-policy-store to scripts/nativeguards main.go/main_test.go. The former is
+native Linux/Windows/macOS; the latter Windows-only, tags microsoftstore. Require
+the six approved guard families and all their current named children, compiled
+distribution guards and existing applicable native prerequisite/Open With/
+predecessor guards from the spec. No unrelated full-package goldens or codecs.
+Capture host/arch/Go/build tags/revision and outcomes; retain strict missing,
+skipped, failed-process and incorrect build-selection refusal.
+Oracle: `go test -tags no_emoji,nodynamic -count=1 -v ./scripts/nativeguards -run
+'^TestLaunchPolicyNativeSuite$'`, followed by the complete runner package.
+G1 yes bounded two-file runner; G2 yes fixture command; G3 yes exclusive files;
+G4 yes isolated runner context; G5 yes lead has not designed implementation.
+S/W: evidence validation and fixtures need comprehension, not a regex; contract
+only, not code. No workflow, UI, docs, review or commits delegated. Lead reviews
+and commits with 08 after Settings/caller convergence. Budget 1 spawn, 1 review.
+
+### Ticket 07 completion evidence
+
+Analyzed revision: `d8f84c0` plus ticket 07 changes in this commit. Lead-only UI
+implementation and review; ticket 08 runner files are independent, not included.
+
+- V1 red: portable trials and absent policy mounted update controls and sent a
+  manual host request; Store trials omitted their second explanation. V1 green:
+  all six combinations and missing policy show exact mounted version/reasons,
+  denied controls are absent and send no host actions; ordinary toggle/check/
+  Perform actions and closed-window stale callback refusal pass.
+- V2 full Settings package passed, including existing Updates-tab and close
+  regressions. V3 translation parity/English identity and UI Unicode-arrow guards
+  passed. Existing Store and trial keys already exist in both shipped bundles.
+- Focused root policy integration and vet passed; Settings matrix also passed
+  with microsoftstore tags and focused race. All five changed Go files completed
+  GoLand Project Default fallback inspection including weak warnings, with zero
+  findings/timeouts. No new test files or root top-level tests; existing exact
+  exclusions and shard inventory remain valid.
+- Raw red/green output and full inspection JSON are retained locally in
+  `.scratch/ma-033/evidence/07-settings-{red,green}.log` and `07-inspections.json`.

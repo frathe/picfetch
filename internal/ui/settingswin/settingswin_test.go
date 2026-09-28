@@ -3,6 +3,7 @@ package settingswin
 import (
 	"errors"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
@@ -63,10 +65,19 @@ func (f *fakeHost) PerformUpdate() error {
 	return f.performErr
 }
 
+func testUpdatePermission(t *testing.T, store bool) launch.UpdatePermission {
+	t.Helper()
+	policy, err := launch.NewPolicy(launch.Options{}, "io.picfetch.test", store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return policy.Updates()
+}
+
 func showSettings(t *testing.T, host *fakeHost) *Window {
 	t.Helper()
 	w := New(testApp, host)
-	w.Show(host.prefs, false)
+	w.Show(host.prefs, testUpdatePermission(t, false))
 	t.Cleanup(func() {
 		if win := w.win.Window(); win != nil {
 			win.Close()
@@ -171,11 +182,11 @@ func TestThemeSelect_ChangeCallsSetThemeMode(t *testing.T) {
 func TestShow_RaisesTheSameWindowOnASecondCall(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 
-	w.Show(preferences.State{}, false)
+	w.Show(preferences.State{}, testUpdatePermission(t, false))
 	t.Cleanup(func() { w.win.Window().Close() })
 	win := w.win.Window()
 
-	w.Show(preferences.State{}, false)
+	w.Show(preferences.State{}, testUpdatePermission(t, false))
 
 	if w.win.Window() != win {
 		t.Error("a second Show should raise the existing window, not open a new one")
@@ -538,7 +549,7 @@ func TestOpen_ReflectsWindowLifecycle(t *testing.T) {
 		t.Fatal("Open() = true before Show was ever called")
 	}
 
-	w.Show(preferences.State{}, false)
+	w.Show(preferences.State{}, testUpdatePermission(t, false))
 	if !w.Open() {
 		t.Error("Open() = false, want true once Show has run")
 	}
@@ -558,7 +569,7 @@ func TestRestoreGeometry_OpensAtTheSavedGeometry(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 	w.RestoreGeometry(widgets.Geometry{X: 210, Y: 220, PositionSet: true, Size: fyne.NewSize(700, 750)})
 
-	w.Show(preferences.State{}, false)
+	w.Show(preferences.State{}, testUpdatePermission(t, false))
 	t.Cleanup(func() { w.win.Window().Close() })
 
 	if got, want := w.win.Window().Canvas().Size(), fyne.NewSize(700, 750); got != want {
@@ -575,7 +586,7 @@ func TestGeometry_TracksAResizeAndOutlivesTheWindow(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 	w.RestoreGeometry(widgets.Geometry{})
 
-	w.Show(preferences.State{}, false)
+	w.Show(preferences.State{}, testUpdatePermission(t, false))
 	w.win.Window().Resize(fyne.NewSize(700, 750))
 	w.win.Window().Close()
 
@@ -594,7 +605,7 @@ func TestStopTracking_IsSafeWithNoWindowOpen(t *testing.T) {
 func TestShow_WithoutRestoreGeometryUsesTheBuiltInSize(t *testing.T) {
 	w := New(testApp, &fakeHost{})
 
-	w.Show(preferences.State{}, false)
+	w.Show(preferences.State{}, testUpdatePermission(t, false))
 	t.Cleanup(func() { w.win.Window().Close() })
 
 	if got, want := w.win.Window().Canvas().Size().Width, float32(windowW); got != want {
@@ -667,7 +678,7 @@ func TestNewPositiveIntEntry(t *testing.T) {
 func newUpdateTestWindow(t *testing.T, host *fakeHost) *Window {
 	t.Helper()
 	w := New(testApp, host)
-	w.Show(host.prefs, false)
+	w.Show(host.prefs, testUpdatePermission(t, false))
 	t.Cleanup(func() {
 		if win := w.win.Window(); win != nil {
 			win.Close()
@@ -722,7 +733,7 @@ func TestSettingsCacheTabCompositionAndClose(t *testing.T) {
 	content := widget.NewLabel("cache contents")
 	closed := 0
 	w.SetCacheTab(func() fyne.CanvasObject { return content }, func() { closed++ })
-	w.Show(preferences.State{}, false)
+	w.Show(preferences.State{}, testUpdatePermission(t, false))
 	t.Cleanup(func() {
 		if win := w.win.Window(); win != nil {
 			win.Close()
@@ -902,7 +913,7 @@ func TestUpdatesTab_ShowsCurrentVersionAndBuild(t *testing.T) {
 		metadata: fyne.AppMetadata{Version: "2.3.4", Build: 567},
 	}
 	w := New(app, &fakeHost{})
-	w.Show(preferences.State{}, false)
+	w.Show(preferences.State{}, testUpdatePermission(t, false))
 	t.Cleanup(func() { w.win.Window().Close() })
 
 	updates := tabVBox(t, settingsTabs(t, w).Items[2])
@@ -917,7 +928,7 @@ func TestUpdatesTab_ShowsCurrentVersionAndBuild(t *testing.T) {
 func TestUpdatesTab_MicrosoftStoreOwnsUpdates(t *testing.T) {
 	host := &fakeHost{prefs: preferences.State{CheckForUpdates: true}}
 	w := New(testApp, host)
-	w.Show(host.prefs, true)
+	w.Show(host.prefs, testUpdatePermission(t, true))
 	t.Cleanup(func() { w.win.Window().Close() })
 
 	updates := tabVBox(t, settingsTabs(t, w).Items[2])
@@ -935,6 +946,99 @@ func TestUpdatesTab_MicrosoftStoreOwnsUpdates(t *testing.T) {
 	}
 	if len(host.applyCalls) != 0 || len(host.updateCallbacks) != 0 {
 		t.Error("opening Store-managed Settings started update work")
+	}
+}
+
+func TestUpdatesTabLaunchPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		purpose        launch.Purpose
+		store, missing bool
+		want           []string
+	}{
+		{"ordinary_portable", launch.Ordinary, false, false, nil},
+		{"ordinary_store", launch.Ordinary, true, false, []string{"Updates are managed by Microsoft Store."}},
+		{"explorer_portable", launch.ExplorerTrial, false, false, []string{"Updates are unavailable in this session"}},
+		{"explorer_store", launch.ExplorerTrial, true, false, []string{"Updates are managed by Microsoft Store.", "Updates are unavailable in this session"}},
+		{"location_map_portable", launch.LocationMapTrial, false, false, []string{"Updates are unavailable in this session"}},
+		{"location_map_store", launch.LocationMapTrial, true, false, []string{"Updates are managed by Microsoft Store.", "Updates are unavailable in this session"}},
+		{"missing_policy", launch.Ordinary, false, true, []string{"Updates are unavailable in this session"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := launch.Options{}
+			if tc.purpose == launch.ExplorerTrial {
+				opts.ExplorerTrial = t.TempDir()
+			}
+			if tc.purpose == launch.LocationMapTrial {
+				opts.LocationMapTrial = t.TempDir()
+			}
+			policy, err := launch.NewPolicy(opts, "io.picfetch.test", tc.store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.missing {
+				policy = launch.Policy{}
+			}
+			host := &fakeHost{}
+			w := New(metadataApp{App: testApp, metadata: fyne.AppMetadata{Version: "2.3.4", Build: 567}}, host)
+			w.Show(host.prefs, policy.Updates())
+			t.Cleanup(func() {
+				if win := w.win.Window(); win != nil {
+					win.Close()
+				}
+			})
+			tabs := settingsTabs(t, w)
+			tabs.SelectIndex(2)
+			if tabs.Items[2].Text != "Updates" {
+				t.Fatalf("Updates tab missing: %q", tabs.Items[2].Text)
+			}
+			updates := tabVBox(t, tabs.Items[2])
+			var labels []string
+			var controls []fyne.CanvasObject
+			for _, obj := range updates.Objects {
+				if label, ok := obj.(*widget.Label); ok {
+					labels = append(labels, label.Text)
+				} else {
+					controls = append(controls, obj)
+				}
+			}
+			wantLabels := append([]string{"Version 2.3.4 (Build 567)"}, tc.want...)
+			if !slices.Equal(labels, wantLabels) {
+				t.Errorf("mounted labels=%q, want %q", labels, wantLabels)
+			}
+			if len(tc.want) > 0 {
+				if len(controls) != 0 || w.updateNow != nil || w.updateCheck != nil {
+					t.Error("restricted mounted tree exposes update controls")
+				}
+				w.startUpdateCheck()
+				w.performUpdate(w.updateFlow)
+				if len(host.applyCalls) != 0 || len(host.updateCallbacks) != 0 || host.performCalls != 0 {
+					t.Error("restricted Settings dispatched update work")
+				}
+				return
+			}
+			if len(controls) != 2 || !containsCanvasObject(updates, w.updateNow) || !containsCanvasObject(updates, w.updateCheck) {
+				t.Fatal("ordinary mounted controls missing")
+			}
+			test.Tap(w.updateCheck)
+			test.Tap(w.updateNow)
+			if len(host.applyCalls) != 1 || !host.prefs.CheckForUpdates || len(host.updateCallbacks) != 1 {
+				t.Fatal("ordinary check actions did not reach host")
+			}
+			callbacks := host.updateCallbacks[0]
+			callbacks.Ready("v2.3.5")
+			w.updateChoices.Select(1)
+			w.updateChoices.Confirm()
+			if host.performCalls != 1 {
+				t.Fatal("ordinary apply action did not reach host")
+			}
+			w.win.Window().Close()
+			callbacks.Ready("v2.3.6")
+			callbacks.Failed(errors.New("late result"))
+			if w.updateDialog != nil || host.performCalls != 1 {
+				t.Error("closed Settings accepted a stale update callback")
+			}
+		})
 	}
 }
 

@@ -27,6 +27,7 @@ import (
 	"github.com/frathe/picfetch/internal/appearance"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/heic"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
@@ -64,17 +65,17 @@ type Host interface {
 // Singleton): a second request raises the existing window rather than
 // stacking up duplicates.
 type Window struct {
-	app                   fyne.App
-	host                  Host
-	updatesManagedByStore bool
-	cacheContent          func() fyne.CanvasObject
-	cacheClosed           func()
-	heicGuideAction       func()
-	heicGuideButton       *widget.Button
-	heicCheckAction       func()
-	heicCheckButton       *widget.Button
-	heicStatusLabel       *widget.Label
-	heicStatus            heic.State
+	app             fyne.App
+	host            Host
+	updates         launch.UpdatePermission
+	cacheContent    func() fyne.CanvasObject
+	cacheClosed     func()
+	heicGuideAction func()
+	heicGuideButton *widget.Button
+	heicCheckAction func()
+	heicCheckButton *widget.Button
+	heicStatusLabel *widget.Label
+	heicStatus      heic.State
 
 	// prefs is the form snapshot Show seeded, mutated by each control, and
 	// pushed back through Host.ApplySettings. Ignored while the window is
@@ -147,12 +148,12 @@ func (w *Window) ConfirmClearAnalysis(answer func(bool)) {
 }
 
 // Show opens the settings window, or raises it if it's already open.
-// prefs is the standing-preferences snapshot used to seed the form; it is
+// prefs and updates are captured snapshots used to seed the form; they are
 // ignored when the window is already showing, so in-flight edits stay put.
-func (w *Window) Show(prefs preferences.State, updatesManagedByStore bool) {
+func (w *Window) Show(prefs preferences.State, updates launch.UpdatePermission) {
 	if !w.win.Open() {
 		w.prefs = prefs
-		w.updatesManagedByStore = updatesManagedByStore
+		w.updates = updates
 	}
 	w.win.Show(w.app, lang.L("Settings"), fyne.NewSize(windowW, windowH), w.build, func() {
 		w.closeUpdateFlow()
@@ -430,11 +431,7 @@ func (w *Window) build() fyne.CanvasObject {
 	general := container.NewVBox(generalForm, widget.NewSeparator(), w.mergeCheck, w.shuffleCheck, widget.NewSeparator(), widget.NewLabel(lang.L("Similarity Explorer")), saveAnalysis, autoUpdate, autoFit, widget.NewSeparator(), heicSettings)
 	appearanceSettings := container.NewVBox(w.themeSelect, widget.NewSeparator(), windowSizeForm, w.staticSizeCheck)
 	updates := container.NewVBox(w.updateVersion)
-	if w.updatesManagedByStore {
-		w.updateManaged = widget.NewLabel(lang.L("Updates are managed by Microsoft Store."))
-		w.updateManaged.Wrapping = fyne.TextWrapWord
-		updates.Add(w.updateManaged)
-	} else {
+	if w.updates.Allowed() {
 		w.updateCheck = widget.NewCheck(lang.L("Check for updates"), func(on bool) {
 			w.apply(func(s *preferences.State) { s.CheckForUpdates = on })
 		})
@@ -442,6 +439,22 @@ func (w *Window) build() fyne.CanvasObject {
 		w.updateNow = widget.NewButton(lang.L("Check now"), w.startUpdateCheck)
 		updates.Add(w.updateCheck)
 		updates.Add(w.updateNow)
+	} else {
+		for _, reason := range w.updates.Reasons() {
+			var explanation string
+			switch reason {
+			case launch.StoreManagedUpdates:
+				explanation = lang.L("Updates are managed by Microsoft Store.")
+			case launch.TrialUpdates, launch.MissingPolicy:
+				explanation = lang.L("Updates are unavailable in this session")
+			}
+			label := widget.NewLabel(explanation)
+			label.Wrapping = fyne.TextWrapWord
+			if reason == launch.StoreManagedUpdates {
+				w.updateManaged = label
+			}
+			updates.Add(label)
+		}
 	}
 
 	tabs := container.NewAppTabs(
