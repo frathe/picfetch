@@ -97,6 +97,11 @@ The ordered image-file occurrences recorded in a Favorite or session for later
 reopening, including repeated entries.
 _Avoid_: Unique-file set, persisted browsing visit
 
+**Favorite membership**:
+The image files belonging to a Favorite according to its complete saved list,
+independently of which files are currently loaded, analyzed or cached.
+_Avoid_: Favorite association, loaded collection, preview work list
+
 **Browsing visit**:
 A browsing context retained while moving between its image list and individual
 images, with a scope and a destination for return.

@@ -78,7 +78,17 @@
   inspected Qodana SARIF passed on 2722b1d;
   [PR 69](https://github.com/frathe/picfetch/pull/69) records the continuing
   latest-head code/security reviews, dispositions and final checks.
-  MA-031 through MA-033 remain proposals.
+  [MA-031's accepted design](docs/favorite-ownership.md) resolves all twelve
+  interview decisions: incremental migration, ownership/retirement, the common
+  64 MiB definition limit, validation, partial inventories, freshness, scoped
+  retention, bounded handles, UI storage workers, cancellation and confirmation
+  conflicts. The [local specification](.scratch/ma-031/spec.md) is published as
+  `ready-for-agent`, with 70 stories, test boundaries and 22 acceptance criteria
+  covering both migration stages. The approved
+  [nine implementation tickets](.scratch/ma-031/issues/README.md) are published
+  as `ready-for-agent`, with blockers and verification commands. Ticket 01 is
+  the frontier; Deep SDD implementation planning remains pending.
+  MA-032 and MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

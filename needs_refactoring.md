@@ -1,7 +1,6 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-28 after implementation qualification of MA-029 and design
-acceptance of MA-030.
+Updated 2026-09-28 after design acceptance of MA-031.
 The cross-feature architecture assessment of PR review history and
 implementation is dated 2026-09-26.
 
@@ -25,8 +24,11 @@ MA-030 has an [accepted design](docs/collection-transitions.md) and
 [resolved specification](.scratch/ma-030/spec.md); all nine tickets are complete
 and CI-qualified in the [archived record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md).
 [PR 69](https://github.com/frathe/picfetch/pull/69) records latest-head reviews and checks.
-MA-031 through MA-033 remain proposals, not accepted implementation plans or
-unresolved PR defects.
+MA-031's [accepted design](docs/favorite-ownership.md) resolves all twelve
+interview decisions. Its [local specification](.scratch/ma-031/spec.md) is
+`ready-for-agent`; implementation planning remains pending.
+MA-032 and MA-033 remain proposals. These are not accepted implementation plans
+or unresolved PR defects.
 
 Historical inspection baseline: `main` at `54fd7c3` (v1.1.2). At that revision,
 the root `internal/ui` package contained 55 production Go files, 10,835 non-test
@@ -37,7 +39,7 @@ explicit cross-feature composition in `internal/ui`.
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | All nine tickets complete and CI-qualified; latest review/checks in PR 69 |
-| [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | Recommended; medium scope |
+| [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | Design accepted; spec ready-for-agent; implementation pending |
 | [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Conditional extraction; medium scope |
 | [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | Recommended independent small task |
 
@@ -437,6 +439,20 @@ integration anchors. New collection tests should not need a desktop harness.
 **P2; high confidence in duplicated responsibility.** This is storage ownership
 shared by several features, not a request to merge their caches.
 
+The [accepted MA-031 design](docs/favorite-ownership.md) requires incremental
+migration starting with similarity and Location Map, followed by assessment and
+migration of remaining duplicated checks in Favorite opening/counting, cohorts
+and previews. Shared operations include ownership and release as well as bounded
+decoding. Accepted details retire owners on move/replacement, set a common
+64 MiB membership limit, reject malformed/ambiguous definitions and preserve
+healthy partial inventories without treating unknown membership as empty.
+It also requires scoped retention and bounded handle lifetimes, tracked Favorite
+UI storage workers, preservation of committed effects after cancellation and
+identity revalidation for overwrite/removal confirmation. All twelve interview
+decisions are resolved. The [local specification](.scratch/ma-031/spec.md) is
+`ready-for-agent`, with 70 stories and 22 acceptance criteria; implementation
+planning remains pending.
+
 **Evidence:** Explorer had
 [pathname reads against a retained directory owner](https://github.com/frathe/picfetch/pull/18#discussion_r3987044215);
 analysis maintenance needed
@@ -461,8 +477,9 @@ identity and explicit partial-inventory results behind `favstore` operations.
 Allow callers to request a live-source intersection while retaining the complete
 membership identity needed for validation. Current ownership and resource
 release must be part of the interface, including replacement/move behavior.
-Start with two real consumers, similarity and Location Map, then assess cohorts
-and previews against the same contract.
+Start with two real consumers, similarity and Location Map, then assess and
+migrate remaining duplicated checks in Favorite opening/counting, cohorts and
+previews against the same contract. Both stages are required for completion.
 
 Keep analysis cross-process leases, GPS namespaces, thumbnail encoding and each
 cache's budget/admission policy in their existing owners. A membership snapshot
@@ -474,7 +491,10 @@ that can become stale after another process replaces a list.
 directory move and same-name replacement, partial inventory errors, cancellation
 and bounded enumeration. Consumer tests retain opt-out behavior, obsolete-writer
 rejection, valid fresh records after invalidation, and the full-membership versus
-eager-work distinction. No disk-format migration is needed for the first slice.
+eager-work distinction. UI tests cover superseded delivery, asynchronous admission,
+confirmation conflicts and committed effects after cancellation or refresh
+failure. Native Windows verification covers removal with idle retained
+ownership. No disk-format migration is part of this design.
 
 <a id="ma-032"></a>
 
