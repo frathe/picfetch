@@ -182,6 +182,9 @@ jobs:
       - name: Execute native Linux guards
         run: go run ./scripts/nativeguards -suite linux -capture "${{ runner.temp }}/native-guards-linux.json"
 
+      - name: Check native launch policy
+        run: go run ./scripts/nativeguards -suite launch-policy -capture "${{ runner.temp }}/native-guards-launch-policy.json"
+
       - name: Check native Favorite ownership
         run: go run ./scripts/nativeguards -suite favorite-ownership -capture "${{ runner.temp }}/native-guards-favorite-ownership.json"
 
@@ -229,6 +232,12 @@ jobs:
       - name: Execute Microsoft Store distribution guards
         run: go run ./scripts/nativeguards -suite store -capture "${{ runner.temp }}/native-guards-store.json" -skip-heic-codecs
 
+      - name: Check native launch policy
+        run: go run ./scripts/nativeguards -suite launch-policy -capture "${{ runner.temp }}/native-guards-launch-policy.json"
+
+      - name: Check native Store launch policy
+        run: go run ./scripts/nativeguards -suite launch-policy-store -capture "${{ runner.temp }}/native-guards-launch-policy-store.json"
+
       - name: Upload native guard events
         if: always()
         uses: actions/upload-artifact@v7
@@ -266,6 +275,9 @@ jobs:
 
       - name: Execute Cocoa-linked macOS guards
         run: go run ./scripts/nativeguards -suite macos -capture "${{ runner.temp }}/native-guards-macos.json"
+
+      - name: Check native launch policy
+        run: go run ./scripts/nativeguards -suite launch-policy -capture "${{ runner.temp }}/native-guards-launch-policy.json"
 
       - name: Check native command admission
         run: go run ./scripts/nativeguards -suite command-admission -capture "${{ runner.temp }}/native-guards-command-admission.json"

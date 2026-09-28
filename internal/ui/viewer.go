@@ -55,9 +55,6 @@ type viewer struct {
 	stopping bool
 	// launchPolicy is captured before composition and independent of features.
 	launchPolicy launch.Policy
-	// Transitional consumer of the captured distribution; existing downstream
-	// guards remain until their owning MA-033 tickets migrate them.
-	storeManaged bool
 	heic         *heicWork
 	// quit requests application shutdown after PerformUpdate has successfully
 	// recorded apply-and-relaunch intent. buildViewer initializes it from the

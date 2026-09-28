@@ -124,10 +124,8 @@ func New(app fyne.App, dir string, policy launch.Policy, persist func(day string
 	}
 }
 
-// Dir observes the launch-selected staging directory. SetDir is a fixture seam;
-// production supplies its captured selection to New before construction.
-func (u *Updater) Dir() string       { return u.dir }
-func (u *Updater) SetDir(dir string) { u.dir = dir }
+// Dir observes the staging directory captured by New.
+func (u *Updater) Dir() string { return u.dir }
 
 // Client and SetClient round-trip the GitHub Releases client. nil until
 // EnsureClient prepares one, or a test assigns one directly (httptest + a

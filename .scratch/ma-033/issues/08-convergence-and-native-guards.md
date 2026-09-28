@@ -1,6 +1,6 @@
 # 08: Complete policy adoption and native guard coverage
 
-Status: ready-for-agent
+Status: done
 Parent: [MA-033 specification](../spec.md)
 **Blocked by:** [04: Select storage before constructing consumers](04-storage-at-construction.md),
 [06: Enforce policy for recovery and installation](06-recovery-and-installation.md),
@@ -12,20 +12,20 @@ covered effect has one captured decision, independently of live feature lifetime
 
 ## Acceptance criteria
 
-- [ ] The lead's production-caller inventory covers pre-app cleanup,
+- [x] The lead's production-caller inventory covers pre-app cleanup,
   construction, runtime actions, preference callbacks, records and shutdown.
   No application-facing effect route bypasses policy or infers update permission
   from live trial features. Remove any migration-only alternate route while
   retaining feature-local trial behavior and low-level mechanisms. Verify: V1, V2.
-- [ ] Combined real composition proves both trial types and Store/trial cases,
+- [x] Combined real composition proves both trial types and Store/trial cases,
   missing-policy refusal, lifetime independence, correct roots and Settings
   actions together. All earlier required children remain present and pass.
   Verify: V2.
-- [ ] Focused ordinary and Store native runner suites select production startup,
+- [x] Focused ordinary and Store native runner suites select production startup,
   launch preparation, root/updater and Settings guards with exact required child
   inventory and correct build tags. Windows/Store cannot omit root startup or
   root UI; non-Linux hosts avoid unrelated Linux-only goldens. Verify: V3.
-- [ ] Runner fixtures prove missing parents/children, skipped required cases,
+- [x] Runner fixtures prove missing parents/children, skipped required cases,
   failed processes and mismatched required build selection cannot yield a clean
   capture. Captures identify the revision/platform/build and required outcomes.
   Native prerequisite refusal is preserved rather than skipped. Verify: V3.
@@ -51,3 +51,9 @@ Follow the [shared execution rules](README.md#execution-and-evidence-rules).
 The proposed focused suite names are launch-policy and launch-policy-store.
 Equivalent existing suites are acceptable only with the same complete inventory
 and an updated command mapping. Do not implement a general permission framework.
+
+Completed: lead caller inventory and dispositions are in the active plan; legacy
+identity and mutable viewer/late staging adapters are removed. All six guard
+families, integrated mounted Settings and runner refusal fixtures pass, with
+165 required Linux outcomes recorded. CI now selects the native launch suites on
+all required hosts/builds. Actual latest-revision CI/native results remain 09.

@@ -1,11 +1,11 @@
 package launch
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/frathe/picfetch/internal/explorertrial"
@@ -70,9 +70,17 @@ func TestLaunchPolicyContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		locationOpts.LocationMapTrial = "changed-after-construction"
-		legacyIdentity, err := (Options{LocationMapTrial: absolute}).ApplicationID(context.Background(), "normal-app")
-		if err != nil || location.ApplicationID() != legacyIdentity || location.TrialDir() != absolute {
-			t.Fatalf("Location Map identity=%q root=%q, want existing identity=%q root=%q (err=%v)", location.ApplicationID(), location.TrialDir(), legacyIdentity, absolute, err)
+		if location.TrialDir() != absolute {
+			t.Fatalf("Location Map root=%q, want %q", location.TrialDir(), absolute)
+		}
+		// Fixed legacy-format fixtures, independent of the capture implementation.
+		path, wantID := "/ma-033/trial", "normal-app.location-map-trial.6e3874c3cbce614e8fea7a71"
+		if runtime.GOOS == "windows" {
+			path, wantID = `C:\ma-033\trial`, "normal-app.location-map-trial.71bb99bb8395bd8ef4cde8a1"
+		}
+		fixture, err := NewPolicy(Options{LocationMapTrial: path}, "normal-app", false)
+		if err != nil || fixture.ApplicationID() != wantID {
+			t.Fatalf("Location Map identity=%q, want %q: %v", fixture.ApplicationID(), wantID, err)
 		}
 	})
 	t.Run("storage", func(t *testing.T) {

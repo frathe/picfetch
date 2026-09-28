@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,8 +18,11 @@ import (
 	"testing/synctest"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 	fynetest "fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/locationtrial"
@@ -213,7 +218,7 @@ func TestLaunchPolicyIntegration(t *testing.T) {
 		t.Run("independent_viewers", func(t *testing.T) {
 			ordinary, _, _ := newTestUIWithPolicy(t, testLaunchPolicy(t, launch.Options{}, false))
 			store, _, _ := newTestUIWithPolicy(t, testLaunchPolicy(t, launch.Options{}, true))
-			if !ordinary.launchPolicy.Updates().Allowed() || store.launchPolicy.Updates().Allowed() || ordinary.storeManaged || !store.storeManaged {
+			if !ordinary.launchPolicy.Updates().Allowed() || store.launchPolicy.Updates().Allowed() || ordinary.launchPolicy.StoreManaged() || !store.launchPolicy.StoreManaged() {
 				t.Fatal("one viewer's launch changed another viewer's captured permission")
 			}
 		})
@@ -344,6 +349,86 @@ func TestLaunchPolicyIntegration(t *testing.T) {
 				preferences.Save(observed, v.currentPreferences())
 				if app.Preferences().String("lastUpdateCheckDay") != want || prefs.writes.Load() != writes {
 					t.Error("general preferences changed update-specific persistence")
+				}
+			})
+		}
+	})
+	t.Run("settings", func(t *testing.T) {
+		for _, tc := range append(restrictedLaunchCases(t), namedLaunchPolicy{"ordinary", testLaunchPolicy(t, launch.Options{}, false)}) {
+			t.Run(tc.name, func(t *testing.T) {
+				v, _, _ := newTestUIWithPolicy(t, tc.policy)
+				httpCalls := &launchHTTPProbe{}
+				v.updater.SetClient(update.NewClient(update.Config{HTTP: httpCalls, Now: fixedNow("2026-09-28"), Verify: &fakeUpdateVerifier{}, StageDir: v.updater.Dir()}))
+				v.updater.SetCurrentVersion("0.2.5")
+				v.updater.RestoreLastCheckDay("2026-09-28")
+				v.settings.checkForUpdates = false
+				v.explorer.Close()
+				v.locationMap.Close()
+				v.showSettings()
+				var settingsWindow fyne.Window
+				for _, win := range v.app.Driver().AllWindows() {
+					if win.Title() == lang.L("Settings") {
+						settingsWindow = win
+						break
+					}
+				}
+				if settingsWindow == nil {
+					t.Fatal("actual Settings action did not open its window")
+				}
+				t.Cleanup(settingsWindow.Close)
+				var tabs *container.AppTabs
+				explorerWalk(settingsWindow.Content(), func(obj fyne.CanvasObject) {
+					if candidate, ok := obj.(*container.AppTabs); ok {
+						tabs = candidate
+					}
+				})
+				if tabs == nil || len(tabs.Items) <= 2 || tabs.Items[2].Text != lang.L("Updates") {
+					t.Fatal("actual Updates tab is missing")
+				}
+				tabs.SelectIndex(2)
+				var labels []string
+				var automatic *widget.Check
+				var manual *widget.Button
+				explorerWalk(tabs.Items[2].Content, func(obj fyne.CanvasObject) {
+					switch w := obj.(type) {
+					case *widget.Label:
+						labels = append(labels, w.Text)
+					case *widget.Check:
+						automatic = w
+					case *widget.Button:
+						manual = w
+					}
+				})
+				meta := v.app.Metadata()
+				want := []string{fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build)}
+				if tc.policy.StoreManaged() {
+					want = append(want, lang.L("Updates are managed by Microsoft Store."))
+				}
+				if tc.policy.Purpose() != launch.Ordinary {
+					want = append(want, lang.L("Updates are unavailable in this session"))
+				}
+				if !slices.Equal(labels, want) {
+					t.Errorf("root supplied wrong explanations: %q, want %q", labels, want)
+				}
+				if !tc.policy.Updates().Allowed() {
+					if automatic != nil || manual != nil || httpCalls.calls.Load() != 0 || v.updater.Done().Begun() {
+						t.Error("restricted root Settings admitted update controls/work")
+					}
+					return
+				}
+				if automatic == nil || manual == nil {
+					t.Fatal("ordinary root Settings omitted controls")
+				}
+				fynetest.Tap(automatic)
+				if !v.CheckForUpdates() {
+					t.Error("ordinary Settings toggle did not reach root")
+				}
+				fynetest.Tap(manual)
+				if err := v.updater.Settle(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				if httpCalls.calls.Load() != 1 {
+					t.Errorf("ordinary manual action HTTP calls=%d, want 1", httpCalls.calls.Load())
 				}
 			})
 		}

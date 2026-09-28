@@ -402,14 +402,9 @@ func TestUpdater_CurrentVersion_EmptyOverrideDoesNotStick(t *testing.T) {
 
 // --- Dir / Client / Done round trips --------------------------------------
 
-func TestUpdater_DirRoundTrip(t *testing.T) {
-	u := ordinaryUpdater(t, test.NewApp(), "", nil)
-	if got := u.Dir(); got != "" {
-		t.Fatalf("Dir() = %q, want empty before SetDir", got)
-	}
-
+func TestUpdater_DirCapturedAtConstruction(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "updates")
-	u.SetDir(dir)
+	u := ordinaryUpdater(t, test.NewApp(), dir, nil)
 	if got := u.Dir(); got != dir {
 		t.Errorf("Dir() = %q, want %q", got, dir)
 	}

@@ -88,7 +88,6 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		info:          info,
 		launchPolicy:  startup.policy,
 		analysisDir:   startup.storage.AnalysisDir,
-		storeManaged:  startup.policy.StoreManaged(),
 		state:         newAppState(filesort.FromPref(prefs.SortMode), prefs.MergeMode),
 		baseTitle:     appTitle,
 		imgCache:      cache,

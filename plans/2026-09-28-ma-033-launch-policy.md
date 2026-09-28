@@ -1,6 +1,6 @@
 # MA-033: captured launch policy implementation
 
-Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`), 04 (`8528f7b`), 05 (`7a5629b`), 06 (`d8f84c0`) and 07 complete; 08 active.
+Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`), 04 (`8528f7b`), 05 (`7a5629b`), 06 (`d8f84c0`), 07 (`08dd7b3`) and 08 complete; 09 next.
 Baseline: `9549e3b` (approved specification), runtime baseline `a5caf73`.
 Route: Deep SDD with vertical TDD slices.
 Authorization: 2026-09-28 `/implement MA-033`: implementation, per-ticket commits,
@@ -187,7 +187,7 @@ must record G1-G5 before spawning.
 | 05 | 1/1 | 1 | no | done |
 | 06 | 0/0 | 1 | no | done |
 | 07 | 0/0 | 1 | no | done |
-| 08 | 1/1 | 0 | no | runner slice active; convergence pending 07 |
+| 08 | 1/1 | 1 | no | done |
 | 09 | 0/0 | 0 | CI | pending |
 
 ## Verification evidence
@@ -529,3 +529,86 @@ implementation and review; ticket 08 runner files are independent, not included.
   exclusions and shard inventory remain valid.
 - Raw red/green output and full inspection JSON are retained locally in
   `.scratch/ma-033/evidence/07-settings-{red,green}.log` and `07-inspections.json`.
+
+### Ticket 08 lead convergence contract
+
+Remove unused Options.ApplicationID (its former prerequisite belongs to Prepare)
+and the viewer's transitional storeManaged field. Migrate parser compatibility
+tests to policy capture/preparation and pin Location Map identity against a fixed
+absolute-path digest fixture, not the deleted implementation. Existing feature
+trial predicates remain solely for recording, trial launch and signal handling.
+Add `TestLaunchPolicyIntegration/settings` through real `showSettings`, observing
+mounted controls/reasons and invoking ordinary controls with external HTTP/quit
+probes. This complements consumer-only Settings tests and all prior effects.
+Wire focused runner suites into every native CI job, with independent Store
+capture on Windows and existing artifact retention. Lead owns guide/map updates,
+full AC21 caller dispositions and all review/fixes.
+
+### AC21 lead caller assessment (ticket 08)
+
+Ran the required fixed-baseline diff against
+`a5caf73a9031723b42b0bfd13b1fbd25ac893be9`; full local inspection input is
+`08-ac21-baseline.diff`. Reviewed changed production functions against the
+accepted effect inventory, with explicit call-site searches across the repo.
+Tests and runner outputs establish behavior; this inventory is the ownership
+assessment, not a claim that grep or a diff alone qualifies the implementation.
+
+| Covered route | Captured boundary and disposition | Proof |
+| --- | --- | --- |
+| CLI/help/worker dispatch | runStartup parses/short-circuits before capture or resources; native handler installation remains before Fyne | AC5 startup/early_exit, ordering |
+| Identity/distribution | productionStartup captures compiled distribution once; NewPolicy fixes normalized identity/root; obsolete effectful Options.ApplicationID removed | AC1-3, AC17 |
+| Pre-app predecessor cleanup | cleanupLaunchPredecessor consumes policy before app.NewWithID; restricted trial/Store never invoke cleanup | AC5/13 startup + artifact guards |
+| Trial acquisition/finalization | Prepare checks prerequisite and reserves before app access; main owns deferred Close, Run borrows and joins existing producers | AC4/6/14, preparation + actual hooks |
+| Preferences/session and storage | buildStartupViewer requires valid policy before resolver/read; only ordinary resolves fallbacks; feature constructors receive selected roots | AC7 construction |
+| Favorites/presets/analysis/stage roots | constructor injection in features/build; runtime Favorite refresh preserves that root; removed obsolete updater SetDir | AC3/7 construction |
+| Startup Settings state | features restores day without persistence and masks check preference; applyLaunchOptions consumes captured purpose/permission only | AC9 records, AC16 flags |
+| Automatic preference/action | ApplySettings uses SetCheckForUpdates; maybeStartUpdateCheck and setter require captured permission before stage/client/request effects | AC10/11 entrypoints |
+| Manual action/Settings | showSettings supplies same permission; CheckForUpdatesNow guards before token/worker and retains current-delivery checks | AC10/15 settings + callbacks |
+| Updater external effects | EnsureClient, Start, StartManual, RemoveStaleStage all guard before verifier/worker/transaction/stage I/O even when configured | AC8/11 direct guard families |
+| Last-check persistence | only guarded SetLastCheckDay invokes build's SaveLastUpdateCheckDay callback; preferences.Save excludes that key; Restore only seeds memory | AC9 persistence/records |
+| Notification records | six policy-admitted Updater methods, private generic serialization; root notifications additionally reject stale supplied records under denied policy | AC9 records |
+| Backup recovery | registered OnStarted guards before executable resolution, reads failure before sweep and reporter clear; restore/unreadable preserves backup | AC13 backup_order |
+| Apply/relaunch/quit | root PerformUpdate guards then validated RequestApplyAndRelaunch then quit; registered OnStopped guards normal apply; updater guards both direct verbs before transaction | AC8/12/14 shutdown/apply |
+| Feature lifetime | remaining Trial()/locationTrial references record source/producer events or control signal lifetime, never updates; removed duplicate viewer Store flag | AC2/10 feature_lifetime |
+| Low-level mechanisms | internal/update trust/staging/replacement and internal/preferences persistence remain mechanisms; all production callers above admitted. Client/configuration getters/setters retained only as non-effectful per-instance observations/injection, not an application effect route | AC11/12 regressions |
+
+No dependency, model, notice obligation or persistence format changed. Store-tagged
+simulation remains separate from native Windows execution and installed Store
+packaging. Real OS prerequisite refusal is retained, never skipped into success.
+
+### Ticket 08 completion evidence
+
+Analyzed revision: `08dd7b3` plus ticket 08 changes in this commit. Sol implemented
+the two runner files; lead independently ran its oracle/full package, reviewed
+all output/code and applied all review fixes inline (consistent receivers,
+dirty-state reporting includes untracked files). Lead owns convergence and CI.
+
+- V1: complete AC21 caller assessment above, baseline diff and call searches.
+  Removed legacy Options.ApplicationID, viewer.storeManaged and updater.SetDir.
+  Updated identity compatibility to fixed Unix/Windows digest fixtures; kept
+  feature-local recording and standalone mechanisms intact.
+- V2: all six guard families pass; root action Settings subtree adds six actual
+  composition/mounted-control/HTTP observations after feature close. An incorrect
+  root permission mutation failed ordinary and Store cases, then passed restored.
+  Startup/distribution and root guards also pass with microsoftstore; integrated
+  Settings passes under race. Existing parser/updater and full runner tests pass.
+- V3: agent red on unknown suites and missing metadata; lead reran the complete
+  strict fixture oracle. Missing parents/children, skipped descendants, failed
+  processes and wrong tags/host cannot yield complete capture. Lead native Linux
+  run captured 165/165 required outcomes in `08-linux-launch-policy.json` plus
+  metadata (08dd7b3 dirty). Windows/macOS runner fixtures are not native evidence.
+- CI wiring is guarded for all required jobs and retains JSON plus sidecars;
+  actual native Windows/Store and both macOS architectures will run on the 08 push.
+  Earlier Windows `08dd7b3` CI failed in unchanged clipboard transport; job logs
+  and raw capture are being assessed separately, not counted as a pass.
+- Focused vet, imports/format, exact exclusions, diff whitespace and 740-test
+  shards pass. GoLand Project Default fallback completed all ten changed Go files
+  including weak warnings. Split one test's error/result assertion and corrected
+  runner receiver consistency; reinspections clean. Four existing duplicate
+  fragments remain: two updater test setups covered by exact exclusions and two
+  unchanged viewer fragments also matched by retained `.scratch/ma-028` mutants.
+- Post-suppression Qodana report for `7a5629b` was fetched and examined:
+  successful QDGO invocation, exit 0, revision matched, results empty. Final-head
+  Qodana/CodeQL/full-suite acceptance remains 09. No dependencies/notices changed.
+- Local raw inspection JSON: `08-inspections.json`; CLI output/captures under
+  `.scratch/ma-033/evidence/08-*`. No new test files or root top-level tests.

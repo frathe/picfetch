@@ -111,7 +111,7 @@
   60 user stories, agreed testing interfaces and 22 acceptance criteria.
   Its [nine approved implementation tickets](.scratch/ma-033/issues/README.md)
   are tracked in the [active Deep SDD plan](plans/2026-09-28-ma-033-launch-policy.md).
-  Tickets 01-07 are complete; 08-09 remain pending. The user authorized per-ticket
+  Tickets 01-08 are complete; 09 remains pending. The user authorized per-ticket
   commits, draft PR/CI and a review loop after all tickets complete.
   Keep feature state local and preserve explicit composition.
 
