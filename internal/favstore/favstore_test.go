@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -17,6 +18,213 @@ import (
 )
 
 func TestCohorts(t *testing.T) {
+	t.Run("normalized complete membership", func(t *testing.T) {
+		base := t.TempDir()
+		favorite := Dir(base, "Relative")
+		if err := os.Mkdir(favorite, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(favorite, fileListName), []byte(`{"0":"photos/one.jpg","1":"photos/../photos/two.jpg"}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		one := filepath.Join(cwd, "photos", "one.jpg")
+		two := filepath.Join(cwd, "photos", "two.jpg")
+		state := CohortState{
+			Groups:     []Cohort{{Name: "Relative group", PresetID: "rule-1", Paths: []string{one, "photos/../photos/two.jpg", "/missing.jpg"}}},
+			Unassigned: []string{two, "/missing.jpg"},
+		}
+		data, err := json.Marshal(cohortDocument{Version: 2, CohortState: state})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(favorite, "cohorts.json"), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		store, got, err := OpenCohorts(context.Background(), favorite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.Groups) != 1 || got.Groups[0].PresetID != "rule-1" || !slices.Equal(got.Groups[0].Paths, state.Groups[0].Paths[:2]) || !slices.Equal(got.Unassigned, state.Unassigned[:1]) {
+			t.Fatalf("filtered state = %+v", got)
+		}
+		if !store.Contains([]string{one, two}) || store.Contains([]string{"/missing.jpg"}) {
+			t.Fatal("membership did not match complete normalized saved list")
+		}
+		if err := store.Save(context.Background(), got); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("observed move retires owner", func(t *testing.T) {
+		base := t.TempDir()
+		favorite := Dir(base, "Moved")
+		if err := Save(base, "Moved", []fyne.URI{storage.NewFileURI("/images/one.jpg")}); err != nil {
+			t.Fatal(err)
+		}
+		store, _, err := OpenCohorts(context.Background(), favorite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		moved := filepath.Join(base, "Elsewhere")
+		if err := os.Rename(favorite, moved); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Save(context.Background(), CohortState{}); !errors.Is(err, ErrRetired) {
+			t.Fatalf("moved favorite save = %v, want retired", err)
+		}
+		if err := os.Rename(moved, favorite); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Save(context.Background(), CohortState{}); !errors.Is(err, ErrRetired) {
+			t.Fatalf("restored pathname save = %v, want retired", err)
+		}
+		fresh, _, err := OpenCohorts(context.Background(), favorite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := fresh.Save(context.Background(), CohortState{}); err != nil {
+			t.Fatalf("fresh owner save: %v", err)
+		}
+	})
+	t.Run("identical list replacement retires owner", func(t *testing.T) {
+		base := t.TempDir()
+		favorite := Dir(base, "Replaced")
+		if err := Save(base, "Replaced", []fyne.URI{storage.NewFileURI("/images/one.jpg")}); err != nil {
+			t.Fatal(err)
+		}
+		store, _, err := OpenCohorts(context.Background(), favorite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		list := filepath.Join(favorite, fileListName)
+		data, err := os.ReadFile(list)
+		if err != nil {
+			t.Fatal(err)
+		}
+		replacement := filepath.Join(favorite, "new-list.json")
+		if err := os.WriteFile(replacement, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(replacement, list); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Save(context.Background(), CohortState{}); !errors.Is(err, ErrRetired) {
+			t.Fatalf("replaced list save = %v, want retired", err)
+		}
+		fresh, _, err := OpenCohorts(context.Background(), favorite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := fresh.Save(context.Background(), CohortState{}); err != nil {
+			t.Fatalf("fresh replacement owner save: %v", err)
+		}
+	})
+	t.Run("observed list change retires owner", func(t *testing.T) {
+		base := t.TempDir()
+		favorite := Dir(base, "Changed")
+		if err := Save(base, "Changed", []fyne.URI{storage.NewFileURI("/images/one.jpg")}); err != nil {
+			t.Fatal(err)
+		}
+		store, _, err := OpenCohorts(context.Background(), favorite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		list := filepath.Join(favorite, fileListName)
+		original, err := os.ReadFile(list)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(list, []byte(`{"0":"/images/different-name.jpg"}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Save(context.Background(), CohortState{}); !errors.Is(err, ErrRetired) {
+			t.Fatalf("changed list save = %v, want retired", err)
+		}
+		if err := os.WriteFile(list, original, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.Save(context.Background(), CohortState{}); !errors.Is(err, ErrRetired) {
+			t.Fatalf("restored list save = %v, want retired", err)
+		}
+		fresh, _, err := OpenCohorts(context.Background(), favorite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := fresh.Save(context.Background(), CohortState{}); err != nil {
+			t.Fatalf("fresh changed-list owner save: %v", err)
+		}
+	})
+	t.Run("directory replacement retires owner", func(t *testing.T) {
+		base := t.TempDir()
+		favorite := Dir(base, "Directory")
+		if err := Save(base, "Directory", []fyne.URI{storage.NewFileURI("/images/one.jpg")}); err != nil {
+			t.Fatal(err)
+		}
+		store, _, err := OpenCohorts(context.Background(), favorite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		moved := filepath.Join(base, "Previous")
+		if err := os.Rename(favorite, moved); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(favorite, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Link(filepath.Join(moved, fileListName), filepath.Join(favorite, fileListName)); err != nil {
+			data, readErr := os.ReadFile(filepath.Join(moved, fileListName))
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if writeErr := os.WriteFile(filepath.Join(favorite, fileListName), data, 0600); writeErr != nil {
+				t.Fatal(writeErr)
+			}
+		}
+		if err := store.Save(context.Background(), CohortState{}); !errors.Is(err, ErrRetired) {
+			t.Fatalf("replacement directory save = %v, want retired", err)
+		}
+		fresh, _, err := OpenCohorts(context.Background(), favorite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := fresh.Save(context.Background(), CohortState{}); err != nil {
+			t.Fatalf("fresh directory owner save: %v", err)
+		}
+	})
+	t.Run("strict favorite definition", func(t *testing.T) {
+		cases := []struct {
+			name string
+			data []byte
+			want error
+		}{
+			{name: "trailing document", data: []byte(`{"0":"/images/one.jpg"} true`)},
+			{name: "duplicate numeric alias", data: []byte(`{"0":"/images/one.jpg","00":"/images/two.jpg"}`)},
+			{name: "invalid later path", data: []byte(`{"0":"/images/one.jpg","1":""}`)},
+			{name: "oversized", data: []byte(`{"0":"` + strings.Repeat("x", MaxDefinitionBytes) + `"}`), want: ErrDefinitionTooLarge},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				base := t.TempDir()
+				favorite := Dir(base, "Invalid")
+				if err := os.Mkdir(favorite, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(favorite, fileListName), tc.data, 0600); err != nil {
+					t.Fatal(err)
+				}
+				store, state, err := OpenCohorts(context.Background(), favorite)
+				if err == nil || store != nil || len(state.Groups) != 0 || len(state.Unassigned) != 0 {
+					t.Fatalf("invalid definition admitted: store present=%t state=%+v err=%v", store != nil, state, err)
+				}
+				if tc.want != nil && !errors.Is(err, tc.want) {
+					t.Fatalf("invalid definition error = %v, want %v", err, tc.want)
+				}
+			})
+		}
+	})
 	t.Run("legacy", func(t *testing.T) {
 		dir := t.TempDir()
 		files := []fyne.URI{storage.NewFileURI("/images/one.jpg"), storage.NewFileURI("/images/two.jpg")}
@@ -60,10 +268,22 @@ func TestCohorts(t *testing.T) {
 		t.Fatalf("saved cohorts = %v, %v", got, err)
 	}
 	t.Run("cancel", func(t *testing.T) {
+		path := filepath.Join(Dir(dir, "Trip"), "cohorts.json")
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
 		if err := store.Save(ctx, CohortState{}); !errors.Is(err, context.Canceled) {
 			t.Fatalf("canceled save = %v", err)
+		}
+		if _, _, err := OpenCohorts(ctx, Dir(dir, "Trip")); !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled open = %v", err)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || !slices.Equal(before, after) {
+			t.Fatalf("canceled save changed cohort document: %v", err)
 		}
 	})
 	t.Run("replacement", func(t *testing.T) {

@@ -1,6 +1,6 @@
 # MA-031 implementation and evidence
 
-Status: tickets 01-03 complete; cohort verification finishing; next UI reads 05. Baseline: `f09af93` (planning branch), code
+Status: tickets 01-04 complete; implementing UI reads/lifecycle 05. Baseline: `f09af93` (planning branch), code
 baseline `7e52ea5b5fe95ae7d0995e88fa765ab57d549b86`.
 
 Deliver shared validated Favorite membership and captured ownership to every
@@ -166,7 +166,7 @@ Lead owns review, Explorer/root qualification, fixes and the ticket commit.
 - [x] 01 shared ownership/Map
 - [x] 02 similarity/search
 - [x] 03 maintenance
-- [ ] 04 cohorts
+- [x] 04 cohorts
 - [ ] 05 UI reads/lifetime
 - [ ] 06 saves
 - [ ] 07 removal
@@ -186,8 +186,8 @@ to include weak warnings rather than warning-threshold batch filtering.
 | 01 | 2/1 | 2 | no | complete; native qualification remains 09 |
 | 02 | 1/1 | 2 | no | complete |
 | 03 | 0/0 | 2 | no | complete |
-| 04 | 1/1 | 1 | no | adapter verified; lead root checks finishing |
-| 05 | 1/0 | 0 | no | frontier |
+| 04 | 1/1 | 1 | no | complete; lead independently verified |
+| 05 | 1/0 | 0 | no | claimed |
 | 06 | 0/0 | 0 | no | blocked by 05 |
 | 07 | 0/0 | 0 | no | blocked by 06 |
 | 08 | 1/0 | 0 | no | blocked by 06 |
@@ -328,3 +328,36 @@ working tree based on 19d8786, including weak warnings: clean, no timeout/skip.
 No new test files or root test names; manifests remain exact. Native qualification
 is still ticket 09. Cohort changes concurrently present were not part of this
 ticket's implementation or commit.
+
+### Ticket 04 evidence
+
+T1 changed only `cohorts.go` and its existing test file. Lead reviewed and
+independently executed the acceptance commands. Cohorts now retain shared
+Owner plus complete normalized membership, acquiring bounded access for reads
+and atomic saves. Legacy arrays and version-2 documents, presets, group order,
+unassigned membership, source spelling, containment and association semantics
+remain consumer-owned and unchanged. No idle root or second definition decoder.
+
+T1 observed strict-definition tests fail for duplicate numeric aliases, invalid
+later paths and oversized lists, then pass after adoption. Extended cases prove
+move/change retirement remains permanent after restoring the pathname/list,
+identical list and directory replacements reject stale saves, fresh owners save,
+relative membership is complete, and cancellation preserves the cohort document.
+
+Enumerated required storage, Explorer and root suites and retained uncached output:
+
+```
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/favstore -run '^(TestFavoriteMembership|TestFavoriteMembershipLimits|TestFavoriteOwnership|TestCohorts)$'
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui/explorer -run '^(TestFeatureFavoriteSaveRollback|TestFeatureCohortRetainsCapturedMembership)$'
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run '^TestVisualSimilarityExplorer$/^(create_cohort_favorite|favorite_identity_cancel)$'
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/ui -run '^(TestCollectionReplay|TestCollectionCapture)$'
+go vet -tags no_emoji,nodynamic ./internal/favstore ./internal/ui/explorer ./internal/ui
+```
+
+All passed without skips: both cohort/preset rollback subcases; captured cohort
+membership; Favorite creation; scan/sort/merge identity cancellation; replay and
+capture association. Raw output: `04-cohorts-storage.txt`, `04-cohorts-explorer.txt`,
+`04-cohorts-root.txt` and `04-collection.txt`. Formatting/manifests also passed
+on the combined worktree. GoLand inspected both changed Go files including weak
+warnings on the tree based on 19d8786/8144d9e: clean, no timeout/skip. No new files,
+test exclusions, shard rows, formats or dependencies were needed.

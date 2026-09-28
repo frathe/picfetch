@@ -836,7 +836,7 @@ unavailable.
 | `membership.go` | One strict numeric-position decoder, cancellable reads and the 64 MiB encoded definition limit. |
 | `ownership.go` | `Open` / `Definition`, captured directory/list `Owner`, short-lived `Access`, permanent observed retirement, full-list fingerprint and captured relative-path interpretation. `Observe` supports unknown-membership maintenance. |
 | `inventory.go` | Cancellable 64-entry enumeration, complete validation with scoped retained membership, healthy/unknown outcomes and enumeration completeness. |
-| `cohorts.go` | Favorite-owned named source memberships, preset links and explicit Unassigned overrides in version-2 `cohorts.json`; legacy arrays migrate on the next save; cancellable atomic writes bound to the observed file-list identity, with removed members filtered on load. |
+| `cohorts.go` | Favorite-owned named source memberships, preset links and explicit Unassigned overrides in version-2 `cohorts.json`; legacy arrays migrate on the next save; shared captured Owner and complete normalized membership, with short-lived access for cancellable atomic writes and removed members filtered on load. |
 
 ### `internal/favthumbs`
 
