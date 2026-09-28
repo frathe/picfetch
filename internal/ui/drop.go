@@ -110,7 +110,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 	// a folder scan can take seconds, and toggling M while one is still
 	// running shouldn't retroactively change how this already-in-flight
 	// drop gets applied.
-	merging := v.state.MergeMode() && len(v.state.Observe().Retained()) > 0
+	merging := v.state.MergeMode() && v.state.Observe().HasMembers()
 
 	v.invalidateSort()
 	v.invalidateLoad()

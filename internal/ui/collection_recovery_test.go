@@ -194,6 +194,7 @@ func collectionLoadFailureReconciliation(t *testing.T) {
 }
 
 func TestCollectionLifecycle(t *testing.T) {
+	t.Run("retained_only_close", collectionRetainedOnlyClose)
 	t.Run("queued_chooser", collectionQueuedChooserLifecycle)
 	t.Run("close_facts", collectionCloseFacts)
 	t.Run("preparation", collectionPreparationLifecycle)

@@ -1,7 +1,7 @@
 # MA-030: authoritative collection identity and committed transitions
 
-Status: all nine tickets complete and CI-qualified on 2722b1d; final latest-head
-Codex code/security review loop remains open on PR 69. No merge/release authorized.
+Status: all nine tickets complete and CI-qualified on 2722b1d. PR 69 records the
+continuing latest-head code/security reviews, dispositions and checks. No merge/release authorized.
 Baseline: `1f92396367acc41c663710ee4b4b981c43d1c184`.
 Branch: `feature/ma-030-collection-transitions`.
 Authority: [accepted design](../docs/collection-transitions.md),
@@ -248,8 +248,8 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 - [x] 06 batch removals and shared survivor result.
 - [x] 07 unavailable retention and scoped recovery.
 - [x] 08 committed writes and policy distinctions.
-- [x] 09 convergence and complete qualification; draft removal follows archival push.
-- [ ] Fresh clean latest-commit Codex/security reviews and required CI.
+- [x] 09 convergence and complete qualification; draft removed after archival push.
+- [x] Start fresh latest-head Codex/security review loop; PR 69 records its current outcome and required CI.
 
 09 scout gate: G1 bounded Close Files/reset/scan/replay delivery test inventory;
 G2 concrete locations and barriers checked by targeted reads; G3 read-only;
@@ -985,3 +985,53 @@ regressions also passed, 1.513s; the three FileMutation cases passed, 0.335s.
 All nine scratch tickets/checklists are resolved; remaining work is the separately
 authorized fresh review loop and latest-head checks. Earlier CI or a disposed
 review containing findings cannot substitute for a fresh clean final round.
+
+### PR 69 review round 1 — e5a4699
+
+Fresh code review reported one confirmed P2: Close Files and Escape used the
+browsable count to decide whether a collection existed. An unavailable-only
+Favorite or loss of the final decoder therefore could not be cleared through
+Close Files, and Escape closed the window while preserving retained session
+membership. This is a missing consequence of D7/AC15, not permission to enable
+image commands without an image. The concrete discrepancy and narrow correction
+were reported before implementation. Security review completed without findings.
+The fresh e5a4699 Qodana SARIF names that exact revision, executionSuccessful true,
+exitCode 0 and zero results (run 36411410303, artifact 10964179398).
+
+Lead-owned TDD fix: `collectionSnapshot.HasMembers()` observes full retained
+membership without cloning it. Command context keeps `hasCollection` distinct
+from browsable `hasFiles`; only Close Files uses the former. Escape resets a
+retained-only collection before closing a truly empty viewer. Merge reuses the
+same predicate with unchanged behavior. All modal/surface/Stop/Copy Selection
+admission precedences remain intact; image-dependent commands remain refused.
+
+Six real entry-point regressions in Lifecycle/retained_only_close cover
+Favorite opening and actual HEIC decoder loss through menu, direct Close Files
+and Escape. All six failed for the intended symptom before the fix (0.348s),
+then passed (0.401s with the policy capability table). An earlier misspelled
+fixture helper was a compile error, not behavioral red evidence. The cases also
+pin modal ownership, one generation increment, cleared association/session
+capture, image-command refusals and the second Escape closing the empty window.
+
+Verification on e5a4699 plus this review fix:
+
+- Uncached verbose Collection*, CommandAdmission*, WindowCommandAdmissionMatrix,
+  Escape/Close Files, all HandleKeyEvent*, BrowsingVisitLifecycle and required
+  HEIC families: PASS 19.038s, no skips.
+- Focused race: CollectionLifecycle, CommandAdmissionVisits, Escape, Close Files
+  and HEICBackendLossPreservesSession: PASS 51.704s.
+- make fmt/fmt-check, exact Qodana exclusions, shard inventory (741), all-package
+  vet and git diff --check: PASS. No top-level runnable/test-file additions.
+- GoLand Inspect Code fallback, IDE profile, all severities: collection.go,
+  collection_lifecycle_test.go, collection_recovery_test.go, commandadmission.go,
+  commandadmission_test.go, commandpolicy.go, drop.go and keys.go all completed
+  with zero findings, no timeouts. These supersede prior evidence for those files;
+  unchanged files retain the 2722b1d inspection evidence. No native/dependency change.
+
+Standards axis: no actionable violations; the explicit collection predicate
+avoids spreading retained-list inspection into UI callers. Spec axis: the one
+confirmed AC15 gap is fixed and regression-covered. Review and fixes stayed
+with T0 under the repository agreement; no new review/fixer delegation.
+Full logs are under `.scratch/ma-030/evidence/review1-*`. After the fix push,
+reply/resolve the thread and require another fresh code/security review and
+complete latest-head CI/SARIF. Round 1 is not a clean final review.

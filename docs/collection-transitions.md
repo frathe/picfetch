@@ -1,7 +1,7 @@
 # MA-030: collection identity and committed transitions
 
 Status: both slices implemented; all nine tickets complete and CI-qualified.
-Fresh latest-head code/security review remains open on PR 69.
+PR 69 records latest-head code/security reviews, dispositions and checks.
 Date: 2026-09-28
 Source: `/grill-with-docs MA-030`
 Inspected revision: `eb2ea0b2b3072f6baada09d7da81b68f577f863d`.

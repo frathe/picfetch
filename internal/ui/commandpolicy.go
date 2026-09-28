@@ -108,6 +108,7 @@ type commandContext struct {
 	editorFocused                                         bool
 	clipboardClosed                                       bool
 	hasFiles, hasImage, loading                           bool
+	hasCollection                                         bool
 	hasPixels                                             bool
 	gridTargets                                           bool
 	fileWorkActive, chooserClosed, hasSession             bool
@@ -306,7 +307,7 @@ func decideCommand(request commandRequest, context commandContext) commandDecisi
 	case commandCloseFiles:
 		// Before startup has submitted its first scan, a direct reset still
 		// consumes --slideshow. Keep the empty File-menu item disabled.
-		if context.hasFiles || context.fileWorkActive || request.route != routeMenu && context.pendingLaunchFrame {
+		if context.hasCollection || context.fileWorkActive || request.route != routeMenu && context.pendingLaunchFrame {
 			return allowed(targetCollection)
 		}
 	case commandRestore:

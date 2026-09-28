@@ -269,7 +269,7 @@ func TestCommandAdmissionTextEditing(t *testing.T) {
 
 func TestCommandAdmissionPolicy(t *testing.T) {
 	t.Run("every command has capability and ownership coverage", func(t *testing.T) {
-		ready := commandContext{hasFiles: true, hasImage: true, hasPixels: true, canSave: true, canExport: true, canWallpaper: true,
+		ready := commandContext{hasFiles: true, hasCollection: true, hasImage: true, hasPixels: true, canSave: true, canExport: true, canWallpaper: true,
 			canNavigate: true, hasSession: true, canCompare: true, gridTargets: true, displayed: true, canMosaic: true,
 			hasSearchTarget: true, hideDuplicates: true, variantGroupSize: 2}
 		for id := commandSave; id <= commandInterval; id++ {

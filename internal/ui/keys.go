@@ -267,7 +267,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			v.cancelSort()
 		} else if v.dupes.Inspecting() {
 			v.reopenVariantGrid()
-		} else if v.state.Observe().Count() == 0 {
+		} else if !v.state.Observe().HasMembers() {
 			v.win.Close()
 		} else {
 			v.reset()

@@ -135,6 +135,11 @@ func (s collectionSnapshot) FileSet() dupes.Snapshot {
 func (s collectionSnapshot) Generation() uint64 { return s.FileSet().Generation() }
 func (s collectionSnapshot) Count() int         { return s.FileSet().Count() }
 
+// HasMembers includes unavailable sources; Count is only the browsable projection.
+func (s collectionSnapshot) HasMembers() bool {
+	return s.data != nil && len(s.data.retained) > 0
+}
+
 func (s collectionSnapshot) Occurrences() fileidentity.Index {
 	if s.data == nil {
 		return fileidentity.Index{}

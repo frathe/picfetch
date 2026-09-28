@@ -75,8 +75,9 @@
   records all nine completed tickets: sole collection ownership and ordered
   reconciliation, replay/capture, latest-choice sort, batch removal, unavailable
   recovery, committed write/policy effects and lifecycle convergence. Full CI and
-  inspected Qodana SARIF passed on 2722b1d; fresh latest-head code/security review
-  and final checks remain open on [PR 69](https://github.com/frathe/picfetch/pull/69).
+  inspected Qodana SARIF passed on 2722b1d;
+  [PR 69](https://github.com/frathe/picfetch/pull/69) records the continuing
+  latest-head code/security reviews, dispositions and final checks.
   MA-031 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 

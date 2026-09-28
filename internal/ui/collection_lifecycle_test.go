@@ -13,6 +13,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+	fynetest "fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/filesort"
@@ -22,6 +23,78 @@ import (
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/uitest"
 )
+
+func collectionRetainedOnlyClose(t *testing.T) {
+	for _, origin := range []string{"favorite", "decoder_loss"} {
+		for _, route := range []string{"menu", "direct", "escape"} {
+			t.Run(origin+"/"+route, func(t *testing.T) {
+				v, _, closed := newTestUI(t)
+				data := []byte("unavailable")
+				if origin == "decoder_loss" {
+					v.configureHEIC(testHEICBackend{
+						check: func(_ context.Context) error { return nil },
+						read: func(_ context.Context, _ []byte, _ heic.Request) (heic.Result, error) {
+							return heic.Result{}, heic.ErrUnavailable
+						},
+					})
+					var err error
+					data, err = os.ReadFile("../imaging/testdata/test_exif.heic")
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				v.heic.ui = &uitest.UIQueue{}
+				v.startHEICCheck(false)
+				v.settleHEIC()
+				u := storage.NewFileURI(uitest.WriteTempFile(t, "saved.heic", data))
+				v.OpenFavorite("retained", []fyne.URI{u})
+				waitForScan(t, v)
+				if origin == "decoder_loss" {
+					waitForSort(t, v)
+					waitUntilLoaded(t, v)
+					v.settleHEIC()
+				}
+				before := v.state.Observe()
+				if before.Count() != 0 || len(before.Retained()) != 1 || before.Favorite() != "retained" {
+					t.Fatal("premise: retained-only Favorite not committed")
+				}
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				v.closeFiles()
+				if closed() || v.Generation() != before.Generation() {
+					t.Fatal("HEIC guidance modal did not retain command ownership")
+				}
+				fynetest.Tap(explorerDialogButton(t, v, "Close"))
+				for _, command := range []commandID{commandCopyPath, commandReveal, commandTrash, commandFavoriteAdd, commandGrid, commandPictureFrame, commandNavigate} {
+					if v.queryCommand(commandRequest{command: command, route: routeMenu}).allowed {
+						t.Fatalf("retained-only membership enabled image-dependent command %d", command)
+					}
+				}
+				switch route {
+				case "menu":
+					if v.menus.CloseFiles().Disabled {
+						t.Fatal("Close Files disabled for retained-only collection")
+					}
+					v.menus.CloseFiles().Action()
+				case "direct":
+					v.closeFiles()
+				case "escape":
+					v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				}
+				after := v.state.Observe()
+				if closed() || after.Count() != 0 || len(after.Retained()) != 0 || after.Favorite() != "" || after.Generation() != before.Generation()+1 || len(after.Capture(collectionSourceOrder)) != 0 {
+					t.Fatal("retained-only close did not clear once without quitting or persisting old membership")
+				}
+				if !v.menus.CloseFiles().Disabled || !v.welcomeArt.Visible() {
+					t.Fatal("cleared collection did not restore empty close admission and welcome art")
+				}
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				if !closed() {
+					t.Fatal("Escape no longer closes a truly empty viewer")
+				}
+			})
+		}
+	}
+}
 
 func collectionValidationRemoval(t *testing.T) {
 	v := newTestViewer(t)
