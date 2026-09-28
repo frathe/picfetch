@@ -1,6 +1,6 @@
 # MA-031 implementation and evidence
 
-Status: ticket 01 complete; implementing ticket 02. Baseline: `f09af93` (planning branch), code
+Status: tickets 01-02 complete; frontier 03/04/05. Baseline: `f09af93` (planning branch), code
 baseline `7e52ea5b5fe95ae7d0995e88fa765ab57d549b86`.
 
 Deliver shared validated Favorite membership and captured ownership to every
@@ -151,12 +151,20 @@ Other delegations are candidates only; record G1-G5 before assigning them.
 The user requested the best suited agents per ticket, not a separate implementer
 for every cross-cutting slice. Keep hot context and design-bearing work with T0.
 
+Cohort ticket 04: G1 yes (two-file adapter and specified retirement matrix);
+G2 yes (`go test ... ./internal/favstore -run '^TestCohorts$'`); G3 yes
+(`cohorts.go` and `favstore_test.go`, disjoint from lead maintenance); G4 yes
+(one consumer and the settled shared interface); G5 yes (lead has not built
+cohort implementation context). S cannot implement semantic lifetime changes;
+W satisfied (contract, not code). T1 maps to available `gpt-6-sol`, high effort.
+Lead owns review, Explorer/root qualification, fixes and the ticket commit.
+
 ## Evidence and completion
 
 - [x] Approved D1-D12 and test seams read; clean branch confirmed.
 - [x] Deep plan and task graph recorded; no PR existed at start.
 - [x] 01 shared ownership/Map
-- [ ] 02 similarity/search
+- [x] 02 similarity/search
 - [ ] 03 maintenance
 - [ ] 04 cohorts
 - [ ] 05 UI reads/lifetime
@@ -176,10 +184,10 @@ to include weak warnings rather than warning-threshold batch filtering.
 | Ticket | Spawns budget/actual | Review rounds | Full suite | State |
 | --- | --- | --- | --- | --- |
 | 01 | 2/1 | 2 | no | complete; native qualification remains 09 |
-| 02 | 1/0 | 0 | no | frontier |
-| 03 | 0/0 | 0 | no | blocked by 02 |
-| 04 | 1/0 | 0 | no | blocked by 02 |
-| 05 | 1/0 | 0 | no | blocked by 02 |
+| 02 | 1/1 | 2 | no | complete |
+| 03 | 0/0 | 0 | no | frontier |
+| 04 | 1/0 | 0 | no | frontier; bounded T1 approved |
+| 05 | 1/0 | 0 | no | frontier |
 | 06 | 0/0 | 0 | no | blocked by 05 |
 | 07 | 0/0 | 0 | no | blocked by 06 |
 | 08 | 1/0 | 0 | no | blocked by 06 |
@@ -231,3 +239,49 @@ warning; reinspection is clean. No timeouts/skips. This is the documented IDE
 fallback, not Qodana-profile equivalence. Native idle removal/move has a guard
 without platform skips; Windows/macOS execution, full CI and fresh Qodana SARIF
 remain 09/PR gates.
+
+### Ticket 02 evidence
+
+Similarity and retained search now use the same shared owner contract as Map.
+Each producer clones its complete original input scope independently of its
+prepared items and write scope; explicit-save refresh preserves it. All matching
+owners remain indexed. Producer reads/writes acquire and close owner-relative
+access, checking retirement before accepting records and before publication.
+Healthy partial inventory, unknown-member fallback protection, opt-outs,
+Favorite-only pressure policy and producer leases remain consumer-owned.
+`Owner.Same` compares captured values for explicit-refresh change detection;
+it does not replace a fresh currentness check.
+
+Observed red -> green: moved owner remained current; move-following reads were
+accepted; producer retained unrelated membership and refresh did not retain its
+explicit complete scope. Added identical-content replacement and fresh-owner
+cases, plus original-scope refresh with zero, one and two reversed prepared
+items. Existing retained-search save does not restart preparation or query.
+
+Enumerated all 30 selected top-level suites. Uncached verbose output shows no
+skips/failures for analysis-cache policy/maintenance, ownership and search-save:
+
+```
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/similarity -run '^(TestAnalysisCache.*|TestFavoriteAnalysisOwnership|TestSearchSessionFavoriteSaveRetainsQueryAndPreparation)$'
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/favstore -run '^TestFavoriteInventory$/^resources$'
+go vet -tags no_emoji,nodynamic ./internal/similarity ./internal/favstore
+make fmt-check check-qodana-test-exclusions check-test-shards-direct
+```
+
+Raw evidence: `02-similarity.txt` and `02-shared-resources.txt` in the local
+evidence directory. 32/130-owner retained producers held one source and every
+matching owner, zero idle Favorite handles, and allowed every native directory
+move. GC heap deltas were +1,512/+123,936 bytes including runtime noise; matching
+associations grow while unrelated members are not retained. Shared inventory
+also repeats its peak/idle measurements. Native Windows/macOS remains 09.
+
+GoLand inspected all eleven changed Go files on the ticket-02 working tree
+based on 8cd3616, including weak warnings. Two partial-result warnings were
+confirmed false positives (always-returned inventory values), explained and
+narrowly suppressed; affected files re-inspected clean without timeout/skip.
+No dependencies, new test files or root test names changed.
+
+Temporary maintenance bridge: `cache_records.go` acquires a shared owner to
+open its analysis directory, but the old maintenance inventory still retains
+analysis roots. Ticket 03 replaces those deferred handles with values and
+record revalidation; there is no remaining parallel membership decoder there.

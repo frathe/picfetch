@@ -45,6 +45,12 @@ type Owner struct {
 // Path is the absolute directory pathname captured for this owner.
 func (o *Owner) Path() string { return o.dir }
 
+// Same compares captured ownership, including identical-content replacements.
+// It is a value comparison, not a fresh currentness observation.
+func (o *Owner) Same(other *Owner) bool {
+	return o != nil && other != nil && o.dir == other.dir && os.SameFile(o.directory, other.directory) && sameList(o.list, other.list)
+}
+
 // Version fingerprints complete encoded membership and its modification time.
 // Consumers may use it for their own namespaces; currentness uses file identity.
 func (o *Owner) Version() string { return o.version }

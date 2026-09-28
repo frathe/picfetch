@@ -37,7 +37,7 @@ func cacheFixtureItem(t *testing.T, name string) Item {
 func TestAnalysisCacheGeneralReopensWithoutPreparation(t *testing.T) {
 	item := cacheFixtureItem(t, "a.jpg")
 	policy := CachePolicy{Roots: CacheRoots{GeneralDir: t.TempDir()}, LooseEnabled: true, GeneralLimitBytes: 1024 * 1024}
-	store, err := openRepresentationStore(context.Background(), policy, writeEnabledStores)
+	store, err := openRepresentationStore(context.Background(), policy, writeEnabledStores, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestAnalysisCacheGeneralReopensWithoutPreparation(t *testing.T) {
 		t.Fatal(err)
 	}
 	store.close()
-	reopened, err := openRepresentationStore(context.Background(), policy, writeEnabledStores)
+	reopened, err := openRepresentationStore(context.Background(), policy, writeEnabledStores, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func BenchmarkAnalysisCachePopulation(b *testing.B) {
 			}
 			for range b.N {
 				root := b.TempDir()
-				store, err := openRepresentationStore(context.Background(), CachePolicy{Roots: CacheRoots{GeneralDir: root}, LooseEnabled: true}, writeEnabledStores)
+				store, err := openRepresentationStore(context.Background(), CachePolicy{Roots: CacheRoots{GeneralDir: root}, LooseEnabled: true}, writeEnabledStores, nil)
 				if err != nil {
 					b.Fatal(err)
 				}

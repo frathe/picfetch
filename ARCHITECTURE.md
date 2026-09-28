@@ -77,12 +77,15 @@ threads before reading requests; `worker_other.go` retains the macOS sandbox lau
 pipes; Windows does not install OS network denial and events keep `OfflineVerified`
 false. `offline.go` exposes that distinction through `EnforcesNetworkIsolation`
 and assembles the Linux filter for host-independent BPF decision tests.
-`cache_favorites.go` owns the shared Favorite inventory, retained directory handles,
-list versions and producer lease. Both producer admission and maintenance use it;
+`cache_favorites.go` adapts shared `favstore` owner observations to similarity's
+producer lease and membership index. Producers retain only intersections with
+their complete original input scope, including across explicit-save refresh;
+scope is independent of preparation order and producer write permission.
+Both producer admission and maintenance use it;
 unknown membership remains inspectable without admitting unleased writes.
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
-directory handles plus file-list identity to avoid recreating removed favorites.
+short-lived owner-relative access to avoid following or recreating retired Favorites.
 `cache_payload.go` reads one JSON document through a hard byte bound, then checks
 its version, source identity shape, vector, digest and preview. General/Favorite
 reads, general write validation and maintenance share that decoder.

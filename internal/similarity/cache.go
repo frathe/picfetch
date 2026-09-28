@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/frathe/picfetch/internal/favstore"
 )
 
 // RepresentationVersion identifies the cached representation format. Change it
@@ -25,31 +27,40 @@ func sameVersion(a, b os.FileInfo) bool {
 }
 
 func (f *favoriteAnalysis) current() bool {
-	if f.list == nil {
+	if f.members == nil || f.owner == nil {
 		return false
 	}
-	now, err := f.root.Stat("file-list.json")
-	return err == nil && sameVersion(f.list, now)
+	access, err := f.owner.Acquire(context.Background())
+	if err != nil {
+		return false
+	}
+	_ = access.Close()
+	return true
 }
 
 func analysisName(path string) string {
 	return fmt.Sprintf("analysis/%x.json", sha256.Sum256([]byte(path)))
 }
 
-func (c *favoriteInventory) read(source Item) (Item, bool) {
+func (c *favoriteInventory) read(ctx context.Context, source Item) (Item, bool) {
 	for _, favorite := range c.members[filepath.Clean(source.Path)] {
-		if item, hit := favorite.read(source); hit {
+		if item, hit := favorite.read(ctx, source); hit {
 			return item, true
 		}
 	}
 	return Item{}, false
 }
 
-func (f *favoriteAnalysis) read(source Item) (Item, bool) {
-	if !f.current() {
+func (f *favoriteAnalysis) read(ctx context.Context, source Item) (Item, bool) {
+	if f.members == nil {
 		return Item{}, false
 	}
-	file, err := f.root.Open(analysisName(source.Path))
+	access, err := f.owner.Acquire(ctx)
+	if err != nil {
+		return Item{}, false
+	}
+	defer func() { _ = access.Close() }()
+	file, err := access.Root.Open(analysisName(source.Path))
 	if err != nil {
 		return Item{}, false
 	}
@@ -60,7 +71,7 @@ func (f *favoriteAnalysis) read(source Item) (Item, bool) {
 	}
 	item, err := decodeRepresentation(file)
 	_ = file.Close()
-	if err != nil || item.Path != source.Path || item.Size != source.Size || item.ModifiedNS != source.ModifiedNS {
+	if err != nil || item.Path != source.Path || item.Size != source.Size || item.ModifiedNS != source.ModifiedNS || access.Current(ctx) != nil {
 		return Item{}, false
 	}
 	return item, true
@@ -88,15 +99,24 @@ func (f *favoriteAnalysis) write(ctx context.Context, item Item) error {
 	return f.lease.write(ctx, func() error { return f.writeRecord(ctx, item) })
 }
 func (f *favoriteAnalysis) writeRecord(ctx context.Context, item Item) error {
-	if err := f.root.Mkdir("analysis", 0o755); err != nil && !errors.Is(err, os.ErrExist) {
-		return err
+	access, err := f.owner.Acquire(ctx)
+	if errors.Is(err, favstore.ErrRetired) {
+		return nil
 	}
-	name := "analysis/." + rand.Text() + ".tmp"
-	file, err := f.root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = f.root.Remove(name) }()
+	defer func() { _ = access.Close() }()
+	root := access.Root
+	if err := root.Mkdir("analysis", 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+		return err
+	}
+	name := "analysis/." + rand.Text() + ".tmp"
+	file, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Remove(name) }()
 	item.Cohort, item.Position, item.Thumbnail = "", nil, ""
 	item.Tags = nil
 	err = json.NewEncoder(file).Encode(cachedRepresentation{Version: RepresentationVersion, Item: item})
@@ -110,8 +130,11 @@ func (f *favoriteAnalysis) writeRecord(ctx context.Context, item Item) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if !f.current() {
-		return nil
+	if err := access.Current(ctx); err != nil {
+		if errors.Is(err, favstore.ErrRetired) {
+			return nil
+		}
+		return err
 	}
-	return f.root.Rename(name, analysisName(item.Path))
+	return root.Rename(name, analysisName(item.Path))
 }

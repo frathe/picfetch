@@ -38,7 +38,13 @@ func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress
 		var root *os.Root
 		var err error
 		if favorite != nil {
-			root, err = openAnalysisDirectory(favorite.root, "analysis")
+			access, openErr := favorite.owner.AcquireDirectory(ctx)
+			if openErr != nil {
+				failures = append(failures, openErr)
+				return
+			}
+			root, err = openAnalysisDirectory(access.Root, "analysis")
+			_ = access.Close()
 		} else {
 			parent, openErr := os.OpenRoot(base)
 			if errors.Is(openErr, os.ErrNotExist) {

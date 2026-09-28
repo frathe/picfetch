@@ -45,7 +45,7 @@ func newWarmSearchCorpus(t testing.TB, count int) warmSearchCorpus {
 		paths:  make([]string, count),
 		items:  items,
 	}
-	store, err := openRepresentationStore(context.Background(), corpus.policy, writeEnabledStores)
+	store, err := openRepresentationStore(context.Background(), corpus.policy, writeEnabledStores, nil)
 	if store != nil {
 		defer store.close()
 	}
@@ -220,7 +220,7 @@ func BenchmarkSearchWarmPipeline(b *testing.B) {
 			b.ResetTimer()
 			for range b.N {
 				ctx := context.Background()
-				store, err := openRepresentationStore(ctx, corpus.policy, writeEnabledStores)
+				store, err := openRepresentationStore(ctx, corpus.policy, writeEnabledStores, nil)
 				if err != nil {
 					store.close()
 					b.Fatal(err)
