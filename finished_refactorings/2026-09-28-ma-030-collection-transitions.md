@@ -1,7 +1,7 @@
 # MA-030: authoritative collection identity and committed transitions
 
-Status: tickets 01-08 complete; ticket 09 implementation/local qualification complete,
-awaiting its draft-PR full CI gate before closure and review.
+Status: all nine tickets complete and CI-qualified on 2722b1d; final latest-head
+Codex code/security review loop remains open on PR 69. No merge/release authorized.
 Baseline: `1f92396367acc41c663710ee4b4b981c43d1c184`.
 Branch: `feature/ma-030-collection-transitions`.
 Authority: [accepted design](../docs/collection-transitions.md),
@@ -234,7 +234,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 | 06 | 1/1 | 2 | no | Complete; batch/removal handoff evidence below |
 | 07 | 1/1 | 1 | no | Complete; unavailable recovery evidence below |
 | 08 | 1/1 | 1 | no | Complete; committed-write/policy evidence below |
-| 09 | 1/1 | 1 | CI pending | Both migrations complete; local qualification below |
+| 09 | 1/1 | 1 | CI passed | Complete; both migrations and final qualification below |
 
 ### Progress
 
@@ -248,7 +248,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 - [x] 06 batch removals and shared survivor result.
 - [x] 07 unavailable retention and scoped recovery.
 - [x] 08 committed writes and policy distinctions.
-- [ ] 09 convergence, complete qualification and draft removal.
+- [x] 09 convergence and complete qualification; draft removal follows archival push.
 - [ ] Fresh clean latest-commit Codex/security reviews and required CI.
 
 09 scout gate: G1 bounded Close Files/reset/scan/replay delivery test inventory;
@@ -954,3 +954,34 @@ Ticket 08's full CI, CodeQL and Qodana jobs passed on 6a852718. That older head
 does not qualify this candidate. Keep PR 69 draft until ticket 09's complete CI
 gate succeeds, then record completion, remove draft and begin the fresh Codex
 code/security review loop. No merge or release is authorized.
+
+### Ticket 09 completed qualification
+
+Commit 2722b1d64f6b61e58ecd37c41f570864d8d92dcb passed the full
+[CI run 36410134058](https://github.com/frathe/picfetch/actions/runs/36410134058):
+validation, all four native Linux/amd64 race partitions (non-ui/ui-1/ui-2/ui-3),
+Linux native, Windows, macOS arm64 and macOS amd64 guards. Raw race events are
+retained under `.scratch/ma-030/evidence/ci-2722b1d`: zero failure events and 179
+passing Collection test/subtest entries, no Collection skips. The explicit local native
+HEIC opt-in skip is not counted as evidence; the configured platform CI guards
+retain their established scopes and installed-codec limits.
+
+[CodeQL 36410134005](https://github.com/frathe/picfetch/actions/runs/36410134005)
+completed both Go and Actions analyses successfully; the PR ref has no open
+code-scanning alerts. FOSSA dependency quality, license compliance and security
+analysis all passed.
+
+[Qodana 36410134060](https://github.com/frathe/picfetch/actions/runs/36410134060)
+artifact 10964241508 was downloaded and its `/qodana.sarif.json` inspected:
+QDGO 262.11335, revisionId exactly 2722b1d64f6b61e58ecd37c41f570864d8d92dcb,
+executionSuccessful true, exitCode 0, **zero post-suppression results**. This is
+the qodana.starter differential report, not pre-suppression CSV totals. No
+licensing failure or incomplete scan was accepted. All AC1-18 gates are met.
+
+The archival commit is documentation-only and carries forward all 78-file local
+IDE inspection and code/test evidence from 2722b1d, including the recorded weak
+warning dispositions. Final exact stale-completion/Viewer/duplicate-inspection
+regressions also passed, 1.513s; the three FileMutation cases passed, 0.335s.
+All nine scratch tickets/checklists are resolved; remaining work is the separately
+authorized fresh review loop and latest-head checks. Earlier CI or a disposed
+review containing findings cannot substitute for a fresh clean final round.

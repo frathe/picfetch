@@ -67,16 +67,17 @@
   policy (MA-030 through MA-033).
   [MA-030's accepted design](docs/collection-transitions.md) resolves all eleven
   interview decisions and requires both collection-model and reconciliation
-  slices. Its [local specification](.scratch/ma-030/spec.md) is `ready-for-agent`:
+  slices. Its [local specification](.scratch/ma-030/spec.md) is resolved:
   56 user stories and 18 acceptance criteria cover both slices. The approved
   [nine implementation tickets](.scratch/ma-030/issues/README.md) are published
   with blockers and model assignments. The
-  [Deep SDD implementation record](plans/2026-09-28-ma-030-collection-transitions.md)
-  records tickets 01-08 complete (coherent snapshots, live navigation, atomic
-  replacement, retained merge, saved replay/capture, sort handoff, batch removal
-  unavailable recovery, and committed write/policy effects). Ticket 09's bridge
-  removal, lifecycle convergence and local qualification are complete; its draft
-  qualification CI and final review remain open. MA-031 through MA-033 remain proposals.
+  [archived Deep SDD record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md)
+  records all nine completed tickets: sole collection ownership and ordered
+  reconciliation, replay/capture, latest-choice sort, batch removal, unavailable
+  recovery, committed write/policy effects and lifecycle convergence. Full CI and
+  inspected Qodana SARIF passed on 2722b1d; fresh latest-head code/security review
+  and final checks remain open on [PR 69](https://github.com/frathe/picfetch/pull/69).
+  MA-031 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

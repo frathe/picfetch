@@ -22,9 +22,9 @@ MA-029's nine tickets are complete and CI-qualified; the
 implementation evidence and [PR 68](https://github.com/frathe/picfetch/pull/68)
 tracks final review dispositions and latest-head checks.
 MA-030 has an [accepted design](docs/collection-transitions.md) and
-[ready-for-agent specification](.scratch/ma-030/spec.md); implementation
-is underway: [tickets 01-08 are complete](plans/2026-09-28-ma-030-collection-transitions.md),
-with ticket 09 locally qualified and awaiting its full draft-PR CI gate and final review.
+[resolved specification](.scratch/ma-030/spec.md); all nine tickets are complete
+and CI-qualified in the [archived record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md).
+[PR 69](https://github.com/frathe/picfetch/pull/69) tracks final latest-head review.
 MA-031 through MA-033 remain proposals, not accepted implementation plans or
 unresolved PR defects.
 
@@ -36,7 +36,7 @@ explicit cross-feature composition in `internal/ui`.
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
-| [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | 01-08 complete; 09 locally qualified, CI/review open |
+| [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | All nine tickets complete and CI-qualified; final PR review open |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | Recommended; medium scope |
 | [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Conditional extraction; medium scope |
 | [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | Recommended independent small task |
@@ -360,11 +360,10 @@ reconciliation seam; a new generic state store is unnecessary.
 resolves all eleven `/grill-with-docs MA-030` decisions; the
 [ownership ADR](docs/adr/0005-collection-transition-ownership.md) records the
 collection-model/root-reconciliation division. Both slices below are required.
-The [local specification](.scratch/ma-030/spec.md) is `ready-for-agent`, with
-test seams and command-backed acceptance criteria. The
-[implementation plan](plans/2026-09-28-ma-030-collection-transitions.md) records
-tickets 01-08 complete and ticket 09's completed migration/local qualification;
-full current-head CI and final review remain open.
+The [local specification](.scratch/ma-030/spec.md) is resolved. The
+[archived implementation record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md)
+records both migrations, all nine completed tickets, AC1-18 evidence and full
+CI/SARIF qualification on 2722b1d. Final latest-head PR review remains open.
 
 **Recurring evidence:** [sort generation/grouping](https://github.com/frathe/picfetch/pull/17#discussion_r3950334572),
 [premature Favorite identity](https://github.com/frathe/picfetch/pull/18#discussion_r3983220066),

@@ -1,7 +1,7 @@
 # MA-030: collection identity and committed transitions
 
-Status: both slices implemented; tickets 01-08 complete, 09 locally qualified.
-Ticket 09's full current-head CI gate and final review remain open.
+Status: both slices implemented; all nine tickets complete and CI-qualified.
+Fresh latest-head code/security review remains open on PR 69.
 Date: 2026-09-28
 Source: `/grill-with-docs MA-030`
 Inspected revision: `eb2ea0b2b3072f6baada09d7da81b68f577f863d`.
@@ -15,9 +15,10 @@ This document is the accepted design record. The
 acceptance criteria. The approved [nine implementation tickets](../.scratch/ma-030/issues/README.md)
 are published with blockers and per-ticket model assignments. The tracker is
 gitignored by repository convention. The
-[Deep SDD plan](../plans/2026-09-28-ma-030-collection-transitions.md) records
-completed tickets 01-08 and ticket 09's migration, lifecycle and local qualification
-evidence. Full CI qualification and final review remain open.
+[archived Deep SDD record](../finished_refactorings/2026-09-28-ma-030-collection-transitions.md)
+records all nine completed tickets, the full AC1-18 mapping, local inspections,
+and full CI/SARIF qualification. [PR 69](https://github.com/frathe/picfetch/pull/69)
+tracks the final latest-head review loop.
 
 ## Accepted decisions
 
