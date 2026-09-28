@@ -52,7 +52,7 @@ func TestSaveChangesInvalidatesAliasesAndRejectsOlderPreloads(t *testing.T) {
 		<-release
 		return io.NopCloser(bytes.NewReader(before)), nil
 	})
-	v.state.setFiles([]fyne.URI{source, controlled}, []fyne.URI{source, controlled})
+	v.state.Replace(collectionInput{source: []fyne.URI{source, controlled}, display: []fyne.URI{source, controlled}, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
 	v.ShowImage(0)
 	<-entered
 	v.rotateBy(1)

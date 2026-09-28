@@ -23,7 +23,7 @@ import (
 // keep indices meaningful.
 //
 // internal/ui/state_test.go draws the boundary against this file: it tests
-// appState - newAppState, replaceFiles, removeFile, clearFiles - as a plain
+// appState - newAppState, Replace, Remove, Clear - as a plain
 // struct with no viewer and no Fyne app. This file tests what the viewer
 // must hold true across real transitions.
 
@@ -46,7 +46,7 @@ func TestViewerFileStateSlicesRemainEquivalentAcrossTransitions(t *testing.T) {
 	dropAndWait(t, v, b)
 	assertEquivalentFileSlices(t, v)
 
-	v.RemoveFile(v.state.index)
+	v.RemoveFile(v.state.Observe().index)
 	assertEquivalentFileSlices(t, v)
 
 	v.SetMergeMode(false)
@@ -66,7 +66,7 @@ func TestViewerIndexStaysValidAcrossFileStateTransitions(t *testing.T) {
 	dropAndWait(t, v, a, c)
 	assertValidFileIndex(t, v)
 
-	v.ShowImage(len(v.state.files) - 1)
+	v.ShowImage(v.state.Observe().Count() - 1)
 	waitUntilLoaded(t, v)
 	assertValidFileIndex(t, v)
 
@@ -79,7 +79,7 @@ func TestViewerIndexStaysValidAcrossFileStateTransitions(t *testing.T) {
 	dropAndWait(t, v, b)
 	assertValidFileIndex(t, v)
 
-	v.RemoveFile(v.state.index)
+	v.RemoveFile(v.state.Observe().index)
 	assertValidFileIndex(t, v)
 
 	v.SetMergeMode(false)
@@ -105,7 +105,7 @@ func TestViewerModesApplyBeforeAndAfterLoadingFiles(t *testing.T) {
 	dropAndWait(t, v, a)
 	dropAndWait(t, v, b)
 
-	if got := namesOfURIs(v.state.files); !slices.Equal(got, []string{"2.jpg", "1.jpg"}) {
+	if got := namesOfURIs(v.state.Observe().DisplayFiles()); !slices.Equal(got, []string{"2.jpg", "1.jpg"}) {
 		t.Errorf("files = %v, want merge mode and drop-order mode applied", got)
 	}
 
@@ -114,7 +114,7 @@ func TestViewerModesApplyBeforeAndAfterLoadingFiles(t *testing.T) {
 	waitUntilLoaded(t, v)
 	v.SetMergeMode(false)
 
-	if got := namesOfURIs(v.state.files); !slices.Equal(got, []string{"1.jpg", "2.jpg"}) {
+	if got := namesOfURIs(v.state.Observe().DisplayFiles()); !slices.Equal(got, []string{"1.jpg", "2.jpg"}) {
 		t.Errorf("files = %v, want name sort applied after loading", got)
 	}
 	if v.MergeMode() {
@@ -131,16 +131,18 @@ func TestStaleFileStateCompletionsDoNotOverwriteNewerState(t *testing.T) {
 	stale := []fyne.URI{
 		uitest.FakeURI{FileName: "stale.jpg", Ext: ".jpg"},
 	}
-	v.state.files = append([]fyne.URI(nil), current...)
-	v.state.unsortedFiles = append([]fyne.URI(nil), current...)
+	v.state.Replace(collectionInput{source: current, display: current, favorite: "current-favorite"})
+	before := v.state.Observe()
 
 	staleScanToken := v.scanOp.lifecycle.begin()
 	v.scanOp.lifecycle.begin()
 	var scanSignal completion.Signal
-	v.applyScanResult(staleScanToken, false, stale, stale, false, filescan.DefaultMax, scanSignal.Begin(), "", nil, nil)
-	waitFor(t, "the stale scan completion", &scanSignal)
+	for _, merging := range []bool{false, true} {
+		v.applyScanResult(staleScanToken, merging, stale, stale, false, filescan.DefaultMax, scanSignal.Begin(), "stale-favorite", nil, nil)
+		waitFor(t, "the stale scan completion", &scanSignal)
+	}
 	assertEquivalentFileSlices(t, v)
-	if got := namesOfURIs(v.state.files); !slices.Equal(got, []string{"current.jpg"}) {
+	if got := namesOfURIs(v.state.Observe().DisplayFiles()); !slices.Equal(got, []string{"current.jpg"}) {
 		t.Errorf("files = %v, want newer scan state retained", got)
 	}
 
@@ -160,6 +162,9 @@ func TestStaleFileStateCompletionsDoNotOverwriteNewerState(t *testing.T) {
 	if called {
 		t.Error("stale sort completion should not invoke its state-writing callback")
 	}
+	if v.Generation() != before.Generation() || v.state.Observe().Favorite() != "current-favorite" {
+		t.Fatal("stale preparation changed committed collection identity or association")
+	}
 	if !v.sortOp.active {
 		t.Error("stale sort completion should not clear a newer sort's in-flight state")
 	}
@@ -167,7 +172,7 @@ func TestStaleFileStateCompletionsDoNotOverwriteNewerState(t *testing.T) {
 		t.Error("stale sort completion should not hide the newer sort's progress UI")
 	}
 	assertEquivalentFileSlices(t, v)
-	if got := namesOfURIs(v.state.files); !slices.Equal(got, []string{"current.jpg"}) {
+	if got := namesOfURIs(v.state.Observe().DisplayFiles()); !slices.Equal(got, []string{"current.jpg"}) {
 		t.Errorf("files = %v, want newer sort state retained", got)
 	}
 }
@@ -202,7 +207,7 @@ func TestFileSnapshot_KeysAndGenerationMoveTogether(t *testing.T) {
 	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "c.jpg")
 	dropAndWait(t, v, files...)
 
-	before := v.state.snapshot()
+	before := v.state.Observe().FileSet()
 	if got := before.Count(); got != 3 {
 		t.Fatalf("snapshot Count() = %d, want 3", got)
 	}
@@ -212,7 +217,7 @@ func TestFileSnapshot_KeysAndGenerationMoveTogether(t *testing.T) {
 
 	v.RemoveFile(2)
 
-	after := v.state.snapshot()
+	after := v.state.Observe().FileSet()
 	if got := after.Count(); got != 2 {
 		t.Errorf("snapshot Count() = %d after removal, want 2", got)
 	}

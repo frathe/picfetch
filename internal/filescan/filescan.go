@@ -76,6 +76,17 @@ func Images(ctx context.Context, uris []fyne.URI, max int, progress func(n int))
 // ImagesWithAdmission applies an operation's captured format policy while
 // preserving the normal traversal, file cap and cancellation behavior.
 func ImagesWithAdmission(ctx context.Context, uris []fyne.URI, max int, progress func(n int), accepts func(fyne.URI) bool) (images []fyne.URI, truncated bool) {
+	return gather(ctx, uris, max, progress, accepts, true)
+}
+
+// ReplayWithAdmission admits a saved sequence without discovering neighbors or
+// deduplicating recorded occurrences. Directories are skipped; admission,
+// cancellation, progress and the per-operation image bound match discovery.
+func ReplayWithAdmission(ctx context.Context, uris []fyne.URI, max int, progress func(n int), accepts func(fyne.URI) bool) (images []fyne.URI, truncated bool) {
+	return gather(ctx, uris, max, progress, accepts, false)
+}
+
+func gather(ctx context.Context, uris []fyne.URI, max int, progress func(int), accepts func(fyne.URI) bool, discover bool) (images []fyne.URI, truncated bool) {
 	if max < 1 {
 		max = 1
 	}
@@ -126,7 +137,7 @@ func ImagesWithAdmission(ctx context.Context, uris []fyne.URI, max int, progress
 		// open-and-sniff fallback - are recognized via a cheap stat
 		// instead of a wasted file open.
 		if canList, err := storage.CanList(u); err == nil && canList {
-			if visitDir(u) {
+			if discover && visitDir(u) {
 				dirs = append(dirs, u)
 			}
 			return
@@ -136,11 +147,13 @@ func ImagesWithAdmission(ctx context.Context, uris []fyne.URI, max int, progress
 			return
 		}
 
-		pathOf := realPathOf(u)
-		if seenFiles[pathOf] {
-			return
+		if discover {
+			pathOf := realPathOf(u)
+			if seenFiles[pathOf] {
+				return
+			}
+			seenFiles[pathOf] = true
 		}
-		seenFiles[pathOf] = true
 
 		images = append(images, u)
 		count++

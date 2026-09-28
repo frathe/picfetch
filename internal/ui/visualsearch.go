@@ -80,7 +80,9 @@ func (v *viewer) startVisualSearch(reference string) {
 	}
 	var paths []string
 	seen := map[string]bool{}
-	for _, uri := range v.state.files {
+	collection := v.state.Observe()
+	for i := range collection.Count() {
+		uri := collection.FileAt(i)
 		if uri != nil && !seen[uri.Path()] {
 			seen[uri.Path()] = true
 			paths = append(paths, uri.Path())
@@ -294,12 +296,13 @@ type favoriteListHost struct{ *viewer }
 // CurrentFiles captures ranked indexes once before the naming dialog opens.
 func (h favoriteListHost) CurrentFiles() []fyne.URI {
 	if !h.browsingContext().ranked {
-		return h.persistedFiles(h.state.files)
+		return h.state.Observe().Capture(collectionDisplayOrder)
 	}
 	indexes := h.captureBrowsingScope().indexes
+	collection := h.state.Observe()
 	files := make([]fyne.URI, len(indexes))
 	for i, index := range indexes {
-		files[i] = h.viewer.FileAt(index)
+		files[i] = collection.FileAt(index)
 	}
 	return files
 }

@@ -64,7 +64,21 @@
   browsing ownership implementation are complete.
   The [remaining refactoring backlog](needs_refactoring.md) covers collection
   transitions, Favorite ownership, a bounded worker-lifetime pilot and launch
-  policy (MA-030 through MA-033), which remain proposals.
+  policy (MA-030 through MA-033).
+  [MA-030's accepted design](docs/collection-transitions.md) resolves all eleven
+  interview decisions and requires both collection-model and reconciliation
+  slices. Its [local specification](.scratch/ma-030/spec.md) is resolved:
+  56 user stories and 18 acceptance criteria cover both slices. The approved
+  [nine implementation tickets](.scratch/ma-030/issues/README.md) are published
+  with blockers and model assignments. The
+  [archived Deep SDD record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md)
+  records all nine completed tickets: sole collection ownership and ordered
+  reconciliation, replay/capture, latest-choice sort, batch removal, unavailable
+  recovery, committed write/policy effects and lifecycle convergence. Full CI and
+  inspected Qodana SARIF passed on 2722b1d;
+  [PR 69](https://github.com/frathe/picfetch/pull/69) records the continuing
+  latest-head code/security reviews, dispositions and final checks.
+  MA-031 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

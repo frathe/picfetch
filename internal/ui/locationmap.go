@@ -88,12 +88,14 @@ func (v *viewer) beginLocationMap() {
 	}
 	v.scanLocationTrial()
 	v.locationMap.SetFavoritesRoot(v.favorites.Dir())
-	identities := fileidentity.NewIndex(v.FileCount(), func(i int) string { return v.FileAt(i).Path() })
-	sources := make([]locationmap.Source, 0, v.FileCount())
+	collection := v.state.Observe()
+	identities := collection.Occurrences()
+	sources := make([]locationmap.Source, 0, collection.Count())
 	visibility := v.dupes.Visibility()
 	groups := make(map[int][]locationmap.Source)
 	if visibility.Hide {
-		for i, uri := range v.state.files {
+		for i := range collection.Count() {
+			uri := collection.FileAt(i)
 			if !visibility.HiddenExtra(i) {
 				continue
 			}
@@ -103,7 +105,8 @@ func (v *viewer) beginLocationMap() {
 			groups[rep] = append(groups[rep], locationmap.Source{URI: uri, Identity: identity, Pixels: int64(size.X) * int64(size.Y)})
 		}
 	}
-	for i, uri := range v.state.files {
+	for i := range collection.Count() {
+		uri := collection.FileAt(i)
 		if !visibility.Visible(i) {
 			continue
 		}
@@ -256,7 +259,7 @@ func (v *viewer) returnLocationMapFrom(binding browsingBinding) {
 }
 
 func (v *viewer) rebuildLocationMap() {
-	v.locationMap.SetSources(v.state.files)
+	v.locationMap.SetSources(v.state.Observe().DisplayFiles())
 	if !v.locationVisitActive() || v.stopping {
 		return
 	}
@@ -266,7 +269,7 @@ func (v *viewer) rebuildLocationMap() {
 }
 
 func (v *viewer) OpenLocationImage(identity fileidentity.Occurrence) {
-	indexes := fileidentity.NewIndex(v.FileCount(), func(i int) string { return v.FileAt(i).Path() })
+	indexes := v.state.Observe().Occurrences()
 	i := indexes.Resolve(identity)
 	if i < 0 {
 		return
@@ -290,7 +293,7 @@ func (v *viewer) locationIndexes() []int {
 	if !v.locationImageVisit() && v.browsing.current().binding.kind != browsingCluster {
 		return nil
 	}
-	index := fileidentity.NewIndex(v.FileCount(), func(i int) string { return v.FileAt(i).Path() })
+	index := v.state.Observe().Occurrences()
 	var result []int
 	order := v.browsing.current().occurrences
 	if v.browsing.current().binding.kind != browsingCluster {
@@ -319,16 +322,17 @@ func (v *viewer) syncLocationDisplayed() {
 	uri, ok := v.displayedFile()
 	identity := fileidentity.Occurrence{}
 	if ok {
-		index := fileidentity.NewIndex(v.FileCount(), func(i int) string { return v.FileAt(i).Path() })
-		position := v.state.index
-		if position < 0 || position >= v.FileCount() || v.FileAt(position).Path() != uri.Path() {
+		collection := v.state.Observe()
+		index := collection.Occurrences()
+		_, position, _ := collection.Current()
+		if position < 0 || position >= collection.Count() || collection.FileAt(position).Path() != uri.Path() {
 			position = index.Resolve(fileidentity.Occurrence{Path: uri.Path()})
 		}
 		if position >= 0 && v.locationVisitActive() && v.dupes.HideDuplicates() {
 			position = v.dupes.Visibility().RepresentativeOf(position)
 		}
 		if position >= 0 {
-			identity, _ = index.Capture(v.FileAt(position).Path(), position)
+			identity, _ = index.Capture(collection.FileAt(position).Path(), position)
 		}
 	}
 	v.locationMap.SetDisplayed(identity)

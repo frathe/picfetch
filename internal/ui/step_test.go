@@ -19,21 +19,21 @@ func TestStepImage_NextAndPrevWrap(t *testing.T) {
 	b := uitest.TempJPEGURI(t, "b.jpg", 8, 8, color.White)
 	dropAndWait(t, v, a, b)
 
-	start := v.state.index
+	start := v.state.Observe().index
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.index != (start+1)%2 {
-		t.Fatalf("index after StepImage(1) = %d, want %d", v.state.index, (start+1)%2)
+	if v.state.Observe().index != (start+1)%2 {
+		t.Fatalf("index after StepImage(1) = %d, want %d", v.state.Observe().index, (start+1)%2)
 	}
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.index != start {
-		t.Fatalf("index after wrap = %d, want %d", v.state.index, start)
+	if v.state.Observe().index != start {
+		t.Fatalf("index after wrap = %d, want %d", v.state.Observe().index, start)
 	}
 	v.StepImage(-1)
 	waitUntilLoaded(t, v)
-	if v.state.index != (start+1)%2 {
-		t.Fatalf("index after StepImage(-1) wrap = %d, want %d", v.state.index, (start+1)%2)
+	if v.state.Observe().index != (start+1)%2 {
+		t.Fatalf("index after StepImage(-1) wrap = %d, want %d", v.state.Observe().index, (start+1)%2)
 	}
 }
 
@@ -42,8 +42,8 @@ func TestStepImage_NoopWithOneFile(t *testing.T) {
 	a := uitest.TempJPEGURI(t, "a.jpg", 8, 8, color.White)
 	dropAndWait(t, v, a)
 	v.StepImage(1)
-	if v.state.index != 0 {
-		t.Errorf("index = %d, want 0", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Errorf("index = %d, want 0", v.state.Observe().index)
 	}
 }
 
@@ -58,26 +58,26 @@ func TestStepImage_SingleFileDropWalksFolderSiblings(t *testing.T) {
 		}
 	}
 	dropAndWait(t, v, opened)
-	if v.state.files[v.state.index].Name() != "b.jpg" {
-		t.Fatalf("setup: showing %q, want b.jpg", v.state.files[v.state.index].Name())
+	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "b.jpg" {
+		t.Fatalf("setup: showing %q, want b.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
 	}
 
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.files[v.state.index].Name() != "c.jpg" {
-		t.Fatalf("after StepImage(1) showing %q, want c.jpg (name-sort a,b,c)", v.state.files[v.state.index].Name())
+	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "c.jpg" {
+		t.Fatalf("after StepImage(1) showing %q, want c.jpg (name-sort a,b,c)", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
 	}
 
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.files[v.state.index].Name() != "a.jpg" {
-		t.Fatalf("after wrap showing %q, want a.jpg", v.state.files[v.state.index].Name())
+	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "a.jpg" {
+		t.Fatalf("after wrap showing %q, want a.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
 	}
 
 	v.StepImage(-1)
 	waitUntilLoaded(t, v)
-	if v.state.files[v.state.index].Name() != "c.jpg" {
-		t.Fatalf("after StepImage(-1) showing %q, want c.jpg", v.state.files[v.state.index].Name())
+	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "c.jpg" {
+		t.Fatalf("after StepImage(-1) showing %q, want c.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
 	}
 }
 
@@ -87,13 +87,13 @@ func TestHandleKeyEvent_LeftRightWalkFolderSiblings(t *testing.T) {
 	dropAndWait(t, v, files[0])
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 	waitUntilLoaded(t, v)
-	if v.state.files[v.state.index].Name() != "b.jpg" {
-		t.Fatalf("Right showing %q, want b.jpg", v.state.files[v.state.index].Name())
+	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "b.jpg" {
+		t.Fatalf("Right showing %q, want b.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
 	}
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyLeft})
 	waitUntilLoaded(t, v)
-	if v.state.files[v.state.index].Name() != "a.jpg" {
-		t.Fatalf("Left showing %q, want a.jpg", v.state.files[v.state.index].Name())
+	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "a.jpg" {
+		t.Fatalf("Left showing %q, want a.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
 	}
 }
 
@@ -110,13 +110,13 @@ func TestHandleKeyEvent_HomeEndOnFolderSiblings(t *testing.T) {
 	dropAndWait(t, v, opened)
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
 	waitUntilLoaded(t, v)
-	if v.state.files[v.state.index].Name() != "c.jpg" {
-		t.Fatalf("End showing %q, want c.jpg", v.state.files[v.state.index].Name())
+	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "c.jpg" {
+		t.Fatalf("End showing %q, want c.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
 	}
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyHome})
 	waitUntilLoaded(t, v)
-	if v.state.files[v.state.index].Name() != "a.jpg" {
-		t.Fatalf("Home showing %q, want a.jpg", v.state.files[v.state.index].Name())
+	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "a.jpg" {
+		t.Fatalf("Home showing %q, want a.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
 	}
 }
 
@@ -126,8 +126,8 @@ func TestAdvance_SingleFileDropWalksSiblings(t *testing.T) {
 	dropAndWait(t, v, files[0])
 	v.Advance()
 	waitUntilLoaded(t, v)
-	if v.state.files[v.state.index].Name() != "b.jpg" {
-		t.Fatalf("Advance showing %q, want b.jpg", v.state.files[v.state.index].Name())
+	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "b.jpg" {
+		t.Fatalf("Advance showing %q, want b.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
 	}
 }
 
@@ -136,12 +136,12 @@ func TestStepImage_NoopWhileLoading(t *testing.T) {
 	a := uitest.TempJPEGURI(t, "a.jpg", 8, 8, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 8, 8, color.White)
 	dropAndWait(t, v, a, b)
-	start := v.state.index
+	start := v.state.Observe().index
 	beginPendingImageLoad(v)
 	t.Cleanup(func() { v.display.CancelRequest() })
 	v.StepImage(1)
-	if v.state.index != start {
-		t.Errorf("index = %d, want %d while loading", v.state.index, start)
+	if v.state.Observe().index != start {
+		t.Errorf("index = %d, want %d while loading", v.state.Observe().index, start)
 	}
 }
 
@@ -154,10 +154,10 @@ func TestStepImage_NoopWhileDeleteConfirmVisible(t *testing.T) {
 	if !v.deletion.Visible() {
 		t.Fatal("setup: delete confirmation should be visible")
 	}
-	start := v.state.index
+	start := v.state.Observe().index
 	v.StepImage(1)
-	if v.state.index != start {
-		t.Errorf("index = %d, want %d while delete confirm is visible", v.state.index, start)
+	if v.state.Observe().index != start {
+		t.Errorf("index = %d, want %d while delete confirm is visible", v.state.Observe().index, start)
 	}
 }
 
@@ -170,10 +170,10 @@ func TestStepImage_NoopWhileExportPromptVisible(t *testing.T) {
 	if !v.exportPrompt.Visible() {
 		t.Fatal("setup: export prompt should be visible")
 	}
-	start := v.state.index
+	start := v.state.Observe().index
 	v.StepImage(1)
-	if v.state.index != start {
-		t.Errorf("index = %d, want %d while export prompt is visible", v.state.index, start)
+	if v.state.Observe().index != start {
+		t.Errorf("index = %d, want %d while export prompt is visible", v.state.Observe().index, start)
 	}
 }
 
@@ -186,10 +186,10 @@ func TestStepImage_NoopWhileFyneDialogIsUp(t *testing.T) {
 	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
 		t.Fatalf("setup: overlay count = %d, want Manage Favorites", n)
 	}
-	start := v.state.index
+	start := v.state.Observe().index
 	v.StepImage(1)
-	if v.state.index != start {
-		t.Errorf("index = %d, want %d behind a Fyne dialog", v.state.index, start)
+	if v.state.Observe().index != start {
+		t.Errorf("index = %d, want %d behind a Fyne dialog", v.state.Observe().index, start)
 	}
 }
 
@@ -211,20 +211,20 @@ func TestStepImage_SkipsHiddenExtras(t *testing.T) {
 	v.grid.SetHideDuplicates(true)
 	v.grid.Settle()
 	waitUntilLoaded(t, v)
-	if v.state.index != 0 {
-		t.Fatalf("index = %d, want 0 (representative)", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Fatalf("index = %d, want 0 (representative)", v.state.Observe().index)
 	}
 
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.index != 2 {
-		t.Fatalf("index after StepImage(1) = %d, want 2 (skipped extra at 1)", v.state.index)
+	if v.state.Observe().index != 2 {
+		t.Fatalf("index after StepImage(1) = %d, want 2 (skipped extra at 1)", v.state.Observe().index)
 	}
 
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.index != 0 {
-		t.Fatalf("index after wrap = %d, want 0", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Fatalf("index after wrap = %d, want 0", v.state.Observe().index)
 	}
 }
 
@@ -250,20 +250,20 @@ func TestStepImage_HideDuplicatesShowsHighestResolution(t *testing.T) {
 			patternedHamming(t, small, large))
 	}
 
-	if v.state.index != 1 {
-		t.Fatalf("index = %d, want 1 (larger copy of seed 1)", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("index = %d, want 1 (larger copy of seed 1)", v.state.Observe().index)
 	}
 
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.index != 2 {
-		t.Fatalf("after StepImage(1) index = %d, want 2 (skipped small extra at 0)", v.state.index)
+	if v.state.Observe().index != 2 {
+		t.Fatalf("after StepImage(1) index = %d, want 2 (skipped small extra at 0)", v.state.Observe().index)
 	}
 
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.index != 1 {
-		t.Fatalf("after wrap index = %d, want 1", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("after wrap index = %d, want 1", v.state.Observe().index)
 	}
 
 	for _, mode := range []filesort.Mode{filesort.ByName, filesort.ByDropOrder, filesort.ByName} {
@@ -271,7 +271,7 @@ func TestStepImage_HideDuplicatesShowsHighestResolution(t *testing.T) {
 		waitForSort(t, v)
 		v.grid.Settle()
 		waitUntilLoaded(t, v)
-		if got := v.state.files[v.state.index]; got.String() != large.String() {
+		if got := v.state.Observe().DisplayFiles()[v.state.Observe().index]; got.String() != large.String() {
 			t.Fatalf("sort %v changed current file to %s", mode, got.Name())
 		}
 		if size, ok := v.dupes.NativeSize(large.String()); !ok || size != image.Pt(192, 144) {
@@ -287,7 +287,7 @@ func TestStepImage_HideDuplicatesShowsHighestResolution(t *testing.T) {
 		}{{fyne.KeyHome, first}, {fyne.KeyEnd, last}} {
 			v.handleKeyEvent(&fyne.KeyEvent{Name: jump.key})
 			waitUntilLoaded(t, v)
-			if got := v.state.files[v.state.index]; got.String() != jump.want.String() {
+			if got := v.state.Observe().DisplayFiles()[v.state.Observe().index]; got.String() != jump.want.String() {
 				t.Errorf("sort %v, %s landed on %s, want %s", mode, jump.key, got.Name(), jump.want.Name())
 			}
 		}
@@ -295,12 +295,12 @@ func TestStepImage_HideDuplicatesShowsHighestResolution(t *testing.T) {
 		waitUntilLoaded(t, v)
 		v.StepImage(1)
 		waitUntilLoaded(t, v)
-		if got := v.state.files[v.state.index]; got.String() != other.String() {
+		if got := v.state.Observe().DisplayFiles()[v.state.Observe().index]; got.String() != other.String() {
 			t.Errorf("sort %v, arrow landed on %s, want unique image", mode, got.Name())
 		}
 		v.Advance()
 		waitUntilLoaded(t, v)
-		if got := v.state.files[v.state.index]; got.String() != large.String() {
+		if got := v.state.Observe().DisplayFiles()[v.state.Observe().index]; got.String() != large.String() {
 			t.Errorf("sort %v, slideshow landed on %s, want representative", mode, got.Name())
 		}
 		v.showFileIfPresent(large)
@@ -309,7 +309,7 @@ func TestStepImage_HideDuplicatesShowsHighestResolution(t *testing.T) {
 		v.Advance()
 		waitUntilLoaded(t, v)
 		v.slides.SetShuffle(false)
-		if got := v.state.files[v.state.index]; got.String() != other.String() {
+		if got := v.state.Observe().DisplayFiles()[v.state.Observe().index]; got.String() != other.String() {
 			t.Errorf("sort %v, shuffle landed on %s, want unique image", mode, got.Name())
 		}
 		v.showFileIfPresent(large)
@@ -348,8 +348,8 @@ func TestHandleKeyEvent_DTogglesHideDuplicatesWhenGridClosed(t *testing.T) {
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
 	v.grid.Settle()
 	waitUntilLoaded(t, v)
-	if v.state.index != 0 {
-		t.Fatalf("index = %d, want 0 after hiding while on an extra", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Fatalf("index = %d, want 0 after hiding while on an extra", v.state.Observe().index)
 	}
 }
 
@@ -407,14 +407,14 @@ func TestHandleKeyEvent_HomeEndSkipHiddenExtras(t *testing.T) {
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
 	waitUntilLoaded(t, v)
-	if v.state.index != 2 {
-		t.Fatalf("End index = %d, want 2 (last visible, not the extra)", v.state.index)
+	if v.state.Observe().index != 2 {
+		t.Fatalf("End index = %d, want 2 (last visible, not the extra)", v.state.Observe().index)
 	}
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyHome})
 	waitUntilLoaded(t, v)
-	if v.state.index != 0 {
-		t.Fatalf("Home index = %d, want 0", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Fatalf("Home index = %d, want 0", v.state.Observe().index)
 	}
 }
 
@@ -423,16 +423,16 @@ func TestHandleKeyEvent_LeftRightUseStepImage(t *testing.T) {
 	a := uitest.TempJPEGURI(t, "a.jpg", 8, 8, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 8, 8, color.White)
 	dropAndWait(t, v, a, b)
-	start := v.state.index
+	start := v.state.Observe().index
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 	waitUntilLoaded(t, v)
-	if v.state.index != (start+1)%2 {
-		t.Fatalf("Right via handleKeyEvent index = %d, want next", v.state.index)
+	if v.state.Observe().index != (start+1)%2 {
+		t.Fatalf("Right via handleKeyEvent index = %d, want next", v.state.Observe().index)
 	}
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyLeft})
 	waitUntilLoaded(t, v)
-	if v.state.index != start {
-		t.Fatalf("Left via handleKeyEvent index = %d, want %d", v.state.index, start)
+	if v.state.Observe().index != start {
+		t.Fatalf("Left via handleKeyEvent index = %d, want %d", v.state.Observe().index, start)
 	}
 }
 
@@ -458,8 +458,8 @@ func TestStepImage_InspectLoopsVariantsNotUniques(t *testing.T) {
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
 	waitUntilLoaded(t, v)
 
-	if v.state.index != 1 {
-		t.Fatalf("index = %d, want 1 (committed extra)", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("index = %d, want 1 (committed extra)", v.state.Observe().index)
 	}
 	if !v.dupes.Inspecting() {
 		t.Fatal("inspect should be on after Return from browse")
@@ -467,20 +467,20 @@ func TestStepImage_InspectLoopsVariantsNotUniques(t *testing.T) {
 
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.index != 0 {
-		t.Fatalf("after StepImage(1) index = %d, want 0 (other variant, not unique 2)", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Fatalf("after StepImage(1) index = %d, want 0 (other variant, not unique 2)", v.state.Observe().index)
 	}
 
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.index != 1 {
-		t.Fatalf("after wrap index = %d, want 1", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("after wrap index = %d, want 1", v.state.Observe().index)
 	}
 
 	v.StepImage(-1)
 	waitUntilLoaded(t, v)
-	if v.state.index != 0 {
-		t.Fatalf("after StepImage(-1) index = %d, want 0", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Fatalf("after StepImage(-1) index = %d, want 0", v.state.Observe().index)
 	}
 }
 
@@ -492,13 +492,13 @@ func TestHandleKeyEvent_HomeEndWhileInspectingUseWholeSet(t *testing.T) {
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
 	waitUntilLoaded(t, v)
-	if v.state.index != 2 {
-		t.Fatalf("End index = %d, want 2 (last visible of the set, unique)", v.state.index)
+	if v.state.Observe().index != 2 {
+		t.Fatalf("End index = %d, want 2 (last visible of the set, unique)", v.state.Observe().index)
 	}
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyHome})
 	waitUntilLoaded(t, v)
-	if v.state.index != 0 {
-		t.Fatalf("Home index = %d, want 0 (first visible representative)", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Fatalf("Home index = %d, want 0 (first visible representative)", v.state.Observe().index)
 	}
 }
 
@@ -510,8 +510,8 @@ func TestHandleKeyEvent_ArrowAfterEndWhileInspectingReturnsToGroup(t *testing.T)
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEnd})
 	waitUntilLoaded(t, v)
-	if v.state.index != 2 {
-		t.Fatalf("End index = %d, want 2", v.state.index)
+	if v.state.Observe().index != 2 {
+		t.Fatalf("End index = %d, want 2", v.state.Observe().index)
 	}
 	if !v.dupes.Inspecting() {
 		t.Fatal("inspect stays on after End")
@@ -519,8 +519,8 @@ func TestHandleKeyEvent_ArrowAfterEndWhileInspectingReturnsToGroup(t *testing.T)
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 	waitUntilLoaded(t, v)
-	if v.state.index != 1 {
-		t.Fatalf("Right after End index = %d, want 1 (back into the group)", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("Right after End index = %d, want 1 (back into the group)", v.state.Observe().index)
 	}
 }
 
@@ -532,13 +532,13 @@ func TestHandleKeyEvent_EscapeFromInspectReopensVariantsThenHideGrid(t *testing.
 	if v.grid.Visible() || !v.dupes.Inspecting() {
 		t.Fatal("premises: inspect viewer, grid closed")
 	}
-	startFiles := len(v.state.files)
+	startFiles := v.state.Observe().Count()
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 	v.grid.Settle()
 
-	if len(v.state.files) != startFiles {
-		t.Fatalf("files = %d, want %d (Escape must not reset the session)", len(v.state.files), startFiles)
+	if v.state.Observe().Count() != startFiles {
+		t.Fatalf("files = %d, want %d (Escape must not reset the session)", v.state.Observe().Count(), startFiles)
 	}
 	if !v.grid.Visible() {
 		t.Fatal("Escape from inspect should reopen the grid")
@@ -571,7 +571,7 @@ func TestHandleKeyEvent_EscapeWithoutInspectStillResets(t *testing.T) {
 		t.Fatal("premises: image view, not inspecting")
 	}
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
-	if len(v.state.files) != 0 {
+	if v.state.Observe().Count() != 0 {
 		t.Fatal("Escape in the image view without inspect should reset the session")
 	}
 }
@@ -600,13 +600,13 @@ func TestHandleKeyEvent_DNoopWhileInspecting(t *testing.T) {
 	if !v.dupes.HideDuplicates() {
 		t.Fatal("premises: hide on")
 	}
-	idx := v.state.index
+	idx := v.state.Observe().index
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyD})
 	if !v.dupes.HideDuplicates() {
 		t.Fatal("D while inspecting must not toggle hide")
 	}
-	if v.state.index != idx {
-		t.Fatalf("index = %d, want %d (D must not jump)", v.state.index, idx)
+	if v.state.Observe().index != idx {
+		t.Fatalf("index = %d, want %d (D must not jump)", v.state.Observe().index, idx)
 	}
 }
 

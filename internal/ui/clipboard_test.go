@@ -26,8 +26,7 @@ func TestCopyPathToClipboard_SetsFilePath(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
 	jpegURI := uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})
-	v.state.files = []fyne.URI{jpegURI}
-	v.state.index = 0
+	v.state.Replace(collectionInput{source: []fyne.URI{jpegURI}, display: []fyne.URI{jpegURI}})
 
 	v.copyPathToClipboard()
 
@@ -131,8 +130,7 @@ func TestWireClipboardShortcuts_CopiesImageAndPath(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
 	jpegURI := uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})
-	v.state.files = []fyne.URI{jpegURI}
-	v.state.index = 0
+	v.state.Replace(collectionInput{source: []fyne.URI{jpegURI}, display: []fyne.URI{jpegURI}})
 	v.img.Image = image.NewRGBA(image.Rect(0, 0, 2, 2))
 
 	called := make(chan struct{}, 1)

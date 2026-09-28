@@ -640,26 +640,29 @@ func warmThumbs(t *testing.T, v *viewer) {
 func assertEquivalentFileSlices(t *testing.T, v *viewer) {
 	t.Helper()
 
-	files := namesOfURIs(v.state.files)
-	unsorted := namesOfURIs(v.state.unsortedFiles)
+	collection := v.state.Observe()
+	files := namesOfURIs(collection.DisplayFiles())
+	unsorted := namesOfURIs(collection.SourceFiles())
 	slices.Sort(files)
 	slices.Sort(unsorted)
 	if !slices.Equal(files, unsorted) {
-		t.Errorf("files = %v and unsortedFiles = %v do not contain the same URIs", v.state.files, v.state.unsortedFiles)
+		t.Errorf("files = %v and unsortedFiles = %v do not contain the same URIs", collection.DisplayFiles(), collection.SourceFiles())
 	}
 }
 
 func assertValidFileIndex(t *testing.T, v *viewer) {
 	t.Helper()
 
-	if len(v.state.files) == 0 {
-		if v.state.index != 0 {
-			t.Errorf("index = %d, want 0 with no files", v.state.index)
+	collection := v.state.Observe()
+	_, index, chosen := collection.Current()
+	if collection.Count() == 0 {
+		if chosen {
+			t.Error("empty collection retained a chosen occurrence")
 		}
 		return
 	}
-	if v.state.index < 0 || v.state.index >= len(v.state.files) {
-		t.Errorf("index = %d, want a value in [0, %d)", v.state.index, len(v.state.files))
+	if !chosen || index < 0 || index >= collection.Count() {
+		t.Errorf("chosen = %v, index = %d, want a value in [0, %d)", chosen, index, collection.Count())
 	}
 }
 

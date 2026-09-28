@@ -33,9 +33,11 @@ func (v *viewer) beginLocationTrial() {
 	if t == nil {
 		return
 	}
-	t.state.Images = v.FileCount()
+	collection := v.state.Observe()
+	t.state.Images = collection.Count()
 	t.state.Formats = map[string]int{}
-	for _, source := range v.state.files {
+	for i := range collection.Count() {
+		source := collection.FileAt(i)
 		format := strings.ToLower(strings.TrimPrefix(filepath.Ext(source.Path()), "."))
 		if format == "" {
 			format = "unknown"

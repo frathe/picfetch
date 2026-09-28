@@ -48,6 +48,7 @@ func (v *viewer) promptChanged() {
 // or mutating the interaction. Availability queries use this same observation.
 func (v *viewer) commandContext() commandContext {
 	_, displayed := v.DisplayedFile()
+	collection := v.state.Observe()
 	context := commandContext{
 		stopping:           v.stopping,
 		canSave:            v.canSaveRotation(),
@@ -59,7 +60,8 @@ func (v *viewer) commandContext() commandContext {
 		regionBusy:         v.regionCopy.State().Busy,
 		clipboardBusy:      v.clipboardWork.pending.Load(),
 		clipboardClosed:    v.clipboardWork.closed.Load(),
-		hasFiles:           v.FileCount() > 0,
+		hasFiles:           collection.Count() > 0,
+		hasCollection:      collection.HasMembers(),
 		hasImage:           v.display.Count() > 0 && v.img.Image != nil,
 		hasPixels:          v.img.Image != nil,
 		loading:            v.display.Snapshot().Loading,

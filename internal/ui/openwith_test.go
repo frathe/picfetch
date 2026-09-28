@@ -39,8 +39,8 @@ func TestInstallOpenWithHandler_FlushesADeliveryThatArrivedBeforeInstall(t *test
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 1 || v.state.files[0].Name() != "a.jpg" {
-		t.Errorf("files = %v, want the buffered a.jpg opened by the install flush", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Name() != "a.jpg" {
+		t.Errorf("files = %v, want the buffered a.jpg opened by the install flush", v.state.Observe().DisplayFiles())
 	}
 	if v.img.Image == nil {
 		t.Error("the delivered image should be on screen")
@@ -57,8 +57,8 @@ func TestOpenWithHandler_DeliveryWhileInstalledOpensTheFiles(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 1 || v.state.files[0].Name() != "a.jpg" {
-		t.Errorf("files = %v, want the delivered a.jpg opened", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Name() != "a.jpg" {
+		t.Errorf("files = %v, want the delivered a.jpg opened", v.state.Observe().DisplayFiles())
 	}
 	if v.img.Image == nil {
 		t.Error("the delivered image should be on screen")
@@ -93,7 +93,7 @@ func TestOpenInitialFiles_ArgvAndADeliveryBecomeOneScanWithArgvFirst(t *testing.
 	if scans := v.scanOp.lifecycle.currentRevision() - scansBefore; scans != 1 {
 		t.Errorf("the drop started %d scans, want exactly 1 - argv and the delivery must be one batch", scans)
 	}
-	if got := namesOfURIs(v.state.unsortedFiles); !slices.Equal(got, []string{"z-argv.jpg", "a-delivered.jpg"}) {
+	if got := namesOfURIs(v.state.Observe().SourceFiles()); !slices.Equal(got, []string{"z-argv.jpg", "a-delivered.jpg"}) {
 		t.Errorf("dropped order = %v, want the argv file first then the delivered one", got)
 	}
 	if v.pendingInitial != nil {
@@ -116,8 +116,8 @@ func TestOpenInitialFiles_OpensPendingWhenNothingWasDelivered(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 1 || v.state.files[0].Name() != "a.jpg" {
-		t.Errorf("files = %v, want the command-line a.jpg opened", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Name() != "a.jpg" {
+		t.Errorf("files = %v, want the command-line a.jpg opened", v.state.Observe().DisplayFiles())
 	}
 	if v.pendingInitial != nil {
 		t.Errorf("pendingInitial = %v, want it cleared once opened", v.pendingInitial)
@@ -169,8 +169,8 @@ func TestOpenWithHandler_DeliveryPreservesPendingDelete(t *testing.T) {
 	if !v.deletion.Visible() {
 		t.Error("the pending delete confirmation was cancelled")
 	}
-	if len(v.state.files) != 2 || v.state.files[0].Name() != "a.jpg" {
-		t.Errorf("files = %v, want the original set", v.state.files)
+	if v.state.Observe().Count() != 2 || v.state.Observe().DisplayFiles()[0].Name() != "a.jpg" {
+		t.Errorf("files = %v, want the original set", v.state.Observe().DisplayFiles())
 	}
 }
 
@@ -192,10 +192,10 @@ func TestOpenWithHandler_DeliveryMergesWhenMergeModeIsOn(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 2 {
-		t.Fatalf("files = %v, want a.jpg and b.jpg - a delivery should merge, not replace", v.state.files)
+	if v.state.Observe().Count() != 2 {
+		t.Fatalf("files = %v, want a.jpg and b.jpg - a delivery should merge, not replace", v.state.Observe().DisplayFiles())
 	}
-	if got := v.state.files[v.state.index].Name(); got != "b.jpg" {
+	if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != "b.jpg" {
 		t.Errorf("displayed file = %q, want the just-merged b.jpg", got)
 	}
 }

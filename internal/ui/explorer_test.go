@@ -834,7 +834,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				overlay := v.win.Canvas().Overlays().Top()
 				token := observeExplorer(v.explorer)
 
-				files := slices.Clone(v.state.files)
+				files := slices.Clone(v.state.Observe().DisplayFiles())
 				handler := &fyne.ShortcutHandler{}
 				wireGlobalShortcuts(handler, v)
 				key, modifier := fyne.Key1, fyne.KeyModifierShortcutDefault
@@ -849,18 +849,21 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				handler.TypedShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: modifier})
 				v.openChooserWorkers.Wait()
 				v.chooserUI.Drain()
-				if v.win.Canvas().Overlays().Top() != overlay || !token.current() || !slices.Equal(v.state.files, files) || v.scanOp.active {
+				if v.win.Canvas().Overlays().Top() != overlay || !token.current() || !slices.Equal(v.state.Observe().DisplayFiles(), files) || v.scanOp.active {
 					t.Fatal("application shortcut discarded the Explorer modal or changed its collection")
 				}
 			})
 		}
 	})
 	t.Run("favorite_identity_cancel", func(t *testing.T) {
-		for _, stage := range []string{"scan", "sort"} {
-			t.Run(stage, func(t *testing.T) {
+		for _, name := range []string{"scan", "sort", "merge_scan", "merge_sort"} {
+			t.Run(name, func(t *testing.T) {
+				stage := strings.TrimPrefix(name, "merge_")
 				v := openGridWith(t, "current.jpg")
+				v.SetMergeMode(strings.HasPrefix(name, "merge_"))
 				current := v.FileAt(0)
-				v.explorerInput.favoriteDir = "original-favorite"
+				v.state.Replace(collectionInput{source: []fyne.URI{current}, display: []fyne.URI{current}, favorite: "original-favorite"})
+				before := v.state.Observe()
 				entered, release := make(chan struct{}), make(chan struct{})
 				var once sync.Once
 				unblock := func() { once.Do(func() { close(release) }) }
@@ -881,7 +884,11 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					})
 					files = []fyne.URI{held, current}
 				}
-				v.OpenFavorite("replacement-favorite", files)
+				if stage == "scan" {
+					v.OpenFiles(files)
+				} else {
+					v.OpenFavorite("replacement-favorite", files)
+				}
 				select {
 				case <-entered:
 				case <-time.After(testTimeout):
@@ -897,8 +904,8 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				if stage == "sort" {
 					waitForSort(t, v)
 				}
-				if v.explorerInput.favoriteDir !=
-					"original-favorite" || v.FileCount() != 1 || v.FileAt(0) != current {
+				if v.state.Observe().Favorite() !=
+					"original-favorite" || v.FileCount() != 1 || v.FileAt(0) != current || v.Generation() != before.Generation() {
 					t.Fatal("cancelled replacement changed the existing collection identity or files")
 				}
 			})
@@ -1773,7 +1780,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 
 	t.Run("presets_pending_members", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
-		files := slices.Clone(v.state.files)
+		files := slices.Clone(v.state.Observe().DisplayFiles())
 		dir := t.TempDir()
 		if err := favstore.Save(dir, "Pending", files); err != nil {
 			t.Fatal(err)
@@ -1937,7 +1944,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("presets_favorite", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
 		dir := t.TempDir()
-		if err := favstore.Save(dir, "Cameras", slices.Clone(v.state.files)); err != nil {
+		if err := favstore.Save(dir, "Cameras", slices.Clone(v.state.Observe().DisplayFiles())); err != nil {
 			t.Fatal(err)
 		}
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
@@ -2058,7 +2065,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 
 	t.Run("create_cohort_favorite", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
-		files := slices.Clone(v.state.files)
+		files := slices.Clone(v.state.Observe().DisplayFiles())
 		dir := t.TempDir()
 		for _, name := range []string{"Cats", "Other"} {
 			if err := favstore.Save(dir, name, files); err != nil {

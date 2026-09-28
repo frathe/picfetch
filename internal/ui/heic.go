@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -32,70 +31,16 @@ func (v *viewer) heicContext(ctx context.Context) context.Context {
 	return v.heic.capability.CaptureContext(ctx)
 }
 
-func (v *viewer) persistedFiles(files []fyne.URI) []fyne.URI {
-	available := make(map[string]int, len(files))
-	for _, uri := range files {
-		available[uri.String()]++
-	}
-	// Attach unavailable members to the preceding surviving source. This
-	// reconstructs unsorted session order while preserving a Favorite's chosen
-	// order for its visible members, and never resurrects removed visible files.
-	// Merge mode permits repeated visible sources. Each occurrence owns its
-	// own following gaps, even when another occurrence has the same URI.
-	type position struct {
-		key        string
-		occurrence int
-	}
-	after := make(map[position][]fyne.URI)
-	occurrences := make(map[string]int)
-	anchor := position{}
-	for _, source := range v.state.unavailableOrder {
-		key := source.uri.String()
-		if source.unavailable {
-			after[anchor] = append(after[anchor], source.uri)
-		} else if available[key] > 0 {
-			occurrences[key]++
-			if occurrences[key] <= available[key] {
-				anchor = position{key, occurrences[key]}
-			}
-		}
-	}
-	clear(occurrences)
-	result := append([]fyne.URI(nil), after[position{}]...)
-	for _, uri := range files {
-		key := uri.String()
-		occurrences[key]++
-		anchor = position{key, occurrences[key]}
-		result = append(result, uri)
-		result = append(result, after[anchor]...)
-	}
-	return result
-}
-
-func (v *viewer) retainedOrder() []collectionSource {
-	if v.state.unavailableOrder != nil {
-		return slices.Clone(v.state.unavailableOrder)
-	}
-	order := make([]collectionSource, len(v.state.unsortedFiles))
-	for i, uri := range v.state.unsortedFiles {
-		order[i].uri = uri
-	}
-	return order
-}
-
-func (v *viewer) retainUnavailableHEIC(merging bool, skipped, order []fyne.URI) {
-	var retained []collectionSource
-	if merging {
-		retained = v.retainedOrder()
-	}
+func retainedSources(skipped, order []fyne.URI) []collectionSource {
 	missing := make(map[string]bool, len(skipped))
 	for _, uri := range skipped {
 		missing[uri.String()] = true
 	}
+	retained := make([]collectionSource, 0, len(order))
 	for _, uri := range order {
 		retained = append(retained, collectionSource{uri, missing[uri.String()]})
 	}
-	v.state.retainOrder(retained)
+	return retained
 }
 
 func (v *viewer) explainUnavailableHEIC(skipped []fyne.URI, explicit bool) {

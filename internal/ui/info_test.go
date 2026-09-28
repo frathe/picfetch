@@ -100,7 +100,7 @@ func TestToggleInfoOverlay_ContentAndPersistenceAcrossNavigation(t *testing.T) {
 
 	// Step to the second file: the card must refresh, not keep showing a's
 	// info.
-	v.ShowImage(v.state.index + 1)
+	v.ShowImage(v.state.Observe().index + 1)
 	waitUntilLoaded(t, v)
 	v.updateInfoOverlay()
 

@@ -46,8 +46,8 @@ func TestHandleDrop_EmptyDrop(t *testing.T) {
 
 	v.handleDrop(nil)
 
-	if v.state.files != nil {
-		t.Errorf("files = %v, want nil after an empty drop", v.state.files)
+	if v.state.Observe().DisplayFiles() != nil {
+		t.Errorf("files = %v, want nil after an empty drop", v.state.Observe().DisplayFiles())
 	}
 
 	if n := len(v.win.Canvas().Overlays().List()); n != 0 {
@@ -67,8 +67,8 @@ func TestHandleDrop_NoSupportedImages(t *testing.T) {
 		t.Error("Close Files should be disabled once an unsupported scan ends without files")
 	}
 
-	if v.state.files != nil {
-		t.Errorf("files = %v, want nil when nothing dropped is a supported image", v.state.files)
+	if v.state.Observe().DisplayFiles() != nil {
+		t.Errorf("files = %v, want nil when nothing dropped is a supported image", v.state.Observe().DisplayFiles())
 	}
 
 	if !v.toast.card.Visible() {
@@ -95,8 +95,8 @@ func TestHandleDrop_ErrorAfterImagesClearsDisplay(t *testing.T) {
 	// previous image sitting behind the error toast and placeholder art.
 	dropAndWaitScan(t, v, uitest.FakeURI{FileName: "notes.txt", Ext: ".txt"})
 
-	if v.state.files != nil {
-		t.Errorf("files = %v, want nil after a drop with nothing supported", v.state.files)
+	if v.state.Observe().DisplayFiles() != nil {
+		t.Errorf("files = %v, want nil after a drop with nothing supported", v.state.Observe().DisplayFiles())
 	}
 	if v.img.Image != nil {
 		t.Error("the previous image should be cleared, not left showing behind the error")
@@ -129,8 +129,8 @@ func TestHandleDrop_FiltersUnsupportedFiles(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 1 || v.state.files[0].Name() != jpegURI.Name() {
-		t.Errorf("files = %v, want only %q kept", v.state.files, jpegURI.Name())
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Name() != jpegURI.Name() {
+		t.Errorf("files = %v, want only %q kept", v.state.Observe().DisplayFiles(), jpegURI.Name())
 	}
 }
 
@@ -142,8 +142,8 @@ func TestHandleDrop_AcceptsPNGAndGIF(t *testing.T) {
 
 	dropAndWait(t, v, storage.NewFileURI(pngPath), storage.NewFileURI(gifPath))
 
-	if len(v.state.files) != 2 {
-		t.Fatalf("files = %v, want both the PNG and the GIF kept", v.state.files)
+	if v.state.Observe().Count() != 2 {
+		t.Fatalf("files = %v, want both the PNG and the GIF kept", v.state.Observe().DisplayFiles())
 	}
 }
 
@@ -153,8 +153,8 @@ func TestHandleDrop_AcceptsRAW(t *testing.T) {
 	raw := uitest.TempRAWURI(t, "photo.cr2", 8, 8, color.White)
 	dropAndWait(t, v, raw)
 
-	if len(v.state.files) != 1 || v.state.files[0].Name() != "photo.cr2" {
-		t.Errorf("files = %v, want the RAW file kept", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Name() != "photo.cr2" {
+		t.Errorf("files = %v, want the RAW file kept", v.state.Observe().DisplayFiles())
 	}
 	if v.img.Image == nil {
 		t.Fatal("expected the embedded JPEG preview to be on screen")
@@ -175,8 +175,8 @@ func TestHandleDrop_SecondDropWithoutMergeModeReplaces(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 1 || v.state.files[0].Name() != "b.jpg" {
-		t.Errorf("files = %v, want only %q - the second drop should replace the first", v.state.files, "b.jpg")
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Name() != "b.jpg" {
+		t.Errorf("files = %v, want only %q - the second drop should replace the first", v.state.Observe().DisplayFiles(), "b.jpg")
 	}
 }
 
@@ -190,12 +190,12 @@ func TestHandleDrop_MergeModeMergesIntoExistingSet(t *testing.T) {
 	v.state.SetMergeMode(true)
 	dropAndWait(t, v, b)
 
-	if len(v.state.files) != 2 {
-		t.Fatalf("files = %v, want both a.jpg and b.jpg after a merge-mode drop", v.state.files)
+	if v.state.Observe().Count() != 2 {
+		t.Fatalf("files = %v, want both a.jpg and b.jpg after a merge-mode drop", v.state.Observe().DisplayFiles())
 	}
 
 	// The merge should have jumped to the file just added, not stayed on a.jpg.
-	if got := v.state.files[v.state.index].Name(); got != "b.jpg" {
+	if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != "b.jpg" {
 		t.Errorf("displayed file = %q, want b.jpg (the just-merged file) in view", got)
 	}
 }
@@ -209,8 +209,8 @@ func TestHandleDrop_MergeModeDropWithNothingSupportedKeepsExistingSet(t *testing
 	v.state.SetMergeMode(true)
 	dropAndWaitScan(t, v, uitest.FakeURI{FileName: "notes.txt", Ext: ".txt"})
 
-	if len(v.state.files) != 1 || v.state.files[0].Name() != "a.jpg" {
-		t.Errorf("files = %v, want the existing a.jpg untouched by a merge-mode drop with nothing supported", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Name() != "a.jpg" {
+		t.Errorf("files = %v, want the existing a.jpg untouched by a merge-mode drop with nothing supported", v.state.Observe().DisplayFiles())
 	}
 	if v.img.Image == nil {
 		t.Error("the existing image should stay displayed, not cleared, when a merge-mode drop finds nothing new")
@@ -312,8 +312,8 @@ func TestHandleDrop_RecursesIntoNestedDirectories(t *testing.T) {
 
 	dropAndWait(t, v, storage.NewFileURI(root))
 
-	if len(v.state.files) != 3 {
-		t.Fatalf("files = %v, want the 3 nested photos, none of the .DS_Store junk", v.state.files)
+	if v.state.Observe().Count() != 3 {
+		t.Fatalf("files = %v, want the 3 nested photos, none of the .DS_Store junk", v.state.Observe().DisplayFiles())
 	}
 
 	if v.dropzone.Visible() {
@@ -459,8 +459,7 @@ func TestCancelScan_PreservesExistingFilesInMergeMode(t *testing.T) {
 	v := newTestViewer(t)
 
 	existing := uitest.TempJPEGURI(t, "existing.jpg", 4, 4, color.White)
-	v.state.files = []fyne.URI{existing}
-	v.state.unsortedFiles = []fyne.URI{existing}
+	v.state.Replace(collectionInput{source: []fyne.URI{existing}, display: []fyne.URI{existing}})
 	v.dropzone.Hide()
 
 	v.scanOp.active = true
@@ -469,8 +468,8 @@ func TestCancelScan_PreservesExistingFilesInMergeMode(t *testing.T) {
 
 	v.cancelScan()
 
-	if len(v.state.files) != 1 || v.state.files[0].String() != existing.String() {
-		t.Errorf("files = %v, want the pre-existing file untouched by cancelling a merge-mode scan", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != existing.String() {
+		t.Errorf("files = %v, want the pre-existing file untouched by cancelling a merge-mode scan", v.state.Observe().DisplayFiles())
 	}
 	if v.dropzone.Visible() {
 		t.Error("drop zone should stay hidden - an image was already loaded before the cancelled scan started")
@@ -555,8 +554,8 @@ func TestHandleDrop_SupersededScanGoroutineExits(t *testing.T) {
 	if visitedChild {
 		t.Error("superseded scan continued listing child directories")
 	}
-	if len(v.state.files) != 1 || v.state.files[0].String() != jpegB.String() {
-		t.Errorf("files = %v, want only the second drop's file applied", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != jpegB.String() {
+		t.Errorf("files = %v, want only the second drop's file applied", v.state.Observe().DisplayFiles())
 	}
 }
 
@@ -601,11 +600,11 @@ func TestHandleDrop_SingleFileExpandsSiblingsAndKeepsOpened(t *testing.T) {
 	}
 	dropAndWait(t, v, opened)
 
-	if n := len(v.state.files); n != 3 {
+	if n := v.state.Observe().Count(); n != 3 {
 		t.Fatalf("files = %d, want 3 siblings", n)
 	}
-	if v.state.files[v.state.index].Name() != "b.jpg" {
-		t.Fatalf("showing %q at index %d, want b.jpg (the opened file, not the first name-sort entry)", v.state.files[v.state.index].Name(), v.state.index)
+	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "b.jpg" {
+		t.Fatalf("showing %q at index %d, want b.jpg (the opened file, not the first name-sort entry)", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(), v.state.Observe().index)
 	}
 }
 
@@ -624,7 +623,7 @@ func TestHandleDrop_SingleFileDoesNotRecurse(t *testing.T) {
 		t.Fatal(err)
 	}
 	dropAndWait(t, v, storage.NewFileURI(openedPath))
-	if n := len(v.state.files); n != 1 {
+	if n := v.state.Observe().Count(); n != 1 {
 		t.Fatalf("files = %d, want 1 (nested.jpg is in a subdirectory)", n)
 	}
 }
@@ -633,7 +632,7 @@ func TestHandleDrop_TwoFilesInSameDirDoNotExpand(t *testing.T) {
 	v := newTestViewer(t)
 	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "c.jpg")
 	dropAndWait(t, v, files[0], files[1]) // a and b, not c
-	if n := len(v.state.files); n != 2 {
+	if n := v.state.Observe().Count(); n != 2 {
 		t.Fatalf("files = %d, want 2 (explicit subset, not the whole folder)", n)
 	}
 }
@@ -652,7 +651,7 @@ func TestHandleDrop_MergeSingleFileDoesNotExpandSiblings(t *testing.T) {
 		}
 	}
 	dropAndWait(t, v, one)
-	if n := len(v.state.files); n != 2 {
+	if n := v.state.Observe().Count(); n != 2 {
 		t.Fatalf("files = %d, want 2 (existing + merged y.jpg), not the whole sibling folder", n)
 	}
 }
@@ -668,7 +667,7 @@ func TestHandleDrop_UnsupportedSingleFileDoesNotExpandFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	dropAndWaitScan(t, v, storage.NewFileURI(txt))
-	if n := len(v.state.files); n != 0 {
+	if n := v.state.Observe().Count(); n != 0 {
 		t.Fatalf("files = %d, want 0 — dropping a non-image must not load sibling photos", n)
 	}
 }
@@ -694,7 +693,7 @@ func TestHandleDrop_SiblingScanTruncationToast(t *testing.T) {
 				}
 			}
 			dropAndWait(t, v, files[0])
-			if n := len(v.state.files); n != tc.wantImages {
+			if n := v.state.Observe().Count(); n != tc.wantImages {
 				t.Fatalf("files = %d, want %d", n, tc.wantImages)
 			}
 			if !v.toast.card.Visible() {

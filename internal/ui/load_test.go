@@ -92,8 +92,8 @@ func TestViewerShow_LoadsAndNavigates(t *testing.T) {
 
 	dropAndWait(t, v, first, second, third)
 
-	if v.state.index != 0 {
-		t.Fatalf("index = %d, want 0 after the initial drop", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Fatalf("index = %d, want 0 after the initial drop", v.state.Observe().index)
 	}
 	if v.img.Image == nil {
 		t.Fatal("expected an image to be loaded")
@@ -106,32 +106,32 @@ func TestViewerShow_LoadsAndNavigates(t *testing.T) {
 	}
 
 	// Step forward to the second image.
-	v.ShowImage(v.state.index + 1)
+	v.ShowImage(v.state.Observe().index + 1)
 	waitUntilLoaded(t, v)
 
-	if v.state.index != 1 {
-		t.Fatalf("index = %d, want 1 after stepping forward", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("index = %d, want 1 after stepping forward", v.state.Observe().index)
 	}
 	if b := v.img.Image.Bounds(); b.Dx() != 20 || b.Dy() != 10 {
 		t.Errorf("loaded image size = %dx%d, want 20x10", b.Dx(), b.Dy())
 	}
 
 	// Right at the end wraps around to the first image.
-	v.ShowImage(v.state.index + 1)
+	v.ShowImage(v.state.Observe().index + 1)
 	waitUntilLoaded(t, v)
-	v.ShowImage(v.state.index + 1)
+	v.ShowImage(v.state.Observe().index + 1)
 	waitUntilLoaded(t, v)
 
-	if v.state.index != 0 {
-		t.Fatalf("index = %d, want wraparound to 0", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Fatalf("index = %d, want wraparound to 0", v.state.Observe().index)
 	}
 
 	// Left from the first image wraps around to the last one.
-	v.ShowImage(v.state.index - 1)
+	v.ShowImage(v.state.Observe().index - 1)
 	waitUntilLoaded(t, v)
 
-	if v.state.index != 2 {
-		t.Fatalf("index = %d, want wraparound to the last index (2)", v.state.index)
+	if v.state.Observe().index != 2 {
+		t.Fatalf("index = %d, want wraparound to the last index (2)", v.state.Observe().index)
 	}
 	if b := v.img.Image.Bounds(); b.Dx() != 15 || b.Dy() != 25 {
 		t.Errorf("loaded image size = %dx%d, want 15x25", b.Dx(), b.Dy())
@@ -192,23 +192,23 @@ func TestViewerShow_AutoAdvancesPastBrokenFileDuringNavigation(t *testing.T) {
 
 	dropAndWait(t, v, first, corrupt, third)
 
-	if len(v.state.files) != 3 {
-		t.Fatalf("files = %v, want all 3 dropped files kept until navigation actually reaches the broken one", v.state.files)
+	if v.state.Observe().Count() != 3 {
+		t.Fatalf("files = %v, want all 3 dropped files kept until navigation actually reaches the broken one", v.state.Observe().DisplayFiles())
 	}
 
 	// Step onto the broken file.
-	v.ShowImage(v.state.index + 1)
+	v.ShowImage(v.state.Observe().index + 1)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 2 {
-		t.Fatalf("files = %v, want the broken file dropped from the set", v.state.files)
+	if v.state.Observe().Count() != 2 {
+		t.Fatalf("files = %v, want the broken file dropped from the set", v.state.Observe().DisplayFiles())
 	}
-	for _, u := range v.state.files {
+	for _, u := range v.state.Observe().DisplayFiles() {
 		if u.Name() == "2.jpg" {
-			t.Errorf("files = %v, the broken file should have been removed", v.state.files)
+			t.Errorf("files = %v, the broken file should have been removed", v.state.Observe().DisplayFiles())
 		}
 	}
-	if got := v.state.files[v.state.index].Name(); got != "3.jpg" {
+	if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != "3.jpg" {
 		t.Errorf("displayed file = %q, want auto-advance to land on 3.jpg", got)
 	}
 	if v.img.Image == nil {
@@ -231,8 +231,8 @@ func TestViewerShow_AutoAdvancesPastBrokenFirstFile(t *testing.T) {
 
 	dropAndWait(t, v, corrupt, second)
 
-	if len(v.state.files) != 1 || v.state.files[0].Name() != "2.jpg" {
-		t.Fatalf("files = %v, want only 2.jpg left after the broken first file was auto-skipped", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Name() != "2.jpg" {
+		t.Fatalf("files = %v, want only 2.jpg left after the broken first file was auto-skipped", v.state.Observe().DisplayFiles())
 	}
 	if v.img.Image == nil {
 		t.Fatal("expected the app to auto-advance to the one good image instead of giving up on the first failure")
@@ -254,8 +254,8 @@ func TestViewerShow_AllFilesBrokenFallsBackToEmptyState(t *testing.T) {
 
 	dropAndWait(t, v, corrupt1, corrupt2)
 
-	if v.state.files != nil {
-		t.Errorf("files = %v, want nil once every dropped file has failed to decode", v.state.files)
+	if v.state.Observe().DisplayFiles() != nil {
+		t.Errorf("files = %v, want nil once every dropped file has failed to decode", v.state.Observe().DisplayFiles())
 	}
 	if v.img.Image != nil {
 		t.Error("no image should be displayed once every file has failed")

@@ -247,14 +247,13 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 		// picture-frame mode is on, Escape leaves it (like any other
 		// full-screen app) instead of resetting the session - press it
 		// again afterwards for that. A scan in progress takes priority over
-		// both the close and reset branches below: len(v.state.files) == 0 is
+		// both the close and reset branches below: an empty collection is
 		// exactly the state a first-ever drop's scan runs in, so without
 		// this check Escape would close the window out from under a scan
 		// the user meant to cancel instead. v.sortOp.active takes the same
-		// priority for the same reason, and for the same len(v.state.files) == 0
+		// priority for the same reason, and for the same empty-collection
 		// risk during a first-ever drop's reorder - but unlike cancelScan,
-		// cancelSort (sort.go) never touches v.state.files/v.state.unsortedFiles at
-		// all (they're never written until the reorder's own onDone runs),
+		// cancelSort never changes collection facts before the commit callback,
 		// so cancelling a resort of an already-loaded set just stops the
 		// background work and leaves what's on screen exactly as it was,
 		// rather than resetting the whole session the way falling through
@@ -268,7 +267,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 			v.cancelSort()
 		} else if v.dupes.Inspecting() {
 			v.reopenVariantGrid()
-		} else if len(v.state.files) == 0 {
+		} else if !v.state.Observe().HasMembers() {
 			v.win.Close()
 		} else {
 			v.reset()
@@ -411,7 +410,7 @@ func (v *viewer) handleKeyEvent(ev *fyne.KeyEvent) {
 	// user has already navigated past. A single-file drop that found
 	// siblings in the same folder has already expanded the set (see
 	// handleDrop); a genuinely lonely file still no-ops here.
-	if len(v.state.files) < 2 || v.display.Snapshot().Loading {
+	if v.state.Observe().Count() < 2 || v.display.Snapshot().Loading {
 		return
 	}
 

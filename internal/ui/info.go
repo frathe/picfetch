@@ -1,7 +1,7 @@
 // The persistent info overlay (I key). The card's own widgets, text
 // formatting, and toggle preference live in internal/ui/infoview; this
 // file is the thin viewer-side glue that builds the infoview.State
-// snapshot from state.files/zoom/vector and calls the card.
+// snapshot from the collection, zoom and display, then calls the card.
 
 package ui
 
@@ -34,7 +34,7 @@ func (v *viewer) toggleInfoOverlay() {
 // changes, while updateInfoOverlay also runs on every zoom change - and a
 // zoom can't add or remove a file's metadata.
 func (v *viewer) syncInfoOverlayVisibility() {
-	hasImage := len(v.state.files) > 0 && v.img.Image != nil
+	hasImage := v.state.Observe().Count() > 0 && v.img.Image != nil
 	var s infoview.State
 	if hasImage {
 		s = v.infoState()
@@ -48,7 +48,7 @@ func (v *viewer) syncInfoOverlayVisibility() {
 // onChanged callback after every zoom change, unconditionally, without
 // checking visibility itself first.
 func (v *viewer) updateInfoOverlay() {
-	if !v.info.Visible() || len(v.state.files) == 0 || v.img.Image == nil {
+	if !v.info.Visible() || v.state.Observe().Count() == 0 || v.img.Image == nil {
 		return
 	}
 	v.info.Update(v.infoState())
@@ -60,11 +60,13 @@ func (v *viewer) updateInfoOverlay() {
 // what the card shows. Only safe to call once an image is actually on
 // screen; every caller already checks that first.
 func (v *viewer) infoState() infoview.State {
+	collection := v.state.Observe()
+	source, index, _ := collection.Current()
 	w, h := v.displayedDimensions()
 	return infoview.State{
-		Name:        v.state.files[v.state.index].Name(),
-		Index:       v.state.index,
-		Count:       len(v.state.files),
+		Name:        source.Name(),
+		Index:       index,
+		Count:       collection.Count(),
 		Width:       w,
 		Height:      h,
 		ZoomPercent: v.zoom.Percent(),

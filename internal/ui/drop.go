@@ -21,8 +21,8 @@ import (
 // handleDrop stops touching the filesystem without interrupting navigation,
 // preloading, or animation for an already-loaded merge-mode file set.
 //
-// Unlike reset, it never touches v.state.files or v.state.unsortedFiles: a merge-mode
-// scan can be cancelled mid-way through without losing images that were
+// Unlike reset, it never changes the collection: a merge-mode scan can be
+// cancelled mid-way through without losing images that were
 // already loaded before it started. Only a scan that had nothing loaded yet
 // (the first-ever drop) needs the drop zone put back the way handleDrop
 // found it.
@@ -33,7 +33,7 @@ func (v *viewer) cancelScan() {
 	v.pendingPictureFrame = false
 	v.explorerInput.pendingLaunch = false
 
-	if len(v.state.files) == 0 {
+	if v.state.Observe().Count() == 0 {
 		v.showWelcomeState()
 		v.dropzone.Show()
 	}
@@ -74,10 +74,17 @@ func (v *viewer) SetMaxScan(n int) {
 // (toggled by M) the newly scanned images are merged into it instead,
 // keeping the sort order applied and jumping to the first image just added.
 func (v *viewer) handleDrop(uris []fyne.URI) {
-	v.handleCollectionDrop(uris, "")
+	v.openCollection(uris, "", discoverCollection)
 }
 
-func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
+type collectionInputKind uint8
+
+const (
+	discoverCollection collectionInputKind = iota
+	replayCollection
+)
+
+func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collectionInputKind) {
 	if len(uris) == 0 {
 		return
 	}
@@ -103,7 +110,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	// a folder scan can take seconds, and toggling M while one is still
 	// running shouldn't retroactively change how this already-in-flight
 	// drop gets applied.
-	merging := v.state.MergeMode() && len(v.state.files) > 0
+	merging := v.state.MergeMode() && v.state.Observe().HasMembers()
 
 	v.invalidateSort()
 	v.invalidateLoad()
@@ -133,7 +140,11 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		}
 	}
 
-	expandSiblings := favoriteDir == "" && !merging && !hasDirs && len(uris) == 1 && (imaging.IsSupportedImage(uris[0]) || heic.IsExtension(uris[0].Extension()))
+	expandSiblings := kind == discoverCollection && !merging && !hasDirs && len(uris) == 1 && (imaging.IsSupportedImage(uris[0]) || heic.IsExtension(uris[0].Extension()))
+	gather := filescan.ImagesWithAdmission
+	if kind == replayCollection {
+		gather = filescan.ReplayWithAdmission
+	}
 	capability := v.heic.capability
 	snapshot := capability.Snapshot()
 	state := capability.State()
@@ -159,7 +170,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	retentionTruncated := false
 	seenOrder := make(map[string]bool)
 	record := func(uri fyne.URI) {
-		if !seenOrder[uri.String()] {
+		if kind == replayCollection || !seenOrder[uri.String()] {
 			sourceOrder = append(sourceOrder, uri)
 			seenOrder[uri.String()] = true
 		}
@@ -173,7 +184,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 			return true
 		}
 		if !snapshot.Available {
-			if seenOrder[uri.String()] {
+			if kind == discoverCollection && seenOrder[uri.String()] {
 				return false
 			}
 			if len(skipped) >= maxScan {
@@ -197,7 +208,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		if expandSiblings {
 			images, truncated = filescan.SiblingsWithAdmission(token.context(), uris[0], maxScan, progress, accepts)
 		} else {
-			images, truncated = filescan.ImagesWithAdmission(token.context(), uris, maxScan, progress, accepts)
+			images, truncated = gather(token.context(), uris, maxScan, progress, accepts)
 		}
 		if expandSiblings && len(sourceOrder) > 1 {
 			// Sibling discovery preserves the opened source first and sorts
@@ -206,17 +217,21 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 				return strings.Compare(a.Name(), b.Name())
 			})
 		}
+		// Admission is consulted before discovery's real-path deduplication.
+		// Retain only entries the scanner actually admitted, plus unavailable
+		// entries under their separate budget; aliases must not become members.
+		sourceOrder = admittedSourceOrder(sourceOrder, images, skipped)
 		if check != nil && len(skipped) > 0 {
 			// Pending HEICs use the separate retention budget while other
 			// formats keep traversal and progress moving. Resolve admission
-			// only after traversal, preserving original order and the normal
-			// deduplication/image cap if support becomes available.
+			// only after traversal, preserving the input kind's occurrence
+			// semantics and image cap if support becomes available.
 			if !waitForCapability() {
 				return nil, false
 			}
 			if snapshot.Available {
 				var admissionTruncated bool
-				images, admissionTruncated = filescan.ImagesWithAdmission(token.context(), sourceOrder, maxScan, nil, func(uri fyne.URI) bool {
+				images, admissionTruncated = gather(token.context(), sourceOrder, maxScan, nil, func(uri fyne.URI) bool {
 					return heic.IsExtension(uri.Extension()) || imaging.IsSupportedImage(uri)
 				})
 				truncated = truncated || admissionTruncated
@@ -267,6 +282,24 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	}()
 }
 
+func admittedSourceOrder(order, images, unavailable []fyne.URI) []fyne.URI {
+	remaining := make(map[string]int, len(images)+len(unavailable))
+	for _, group := range [][]fyne.URI{images, unavailable} {
+		for _, uri := range group {
+			remaining[uri.String()]++
+		}
+	}
+	result := make([]fyne.URI, 0, len(order))
+	for _, uri := range order {
+		key := uri.String()
+		if remaining[key] > 0 {
+			remaining[key]--
+			result = append(result, uri)
+		}
+	}
+	return result
+}
+
 // applyScanResult is the shared completion step for both of handleDrop's
 // paths - the synchronous no-directories fast path and the background
 // goroutine (recursive folder walk or single-file sibling listing). It must
@@ -292,15 +325,28 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 		if len(uris) == 1 {
 			msg = fmt.Sprintf(lang.L("%q is not a supported image file"), uris[0].Name())
 		}
-		if merging {
-			// Nothing to add - leave the existing set exactly as it
-			// was instead of wiping it out from under the user.
-			v.ShowToast(msg)
+		input := collectionInput{retained: retainedSources(skipped, sourceOrder), favorite: favoriteDir}
+		if !merging || len(input.retained) > 0 {
+			v.commitOpenedCollection(input, merging, func() {
+				if v.FileCount() > 0 {
+					v.ShowToast(msg)
+					return
+				}
+				v.pendingPictureFrame = false
+				v.slides.Exit()
+				v.resetFade()
+				v.presentDropzone()
+				v.showEmptyCollectionError(msg)
+			})
 		} else {
-			v.ShowEmptyStateError(msg)
+			// No admitted additions: keep all committed facts and bindings.
+			v.ShowToast(msg)
+			if v.FileCount() == 0 {
+				v.dropzone.Show()
+				v.emptyStateArt.Show()
+			}
 		}
 
-		v.retainUnavailableHEIC(merging, skipped, sourceOrder)
 		v.explainUnavailableHEIC(skipped, true)
 		if truncated {
 			v.ShowToast(fmt.Sprintf(lang.L("scan limit of %d reached - some files may not have been included"), maxScan))
@@ -350,12 +396,9 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 	v.applyScannedCollection(merging, images, uris, favoriteDir, skipped, sourceOrder)
 }
 
-// applyScannedFiles merges or replaces the file set with images, then
-// reorders v.state.unsortedFiles/v.state.files under the current sort mode in the
-// background via startSort (sort.go) - same reason SetSortMode does: the
-// capture-date/modified/size modes stat or Exif-read every file, which would
-// otherwise freeze the UI for as long as this scan just took to gather them,
-// right as it finishes.
+// applyScannedFiles prepares the display order on a worker before committing
+// replacement or merge. Capture-date/modified/size sorting can read every source;
+// preparation leaves the previous complete collection authoritative throughout.
 //
 // On a non-merge drop of one file, the URI the user opened is shown after
 // the reorder rather than index 0, so sibling expansion does not jump to
@@ -363,20 +406,9 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 // directory, which is never in the image list, so that lookup fails and
 // we still land on index 0.
 //
-// v.state.unsortedFiles and v.state.files are deliberately only ever written together,
-// once the reorder lands - never one without the other. A replacement also
-// resets index in that same callback. This
-// matters because RemoveFile's own comment documents them as required to
-// always hold the same set of files (just possibly different order) so a
-// later sort toggle doesn't resurrect a removed file; updating
-// v.state.unsortedFiles synchronously here but leaving v.state.files to catch up later
-// would violate that invariant for as long as the background reorder is
-// still running, and could leave v.state.index pointing past the end of a v.state.files
-// a *different*, later-landing reorder (a concurrent SetSortMode call, say)
-// has already replaced out from under it. Keeping both deferred to the same
-// onDone callback means that can't happen: whichever reorder's generation is
-// current when it finishes is the one and only writer of both fields for
-// that landing.
+// The current sort callback commits both projections, retained membership,
+// association and selection together. Stale preparation cannot install one
+// order ahead of the other or resurrect a source removed while sorting.
 func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI, favoriteDir string) {
 	v.applyScannedCollection(merging, images, dropped, favoriteDir, nil, images)
 }
@@ -385,58 +417,44 @@ func (v *viewer) applyScannedCollection(merging bool, images, dropped []fyne.URI
 	v.closeVisualSearch()
 	var unsorted []fyne.URI
 	if merging {
-		// Copied rather than appended onto v.state.unsortedFiles directly - same
-		// reason SetSortMode's own snapshot is a copy: this slice is about to
-		// be read by a background goroutine, and appending onto
-		// v.state.unsortedFiles's existing backing array (when it has spare
-		// capacity) would let a concurrent RemoveFile mutate the same memory
-		// the goroutine is reading.
-		unsorted = append(append([]fyne.URI(nil), v.state.unsortedFiles...), images...)
+		// SourceFiles returns an owned copy for background sort preparation.
+		unsorted = append(v.state.Observe().SourceFiles(), images...)
 	} else {
 		unsorted = images
 	}
 
 	v.startSort(v.state.SortMode(), unsorted, func(ordered []fyne.URI) {
-		// Collection identity belongs to the committed file set, including
-		// when a replacement scan or its reorder is cancelled.
-		v.explorerInput.favoriteDir = favoriteDir
-		v.retainUnavailableHEIC(merging, skipped, sourceOrder)
-		if !merging {
-			v.state.replaceFiles(unsorted, ordered)
-		} else {
-			v.state.setFiles(unsorted, ordered)
-		}
-		v.locationMap.SetSources(v.state.files)
-		v.ForceRepaint()
-
-		// Here rather than anywhere earlier because this is the first point
-		// at which the files a --slideshow launch asked to frame exist:
-		// picture-frame mode no-ops at zero files. Before the ShowImage
-		// calls below, so entering full-screen and showing the first image
-		// are one repaint rather than two.
-		if v.explorerInput.pendingLaunch {
-			v.explorerInput.pendingLaunch = false
-			v.pendingPictureFrame = false
-			v.showExplorer()
-			return
-		}
-		v.startPendingPictureFrame()
-
+		input := collectionInput{source: images, display: ordered, retained: retainedSources(skipped, sourceOrder), favorite: favoriteDir}
+		var target fyne.URI
 		if merging {
-			if !v.showFileIfPresent(images[0]) {
-				v.loadImage(0)
+			target = images[0]
+		} else if len(dropped) == 1 {
+			target = dropped[0]
+		}
+		if target != nil {
+			for i, uri := range ordered {
+				if uri.String() == target.String() {
+					input.index = i
+					break
+				}
 			}
-			return
 		}
-		// Keep the opened file on screen after a single-file replace
-		// (sibling expansion). A folder drop's dropped[0] is a directory
-		// and is never in the image list, so showFileIfPresent fails and
-		// we fall through to ShowImage(0). Do not call IsSupportedImage
-		// here: a directory URI would fall through to MimeType() and
-		// content-sniff the folder.
-		if len(dropped) == 1 && v.showFileIfPresent(dropped[0]) {
-			return
-		}
-		v.loadImage(0)
+		v.commitOpenedCollection(input, merging, func() {
+
+			// Here rather than anywhere earlier because this is the first point
+			// at which the files a --slideshow launch asked to frame exist:
+			// picture-frame mode no-ops at zero files. Before the ShowImage
+			// calls below, so entering full-screen and showing the first image
+			// are one repaint rather than two.
+			if v.explorerInput.pendingLaunch {
+				v.explorerInput.pendingLaunch = false
+				v.pendingPictureFrame = false
+				v.showExplorer()
+				return
+			}
+			v.startPendingPictureFrame()
+
+			v.loadImage(input.index)
+		})
 	})
 }

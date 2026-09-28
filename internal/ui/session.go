@@ -14,5 +14,5 @@ func (v *viewer) restoreSession() {
 	v.savedSession = nil
 	v.restoreLink.Hide()
 
-	v.handleDrop(files)
+	v.openCollection(files, "", replayCollection)
 }

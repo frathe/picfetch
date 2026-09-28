@@ -232,8 +232,8 @@ type viewer struct {
 	// discarded. Used for two things: gating cancelSort (nothing to cancel
 	// if nothing's in flight) and handleKeyEvent's Escape case (keys.go) -
 	// a first-ever drop clears v.scanOp.active before startSort has actually
-	// populated v.state.files, so without this Escape would see
-	// len(v.state.files) == 0 and quit the window instead of cancelling
+	// committed a collection, so without this Escape would see
+	// no browsable files and quit the window instead of cancelling
 	// the still-computing reorder. sortOp.lifecycle owns the cancellable
 	// filesort.Order request, staying separate from display's navigation lifecycle so
 	// reordering cannot stop an unrelated decode, preload, or playing GIF.
@@ -300,7 +300,7 @@ type viewer struct {
 	// which owns its own widgets, its standing show/hide preference, and the
 	// current file's raw facts (byte size, EXIF presence, RAW-preview flag).
 	// toggleInfoOverlay/syncInfoOverlayVisibility/updateInfoOverlay (info.go)
-	// are the thin glue that builds its State snapshot from state.files/
+	// are the thin glue that builds its State snapshot from the collection,
 	// zoom/vector, none of which infoview has access to.
 	info *infoview.Card
 
@@ -535,7 +535,7 @@ func (v *viewer) applyTitle() {
 // open, so this also recomputes the menus; syncMenus refreshes the native
 // bar only if something in that matrix actually moved.
 func (v *viewer) HighlightChanged(i int) {
-	if i < 0 || i >= len(v.state.files) {
+	if i < 0 || i >= v.state.Observe().Count() {
 		v.gridTitle = ""
 		v.applyTitle()
 	} else {
@@ -552,10 +552,11 @@ func (v *viewer) HighlightChanged(i int) {
 // `(index/count) [WxH] /absolute/path` from the already-probed native
 // size - not a new decode. applyTitle strips mode prefixes for this form.
 func (v *viewer) gridHighlightTitle(i int) string {
-	u := v.state.files[i]
+	collection := v.state.Observe()
+	u := collection.FileAt(i)
 	if v.grid.BrowsingDuplicates() {
 		head := ""
-		if n := len(v.state.files); n > 1 {
+		if n := collection.Count(); n > 1 {
 			head = fmt.Sprintf("(%d/%d) ", i+1, n)
 		}
 		if w, h, ok := v.dupes.NativeSizeAt(i); ok {
@@ -564,7 +565,7 @@ func (v *viewer) gridHighlightTitle(i int) string {
 		return head + u.Path()
 	}
 	title := u.Name()
-	if n := len(v.state.files); n > 1 {
+	if n := collection.Count(); n > 1 {
 		title = fmt.Sprintf("%s  (%d/%d)", title, i+1, n)
 	}
 	return title
@@ -576,12 +577,26 @@ func (v *viewer) gridHighlightTitle(i int) string {
 // which art (welcomeArt or emptyStateArt) belongs in the box afterward and
 // are responsible for repainting.
 func (v *viewer) clearToDropzone() {
+	defer v.beginBrowsingUpdate()()
+	v.retireCollectionSurface()
+	v.state.Clear()
+	v.presentDropzone()
+}
+
+// A committed removal can leave unavailable members but no browsable image.
+// Reset feature/pixel presentation without publishing another model change.
+func (v *viewer) presentCommittedEmptyCollection() {
+	defer v.beginBrowsingUpdate()()
+	v.retireCollectionSurface()
+	v.presentDropzone()
+}
+
+func (v *viewer) retireCollectionSurface() {
 	v.locationMap.SetSources(nil)
 	v.closeLocationMap()
 	v.closeVisualSearch()
 	v.closeExplorer()
 	v.grid.Close()
-	v.explorerInput.favoriteDir = ""
 	v.pendingPictureFrame = false
 	v.explorerInput.pendingLaunch = false
 	// A full-screen dropzone would look broken, and there's nothing left to
@@ -592,8 +607,11 @@ func (v *viewer) clearToDropzone() {
 	v.invalidateLoad()    // invalidate any decode/preload or animation still in flight
 	v.invalidateSort()    // cancel a sort still in flight - see sortOp's field comment
 	v.scanOp.invalidate() // same shape: supersede the token and finish the overlay if a scan is in flight
+}
 
-	v.state.clearFiles()
+// presentDropzone clears pixels and presents an empty browsing surface without
+// changing retained collection membership or its Favorite association.
+func (v *viewer) presentDropzone() {
 	v.dupes.ClearInspect()
 
 	// Purged, not left to age out: with no files open, every decode the
@@ -609,8 +627,8 @@ func (v *viewer) clearToDropzone() {
 
 	// The info card's own standing preference is left alone - it's a
 	// preference like sortMode/mergeMode, so the card comes back on the
-	// next load if it was on. state.files and img.Image are already
-	// cleared above, so this call only hides the widget.
+	// next load if it was on. No browsable selection or pixels remain, so this
+	// call only hides the widget; unavailable membership can still be retained.
 	v.syncInfoOverlayVisibility()
 
 	v.loadingBar.Hide()
@@ -682,12 +700,14 @@ func (v *viewer) MergeMode() bool {
 	return v.state.MergeMode()
 }
 
-// showFileIfPresent looks up target in v.state.files by URI identity and shows it
+// showFileIfPresent looks up target in the collection by URI identity and shows it
 // if found, reporting whether it was. Used to keep the same file in view
 // across an operation - a sort toggle or a merge - that reorders or extends
-// v.state.files without changing what's currently on screen.
+// membership without changing what's currently on screen.
 func (v *viewer) showFileIfPresent(target fyne.URI) bool {
-	for i, u := range v.state.files {
+	collection := v.state.Observe()
+	for i := range collection.Count() {
+		u := collection.FileAt(i)
 		if u.String() == target.String() {
 			v.loadImage(i)
 			return true
@@ -738,8 +758,15 @@ func (v *viewer) showWelcomeState() {
 // placeholder art, and raises a toast. Used whenever a drop, scan, or
 // decode ends with nothing to display.
 func (v *viewer) ShowEmptyStateError(msg string) {
-	v.clearToDropzone()
+	if v.FileCount() > 0 {
+		v.clearToDropzone()
+	} else {
+		v.presentCommittedEmptyCollection()
+	}
+	v.showEmptyCollectionError(msg)
+}
 
+func (v *viewer) showEmptyCollectionError(msg string) {
 	v.welcomeArt.Hide()
 	v.restoreLink.Hide()
 	v.emptyStateArt.Show()
@@ -758,11 +785,7 @@ func (v *viewer) ShowEmptyStateError(msg string) {
 // CurrentFile returns the collection's selected source and index. During
 // navigation its source can differ from display's published content.
 func (v *viewer) CurrentFile() (u fyne.URI, index int, ok bool) {
-	if len(v.state.files) == 0 {
-		return nil, 0, false
-	}
-
-	return v.state.files[v.state.index], v.state.index, true
+	return v.state.Observe().Current()
 }
 
 // displayedFile identifies published content, including outgoing pixels while
@@ -795,15 +818,8 @@ func (v *viewer) AfterMetadataRemoved(_ fyne.URI, result imaging.WriteResult) {
 	v.exif.Refresh()
 }
 
-// RemoveFile drops the file at v.state.files[i] from both v.state.files and
-// v.state.unsortedFiles, keeping them in sync so a later sort toggle doesn't
-// resurrect a file that failed to load. v.state.files is trimmed by index rather
-// than by URI match, since merge mode allows dropping the same file twice
-// and a match would risk removing the wrong duplicate; unsortedFiles has
-// no equivalent index to use, but any matching duplicate there is an
-// equally valid one to drop. Evicting the removed file's decode from
-// imgCache is appState's job rather than this method's - see its onRemove
-// hook (state.go), which fires for every removal however it is reached.
+// RemoveFile removes one occurrence from the model's paired orders. Root
+// reconciliation owns cache eviction and retained browsing effects afterward.
 func (v *viewer) RemoveFile(i int) {
 	v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: []int{i}})
 }
@@ -811,10 +827,8 @@ func (v *viewer) RemoveFile(i int) {
 // RemoveFiles drops every named index in one pass for an admitted ordinary
 // command. Completed Trash operations use ReconcileDeletedFiles instead.
 //
-// Descending, so an earlier removal can't shift a later index out from under
-// the same call, and sorted first because the caller's order is not something
-// this should depend on. Duplicates are skipped rather than removing two
-// different files for one index named twice.
+// The model interprets every index against one snapshot, ignoring duplicates
+// and invalid indexes, and publishes one complete result for the batch.
 //
 // The grid is reconciled here, at the end, rather than by the caller: every
 // index it holds - its selection, its filter's display→host mapping, its
@@ -832,22 +846,28 @@ func (v *viewer) RemoveFiles(indices []int) {
 // ReconcileDeletedFiles applies completed OS moves by identity. A confirmation
 // may finish after ordering or mode changes; these are facts about files that
 // already reached the Trash, so ordinary command admission cannot discard them.
-func (v *viewer) ReconcileDeletedFiles(uris []fyne.URI) bool {
-	keys := make(map[string]struct{}, len(uris))
-	for _, uri := range uris {
-		keys[uri.String()] = struct{}{}
+func (v *viewer) ReconcileDeletedFiles(uris []fyne.URI, msg string) {
+	before := v.state.Observe().Generation()
+	index := v.reconcileSources(sourceChange{kind: sourcesTrashed, targets: uris})
+	if v.state.Observe().Generation() == before {
+		v.ShowToast(msg)
+		return
 	}
-	var indices []int
-	for i, uri := range v.state.files {
-		if _, moved := keys[uri.String()]; moved {
-			indices = append(indices, i)
+	if v.FileCount() == 0 {
+		v.ShowEmptyStateError(msg)
+		return
+	}
+	if index < 0 {
+		if _, current, ok := v.CurrentFile(); ok {
+			if candidate, eligible := v.captureBrowsingScope().Recover(current, -1); eligible {
+				index = candidate
+			}
 		}
 	}
-	if len(indices) == 0 {
-		return false
+	v.ShowToast(msg)
+	if index >= 0 {
+		v.loadImage(index)
 	}
-	v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: indices})
-	return true
 }
 
 // Modifiers is which keyboard modifiers are held right now, for the feature
@@ -871,12 +891,12 @@ func (v *viewer) Modifiers() fyne.KeyModifier {
 
 // FileCount is how many files are currently loaded.
 func (v *viewer) FileCount() int {
-	return len(v.state.files)
+	return v.state.Observe().Count()
 }
 
 // FileAt returns the file at index i.
 func (v *viewer) FileAt(i int) fyne.URI {
-	return v.state.files[i]
+	return v.state.Observe().FileAt(i)
 }
 
 // OpenFiles sends a file list through the same scan, merge, sort, and display
@@ -887,12 +907,13 @@ func (v *viewer) OpenFiles(files []fyne.URI) {
 
 // OpenFavorite keeps collection identity through the common open pipeline.
 func (v *viewer) OpenFavorite(dir string, files []fyne.URI) {
-	v.handleCollectionDrop(files, dir)
+	v.openCollection(files, dir, replayCollection)
 }
 
 // CurrentIndex is the index of the file on screen.
 func (v *viewer) CurrentIndex() int {
-	return v.state.index
+	_, index, _ := v.state.Observe().Current()
+	return index
 }
 
 // Generation is the current index-to-URI file-set revision. Navigation does
@@ -904,9 +925,9 @@ func (v *viewer) CurrentIndex() int {
 //
 // It is read out of the published snapshot rather than a counter of its
 // own, so the generation and the keys it describes are one value - see
-// appState.publish.
+// collectionSnapshot.
 func (v *viewer) Generation() uint64 {
-	return v.state.snapshot().Generation()
+	return v.state.Observe().Generation()
 }
 
 // Unfocus releases Fyne's canvas focus.
@@ -927,12 +948,12 @@ func (v *viewer) Advance() {
 		return
 	}
 	if v.slides.Shuffle() {
-		if i, ok := v.randomVisibleOther(v.state.index); ok {
+		if i, ok := v.randomVisibleOther(v.CurrentIndex()); ok {
 			v.loadImage(i)
 		}
 		return
 	}
-	if i, ok := v.nextVisibleIndex(v.state.index, 1); ok {
+	if i, ok := v.nextVisibleIndex(v.CurrentIndex(), 1); ok {
 		v.loadImage(i)
 	}
 }
@@ -951,7 +972,7 @@ func (v *viewer) StepImage(delta int) {
 	if _, ok := v.admitCommand(commandRequest{command: commandNavigate}); !ok {
 		return
 	}
-	i, ok := v.nextVisibleIndex(v.state.index, delta)
+	i, ok := v.nextVisibleIndex(v.CurrentIndex(), delta)
 	if !ok {
 		return
 	}

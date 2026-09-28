@@ -35,12 +35,14 @@ func (v *viewer) showImage(i int, intent commandIntent) {
 	v.cancelSave()
 	v.cancelExport()
 	v.exif.Invalidate()
-	n := len(v.state.files)
-	v.state.index = ((i % n) + n) % n
+	if !v.state.Select(i) {
+		return
+	}
 	if v.slides.Active() && v.img.Image != nil {
 		v.startFade(0, 1)
 	}
-	v.display.Load(display.Request{Source: v.state.files[v.state.index], Transition: v.slides.Active()})
+	source, _, _ := v.state.Observe().Current()
+	v.display.Load(display.Request{Source: source, Transition: v.slides.Active()})
 }
 
 func (v *viewer) invalidateLoad() uint64 {
@@ -111,29 +113,15 @@ func (v *viewer) applyLoadedTitle(snapshot display.Snapshot) {
 		title += " (animated)"
 	}
 	v.slides.SetAnimDuration(snapshot.Duration)
-	if n := len(v.state.files); n > 1 {
-		title = fmt.Sprintf("%s  (%d/%d)", title, v.state.index+1, n)
+	collection := v.state.Observe()
+	if n := collection.Count(); n > 1 {
+		_, index, _ := collection.Current()
+		title = fmt.Sprintf("%s  (%d/%d)", title, index+1, n)
 	}
 	v.setTitle(title)
 }
 
 func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
-	retained := v.retainedOrder()
-	remaining := v.state.fileOccurrence(v.state.index)
-	for i, entry := range retained {
-		if !entry.unavailable && entry.uri.String() == source.String() {
-			remaining--
-			if remaining != 0 {
-				continue
-			}
-			if errors.Is(err, heic.ErrUnavailable) {
-				retained[i].unavailable = true
-			} else {
-				retained = append(retained[:i], retained[i+1:]...)
-			}
-			break
-		}
-	}
 	msg := fmt.Sprintf(lang.L("could not read %q: %v"), source.Name(), err)
 	var dimensions *imaging.InvalidDimensionsError
 	var tooLarge *imaging.InputTooLargeError
@@ -143,17 +131,19 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 	case errors.As(err, &tooLarge):
 		msg = fmt.Sprintf(lang.L("%q is too large to open"), source.Name())
 	}
-	i := v.state.index
-	restoredIndex := v.reconcileSources(sourceChange{kind: sourceLoadFailed, removed: []int{i}})
-	if len(v.state.files) == 0 {
+	i := v.CurrentIndex()
+	kind := sourceLoadFailed
+	if errors.Is(err, heic.ErrUnavailable) {
+		kind = sourceUnavailable
+	}
+	restoredIndex := v.reconcileSources(sourceChange{kind: kind, removed: []int{i}})
+	if v.state.Observe().Count() == 0 {
 		v.ShowEmptyStateError(msg)
-		v.state.retainOrder(retained)
 		if errors.Is(err, heic.ErrUnavailable) {
 			v.explainUnavailableHEIC([]fyne.URI{source}, true)
 		}
 		return nil
 	}
-	v.state.retainOrder(retained)
 	if errors.Is(err, heic.ErrUnavailable) {
 		// A cached capability can disappear after sibling admission. Keep
 		// the surviving collection, but stop this request at its own guide
@@ -182,8 +172,9 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 		v.loadingBar.Hide()
 		return nil
 	}
-	v.state.index = next
-	return v.state.files[v.state.index]
+	v.state.Select(next)
+	source, _, _ = v.state.Observe().Current()
+	return source
 }
 
 func (v *viewer) imageAnimationTruncated(source fyne.URI) {
@@ -191,25 +182,27 @@ func (v *viewer) imageAnimationTruncated(source fyne.URI) {
 }
 
 func (v *viewer) preloadCandidates() []fyne.URI {
-	n := len(v.state.files)
+	collection := v.state.Observe()
+	n := collection.Count()
 	if n < 2 {
 		return nil
 	}
-	next, prev := (v.state.index+1)%n, (v.state.index-1+n)%n
+	_, current, _ := collection.Current()
+	next, prev := (current+1)%n, (current-1+n)%n
 	if scope := v.captureBrowsingScope(); scope.restricted {
 		var ok bool
-		next, ok = scope.Next(v.state.index, 1)
+		next, ok = scope.Next(current, 1)
 		if !ok {
 			return nil
 		}
-		prev, _ = scope.Next(v.state.index, -1)
+		prev, _ = scope.Next(current, -1)
 	}
 	var candidates []fyne.URI
-	if next != v.state.index {
-		candidates = append(candidates, v.state.files[next])
+	if next != current {
+		candidates = append(candidates, collection.FileAt(next))
 	}
-	if prev != next && prev != v.state.index {
-		candidates = append(candidates, v.state.files[prev])
+	if prev != next && prev != current {
+		candidates = append(candidates, collection.FileAt(prev))
 	}
 	return candidates
 }

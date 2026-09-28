@@ -39,8 +39,9 @@ type browsingScope struct {
 // action scope. Feature visibility and nonempty membership never choose a visit.
 func (v *viewer) captureBrowsingScope() browsingScope {
 	visit := v.browsing.current()
-	scope := browsingScope{complete: true, collection: v.state.snapshot(), binding: visit.binding}
-	scope.binding.collection = v.Generation()
+	collection := v.state.Observe()
+	scope := browsingScope{complete: true, collection: collection.FileSet(), binding: visit.binding}
+	scope.binding.collection = collection.Generation()
 	scope.restricted = visit.binding.kind != browsingCollection
 	switch visit.binding.kind {
 	case browsingCollection:
@@ -64,8 +65,8 @@ func (v *viewer) captureBrowsingScope() browsingScope {
 			members[path] = true
 		}
 		var indexes []int
-		for i := range v.FileCount() {
-			if members[v.FileAt(i).Path()] {
+		for i := range collection.Count() {
+			if members[collection.FileAt(i).Path()] {
 				indexes = append(indexes, i)
 			}
 		}
@@ -140,21 +141,11 @@ func (s browsingScope) Recover(failed, restored int) (int, bool) {
 	return 0, false
 }
 
-// sourceOccurrences captures only the bookmarked path, without retaining an
-// index for unrelated collection members.
-func (v *viewer) sourceOccurrences(path string) fileidentity.Index {
-	return fileidentity.NewIndex(len(v.state.files), func(i int) string {
-		if uri := v.state.files[i]; uri != nil && uri.Path() == path {
-			return path
-		}
-		return ""
-	})
-}
-
 func (v *viewer) currentImageOccurrence() fileidentity.Occurrence {
-	if uri, position, ok := v.CurrentFile(); ok {
-		identity, _ := v.sourceOccurrences(uri.Path()).Capture(uri.Path(), position)
-		return identity
+	collection := v.state.Observe()
+	if _, position, ok := collection.Current(); ok {
+		bookmark, _ := collection.Bookmark(position)
+		return bookmark.occurrence
 	}
 	return fileidentity.Occurrence{}
 }
@@ -187,7 +178,9 @@ func (v *viewer) captureRankedIndexes(visit browsingVisit) []int {
 		byPath[path] = -1
 	}
 	remaining := len(byPath)
-	for i, uri := range v.state.files {
+	collection := v.state.Observe()
+	for i := range collection.Count() {
+		uri := collection.FileAt(i)
 		if uri == nil {
 			continue
 		}

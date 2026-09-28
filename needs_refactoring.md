@@ -1,6 +1,7 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-28 after implementation qualification of MA-029.
+Updated 2026-09-28 after implementation qualification of MA-029 and design
+acceptance of MA-030.
 The cross-feature architecture assessment of PR review history and
 implementation is dated 2026-09-26.
 
@@ -20,7 +21,11 @@ MA-029's nine tickets are complete and CI-qualified; the
 [archived plan](finished_refactorings/2026-09-27-ma-029-browsing-visits.md) records
 implementation evidence and [PR 68](https://github.com/frathe/picfetch/pull/68)
 tracks final review dispositions and latest-head checks.
-MA-030 through MA-033 remain proposals, not accepted implementation plans or
+MA-030 has an [accepted design](docs/collection-transitions.md) and
+[resolved specification](.scratch/ma-030/spec.md); all nine tickets are complete
+and CI-qualified in the [archived record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md).
+[PR 69](https://github.com/frathe/picfetch/pull/69) records latest-head reviews and checks.
+MA-031 through MA-033 remain proposals, not accepted implementation plans or
 unresolved PR defects.
 
 Historical inspection baseline: `main` at `54fd7c3` (v1.1.2). At that revision,
@@ -31,7 +36,7 @@ explicit cross-feature composition in `internal/ui`.
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
-| [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | Recommended; large, incremental |
+| [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | All nine tickets complete and CI-qualified; latest review/checks in PR 69 |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | Recommended; medium scope |
 | [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Conditional extraction; medium scope |
 | [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | Recommended independent small task |
@@ -351,6 +356,15 @@ and transitions without adding itself to unrelated features' navigation helpers.
 **P1; high confidence.** Strengthen the existing collection model and root
 reconciliation seam; a new generic state store is unnecessary.
 
+**Design accepted 2026-09-28.** The [design record](docs/collection-transitions.md)
+resolves all eleven `/grill-with-docs MA-030` decisions; the
+[ownership ADR](docs/adr/0005-collection-transition-ownership.md) records the
+collection-model/root-reconciliation division. Both slices below are required.
+The [local specification](.scratch/ma-030/spec.md) is resolved. The
+[archived implementation record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md)
+records both migrations, all nine completed tickets, AC1-18 evidence and full
+CI/SARIF qualification on 2722b1d. Latest-head reviews/checks are recorded on PR 69.
+
 **Recurring evidence:** [sort generation/grouping](https://github.com/frathe/picfetch/pull/17#discussion_r3950334572),
 [premature Favorite identity](https://github.com/frathe/picfetch/pull/18#discussion_r3983220066),
 [Grid occurrence restoration](https://github.com/frathe/picfetch/pull/25#discussion_r4009091797),
@@ -366,10 +380,12 @@ generation atomically. [fileidentity](internal/fileidentity/occurrence.go)
 correctly separates occurrences from filesystem versions. Yet selected/display
 order, unavailable-member order and Favorite association are coordinated across
 `appState`, [heic.go](internal/ui/heic.go), `explorerInput.favoriteDir` and
-`applyScannedCollection` in [drop.go](internal/ui/drop.go). Sort commits in
-[sort.go](internal/ui/sort.go) have a separate reconciliation sequence.
-`captureLocationReconciliation` builds an occurrence-survivor map in a
-feature-specific adapter even though deletion remapping is a collection fact.
+`applyScannedCollection` in [drop.go](internal/ui/drop.go). MA-029 already moved
+the occurrence-survivor map to `captureBrowsingReconciliation` in
+[sourcechange.go](internal/ui/sourcechange.go), shared by retained visits and
+the detached search origin. Sort commits in [sort.go](internal/ui/sort.go)
+use those capture/finish helpers, but their remaining commit sequence and
+collection facts still need the authoritative model and root phases below.
 
 **Refactor in two slices:**
 
@@ -378,8 +394,8 @@ feature-specific adapter even though deletion remapping is a collection fact.
    association and a generation-bound lookup. Expose immutable snapshots and
    commit operations for replacement, merge, reorder and batch removal. Produce
    occurrence-survivor mappings once when membership changes. Reuse
-   `fileidentity`; do not replace path/ordinal bookmarks with a UUID system
-   without evidence that the current contract cannot work.
+   `fileidentity`; keep path/ordinal bookmarks and collection bindings without
+   introducing UUIDs or identity surviving application restarts.
 2. Extend `reconcileSources` into explicit root commit phases shared by the
    relevant collection changes: capture visits/retire competing delivery,
    commit collection and invalidate affected derived state, reconcile feature
@@ -395,11 +411,20 @@ workers in [filework.go](internal/ui/filework.go), `writtenFileSources`.
 The PR 26 transaction is already useful; migrate the remaining paths into its
 contract instead of layering an event dispatcher over it.
 
+The accepted corrections cover unavailable Trash matches, Favorite association
+when no entries are browsable, Merge into unavailable-only collections,
+Favorite/session replay preserving recorded occurrences without sibling
+expansion, and retaining the latest chosen occurrence across a slow sort.
+Ordinary discovery keeps deduplication; saved replay keeps current admission
+rules and counts every admitted occurrence toward its applicable resource bound.
+See the design record for the precise compatibility limits.
+
 **Verification/done:** one member-removal operation provides the same remapping
 to Grid, image visits and retained unavailable-file persistence. Replacement
 commits files and Favorite identity together; cancellation preserves both.
 Test repeated URIs around unavailable entries, sort during load, batch removal
-with a retained search origin, and stale committed Save/Export/Strip callbacks.
+with a retained search origin, all accepted behavior corrections, and stale
+committed Save/Export/Strip callbacks.
 `TestHEICUnavailableFiles`, `TestFindMoreLikeThisSourceAndSortRetirement`,
 `TestSaveChangesCancellationKeepsCommittedDiskEffectsAndCurrentView` and
 `TestExportCommittedAliasRefreshesCurrentPixelsAfterDelivery` are existing

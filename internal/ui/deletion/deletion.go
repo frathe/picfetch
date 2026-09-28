@@ -34,17 +34,10 @@ type Host interface {
 	// nothing is loaded.
 	CurrentFile() (u fyne.URI, index int, ok bool)
 
-	// ReconcileDeletedFiles removes successful URI identities from the current
-	// file set, even if it was reordered or replaced during the OS move.
-	// It returns whether the current set contained any of those identities.
-	ReconcileDeletedFiles(uris []fyne.URI) bool
-
-	// ShowImage displays the file at index i, wrapping at both ends.
-	ShowImage(i int)
-
-	// ShowEmptyStateError clears to the empty drop zone with msg - used
-	// when the deleted file was the last one.
-	ShowEmptyStateError(msg string)
+	// ReconcileDeletedFiles applies successful URI identities to the current
+	// collection and presents the outcome. Root owns retained scopes, empty
+	// membership and any resulting image load, even after request staleness.
+	ReconcileDeletedFiles(uris []fyne.URI, msg string)
 
 	// ShowToast raises a short, non-blocking notification.
 	ShowToast(msg string)
@@ -286,17 +279,7 @@ func (c *Confirmer) performDelete() {
 			}
 
 			msg := c.movedMessage(targets, moved, firstFailed, firstErr)
-			if !c.host.ReconcileDeletedFiles(moved) {
-				c.host.ShowToast(msg)
-				return
-			}
-
-			if _, i, stillLoaded := c.host.CurrentFile(); stillLoaded {
-				c.host.ShowToast(msg)
-				c.host.ShowImage(i)
-			} else {
-				c.host.ShowEmptyStateError(msg)
-			}
+			c.host.ReconcileDeletedFiles(moved, msg)
 		})
 	})
 }

@@ -6,8 +6,10 @@ import "fyne.io/fyne/v2"
 // Unknown groups stay eligible; opening the egg starts no analysis.
 func (v *viewer) tunnelSources() []fyne.URI {
 	visibility := v.dupes.Visibility()
-	sources := make([]fyne.URI, 0, len(v.state.files))
-	for i, uri := range v.state.files {
+	collection := v.state.Observe()
+	sources := make([]fyne.URI, 0, collection.Count())
+	for i := range collection.Count() {
+		uri := collection.FileAt(i)
 		if uri != nil && visibility.Visible(i) {
 			sources = append(sources, uri)
 		}

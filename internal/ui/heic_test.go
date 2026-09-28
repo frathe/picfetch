@@ -289,10 +289,10 @@ func TestHEICUnavailableFiles(t *testing.T) {
 				if tc.available {
 					want = sources[:min(len(sources), tc.limit)]
 				}
-				if !slices.Equal(v.state.unsortedFiles, want) {
-					t.Fatalf("admitted files = %v, want %v", v.state.unsortedFiles, want)
+				if !slices.Equal(v.state.Observe().SourceFiles(), want) {
+					t.Fatalf("admitted files = %v, want %v", v.state.Observe().SourceFiles(), want)
 				}
-				if !tc.available && !slices.Equal(v.persistedFiles(v.state.unsortedFiles), sources) {
+				if !tc.available && !slices.Equal(v.state.Observe().Capture(collectionSourceOrder), sources) {
 					t.Fatal("pending unavailable files lost their collection positions")
 				}
 			})
@@ -311,7 +311,7 @@ func TestHEICUnavailableFiles(t *testing.T) {
 		}
 		v.handleDrop([]fyne.URI{storage.NewFileURI(dir)})
 		waitForScan(t, v)
-		if saved := v.persistedFiles(v.state.unsortedFiles); len(saved) != 2 {
+		if saved := v.state.Observe().Capture(collectionSourceOrder); len(saved) != 2 {
 			t.Fatalf("unavailable retention exceeded separate cap: %v", saved)
 		}
 		if !strings.Contains(v.toast.text.Text, "scan limit") {
@@ -336,8 +336,8 @@ func TestHEICUnavailableFiles(t *testing.T) {
 			waitForSort(t, v)
 			waitUntilLoaded(t, v)
 		}
-		if v.FileCount() != 0 || len(v.persistedFiles(nil)) != 1 {
-			t.Fatalf("explicit unavailable source opened its neighbor: %v", v.state.files)
+		if v.FileCount() != 0 || len(v.state.Observe().Capture(collectionSourceOrder)) != 1 {
+			t.Fatalf("explicit unavailable source opened its neighbor: %v", v.state.Observe().DisplayFiles())
 		}
 		_ = explorerDialogButton(t, v, "HEIC installation guide")
 	})
@@ -352,15 +352,15 @@ func TestHEICUnavailableFiles(t *testing.T) {
 		dropAndWait(t, v, first, middle, last)
 		v.SetMergeMode(true)
 		dropAndWait(t, v, first, added)
-		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"a.jpg", "b.heic", "c.jpg", "a.jpg", "d.heic"}) {
+		if got := namesOfURIs(v.state.Observe().Capture(collectionSourceOrder)); !slices.Equal(got, []string{"a.jpg", "b.heic", "c.jpg", "a.jpg", "d.heic"}) {
 			t.Fatalf("merged repeated source changed saved positions: %v", got)
 		}
 		v.RemoveFile(0)
-		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"b.heic", "c.jpg", "a.jpg", "d.heic"}) {
+		if got := namesOfURIs(v.state.Observe().Capture(collectionSourceOrder)); !slices.Equal(got, []string{"b.heic", "c.jpg", "a.jpg", "d.heic"}) {
 			t.Fatalf("removing repeated source changed saved positions: %v", got)
 		}
 		dropAndWait(t, v, first, middle)
-		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"b.heic", "c.jpg", "a.jpg", "d.heic", "a.jpg", "b.heic"}) {
+		if got := namesOfURIs(v.state.Observe().Capture(collectionSourceOrder)); !slices.Equal(got, []string{"b.heic", "c.jpg", "a.jpg", "d.heic", "a.jpg", "b.heic"}) {
 			t.Fatalf("merging repeated unavailable source lost an occurrence: %v", got)
 		}
 	})
@@ -387,7 +387,7 @@ func TestHEICUnavailableFiles(t *testing.T) {
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)
 		if v.FileCount() != 1 || v.FileAt(0).Name() != "c.jpg" {
-			t.Fatalf("supported file missing after unavailable HEICs: %v", v.state.files)
+			t.Fatalf("supported file missing after unavailable HEICs: %v", v.state.Observe().DisplayFiles())
 		}
 	})
 	t.Run("persist_original_order", func(t *testing.T) {
@@ -400,15 +400,16 @@ func TestHEICUnavailableFiles(t *testing.T) {
 		dropAndWait(t, v, first, middle, last)
 		assertSaved := func(want ...string) {
 			t.Helper()
-			if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, want) {
+			if got := namesOfURIs(v.state.Observe().Capture(collectionSourceOrder)); !slices.Equal(got, want) {
 				t.Fatalf("saved order = %v, want %v", got, want)
 			}
 		}
 		assertSaved("a.jpg", "b.heic", "c.jpg")
-		if got := namesOfURIs(v.persistedFiles([]fyne.URI{last, first})); !slices.Equal(got, []string{"c.jpg", "a.jpg", "b.heic"}) {
+		v.state.Reorder([]fyne.URI{last, first})
+		if got := namesOfURIs(v.state.Observe().Capture(collectionDisplayOrder)); !slices.Equal(got, []string{"c.jpg", "a.jpg", "b.heic"}) {
 			t.Fatalf("Favorite's visible order changed: %v", got)
 		}
-		v.RemoveFile(0)
+		v.RemoveFile(1)
 		assertSaved("b.heic", "c.jpg")
 		v.SetMergeMode(true)
 		added := uitest.TempJPEGURI(t, "d.jpg", 2, 1, color.White)
@@ -465,12 +466,12 @@ func TestHEICUnavailableGuide(t *testing.T) {
 		a := storage.NewFileURI("/images/a.heic")
 		x, y := storage.NewFileURI("/images/x.jpg"), storage.NewFileURI("/images/y.jpg")
 		files := []fyne.URI{a, x, a, y}
-		v.state.setFiles(files, files)
-		v.state.index = 2
+		v.state.Replace(collectionInput{source: files, display: files, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
+		v.state.Select(2)
 		if next := v.imageLoadFailed(a, heic.ErrUnavailable); next != nil {
 			t.Fatal("provider loss automatically retried another source")
 		}
-		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"a.heic", "x.jpg", "a.heic", "y.jpg"}) {
+		if got := namesOfURIs(v.state.Observe().Capture(collectionSourceOrder)); !slices.Equal(got, []string{"a.heic", "x.jpg", "a.heic", "y.jpg"}) {
 			t.Fatalf("provider loss retained the wrong duplicate occurrence: %v", got)
 		}
 	})
@@ -501,7 +502,7 @@ func TestHEICUnavailableGuide(t *testing.T) {
 			t.Fatal("stale-capability open silently displayed a neighboring image")
 		}
 		_ = explorerDialogButton(t, v, "HEIC installation guide")
-		if got := namesOfURIs(v.persistedFiles(v.state.unsortedFiles)); !slices.Equal(got, []string{"a.heic", "b.jpg"}) {
+		if got := namesOfURIs(v.state.Observe().Capture(collectionSourceOrder)); !slices.Equal(got, []string{"a.heic", "b.jpg"}) {
 			t.Fatalf("provider-loss guide discarded the retained collection: %v", got)
 		}
 	})
@@ -548,13 +549,17 @@ func TestHEICBackendLossPreservesSession(t *testing.T) {
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	v.handleCollectionDrop([]fyne.URI{storage.NewFileURI(path)}, t.TempDir())
+	favorite := t.TempDir()
+	v.OpenFavorite(favorite, []fyne.URI{storage.NewFileURI(path)})
 	waitForScan(t, v)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 	v.settleHEIC()
 	if checks.Load() != 2 {
 		t.Fatalf("backend loss checks=%d, want one recheck", checks.Load())
+	}
+	if v.state.Observe().Favorite() != favorite {
+		t.Fatal("backend loss erased the unavailable-only Favorite association")
 	}
 	if saved := preferences.LoadHEICObservation(v.app); saved.Available || !saved.CheckedAt.IsZero() {
 		t.Fatalf("failed recheck retained invalidated observation: %+v", saved)

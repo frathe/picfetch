@@ -66,7 +66,7 @@ func (f *fakeHost) CurrentFile() (fyne.URI, int, bool) {
 	return f.files[f.index], f.index, true
 }
 
-func (f *fakeHost) ReconcileDeletedFiles(uris []fyne.URI) bool {
+func (f *fakeHost) ReconcileDeletedFiles(uris []fyne.URI, msg string) {
 	keys := make(map[string]bool, len(uris))
 	for _, uri := range uris {
 		keys[uri.String()] = true
@@ -78,10 +78,18 @@ func (f *fakeHost) ReconcileDeletedFiles(uris []fyne.URI) bool {
 		}
 	}
 	if len(indices) == 0 {
-		return false
+		f.ShowToast(msg)
+		return
 	}
 	f.RemoveFiles(indices)
-	return true
+	// Model a simple collection-only root for the confirmer's payload tests.
+	// Real retained-scope and display decisions are covered by root UI tests.
+	if _, i, loaded := f.CurrentFile(); loaded {
+		f.ShowToast(msg)
+		f.ShowImage(i)
+	} else {
+		f.ShowEmptyStateError(msg)
+	}
 }
 
 // RemoveFiles drops every named index in one pass, descending, so an earlier

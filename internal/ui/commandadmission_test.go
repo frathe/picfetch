@@ -177,20 +177,20 @@ func TestCommandAdmissionAsync(t *testing.T) {
 	t.Run("navigation and admitted reconciliation", func(t *testing.T) {
 		v := newTestViewer(t)
 		dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 40, 20, color.White), uitest.TempJPEGURI(t, "b.jpg", 40, 20, color.Black))
-		before := v.state.index
+		before := v.state.Observe().index
 		v.requestDelete()
 		v.ShowImage(before + 1)
 		v.display.Settle()
-		if v.state.index != before {
+		if v.state.Observe().index != before {
 			t.Fatal("fresh image selection navigated beneath a modal")
 		}
 		// An already-admitted sort/merge reconciliation may reload the same
 		// source. The modal must not strand its collection/display handoff.
-		if !v.showFileIfPresent(v.state.files[before]) {
+		if !v.showFileIfPresent(v.state.Observe().DisplayFiles()[before]) {
 			t.Fatal("lost captured source")
 		}
 		v.display.Settle()
-		if !v.deletion.Visible() || v.state.index != before {
+		if !v.deletion.Visible() || v.state.Observe().index != before {
 			t.Fatal("reconciliation changed prompt ownership")
 		}
 	})
@@ -269,7 +269,7 @@ func TestCommandAdmissionTextEditing(t *testing.T) {
 
 func TestCommandAdmissionPolicy(t *testing.T) {
 	t.Run("every command has capability and ownership coverage", func(t *testing.T) {
-		ready := commandContext{hasFiles: true, hasImage: true, hasPixels: true, canSave: true, canExport: true, canWallpaper: true,
+		ready := commandContext{hasFiles: true, hasCollection: true, hasImage: true, hasPixels: true, canSave: true, canExport: true, canWallpaper: true,
 			canNavigate: true, hasSession: true, canCompare: true, gridTargets: true, displayed: true, canMosaic: true,
 			hasSearchTarget: true, hideDuplicates: true, variantGroupSize: 2}
 		for id := commandSave; id <= commandInterval; id++ {
@@ -744,7 +744,7 @@ func TestCommandAdmissionRoutes(t *testing.T) {
 					case "open":
 						v.favorites.Open(0)
 					}
-					if v.win.Canvas().Overlays().Top() != nil || !v.deletion.Visible() || v.state.files[0] != a || v.favThumb.Begun() {
+					if v.win.Canvas().Overlays().Top() != nil || !v.deletion.Visible() || v.state.Observe().DisplayFiles()[0] != a || v.favThumb.Begun() {
 						t.Fatal("Favorite entry acted below confirmation")
 					}
 				})
@@ -768,7 +768,7 @@ func TestCommandAdmissionRoutes(t *testing.T) {
 				case "restore":
 					v.restoreSession()
 				}
-				if !v.deletion.Visible() || v.FileCount() != 1 || v.state.files[0] != a || len(v.savedSession) != 1 {
+				if !v.deletion.Visible() || v.FileCount() != 1 || v.state.Observe().DisplayFiles()[0] != a || len(v.savedSession) != 1 {
 					t.Fatal("collection command acted beneath confirmation")
 				}
 			})

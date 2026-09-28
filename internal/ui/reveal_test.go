@@ -23,8 +23,7 @@ func TestRevealCurrentFile_HandsThePathToTheFileManager(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
 	jpegURI := uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})
-	v.state.files = []fyne.URI{jpegURI}
-	v.state.index = 0
+	v.state.Replace(collectionInput{source: []fyne.URI{jpegURI}, display: []fyne.URI{jpegURI}})
 
 	var got string
 	uitest.StubReveal(t, func(path string) error {
@@ -41,14 +40,14 @@ func TestRevealCurrentFile_HandsThePathToTheFileManager(t *testing.T) {
 }
 
 // TestRevealCurrentFile_RevealsTheDisplayedFileNotTheFirst: the command acts
-// on what is on screen, which after navigating is not state.files[0].
+// on what is on screen, which after navigating is not state.Observe().DisplayFiles()[0].
 func TestRevealCurrentFile_RevealsTheDisplayedFileNotTheFirst(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
 	first := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.RGBA{R: 100, A: 255})
 	second := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.RGBA{G: 100, A: 255})
-	v.state.files = []fyne.URI{first, second}
-	v.state.index = 1
+	v.state.Replace(collectionInput{source: []fyne.URI{first, second}, display: []fyne.URI{first, second}})
+	v.state.Select(1)
 
 	var got string
 	uitest.StubReveal(t, func(path string) error {
@@ -82,7 +81,8 @@ func TestRevealCurrentFile_NoFilesIsNoop(t *testing.T) {
 func TestRevealCurrentFile_DispatchFailureShowsToast(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
-	v.state.files = []fyne.URI{uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})}
+	files := []fyne.URI{uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})}
+	v.state.Replace(collectionInput{source: files, display: files})
 	uitest.StubReveal(t, func(string) error { return errors.New("boom") })
 
 	v.revealCurrentFile()
@@ -110,7 +110,7 @@ func TestWireRevealShortcut_RevealsCurrentFile(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
 	jpegURI := uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})
-	v.state.files = []fyne.URI{jpegURI}
+	v.state.Replace(collectionInput{source: []fyne.URI{jpegURI}, display: []fyne.URI{jpegURI}})
 
 	var got string
 	uitest.StubReveal(t, func(path string) error {
@@ -166,7 +166,7 @@ func TestRevealActionsFile_MenuItemRevealsCurrentFile(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
 	jpegURI := uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})
-	v.state.files = []fyne.URI{jpegURI}
+	v.state.Replace(collectionInput{source: []fyne.URI{jpegURI}, display: []fyne.URI{jpegURI}})
 
 	var got string
 	uitest.StubReveal(t, func(path string) error {

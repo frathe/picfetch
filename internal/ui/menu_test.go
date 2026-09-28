@@ -317,8 +317,8 @@ func TestBuildMainMenu_CloseFilesItemResetsToWelcomeState(t *testing.T) {
 	menu := buildMainMenu(v)
 	menu.Items[0].Items[3].Action()
 
-	if v.state.files != nil {
-		t.Errorf("files = %v, want nil after the Close Files action", v.state.files)
+	if v.state.Observe().DisplayFiles() != nil {
+		t.Errorf("files = %v, want nil after the Close Files action", v.state.Observe().DisplayFiles())
 	}
 	if !v.welcomeArt.Visible() {
 		t.Error("expected the welcome drop zone back after the Close Files action")
@@ -357,10 +357,10 @@ func TestFavoritesMenuItemOpensStoredFilesThroughViewer(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 1 || v.state.files[0].Path() != image.Path() {
-		t.Errorf("files = %v, want favorite image %q", v.state.files, image.Path())
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Path() != image.Path() {
+		t.Errorf("files = %v, want favorite image %q", v.state.Observe().DisplayFiles(), image.Path())
 	}
-	if v.explorerInput.favoriteDir != filepath.Join(dir, "Trip") {
+	if v.state.Observe().Favorite() != filepath.Join(dir, "Trip") {
 		t.Fatal("successful favorite open did not commit its collection identity")
 	}
 }
@@ -398,8 +398,8 @@ func TestFavoriteShortcutOpensStoredFilesThroughViewer(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 1 || v.state.files[0].Path() != image.Path() {
-		t.Errorf("files = %v, want shortcut favorite %q", v.state.files, image.Path())
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Path() != image.Path() {
+		t.Errorf("files = %v, want shortcut favorite %q", v.state.Observe().DisplayFiles(), image.Path())
 	}
 }
 
@@ -419,8 +419,8 @@ func TestGlobalFavoriteShortcutOpensStoredFilesThroughViewer(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 1 || v.state.files[0].Path() != image.Path() {
-		t.Errorf("files = %v, want favorite image %q", v.state.files, image.Path())
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].Path() != image.Path() {
+		t.Errorf("files = %v, want favorite image %q", v.state.Observe().DisplayFiles(), image.Path())
 	}
 }
 
@@ -697,8 +697,8 @@ func TestCloseFiles_ResetsLoadedFilesToWelcomeState(t *testing.T) {
 
 	v.closeFiles()
 
-	if v.state.files != nil {
-		t.Errorf("files = %v, want nil after closeFiles", v.state.files)
+	if v.state.Observe().DisplayFiles() != nil {
+		t.Errorf("files = %v, want nil after closeFiles", v.state.Observe().DisplayFiles())
 	}
 	if !v.welcomeArt.Visible() || !v.dropzone.Visible() {
 		t.Error("expected the welcome drop zone back after closeFiles")

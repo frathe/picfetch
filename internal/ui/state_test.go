@@ -34,19 +34,20 @@ func TestAppStateModelPreferences(t *testing.T) {
 func TestAppStateReplaceFilesCopiesAndResetsIndex(t *testing.T) {
 	unsorted := []fyne.URI{storage.NewFileURI("/images/b.jpg"), storage.NewFileURI("/images/a.jpg")}
 	ordered := []fyne.URI{unsorted[1], unsorted[0]}
-	state := appState{index: 1}
+	state := newAppState(0, false)
+	state.Replace(collectionInput{source: unsorted, display: ordered, index: 1})
 
-	state.replaceFiles(unsorted, ordered)
+	state.Replace(collectionInput{source: unsorted, display: ordered})
 	unsorted[0] = storage.NewFileURI("/images/changed.jpg")
 	ordered[0] = storage.NewFileURI("/images/changed.jpg")
 
-	if state.index != 0 {
-		t.Errorf("index = %d, want 0 after replacement", state.index)
+	if state.Observe().index != 0 {
+		t.Errorf("index = %d, want 0 after replacement", state.Observe().index)
 	}
-	if got, want := state.unsortedFiles[0].Name(), "b.jpg"; got != want {
+	if got, want := state.Observe().SourceFiles()[0].Name(), "b.jpg"; got != want {
 		t.Errorf("unsortedFiles[0] = %q, want %q", got, want)
 	}
-	if got, want := state.files[0].Name(), "a.jpg"; got != want {
+	if got, want := state.Observe().DisplayFiles()[0].Name(), "a.jpg"; got != want {
 		t.Errorf("files[0] = %q, want %q", got, want)
 	}
 }
@@ -55,57 +56,51 @@ func TestAppStateRemoveFileRemovesOneMatchingUnsortedDuplicate(t *testing.T) {
 	t.Run("later occurrence retains surrounding HEIC positions", func(t *testing.T) {
 		a, c := storage.NewFileURI("/images/a.jpg"), storage.NewFileURI("/images/c.jpg")
 		b, d := storage.NewFileURI("/images/b.heic"), storage.NewFileURI("/images/d.heic")
-		v := viewer{state: appState{
-			files: []fyne.URI{a, a, c}, unsortedFiles: []fyne.URI{a, c, a}, index: 1,
-			unavailableOrder: []collectionSource{{a, false}, {b, true}, {c, false}, {a, false}, {d, true}},
-		}}
-		state := &v.state
-		state.removeFile(1)
-		if !slices.EqualFunc(state.unsortedFiles, []fyne.URI{a, c}, sameURI) {
-			t.Fatalf("removed wrong unsorted occurrence: %v", state.unsortedFiles)
+		state := newAppState(0, false)
+		state.Replace(collectionInput{display: []fyne.URI{a, a, c}, source: []fyne.URI{a, c, a}, index: 1,
+			retained: []collectionSource{{a, false}, {b, true}, {c, false}, {a, false}, {d, true}},
+		})
+		state.Remove([]int{1})
+		if !slices.EqualFunc(state.Observe().SourceFiles(), []fyne.URI{a, c}, sameURI) {
+			t.Fatalf("removed wrong unsorted occurrence: %v", state.Observe().SourceFiles())
 		}
-		if got := namesOfURIs(v.persistedFiles(state.unsortedFiles)); !slices.Equal(got, []string{"a.jpg", "b.heic", "c.jpg", "d.heic"}) {
+		if got := namesOfURIs(state.Observe().Capture(collectionSourceOrder)); !slices.Equal(got, []string{"a.jpg", "b.heic", "c.jpg", "d.heic"}) {
 			t.Fatalf("removed wrong retained occurrence: %v", got)
 		}
 	})
 	a := storage.NewFileURI("/images/a.jpg")
 	b := storage.NewFileURI("/images/b.jpg")
-	state := appState{
-		files:         []fyne.URI{a, b, a},
-		unsortedFiles: []fyne.URI{a, a, b},
-		index:         2,
-	}
+	state := newAppState(0, false)
+	state.Replace(collectionInput{display: []fyne.URI{a, b, a}, source: []fyne.URI{a, a, b}, index: 2})
 
-	removed := state.removeFile(2)
+	removed := state.Remove([]int{2}).removed[0]
 
 	if removed.String() != a.String() {
 		t.Errorf("removed = %q, want %q", removed, a)
 	}
-	if got, want := state.files, []fyne.URI{a, b}; !slices.EqualFunc(got, want, sameURI) {
+	if got, want := state.Observe().DisplayFiles(), []fyne.URI{a, b}; !slices.EqualFunc(got, want, sameURI) {
 		t.Errorf("files = %v, want %v", got, want)
 	}
-	if got, want := state.unsortedFiles, []fyne.URI{a, b}; !slices.EqualFunc(got, want, sameURI) {
+	if got, want := state.Observe().SourceFiles(), []fyne.URI{a, b}; !slices.EqualFunc(got, want, sameURI) {
 		t.Errorf("unsortedFiles = %v, want %v", got, want)
 	}
-	if state.index != 1 {
-		t.Errorf("index = %d, want 1", state.index)
+	if state.Observe().index != 1 {
+		t.Errorf("index = %d, want 1", state.Observe().index)
 	}
 }
 
 func TestAppStateClearFilesResetsFileState(t *testing.T) {
-	state := appState{
-		files:         []fyne.URI{storage.NewFileURI("/images/a.jpg")},
-		unsortedFiles: []fyne.URI{storage.NewFileURI("/images/a.jpg")},
-		index:         4,
-	}
+	state := newAppState(0, false)
+	files := []fyne.URI{storage.NewFileURI("/images/a.jpg")}
+	state.Replace(collectionInput{source: files, display: files, index: 4})
 
-	state.clearFiles()
+	state.Clear()
 
-	if state.files != nil || state.unsortedFiles != nil {
-		t.Errorf("file slices = %v, %v, want nil", state.files, state.unsortedFiles)
+	if state.Observe().DisplayFiles() != nil || state.Observe().SourceFiles() != nil {
+		t.Errorf("file slices = %v, %v, want nil", state.Observe().DisplayFiles(), state.Observe().SourceFiles())
 	}
-	if state.index != 0 {
-		t.Errorf("index = %d, want 0", state.index)
+	if state.Observe().index != 0 {
+		t.Errorf("index = %d, want 0", state.Observe().index)
 	}
 }
 

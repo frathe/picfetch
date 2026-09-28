@@ -89,8 +89,8 @@ func TestDeletion_ShutdownDiscardsQueuedCompletion(t *testing.T) {
 	application.Lifecycle().SetOnStopped(original)
 	shutdown()
 	queue.Drain()
-	if len(v.state.files) != 2 || v.state.files[0].String() != a.String() {
-		t.Errorf("late deletion changed the stopped viewer: %v", v.state.files)
+	if v.state.Observe().Count() != 2 || v.state.Observe().DisplayFiles()[0].String() != a.String() {
+		t.Errorf("late deletion changed the stopped viewer: %v", v.state.Observe().DisplayFiles())
 	}
 	v.deletion.Request()
 	if v.deletion.Visible() {
@@ -107,8 +107,8 @@ func TestDeletion_ReorderBeforeConfirmationPreservesIdentity(t *testing.T) {
 	dropAndWait(t, v, a, b)
 	v.display.WaitPreloads()
 	v.deletion.Request()
-	v.state.reorder([]fyne.URI{b, a})
-	v.state.index = 1
+	v.state.Reorder([]fyne.URI{b, a})
+	v.state.Select(1)
 	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
 	v.deletion.Settle()
@@ -119,8 +119,8 @@ func TestDeletion_ReorderBeforeConfirmationPreservesIdentity(t *testing.T) {
 	if _, err := os.Stat(b.Path()); err != nil {
 		t.Errorf("unconfirmed file did not survive: %v", err)
 	}
-	if len(v.state.files) != 1 || v.state.files[0].String() != b.String() || v.imgCache.Contains(a.String()) {
-		t.Errorf("deleted identity remains in the model/cache: files=%v cached=%v", v.state.files, v.imgCache.Contains(a.String()))
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != b.String() || v.imgCache.Contains(a.String()) {
+		t.Errorf("deleted identity remains in the model/cache: files=%v cached=%v", v.state.Observe().DisplayFiles(), v.imgCache.Contains(a.String()))
 	}
 }
 
@@ -151,8 +151,8 @@ func TestDeletion_ComparisonOpenedDuringMoveReturnsToReconciledFiles(t *testing.
 	releaseWorker()
 	v.deletion.Settle()
 	waitUntilLoaded(t, v)
-	if v.comparisonActive() || len(v.state.files) != 1 || v.state.files[0].String() != b.String() {
-		t.Errorf("completed deletion was suppressed by comparison: active=%v files=%v", v.comparisonActive(), v.state.files)
+	if v.comparisonActive() || v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != b.String() {
+		t.Errorf("completed deletion was suppressed by comparison: active=%v files=%v", v.comparisonActive(), v.state.Observe().DisplayFiles())
 	}
 	if _, err := os.Stat(a.Path()); !os.IsNotExist(err) {
 		t.Errorf("confirmed file survived: %v", err)
@@ -171,10 +171,10 @@ func TestHandleKeyEvent_DeleteConfirmSwallowsNavigationButRespondsToItsOwnKeys(t
 	dropAndWait(t, v, a, b)
 
 	v.deletion.Request()
-	startIndex := v.state.index
+	startIndex := v.state.Observe().index
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
-	if v.state.index != startIndex {
+	if v.state.Observe().index != startIndex {
 		t.Error("arrow-key navigation should be swallowed while the delete confirmation is up")
 	}
 
@@ -182,7 +182,7 @@ func TestHandleKeyEvent_DeleteConfirmSwallowsNavigationButRespondsToItsOwnKeys(t
 	if v.deletion.Visible() {
 		t.Error("Escape should dismiss the confirmation instead of falling through to its usual meaning")
 	}
-	if len(v.state.files) != 2 {
+	if v.state.Observe().Count() != 2 {
 		t.Error("Escape on the confirmation must not also reset the loaded file set")
 	}
 }
@@ -204,11 +204,11 @@ func TestPerformDelete_RemovesCurrentFileAndAdvancesToTheNextOne(t *testing.T) {
 	if _, err := os.Stat(a.Path()); !os.IsNotExist(err) {
 		t.Errorf("a.jpg should no longer exist on disk, stat = %v", err)
 	}
-	if len(v.state.files) != 1 || v.state.files[0].String() != b.String() {
-		t.Fatalf("files = %v, want just b.jpg left", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != b.String() {
+		t.Fatalf("files = %v, want just b.jpg left", v.state.Observe().DisplayFiles())
 	}
-	if v.state.index != 0 {
-		t.Errorf("index = %d, want 0 (b.jpg took a.jpg's slot)", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Errorf("index = %d, want 0 (b.jpg took a.jpg's slot)", v.state.Observe().index)
 	}
 	if !v.toast.card.Visible() {
 		t.Error("expected a toast confirming the deletion")
@@ -218,9 +218,9 @@ func TestPerformDelete_RemovesCurrentFileAndAdvancesToTheNextOne(t *testing.T) {
 
 // TestPerformDelete_OnLastImageOfMultipleAdvancesWithoutPanicking is a
 // regression test: deleting while positioned on the last image of a
-// multi-file set left v.state.index equal to the new (shrunk) length, so the very
+// multi-file set left v.state.Observe().index equal to the new (shrunk) length, so the very
 // next CurrentFile() call - performDelete's own "did that empty the set?"
-// check - indexed v.state.files out of range and crashed the whole app.
+// check - indexed v.state.Observe().DisplayFiles() out of range and crashed the whole app.
 func TestPerformDelete_OnLastImageOfMultipleAdvancesWithoutPanicking(t *testing.T) {
 	uitest.StubTrashMove(t, func(path string) error { return os.Remove(path) })
 	v := newTestViewer(t)
@@ -230,18 +230,18 @@ func TestPerformDelete_OnLastImageOfMultipleAdvancesWithoutPanicking(t *testing.
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 	waitUntilLoaded(t, v)
-	if v.state.index != 1 {
-		t.Fatalf("setup: index = %d, want 1 (on b.jpg, the last image)", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("setup: index = %d, want 1 (on b.jpg, the last image)", v.state.Observe().index)
 	}
 
 	confirmDelete(t, v)
 	waitUntilLoaded(t, v)
 
-	if len(v.state.files) != 1 || v.state.files[0].String() != a.String() {
-		t.Fatalf("files = %v, want just a.jpg left", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != a.String() {
+		t.Fatalf("files = %v, want just a.jpg left", v.state.Observe().DisplayFiles())
 	}
-	if v.state.index != 0 {
-		t.Errorf("index = %d, want 0 (a.jpg took b.jpg's slot)", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Errorf("index = %d, want 0 (a.jpg took b.jpg's slot)", v.state.Observe().index)
 	}
 	settleToast(t, v)
 }
@@ -257,8 +257,8 @@ func TestPerformDelete_LastFileReturnsToEmptyDropzone(t *testing.T) {
 
 	confirmDelete(t, v)
 
-	if len(v.state.files) != 0 {
-		t.Error("v.state.files should be empty after deleting the last file")
+	if v.state.Observe().Count() != 0 {
+		t.Error("v.state.Observe().DisplayFiles() should be empty after deleting the last file")
 	}
 	if v.dropzone == nil || !v.dropzone.Visible() {
 		t.Error("expected the drop zone to reappear once nothing is left")
@@ -271,7 +271,7 @@ func TestPerformDelete_LastFileReturnsToEmptyDropzone(t *testing.T) {
 
 // TestPerformDelete_OSFailureKeepsTheFileAndToastsAnError guards the
 // trash.Move error path through the real viewer: if the move fails, the
-// file must stay in v.state.files (nothing silently dropped from the set for a
+// file must stay in v.state.Observe().DisplayFiles() (nothing silently dropped from the set for a
 // file that's actually still there) and the user must be told.
 func TestPerformDelete_OSFailureKeepsTheFileAndToastsAnError(t *testing.T) {
 	uitest.StubTrashMove(t, func(path string) error { return os.Remove(path) })
@@ -288,8 +288,8 @@ func TestPerformDelete_OSFailureKeepsTheFileAndToastsAnError(t *testing.T) {
 
 	confirmDelete(t, v)
 
-	if len(v.state.files) != 1 {
-		t.Error("a file that failed to delete must stay in v.state.files")
+	if v.state.Observe().Count() != 1 {
+		t.Error("a file that failed to delete must stay in v.state.Observe().DisplayFiles()")
 	}
 	if !v.toast.card.Visible() {
 		t.Error("expected a toast reporting the deletion failure")

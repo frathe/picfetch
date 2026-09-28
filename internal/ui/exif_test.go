@@ -55,7 +55,7 @@ func TestExifNavigationCancelsMetadataBeforeTheNextImageLoads(t *testing.T) {
 			// Publish the controlled identity through the real load interface.
 			// Replacing collection selection alone cannot relabel existing pixels.
 			v.imgCache.Add(old.String(), loaded)
-			v.state.setFiles([]fyne.URI{old, fresh}, []fyne.URI{old, fresh})
+			v.state.Replace(collectionInput{source: []fyne.URI{old, fresh}, display: []fyne.URI{old, fresh}, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
 			v.ShowImage(0)
 			<-oldEntered
 			if clearBeforeLoad {
@@ -159,7 +159,7 @@ func TestShowExifWindow_ContentAndRefreshOnNavigation(t *testing.T) {
 		t.Errorf("exifText = %q, want %q", got, want)
 	}
 
-	v.ShowImage(v.state.index + 1)
+	v.ShowImage(v.state.Observe().index + 1)
 	waitUntilLoaded(t, v)
 	v.exif.Settle()
 
@@ -176,7 +176,7 @@ func TestExifWindow_LeftRightChangeImage(t *testing.T) {
 
 	v.exif.Show()
 	v.exif.Settle()
-	start := v.state.index
+	start := v.state.Observe().index
 	canvas := v.exif.Window().Canvas()
 	if got := canvas.Focused(); got != nil {
 		t.Fatalf("EXIF canvas focused %T after Show, want nil", got)
@@ -187,13 +187,13 @@ func TestExifWindow_LeftRightChangeImage(t *testing.T) {
 	}
 	handler(&fyne.KeyEvent{Name: fyne.KeyRight})
 	waitUntilLoaded(t, v)
-	if v.state.index != (start+1)%2 {
-		t.Fatalf("index = %d, want next file", v.state.index)
+	if v.state.Observe().index != (start+1)%2 {
+		t.Fatalf("index = %d, want next file", v.state.Observe().index)
 	}
 	handler(&fyne.KeyEvent{Name: fyne.KeyLeft})
 	waitUntilLoaded(t, v)
-	if v.state.index != start {
-		t.Fatalf("index = %d, want start %d", v.state.index, start)
+	if v.state.Observe().index != start {
+		t.Fatalf("index = %d, want start %d", v.state.Observe().index, start)
 	}
 }
 
@@ -278,7 +278,7 @@ func TestExifLink_VisibilityFollowsNavigation(t *testing.T) {
 		t.Fatal("the EXIF link should be shown for the first file, which has EXIF metadata")
 	}
 
-	v.ShowImage(v.state.index + 1)
+	v.ShowImage(v.state.Observe().index + 1)
 	waitUntilLoaded(t, v)
 	v.exif.Settle()
 
@@ -286,7 +286,7 @@ func TestExifLink_VisibilityFollowsNavigation(t *testing.T) {
 		t.Error("the EXIF link should hide again after navigating to a file with no EXIF metadata")
 	}
 
-	v.ShowImage(v.state.index - 1)
+	v.ShowImage(v.state.Observe().index - 1)
 	waitUntilLoaded(t, v)
 
 	if !v.info.ExifLink().Visible() {

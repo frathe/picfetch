@@ -164,7 +164,7 @@ func TestFileMutationInvalidationRechecksLoadedSetBeforeDelivery(t *testing.T) {
 			dropAndWait(t, v, source)
 			v.display.WaitPreloads()
 			if !add {
-				v.state.setFiles([]fyne.URI{source, target}, []fyne.URI{source, target})
+				v.state.Replace(collectionInput{source: []fyne.URI{source, target}, display: []fyne.URI{source, target}, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
 			}
 			result, err := imaging.ExportContext(context.Background(), target, image.NewRGBA(image.Rect(0, 0, 16, 8)), nil, imaging.ExportOptions{})
 			if err != nil {
@@ -176,7 +176,7 @@ func TestFileMutationInvalidationRechecksLoadedSetBeforeDelivery(t *testing.T) {
 			if add {
 				files = append(files, target)
 			}
-			v.state.setFiles(files, files)
+			v.state.Replace(collectionInput{source: files, display: files, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
 			preview := v.favThumbLifecycle.begin()
 			defer preview.cancel()
 			thumbs := v.grid.CaptureThumbs()

@@ -421,7 +421,7 @@ func TestCompareRestoration_EscapeRevealsTheUnchangedFilteredGrid(t *testing.T) 
 	beforeHighlight := v.grid.Highlight()
 	beforeScroll := v.grid.ScrollOffset()
 	beforeTitle := v.win.Title()
-	beforeFiles := append([]fyne.URI(nil), v.state.files...)
+	beforeFiles := append([]fyne.URI(nil), v.state.Observe().DisplayFiles()...)
 	windows := len(v.app.Driver().AllWindows())
 
 	fireCompareShortcut(v)
@@ -450,7 +450,7 @@ func TestCompareRestoration_EscapeRevealsTheUnchangedFilteredGrid(t *testing.T) 
 	if v.win.Title() != beforeTitle {
 		t.Errorf("title after Escape = %q, want %q", v.win.Title(), beforeTitle)
 	}
-	if !slices.EqualFunc(v.state.files, beforeFiles, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
+	if !slices.EqualFunc(v.state.Observe().DisplayFiles(), beforeFiles, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
 		t.Errorf("file set changed across comparison")
 	}
 }
@@ -1304,7 +1304,7 @@ func TestCompareCancel_EscapeStopsPendingLoadsAndPreservesSelection(t *testing.T
 	v := openGridWith(t, "a.jpg", "b.jpg")
 	v.grid.SelectAll()
 	beforeTitle := v.win.Title()
-	beforeFiles := append([]fyne.URI(nil), v.state.files...)
+	beforeFiles := append([]fyne.URI(nil), v.state.Observe().DisplayFiles()...)
 
 	started := make(chan string, 2)
 	v.compareLoad = func(ctx context.Context, uri fyne.URI) (*imaging.LoadedImage, error) {
@@ -1332,7 +1332,7 @@ func TestCompareCancel_EscapeStopsPendingLoadsAndPreservesSelection(t *testing.T
 	if v.win.Title() != beforeTitle {
 		t.Errorf("title after cancellation = %q, want %q", v.win.Title(), beforeTitle)
 	}
-	if !slices.EqualFunc(v.state.files, beforeFiles, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
+	if !slices.EqualFunc(v.state.Observe().DisplayFiles(), beforeFiles, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
 		t.Error("file set changed after comparison cancellation")
 	}
 	if v.toast.stop != nil {
@@ -1364,7 +1364,7 @@ func TestCompareFailure_ReturnsToGridWithoutRemovingEitherFile(t *testing.T) {
 		t.Errorf("selection after failure = %v, want %v", got, want)
 	}
 	if v.FileCount() != 2 || v.FileAt(0).Name() != "a.jpg" || v.FileAt(1).Name() != "b.jpg" {
-		t.Errorf("file set after failure = %v, want both original files", v.state.files)
+		t.Errorf("file set after failure = %v, want both original files", v.state.Observe().DisplayFiles())
 	}
 	if v.win.Title() != beforeTitle {
 		t.Errorf("title after failure = %q, want %q", v.win.Title(), beforeTitle)
@@ -1467,7 +1467,7 @@ func TestCompareSwapPreservesGrid_StateOrderAndSelectionAnchor(t *testing.T) {
 		v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeyPageDown})
 	}
 
-	beforeFiles := append([]fyne.URI(nil), v.state.files...)
+	beforeFiles := append([]fyne.URI(nil), v.state.Observe().DisplayFiles()...)
 	beforeSelection := v.grid.Selection()
 	beforeQuery := v.grid.Query()
 	beforeHighlight := v.grid.Highlight()
@@ -1482,7 +1482,7 @@ func TestCompareSwapPreservesGrid_StateOrderAndSelectionAnchor(t *testing.T) {
 	fynetest.Tap(comparisonButton(t, v.compare.Overlay(), lang.L("Swap")))
 	fynetest.Tap(comparisonBackButton(t, v.compare.Overlay()))
 
-	if !slices.EqualFunc(v.state.files, beforeFiles, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
+	if !slices.EqualFunc(v.state.Observe().DisplayFiles(), beforeFiles, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
 		t.Error("file order changed across comparison Swap")
 	}
 	if got := v.grid.Selection(); !slices.Equal(got, beforeSelection) {

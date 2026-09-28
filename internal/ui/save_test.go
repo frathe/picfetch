@@ -119,7 +119,7 @@ func TestCanSaveRotation_FalseWhileLoading(t *testing.T) {
 	t.Cleanup(func() { v.display.CancelRequest() })
 
 	if v.canSaveRotation() {
-		t.Error("canSaveRotation should be false while a load is in flight - v.state.index may already point at a file whose pixels haven't finished decoding")
+		t.Error("canSaveRotation should be false while a load is in flight - v.state.Observe().index may already point at a file whose pixels haven't finished decoding")
 	}
 }
 
@@ -194,8 +194,8 @@ func TestSaveRotation_ConfirmedTrashWaitsForSave(t *testing.T) {
 		if _, err := os.Stat(source.Path()); !os.IsNotExist(err) {
 			t.Errorf("Save Changes recreated the successfully trashed source: %v", err)
 		}
-		if len(v.state.files) != 1 || v.state.files[0].String() != other.String() {
-			t.Errorf("files after Save and Trash = %v, want only %v", v.state.files, other)
+		if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != other.String() {
+			t.Errorf("files after Save and Trash = %v, want only %v", v.state.Observe().DisplayFiles(), other)
 		}
 		settleToast(t, v)
 	})
