@@ -72,30 +72,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, prepared
 	// touches widgets directly.
 	window.Show()
 	view.syncNativeMenuBar()
-	application.Lifecycle().SetOnStarted(func() {
-		view.syncNativeMenuBar()
-		// The failure report takes its record from the sweep rather than
-		// re-reading the cache, and that data dependency is what keeps the
-		// report ordered after the sweep: reporting clears the record, and a
-		// cleared record reads as a clean install, so a reporter that ran
-		// first would let the sweep take the last working binary.
-		if !view.storeManaged && trial == nil && view.locationTrial == nil {
-			failure := view.sweepUpdateBackup()
-			view.maybeShowWhatsNew()
-			view.maybeShowUpdateFailure(failure)
-		}
-
-		// Install before opening, not after: a delivery arriving in the
-		// gap between the two would have nobody to take it. Installing
-		// also flushes whatever the cold-start Apple Event queued while
-		// Fyne was still building this window, and that flush shares
-		// pendingInitial with openInitialFiles - so a launch carrying both
-		// command-line paths and an "Open With" ends in one scan, not two.
-		// See internal/ui/openwith.go.
-		view.pendingInitial = initial
-		view.installOpenWithHandler()
-		view.openInitialFiles()
-	})
+	registerStartup(application, view, initial)
 	stopSignals := func() {}
 	if trial != nil || view.locationTrial != nil {
 		notices := make(chan os.Signal, 1)
@@ -120,6 +97,26 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, prepared
 	stopSignals()
 	view.waitForShutdown()
 	return nil
+}
+
+func registerStartup(application fyne.App, view *viewer, initial []fyne.URI) {
+	application.Lifecycle().SetOnStarted(func() {
+		view.syncNativeMenuBar()
+		// The sweep reads failure evidence before any reporter can consume it.
+		// A reporter running first could erase a failed-restore warning and let
+		// cleanup delete the only working binary.
+		if view.launchPolicy.Updates().Allowed() {
+			failure := view.sweepUpdateBackup()
+			view.maybeShowWhatsNew()
+			view.maybeShowUpdateFailure(failure)
+		}
+
+		// Install before opening: installing also flushes cold-start Apple
+		// Events, combining them with argv in one scan. See openwith.go.
+		view.pendingInitial = initial
+		view.installOpenWithHandler()
+		view.openInitialFiles()
+	})
 }
 
 func (v *viewer) waitForShutdown() {
@@ -211,7 +208,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 
 		session.Save(application, view.state.Observe().Capture(collectionSourceOrder))
 		preferences.Save(application, view.currentPreferences())
-		if !view.storeManaged && view.explorer.Trial() == nil && view.locationTrial == nil {
+		if view.launchPolicy.Updates().Allowed() {
 			view.updater.ApplyStagedUpdate()
 		}
 	})

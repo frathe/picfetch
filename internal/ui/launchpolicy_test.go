@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,6 +23,7 @@ import (
 	"github.com/frathe/picfetch/internal/locationtrial"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
+	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -278,6 +280,43 @@ func TestLaunchPolicyIntegration(t *testing.T) {
 		}
 	})
 	t.Run("update_records", func(t *testing.T) {
+		for _, tc := range restrictedLaunchCases(t) {
+			t.Run(tc.name+"_startup_and_direct_reporting", func(t *testing.T) {
+				v, _, _ := newTestUIWithPolicy(t, tc.policy)
+				v.updater.SetCurrentVersion("0.2.6")
+				ordinary := autoupdate.New(v.app, v.updater.Dir(), testLaunchPolicy(t, launch.Options{}, false), nil)
+				record := autoupdate.ApplyFailure{Version: "v0.2.6", Op: "restore"}
+				if err := ordinary.SaveApplyFailure(record); err != nil {
+					t.Fatal(err)
+				}
+				if err := ordinary.SaveWhatsNew("v0.2.6", "retained"); err != nil {
+					t.Fatal(err)
+				}
+				cache := &launchUpdateCache{Cache: v.app.Cache()}
+				v.updater = autoupdate.New(launchRootApp{App: v.app, cache: cache}, v.updater.Dir(), tc.policy, nil)
+				v.updater.SetCurrentVersion("0.2.6")
+				dest := updateBackupFixture(t)
+				executableCalls := 0
+				v.updateExecutable = func() (string, error) { executableCalls++; return dest, nil }
+				runProductionStartupHook(v)
+				v.sweepUpdateBackup()
+				v.sweepUpdateBackupAt(dest)
+				v.maybeShowWhatsNew()
+				// A caller may still hold a record read before the restricted viewer.
+				v.maybeShowUpdateFailure(&record)
+				if executableCalls != 0 || len(cache.events) != 0 || !backupExists(t, dest) {
+					t.Errorf("restricted recovery effects: executable=%d records=%v backup=%t", executableCalls, cache.events, backupExists(t, dest))
+				}
+				if v.win.Canvas().Overlays().Top() != nil {
+					t.Error("restricted stale record opened a failure notification")
+				}
+				failure, failureErr := ordinary.LoadApplyFailure()
+				notes, notesErr := ordinary.LoadWhatsNew()
+				if failureErr != nil || failure == nil || *failure != record || notesErr != nil || notes == nil || notes.Body != "retained" {
+					t.Errorf("restricted reporting consumed records: %+v/%v %+v/%v", failure, failureErr, notes, notesErr)
+				}
+			})
+		}
 		for _, tc := range append(restrictedLaunchCases(t), namedLaunchPolicy{"ordinary", testLaunchPolicy(t, launch.Options{}, false)}) {
 			t.Run(tc.name+"_last_check_restore_and_persist", func(t *testing.T) {
 				app := fynetest.NewApp()
@@ -309,7 +348,105 @@ func TestLaunchPolicyIntegration(t *testing.T) {
 			})
 		}
 	})
+	t.Run("backup_order", func(t *testing.T) {
+		for _, outcome := range []string{"restore", "copy", "unreadable", "absent"} {
+			t.Run(outcome, func(t *testing.T) {
+				policy := testLaunchPolicy(t, launch.Options{}, false)
+				v, _, _ := newTestUIWithPolicy(t, policy)
+				dest := updateBackupFixture(t)
+				wantBackup := outcome == "restore" || outcome == "unreadable"
+				if outcome == "unreadable" {
+					w, err := v.app.Cache().Write(autoupdate.ApplyFailureCacheKey)
+					if err != nil {
+						t.Fatal(err)
+					}
+					_, writeErr := io.WriteString(w, "not json")
+					if err := errors.Join(writeErr, w.Close()); err != nil {
+						t.Fatal(err)
+					}
+				} else if outcome != "absent" {
+					if err := v.updater.SaveApplyFailure(autoupdate.ApplyFailure{Version: "v0.2.6", Op: outcome}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				cache := &launchUpdateCache{Cache: v.app.Cache(), beforeRemove: func(key string) {
+					if key == autoupdate.ApplyFailureCacheKey && backupExists(t, dest) != wantBackup {
+						t.Errorf("report consumed failure before backup decision for %s", outcome)
+					}
+				}}
+				v.updater = autoupdate.New(launchRootApp{App: v.app, cache: cache}, v.updater.Dir(), policy, nil)
+				v.updateExecutable = func() (string, error) { return dest, nil }
+				runProductionStartupHook(v)
+				if backupExists(t, dest) != wantBackup {
+					t.Errorf("%s backup retention=%t, want %t", outcome, backupExists(t, dest), wantBackup)
+				}
+				wantRecord := outcome == "unreadable"
+				if v.app.Cache().Exists(autoupdate.ApplyFailureCacheKey) != wantRecord {
+					t.Errorf("%s failure record not consumed/preserved correctly", outcome)
+				}
+				if len(cache.events) == 0 || cache.events[0] != "exists:"+autoupdate.ApplyFailureCacheKey {
+					t.Errorf("failure decision did not precede reporting: %v", cache.events)
+				}
+			})
+		}
+	})
 	t.Run("shutdown", func(t *testing.T) {
+		for _, tc := range append(restrictedLaunchCases(t), namedLaunchPolicy{"ordinary", testLaunchPolicy(t, launch.Options{}, false)}) {
+			for _, explicit := range []bool{false, true} {
+				name := tc.name + "_normal"
+				if explicit {
+					name = tc.name + "_explicit"
+				}
+				t.Run(name, func(t *testing.T) {
+					v, _, _ := newTestUIWithPolicy(t, tc.policy)
+					v.updater.SetCurrentVersion("0.2.5")
+					stage := saveVerifiedUpdateStage(t, v, "v0.2.6", "shutdown notes")
+					before, err := os.ReadFile(stage.BinaryPath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					applyCalls, quitCalls := 0, 0
+					original := update.Apply
+					update.Apply = func(_ update.Stage, _ string, opts update.ApplyOptions) error {
+						applyCalls++
+						if opts.Relaunch != explicit {
+							t.Errorf("relaunch=%t, want %t", opts.Relaunch, explicit)
+						}
+						return nil
+					}
+					t.Cleanup(func() { update.Apply = original })
+					v.quit = func() { quitCalls++ }
+					v.explorer.Close()
+					options := v.explorer.Options()
+					options.Trial = nil
+					v.explorer.Configure(options)
+					v.locationMap.Close()
+					v.locationTrial = nil
+					if explicit {
+						err := v.PerformUpdate()
+						if (err == nil) != tc.policy.Updates().Allowed() {
+							t.Errorf("apply intent err=%v, allowed=%t", err, tc.policy.Updates().Allowed())
+						}
+					}
+					runProductionShutdownHook(v)
+					wantApply, wantQuit := 0, 0
+					if tc.policy.Updates().Allowed() {
+						wantApply = 1
+						if explicit {
+							wantQuit = 1
+						}
+					}
+					if applyCalls != wantApply || quitCalls != wantQuit {
+						t.Errorf("apply/quit=%d/%d, want %d/%d", applyCalls, quitCalls, wantApply, wantQuit)
+					}
+					if !tc.policy.Updates().Allowed() {
+						if data, err := os.ReadFile(stage.BinaryPath); err != nil || !bytes.Equal(before, data) {
+							t.Errorf("restricted shutdown changed stage: %q %v", data, err)
+						}
+					}
+				})
+			}
+		}
 		t.Run("explorer_held_producer_production_hook_postrun", func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				v := openGridWith(t, "one.jpg", "two.jpg")
@@ -491,4 +628,44 @@ func runProductionShutdownHook(v *viewer) {
 	shutdown := lifecycle.OnStopped()
 	v.app.Lifecycle().SetOnStopped(previous)
 	shutdown()
+}
+
+func runProductionStartupHook(v *viewer) {
+	lifecycle := v.app.Lifecycle().(interface{ OnStarted() func() })
+	previous := lifecycle.OnStarted()
+	registerStartup(v.app, v, nil)
+	startup := lifecycle.OnStarted()
+	v.app.Lifecycle().SetOnStarted(previous)
+	startup()
+}
+
+type launchUpdateCache struct {
+	fyne.Cache
+	events       []string
+	beforeRemove func(string)
+}
+
+func (c *launchUpdateCache) observe(op, key string) {
+	if key == autoupdate.ApplyFailureCacheKey || key == autoupdate.WhatsNewCacheKey {
+		c.events = append(c.events, op+":"+key)
+	}
+}
+func (c *launchUpdateCache) Exists(key string) bool {
+	c.observe("exists", key)
+	return c.Cache.Exists(key)
+}
+func (c *launchUpdateCache) Read(key string) (io.ReadCloser, error) {
+	c.observe("read", key)
+	return c.Cache.Read(key)
+}
+func (c *launchUpdateCache) Write(key string) (io.WriteCloser, error) {
+	c.observe("write", key)
+	return c.Cache.Write(key)
+}
+func (c *launchUpdateCache) Remove(key string) error {
+	c.observe("remove", key)
+	if c.beforeRemove != nil {
+		c.beforeRemove(key)
+	}
+	return c.Cache.Remove(key)
 }

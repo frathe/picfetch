@@ -1,6 +1,6 @@
 # MA-033: captured launch policy implementation
 
-Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`), 04 (`8528f7b`) and 05 complete; 06 next.
+Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`), 04 (`8528f7b`), 05 (`7a5629b`) and 06 complete; 07 next.
 Baseline: `9549e3b` (approved specification), runtime baseline `a5caf73`.
 Route: Deep SDD with vertical TDD slices.
 Authorization: 2026-09-28 `/implement MA-033`: implementation, per-ticket commits,
@@ -185,7 +185,7 @@ must record G1-G5 before spawning.
 | 03 | 1/1 | 1 | no | done |
 | 04 | 0/0 | 1 | no | done |
 | 05 | 1/1 | 1 | no | done |
-| 06 | 0/0 | 0 | no | pending |
+| 06 | 0/0 | 1 | no | done |
 | 07 | 0/0 | 0 | no | pending |
 | 08 | 1/0 | 0 | no | pending |
 | 09 | 0/0 | 0 | CI | pending |
@@ -430,3 +430,54 @@ clean except seven deliberate existing fixture duplicates in three exactly exclu
 test files. Scoped vet, formatting, exact Qodana test exclusions and the unchanged
 740-test shard manifest pass. Added the new updater test's exact exclusion. No new
 dependencies. Complete CI and fresh post-suppression SARIF are still final gates.
+
+### Ticket 06 recovery/installation contract
+
+Lead-only with the existing updater/root context. Convert the six exported record
+functions to policy-bearing Updater methods (Save/Load/Clear WhatsNew and
+ApplyFailure); retain only private generic JSON serialization. Refusal returns
+the same wrapped permission error before app.Cache access, including reads.
+RequestApplyAndRelaunch and ApplyStagedUpdate gate before transaction/stage access;
+reuse the existing per-instance stage adapters there, preserving validation,
+failure retention and installation mechanics. Root PerformUpdate and notifications
+consume captured policy, including stale record inputs and closed/replaced trials.
+
+Extract registration of the existing OnStarted callback into `registerStartup`,
+used unchanged by Run and tests. A per-viewer executable resolver, initialized to
+os.Executable, lets that actual hook exercise temporary backup paths without
+touching the test executable. Preserve failure-read -> sweep -> reporter order,
+and the registered OnStopped apply point. Explicit ordinary test record fixtures
+replace raw public helper use; no application-facing bypass remains. No new
+shutdown waits, dependency, disk schema or trust algorithm.
+
+### Ticket 06 completion evidence
+
+Analyzed revision: `7a5629b` plus the ticket 06 changes in this commit.
+Lead implemented and reviewed; no delegation or changed dependencies.
+
+- V1/V2 red: denied direct apply read/removed a stage; all six denied/missing
+  policies accessed every update record operation. Root startup/direct recovery
+  resolved the executable and displayed stale failure records in restricted
+  sessions. Each failed for the intended effect, then passed with captured guards.
+- V1-V4 green: full updater policy family and existing updater/apply regressions;
+  root integration and PerformUpdate/apply/current-callback/backup regressions;
+  root startup ordering. Registered hooks retain ordinary false/explicit true
+  relaunch and preserve staged binaries across all denied combinations, after
+  feature close/replacement. Record formats and installation algorithms unchanged.
+- Negative mutations: reporting before sweep failed restore retention and copy
+  ordering; removing the real shutdown apply failed both ordinary hook cases.
+  Mutations restored and the selected suites rerun green.
+- All new root/updater policy guards also passed with `microsoftstore`, and with
+  `-race` on Linux/amd64. Focused vet, imports/format, diff whitespace, exact
+  Qodana exclusions and 740-test root shard assignment pass. CI on `7a5629b`
+  reported CodeQL, Qodana, Windows/macOS guards and completed race shards green;
+  this is not final-head or post-suppression SARIF qualification.
+- GoLand `get_file_problems(errorsOnly=false)` completed all 11 changed Go files,
+  Project Default fallback per the local inspection guide. Seven weak duplicate
+  fragments only: five pre-existing updater/root test setups covered by exact
+  exclusions; two unchanged viewer presentation fragments also matching retained
+  `.scratch/ma-028` mutation sources. No actionable changed-code findings, no
+  timeouts. The viewer fragments were inspected and left outside this scope.
+- Local raw captures: `.scratch/ma-033/evidence/06-{updater-red,root-red,
+  backup-order-negative,shutdown-negative,updater-green,regressions-green}.log`
+  and `06-inspections.json`. No new test files or top-level root tests.

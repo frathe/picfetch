@@ -7,6 +7,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"os"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -102,11 +103,12 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		updater: autoupdate.New(application, startup.storage.UpdatesDir, startup.policy, func(day string) {
 			preferences.SaveLastUpdateCheckDay(application, day)
 		}),
-		keyModifiers:   defaultKeyModifiers,
-		stopWinPosPoll: noPollerStop,
-		waitWinPosPoll: noPollerStop,
-		clipboardWork:  newClipboardWork(),
-		fileWork:       newFileMutationWork(),
+		keyModifiers:     defaultKeyModifiers,
+		stopWinPosPoll:   noPollerStop,
+		waitWinPosPoll:   noPollerStop,
+		clipboardWork:    newClipboardWork(),
+		fileWork:         newFileMutationWork(),
+		updateExecutable: os.Executable,
 	}
 
 	view.chooserUI = fyneChooserQueue{}

@@ -28,14 +28,19 @@ func sampleApplyFailure() ApplyFailure {
 	}
 }
 
+func recordUpdater(t *testing.T, app fyne.App) *Updater {
+	t.Helper()
+	return ordinaryUpdater(t, app, t.TempDir(), nil)
+}
+
 func TestApplyFailureCache_RoundTrip(t *testing.T) {
 	app := test.NewApp()
 	want := sampleApplyFailure()
 
-	if err := SaveApplyFailure(app, want); err != nil {
+	if err := recordUpdater(t, app).SaveApplyFailure(want); err != nil {
 		t.Fatal(err)
 	}
-	got, err := LoadApplyFailure(app)
+	got, err := recordUpdater(t, app).LoadApplyFailure()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +53,7 @@ func TestApplyFailureCache_RoundTrip(t *testing.T) {
 }
 
 func TestLoadApplyFailure_NothingCachedIsNilWithoutError(t *testing.T) {
-	got, err := LoadApplyFailure(test.NewApp())
+	got, err := recordUpdater(t, test.NewApp()).LoadApplyFailure()
 	if err != nil {
 		t.Fatalf("LoadApplyFailure with an empty cache: %v", err)
 	}
@@ -59,15 +64,15 @@ func TestLoadApplyFailure_NothingCachedIsNilWithoutError(t *testing.T) {
 
 func TestClearApplyFailure_RemovesTheRecord(t *testing.T) {
 	app := test.NewApp()
-	if err := SaveApplyFailure(app, sampleApplyFailure()); err != nil {
+	if err := recordUpdater(t, app).SaveApplyFailure(sampleApplyFailure()); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := ClearApplyFailure(app); err != nil {
+	if err := recordUpdater(t, app).ClearApplyFailure(); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := LoadApplyFailure(app)
+	got, err := recordUpdater(t, app).LoadApplyFailure()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +82,7 @@ func TestClearApplyFailure_RemovesTheRecord(t *testing.T) {
 }
 
 func TestClearApplyFailure_NothingCachedIsANoop(t *testing.T) {
-	if err := ClearApplyFailure(test.NewApp()); err != nil {
+	if err := recordUpdater(t, test.NewApp()).ClearApplyFailure(); err != nil {
 		t.Errorf("ClearApplyFailure with an empty cache: %v", err)
 	}
 }
@@ -86,15 +91,15 @@ func TestSaveApplyFailure_ReplacesTheEarlierRecord(t *testing.T) {
 	// Only the most recent attempt is worth reporting; a stale reason would
 	// send the user after a problem that no longer exists.
 	app := test.NewApp()
-	if err := SaveApplyFailure(app, sampleApplyFailure()); err != nil {
+	if err := recordUpdater(t, app).SaveApplyFailure(sampleApplyFailure()); err != nil {
 		t.Fatal(err)
 	}
 	second := ApplyFailure{Version: "v0.2.7", Reason: string(update.ReasonVirusBlocked), Op: "rename"}
-	if err := SaveApplyFailure(app, second); err != nil {
+	if err := recordUpdater(t, app).SaveApplyFailure(second); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := LoadApplyFailure(app)
+	got, err := recordUpdater(t, app).LoadApplyFailure()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +113,7 @@ func TestSaveApplyFailure_UsesStableJSONKeys(t *testing.T) {
 	// one, so the wire names are part of the contract, not an implementation
 	// detail either side may rename.
 	app := test.NewApp()
-	if err := SaveApplyFailure(app, sampleApplyFailure()); err != nil {
+	if err := recordUpdater(t, app).SaveApplyFailure(sampleApplyFailure()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -150,7 +155,7 @@ func TestLoadApplyFailure_UnreadableRecordIsAnError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := LoadApplyFailure(app)
+	got, err := recordUpdater(t, app).LoadApplyFailure()
 	if err == nil {
 		t.Fatalf("LoadApplyFailure() = %+v, want an error for a corrupt record", got)
 	}
@@ -216,7 +221,7 @@ func TestApplyStagedUpdate_RecordsWhyTheSwapFailed(t *testing.T) {
 
 	u.ApplyStagedUpdate()
 
-	got, err := LoadApplyFailure(app)
+	got, err := recordUpdater(t, app).LoadApplyFailure()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +264,7 @@ func TestApplyStagedUpdate_PlainErrorIsRecordedAsUnknown(t *testing.T) {
 
 	u.ApplyStagedUpdate()
 
-	got, err := LoadApplyFailure(app)
+	got, err := recordUpdater(t, app).LoadApplyFailure()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +295,7 @@ func TestApplyStagedUpdate_AFailedRelaunchIsNotAFailedInstall(t *testing.T) {
 
 	u.ApplyStagedUpdate()
 
-	got, err := LoadApplyFailure(app)
+	got, err := recordUpdater(t, app).LoadApplyFailure()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,14 +312,14 @@ func TestApplyStagedUpdate_AFailedRelaunchIsNotAFailedInstall(t *testing.T) {
 // outlive it and veto the backup sweep.
 func TestApplyStagedUpdate_AFailedRelaunchClearsAnEarlierRecord(t *testing.T) {
 	u, app := newApplyUpdater(t)
-	if err := SaveApplyFailure(app, ApplyFailure{Version: "v0.2.6", Op: "restore"}); err != nil {
+	if err := recordUpdater(t, app).SaveApplyFailure(ApplyFailure{Version: "v0.2.6", Op: "restore"}); err != nil {
 		t.Fatal(err)
 	}
 	stubApply(t, &update.ApplyError{Op: "relaunch", Err: errors.New("no")})
 
 	u.ApplyStagedUpdate()
 
-	got, err := LoadApplyFailure(app)
+	got, err := recordUpdater(t, app).LoadApplyFailure()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +336,7 @@ func TestApplyStagedUpdate_SuccessRemovesTheStageOnEveryPlatform(t *testing.T) {
 	// Seeded from an earlier attempt, and the worst one to leave behind: a
 	// stale "restore" vetoes the backup sweep on every later launch and
 	// reports a failure for an update that worked.
-	if err := SaveApplyFailure(app, ApplyFailure{Version: "v0.2.6", Op: "restore"}); err != nil {
+	if err := recordUpdater(t, app).SaveApplyFailure(ApplyFailure{Version: "v0.2.6", Op: "restore"}); err != nil {
 		t.Fatal(err)
 	}
 	stubApply(t, nil)
@@ -341,7 +346,7 @@ func TestApplyStagedUpdate_SuccessRemovesTheStageOnEveryPlatform(t *testing.T) {
 	if stagePresent(t, u.Dir()) {
 		t.Error("an applied stage was left on disk")
 	}
-	got, err := LoadApplyFailure(app)
+	got, err := recordUpdater(t, app).LoadApplyFailure()
 	if err != nil {
 		t.Fatal(err)
 	}

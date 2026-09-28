@@ -1,7 +1,5 @@
 package autoupdate
 
-import "fyne.io/fyne/v2"
-
 // ApplyFailureCacheKey is the Fyne app cache entry ApplyStagedUpdate writes
 // when it could not replace the running binary, and internal/ui reads on the
 // next launch. The apply runs from Fyne's stopped callback, where there is
@@ -27,18 +25,27 @@ type ApplyFailure struct {
 
 // SaveApplyFailure stores f in app's cache, replacing any earlier record -
 // only the most recent attempt is worth reporting.
-func SaveApplyFailure(app fyne.App, f ApplyFailure) error {
-	return saveCacheJSON(app, ApplyFailureCacheKey, f)
+func (u *Updater) SaveApplyFailure(f ApplyFailure) error {
+	if !u.updates.Allowed() {
+		return unavailableUpdateError()
+	}
+	return saveCacheJSON(u.app, ApplyFailureCacheKey, f)
 }
 
 // LoadApplyFailure reads the cached record, or nil if nothing is cached. An
 // unreadable record returns an error rather than nil: callers act on the
 // absence of a record, so the two cases must stay distinguishable.
-func LoadApplyFailure(app fyne.App) (*ApplyFailure, error) {
-	return loadCacheJSON[ApplyFailure](app, ApplyFailureCacheKey)
+func (u *Updater) LoadApplyFailure() (*ApplyFailure, error) {
+	if !u.updates.Allowed() {
+		return nil, unavailableUpdateError()
+	}
+	return loadCacheJSON[ApplyFailure](u.app, ApplyFailureCacheKey)
 }
 
 // ClearApplyFailure removes the cached record, if any.
-func ClearApplyFailure(app fyne.App) error {
-	return clearCacheJSON(app, ApplyFailureCacheKey)
+func (u *Updater) ClearApplyFailure() error {
+	if !u.updates.Allowed() {
+		return unavailableUpdateError()
+	}
+	return clearCacheJSON(u.app, ApplyFailureCacheKey)
 }

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/test"
 
@@ -79,6 +80,13 @@ func TestUpdaterLaunchPolicy(t *testing.T) {
 					t.Errorf("manual refusal callbacks = %d, want one", failures)
 				}
 				u.RemoveStaleStage()
+				if err := u.RequestApplyAndRelaunch(); !errors.Is(err, ErrUpdatesUnavailable) {
+					t.Errorf("apply intent error = %v, want unavailable", err)
+				}
+				u.ApplyStagedUpdate()
+				if u.applyOptions.Relaunch {
+					t.Error("restricted call recorded relaunch intent")
+				}
 				u.SetLastCheckDay("2026-09-28")
 				if got := u.LastCheckDay(); got != "" {
 					t.Errorf("restricted SetLastCheckDay changed day to %q", got)
@@ -199,7 +207,67 @@ func TestUpdaterLaunchPolicy(t *testing.T) {
 			t.Errorf("successful ordinary check: day=%q saved=%v", ordinary.LastCheckDay(), saved)
 		}
 	})
+	t.Run("records", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			policy launch.Policy
+		}{
+			{"missing", launch.Policy{}},
+			{"store", updaterTestPolicy(t, launch.Ordinary, true, false)},
+			{"explorer", updaterTestPolicy(t, launch.ExplorerTrial, false, false)},
+			{"location_map", updaterTestPolicy(t, launch.LocationMapTrial, false, false)},
+			{"store_explorer", updaterTestPolicy(t, launch.ExplorerTrial, true, false)},
+			{"store_location_map", updaterTestPolicy(t, launch.LocationMapTrial, true, false)},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				app := test.NewApp()
+				fixture := ordinaryUpdater(t, app, t.TempDir(), nil)
+				if err := fixture.SaveWhatsNew("v0.2.6", "retained"); err != nil {
+					t.Fatal(err)
+				}
+				if err := fixture.SaveApplyFailure(ApplyFailure{Version: "v0.2.6", Op: "restore"}); err != nil {
+					t.Fatal(err)
+				}
+				observed := &updateCacheProbeApp{App: app}
+				u := New(observed, t.TempDir(), tc.policy, nil)
+				if err := u.SaveWhatsNew("replaced", "changed"); !errors.Is(err, ErrUpdatesUnavailable) {
+					t.Errorf("save notes: %v", err)
+				}
+				if got, err := u.LoadWhatsNew(); got != nil || !errors.Is(err, ErrUpdatesUnavailable) {
+					t.Errorf("read notes: %+v %v", got, err)
+				}
+				if err := u.ClearWhatsNew(); !errors.Is(err, ErrUpdatesUnavailable) {
+					t.Errorf("clear notes: %v", err)
+				}
+				if err := u.SaveApplyFailure(ApplyFailure{Op: "replaced"}); !errors.Is(err, ErrUpdatesUnavailable) {
+					t.Errorf("save failure: %v", err)
+				}
+				if got, err := u.LoadApplyFailure(); got != nil || !errors.Is(err, ErrUpdatesUnavailable) {
+					t.Errorf("read failure: %+v %v", got, err)
+				}
+				if err := u.ClearApplyFailure(); !errors.Is(err, ErrUpdatesUnavailable) {
+					t.Errorf("clear failure: %v", err)
+				}
+				if observed.calls != 0 {
+					t.Errorf("restricted record operations reached app cache %d times", observed.calls)
+				}
+				if got, err := fixture.LoadWhatsNew(); err != nil || got == nil || got.Body != "retained" {
+					t.Errorf("notes changed: %+v %v", got, err)
+				}
+				if got, err := fixture.LoadApplyFailure(); err != nil || got == nil || got.Op != "restore" {
+					t.Errorf("failure changed: %+v %v", got, err)
+				}
+			})
+		}
+	})
 }
+
+type updateCacheProbeApp struct {
+	fyne.App
+	calls int
+}
+
+func (a *updateCacheProbeApp) Cache() fyne.Cache { a.calls++; return a.App.Cache() }
 
 func updaterTestPolicy(t *testing.T, trial launch.Purpose, storeManaged, missing bool) launch.Policy {
 	t.Helper()

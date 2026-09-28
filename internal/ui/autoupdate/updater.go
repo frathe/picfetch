@@ -638,10 +638,13 @@ func (u *Updater) workerFinished() {
 // output is still present, usable, and newer, then records explicit relaunch
 // intent for ApplyStagedUpdate. It does not replace files or quit the app.
 func (u *Updater) RequestApplyAndRelaunch() error {
+	if !u.updates.Allowed() {
+		return unavailableUpdateError()
+	}
 	<-u.transaction
 	defer func() { u.transaction <- struct{}{} }()
 
-	st, err := update.LoadStage(u.dir)
+	st, err := u.loadStage(u.dir)
 	if err != nil {
 		return fmt.Errorf("load staged update: %w", err)
 	}
@@ -665,23 +668,26 @@ const applyOpRelaunch = "relaunch"
 // internal/ui's shutdown handler, after the event loop has stopped taking
 // input. Safe to call with nothing staged.
 func (u *Updater) ApplyStagedUpdate() {
+	if !u.updates.Allowed() {
+		return
+	}
 	<-u.transaction
 	defer func() { u.transaction <- struct{}{} }()
 
-	st, err := update.LoadStage(u.dir)
+	st, err := u.loadStage(u.dir)
 	if err != nil {
 		return
 	}
 	if !update.Newer(u.CurrentVersion(), st.Version) {
-		_ = update.RemoveStage(u.dir)
+		_ = u.removeStage(u.dir)
 		return
 	}
 	if err := update.ValidateStageForPlatform(st, runtime.GOOS, runtime.GOARCH); err != nil {
 		fyne.LogError("update apply skipped: staged update is not verified or usable", err)
-		_ = update.RemoveStage(u.dir)
+		_ = u.removeStage(u.dir)
 		return
 	}
-	if err := SaveWhatsNew(u.app, st.Version, st.Notes); err != nil {
+	if err := u.SaveWhatsNew(st.Version, st.Notes); err != nil {
 		fyne.LogError("failed to store release notes", err)
 	}
 	dest, err := os.Executable()
@@ -696,7 +702,7 @@ func (u *Updater) ApplyStagedUpdate() {
 		}
 		if op != applyOpRelaunch {
 			fyne.LogError("failed to apply update", err)
-			if saveErr := SaveApplyFailure(u.app, ApplyFailure{
+			if saveErr := u.SaveApplyFailure(ApplyFailure{
 				Version: st.Version,
 				Reason:  string(update.ClassifyApplyError(err)),
 				Op:      op,
@@ -719,9 +725,9 @@ func (u *Updater) ApplyStagedUpdate() {
 		// What's New dialog for the very version it denies.
 		fyne.LogError("update installed, but PicFetch could not start the new version", err)
 	}
-	_ = update.RemoveStage(u.dir)
+	_ = u.removeStage(u.dir)
 	// Clear where the state changes, not only where it is reported: a
 	// surviving record would keep vetoing the backup sweep on every later
 	// launch, and would report a failure for an update that worked.
-	_ = ClearApplyFailure(u.app)
+	_ = u.ClearApplyFailure()
 }

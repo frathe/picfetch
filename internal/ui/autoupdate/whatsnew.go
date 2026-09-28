@@ -1,7 +1,5 @@
 package autoupdate
 
-import "fyne.io/fyne/v2"
-
 // WhatsNewCacheKey is the Fyne app cache entry ApplyStagedUpdate writes to
 // right before it replaces the running binary, and internal/ui's
 // maybeShowWhatsNew reads on the next launch.
@@ -16,16 +14,25 @@ type WhatsNew struct {
 
 // SaveWhatsNew stores version/body in app's cache, ready for the next
 // launch's maybeShowWhatsNew.
-func SaveWhatsNew(app fyne.App, version, body string) error {
-	return saveCacheJSON(app, WhatsNewCacheKey, WhatsNew{Version: version, Body: body})
+func (u *Updater) SaveWhatsNew(version, body string) error {
+	if !u.updates.Allowed() {
+		return unavailableUpdateError()
+	}
+	return saveCacheJSON(u.app, WhatsNewCacheKey, WhatsNew{Version: version, Body: body})
 }
 
 // LoadWhatsNew reads the cached payload, or nil if nothing is cached.
-func LoadWhatsNew(app fyne.App) (*WhatsNew, error) {
-	return loadCacheJSON[WhatsNew](app, WhatsNewCacheKey)
+func (u *Updater) LoadWhatsNew() (*WhatsNew, error) {
+	if !u.updates.Allowed() {
+		return nil, unavailableUpdateError()
+	}
+	return loadCacheJSON[WhatsNew](u.app, WhatsNewCacheKey)
 }
 
 // ClearWhatsNew removes the cached payload, if any.
-func ClearWhatsNew(app fyne.App) error {
-	return clearCacheJSON(app, WhatsNewCacheKey)
+func (u *Updater) ClearWhatsNew() error {
+	if !u.updates.Allowed() {
+		return unavailableUpdateError()
+	}
+	return clearCacheJSON(u.app, WhatsNewCacheKey)
 }

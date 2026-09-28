@@ -452,8 +452,9 @@ type viewer struct {
 	// refactor's locked decision on cancellation), so
 	// maybeStartUpdateCheck (autoupdate.go) prepares the client, then begins
 	// the token and hands Updater.Start its context and a staleness func.
-	updater  *autoupdate.Updater
-	updateOp requestlife.Owner
+	updater          *autoupdate.Updater
+	updateOp         requestlife.Owner
+	updateExecutable func() (string, error)
 
 	// settings is the whole settings-backed state - see memlimits.go's
 	// settings for what it holds and why it's grouped.
