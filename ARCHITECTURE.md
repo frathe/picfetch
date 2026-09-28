@@ -1174,7 +1174,8 @@ One-shot “this background op finished” signal. Named wait helpers vs
 Instance-owned request identity, captured parent context and explicit release.
 Disposable final delivery transfers release to the caller's existing dispatcher;
 features retain admission, queues, worker barriers and operation completion.
-Sorting is the first pilot consumer; SVG adoption gates broader migration.
+Sorting and SVG sharpening use the same final-delivery contract; the accepted
+two-consumer pilot gates the remaining basic-token migration.
 
 | File | Responsibility |
 |------|----------------|

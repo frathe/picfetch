@@ -1,6 +1,7 @@
 # MA-032 implementation and evidence
 
-Status: ticket 01 complete; ticket 02 is the frontier. Base: `04cb74c`.
+Status: tickets 01-02 complete; extraction accepted, ticket 03 is next.
+Base: `04cb74c`. Draft PR: https://github.com/frathe/picfetch/pull/71.
 Authorization: 2026-09-28 `/implement MA-032`, TDD/SDD, a commit after each
 ticket, draft PR/CI, then ready-for-review and the GitHub Codex review loop.
 No merge or release is authorized.
@@ -40,13 +41,13 @@ The authorized GitHub full suite supplies the final broad race gate; use
 | Ticket | Files / contract / test | Owner and budget | State |
 | --- | --- | --- | --- |
 | 01 | New requestlife API/tests; asyncop/sort/viewer, affected harness and tests; real sort handoff and production shutdown; local scan retained | T0; at most 1 bounded T1 implementation; focused V1-V6, no full suite | Complete |
-| 02 | display/vector.go, display contract tests, root shutdown tests; same delivery API; D2 verdict before adoption | T0; 1 T3 scout, focused V1-V5 | Pending |
+| 02 | display/vector.go, display contract tests, root shutdown tests; same delivery API; D2 verdict before adoption | T0; 1 T3 scout, focused V1-V5 | Complete |
 | 03 | display feature/load/preload/animation/lifecycle and affected tests; retained-load and playback protocols | T0; optional 1 T1 task <=3 files, focused V1-V4 | Blocked by verdict |
 | 04 | root asyncop/drop/openfiles/explorer/locationmap and composition/tests; four basic owners | T0; optional 1 T1 task <=3 files, focused V1-V5 | Blocked by verdict |
 | 05 | filework/save/export/search reconciliation and tests; committed callbacks stay explicit | T0; no spawn, focused V1-V4 | Blocked by verdict |
 | 06 | clipboardwork/clipboard/copyfiles/copyselection, viewer/harness and tests; retain capture and delivery completion | T0; optional 1 T1 task <=3 files, focused V1-V4 | Blocked by verdict |
 | 07 | favthumbs/autoupdate/viewer/harness and affected tests; basic tokens only | T0; optional 1 T1 task <=3 files, focused V1-V4 | Blocked by verdict |
-| 08 | Restore only pilot runtime changes; test-only shared local contract | T0; no spawn, focused V1-V4 | Conditional fallback |
+| 08 | Restore only pilot runtime changes; test-only shared local contract | T0; no spawn, focused V1-V4 | Inapplicable: extraction accepted |
 | 09 | Remove remaining duplicate request mechanics; retain independent revisions; docs/metadata/evidence and full qualification | T0; no spawn, final gate | Blocked by selected branch |
 
 Every ticket updates exact Qodana exclusions, root test shards, architecture when
@@ -84,7 +85,7 @@ The historical model names in the working agreement are interpreted as tiers.
 - [x] Read accepted spec, all nine tickets, working agreement and TDD skill.
 - [x] Clean starting branch `feature/ma-032-request-lifetimes`, base `04cb74c`.
 - [x] 01 shared request and sorting pilot.
-- [ ] 02 SVG pilot and recorded verdict.
+- [x] 02 SVG pilot and recorded verdict.
 - [ ] Selected migration/fallback tickets committed separately.
 - [ ] 09 convergence, final CI and inspections.
 - [ ] PR ready, latest-commit clean Codex/security/CodeQL/Qodana/CI round.
@@ -97,6 +98,8 @@ that toolchain in PATH. GitHub/Docker and build-cache access checked through the
 normal escalation mechanism. Docker reports native linux/x86_64 with 33.3 GB RAM.
 
 ### Ticket 01 — candidate tree on parent `04cb74c`
+
+Committed as `c415c7e`, pushed to draft PR 71.
 
 V1: both enumerated requestlife suites passed uncached under `-race` (13
 subcases, final run 1.014s). V2-V4: 13 enumerated root top-level tests passed
@@ -141,3 +144,45 @@ worker admission, with an instance seam for held/inline test delivery. No worker
 queue manager or new shutdown join. Scan remains on the local lifecycle; shared
 progress presentation is the temporary bridge owned by 04/08. This establishes
 the first consumer only; extraction remains undecided until ticket 02.
+
+### Ticket 02 — D2 verdict (candidate tree on parent `c415c7e`)
+
+**Extraction accepted.** Recorded before any owner beyond sorting/SVG migrates.
+
+| Caller | Previous caller obligation | Shared guarantee now used | Retained feature policy |
+| --- | --- | --- | --- |
+| Sorting | Check currentness in finishSort; defer token release; finish captured operation even when stale | FinalDelivery transfers release before dispatch, gates application and runs the captured finisher once on delivery | Mode rollback, progress/menu state, collection commit and existing fyne dispatch |
+| SVG | Maintain handedOff flag; conditional worker cleanup; deferred callback release; repeat request-currentness check at delivery | The same FinalDelivery owns early abandonment and queued/inline handoff, currentness and request-local release | Debounce, pre-raster cancellation, vector/display identity checks, raster worker tracking, pixel publication and repaint |
+
+Neither adapter recreates a handoff flag, wraps a feature switch, or delegates
+worker admission/settlement. Basic tokens retain parent context at creation.
+Callbacks run outside locks; cleanup affects only the captured request.
+This is responsibility reduction in both actual callers, not a code-size verdict.
+Tickets 03-07 are eligible; 08 and AC19 are inapplicable, not passed.
+
+V1/V2: both enumerated display suites passed uncached under `-race` (3.722s),
+including existing vector debounce/failure/identity checks and new superseded
+queued delivery, inline repaint reentry, clear/reopen and terminal Stop cases.
+The complete existing presentation contract was also exercised. Shared contract
+tests passed again. V2/V3: seven enumerated root top-level tests passed uncached
+under `-race` (49.190s), including real queued sort and held/queued SVG shutdown,
+actual post-event-loop waits, CollectionLifecycle, HEIC backend lifecycle,
+HypnoTunnel's blocked-preview exception, and all three capture-sort guards.
+Logs and enumerations: `.scratch/ma-032/ticket02-{display,display-list,contract,ui,ui-list}.log`.
+
+Negative evidence: omitted SVG request-currentness failed superseded publication;
+owner-wide cleanup failed inline repaint reentry; omitted production display Stop
+failed both held and queued SVG shutdown. All mutations restored; no skipped
+cases or race reports. Focused root/display vet, formatting, exact test exclusions
+and canonical Docker shard check passed (743 runnables). GoLand inspected all three
+changed Go files (vector.go and both requestlife integration test files), including
+weak warnings, with no findings/timeouts using the same fallback profile as 01.
+
+### Remaining-ticket routing
+
+After the fixed public contract is proven, basic-token renames and call-site
+rewrites are deterministic. The lead performs these mechanical batches under
+rule S, captures parent contexts before Begin, and owns protocol review. No
+implementer is spawned to rediscover the already-understood token transformation.
+Existing behavior suites are run before/after their refactor; no inventory-mirror
+tests are added. New behavior gaps, if found, get a vertical failing test first.

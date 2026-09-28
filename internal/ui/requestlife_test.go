@@ -2,16 +2,21 @@ package ui
 
 import (
 	"context"
+	"image"
 	"slices"
+	"sync"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/filesort"
+	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/session"
+	"github.com/frathe/picfetch/internal/ui/display"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -106,6 +111,8 @@ func TestMA032DeliveryIntegration(t *testing.T) {
 		})
 	})
 	t.Run("production_shutdown", func(t *testing.T) {
+		t.Run("held_svg", func(t *testing.T) { ma032SVGShutdown(t, true) })
+		t.Run("queued_svg", func(t *testing.T) { ma032SVGShutdown(t, false) })
 		t.Run("queued_sort", func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				v := newTestViewer(t)
@@ -132,6 +139,50 @@ func TestMA032DeliveryIntegration(t *testing.T) {
 			})
 		})
 	})
+}
+
+func ma032SVGShutdown(t *testing.T, holdRaster bool) {
+	t.Helper()
+	v := newTestViewer(t)
+	dropAndWait(t, v, uitest.TempSVGURI(t, "shutdown.svg", 24, 24))
+	v.display.Settle()
+	queue := &uitest.UIQueue{}
+	v.display.SetUIQueue(queue)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	defer unblock()
+	v.display.SetVectorOptions(display.VectorOptions{Rasterize: func(_ *imaging.Vector, w, h int) (image.Image, error) {
+		close(entered)
+		if holdRaster {
+			<-release
+		}
+		return image.NewNRGBA(image.Rect(0, 0, w, h)), nil
+	}})
+	before := v.img.Image
+	v.display.RequestVectorRender(4, nil)
+	select {
+	case <-entered:
+	case <-time.After(testTimeout):
+		t.Fatal("SVG worker did not reach the controlled rasterizer")
+	}
+	if !holdRaster {
+		v.display.Wait()
+	}
+	ma032Shutdown(t, v)
+	// Production joins its backends without joining blocked display raster work
+	// or draining UI. The stronger test cleanup joins it only after release.
+	v.waitForShutdown()
+	if v.img.Image == before {
+		t.Fatal("production shutdown did not clear display presentation")
+	}
+	stoppedPixels := v.img.Image
+	unblock()
+	v.display.Wait()
+	queue.Drain()
+	if v.img.Image != stoppedPixels || v.display.Snapshot().Vector {
+		t.Fatal("retired SVG result revived display after production shutdown")
+	}
 }
 
 func ma032Shutdown(t *testing.T, v *viewer) {

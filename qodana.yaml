@@ -260,6 +260,7 @@ exclude:
       - "internal/ui/display/display_test.go"
       - "internal/ui/display/load_contract_test.go"
       - "internal/ui/display/preload_contract_test.go"
+      - "internal/ui/display/requestlife_test.go"
       - "internal/ui/display/vector_contract_test.go"
       - "internal/ui/display/vector_policy_test.go"
       - "internal/ui/drop_test.go"

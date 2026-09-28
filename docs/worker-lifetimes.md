@@ -1,6 +1,6 @@
 # MA-032: request lifetimes and disposable result delivery
 
-Status: accepted design; implementation in progress, ticket 01 sorting pilot.
+Status: extraction accepted after the sorting/SVG pilot; convergence in progress.
 Date: 2026-09-28
 Source: `/grill-with-docs ma-032`
 Implementation inspected at `4c759b2`; unchanged in the relevant paths at `68477a9`.
@@ -158,10 +158,14 @@ policy; or introduce shared Stop/Wait/Settle choreography.
 
 Implementation begins with ticket 01; ticket 02's pilot verdict gates either
 the migration batches or fallback. Final qualification depends only on the
-selected branch. Sorting now uses the candidate Owner/Token/FinalDelivery
+selected branch. Sorting and SVG use the accepted Owner/Token/FinalDelivery
 contract; scan retains its local lifetime through a temporary progress seam.
 Ticket 04 reunifies that seam after acceptance, or ticket 08 removes it on
-fallback. No broader migration is accepted until SVG proves the second caller.
+fallback. The recorded ticket 02 verdict accepts extraction: both real callers
+delegate currentness and release handoff through one contract, and sorting also
+delegates its captured final-delivery finisher. SVG retains feature identities,
+debounce and raster workers. Passing real-consumer and production shutdown tests
+support the verdict. Tickets 03-07 may migrate; fallback 08 is inapplicable.
 No ADR is needed for this small reversible extraction decision. General
 concurrency vocabulary stays in this document, leaving the domain glossary
 unchanged. Dependencies and native distribution inputs remain unchanged.
