@@ -50,6 +50,6 @@ a resource handle or add protection against external directory replacement.
 Completed on 2026-09-28. V1-V4 ran uncached; production-hook held-producer
 guards also passed under race, and root/launch/UI contracts passed with
 `microsoft_store`. Lead review and GoLand inspections are recorded in the
-[active plan](../../../plans/2026-09-28-ma-033-launch-policy.md). This host's
+[archived record](../../../finished_refactorings/2026-09-28-ma-033-launch-policy.md). This host's
 unconfined Explorer prerequisite correctly refused a timeout rather than
 claiming OS denial; actual isolated/native qualification remains ticket 09.

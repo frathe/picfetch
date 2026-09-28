@@ -107,12 +107,13 @@
   review-loop acceptance are tracked in [PR 71](https://github.com/frathe/picfetch/pull/71).
   MA-033's [accepted launch-policy design](docs/launch-policy.md) resolves all ten
   decisions in its [completed interview](.scratch/ma-033/interview.md).
-  The [local specification](.scratch/ma-033/spec.md) is `ready-for-agent`, with
+  The [resolved specification](.scratch/ma-033/spec.md) has
   60 user stories, agreed testing interfaces and 22 acceptance criteria.
   Its [nine approved implementation tickets](.scratch/ma-033/issues/README.md)
-  are tracked in the [active Deep SDD plan](plans/2026-09-28-ma-033-launch-policy.md).
-  Tickets 01-08 are complete; 09 remains pending. The user authorized per-ticket
-  commits, draft PR/CI and a review loop after all tickets complete.
+  are complete in the [archived Deep SDD record](finished_refactorings/2026-09-28-ma-033-launch-policy.md).
+  All 22 criteria are qualified on d8417ad, including all native host/builds,
+  full CI and complete inspections. Per-ticket commits and subsequent latest-head
+  review-loop acceptance are tracked in [PR 72](https://github.com/frathe/picfetch/pull/72).
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

@@ -1,6 +1,6 @@
 # MA-033: launch side-effect policy
 
-Status: accepted design; all ten decisions resolved, implementation pending.
+Status: accepted design; all ten decisions implemented and qualified.
 Date: 2026-09-28
 Source: `/grill-with-docs ma-033`
 Code inspected at: `5070d6d`; rechecked at `a5caf73` with an identical tracked tree.
@@ -10,9 +10,13 @@ This records the accepted decisions for
 [local interview](../.scratch/ma-033/interview.md) retains questions and code
 evidence. The user accepted all three rounds with "go with defaults", including
 the final round's shared-understanding confirmation. The design interview is
-complete. The [published specification](../.scratch/ma-033/spec.md) is
-`ready-for-agent`, with 60 user stories and 22 acceptance criteria covering the
-agreed interfaces and verification. Implementation requires a subsequent request.
+complete. The [resolved specification](../.scratch/ma-033/spec.md) has
+60 user stories and 22 qualified acceptance criteria covering the agreed
+interfaces and verification. The subsequent `/implement MA-033` request authorized
+implementation and the GitHub review loop. The
+[archived record](../finished_refactorings/2026-09-28-ma-033-launch-policy.md)
+contains code/native evidence; [PR 72](https://github.com/frathe/picfetch/pull/72)
+tracks latest-head reviews and checks.
 The [nine approved tickets](../.scratch/ma-033/issues/README.md) provide the
 implementation sequence, dependency graph and acceptance-criterion ownership.
 

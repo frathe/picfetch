@@ -1,6 +1,6 @@
 # 09: Qualify the integrated implementation
 
-Status: in-progress
+Status: done
 Parent: [MA-033 specification](../spec.md)
 **Blocked by:** [08: Complete policy adoption and native guard coverage](08-convergence-and-native-guards.md).
 
@@ -10,29 +10,29 @@ Unavailable or incomplete gates remain explicit rather than being called passed.
 
 ## Acceptance criteria
 
-- [ ] Reconcile all 22 parent acceptance criteria against actual command output,
+- [x] Reconcile all 22 parent acceptance criteria against actual command output,
   required child inventory, behavioral red/green evidence and tested revisions.
   Run all parent AC1-AC19 commands on their applicable hosts/builds; include the
   lead's completed AC21 caller assessment. Later changes invalidate affected
   earlier evidence until rerun. Verify: V1.
-- [ ] Focused launch-policy qualification passes on native Linux, native Windows
+- [x] Focused launch-policy qualification passes on native Linux, native Windows
   and both supported macOS architectures; the Store suite passes on native
   Windows with Store tags. Retain independent per-platform/revision captures.
   Actual offline prerequisites, Windows Explorer refusal, Open With ordering
   and predecessor behavior are observed without claiming new platform support.
   Verify: V2.
-- [ ] Native trial-tool compatibility is observed on its required host; a
+- [x] Native trial-tool compatibility is observed on its required host; a
   controlled child is not real-model qualification, and reservation remains
   distinct from ready evidence. Verify: V3 and the applicable parent AC18 fixtures.
-- [ ] Formatting/generated inputs/notices, vet, build, exact test exclusions,
+- [x] Formatting/generated inputs/notices, vet, build, exact test exclusions,
   root-UI shards and the full race suite pass through the repository's supported
   Linux/amd64 Docker gate or qualifying native-amd64 CI. Never weaken isolation
   to accommodate emulation. Verify: V4.
-- [ ] Every changed code file has complete GoLand inspection evidence including
+- [x] Every changed code file has complete GoLand inspection evidence including
   weak warnings, tool/profile, analyzed revision and disposition. Reinspect after
   fixes. Review fresh post-suppression Qodana SARIF when CI runs; licensing errors,
   timeouts, skipped files and unavailable hosts remain unverified. Verify: V5.
-- [ ] The lead records the final scope, remaining limits and verification status;
+- [x] The lead records the final scope, remaining limits and verification status;
   update the working evidence/todos and package map where ownership changed.
   Do not mark implementation accepted or archive an active plan prematurely.
   Verify: V1, V4, V5.
@@ -62,3 +62,16 @@ Follow the [shared execution rules](README.md#execution-and-evidence-rules).
 The final gate and any fixes are lead-owned. This ticket does not authorize a
 push, GitHub review loop, merge or release. Network/filesystem sandboxing, model
 quality and Location Map latency requalification remain outside MA-033.
+
+## Completion evidence
+
+Qualified code: `d8417ad`; native CI merge `b0d30d6` has the identical tree.
+All 32 applicable local parent commands and both native macOS trial-tool fixtures
+passed. All five required native host/build captures are complete, with no missing
+or skipped required children. CI run 36488219351 passed Validation, every native
+job and all four Linux/amd64 Docker race shards. CodeQL passed; fresh Qodana SARIF
+has zero post-suppression results. GoLand inspected all 54 changed Go files, with
+all weak warnings assessed and no incomplete scans. Full scope, AC1-AC22 mapping,
+revision provenance and limits are in the
+[archived implementation record](../../../finished_refactorings/2026-09-28-ma-033-launch-policy.md).
+The user separately authorized PR 72 and its subsequent fresh review loop.

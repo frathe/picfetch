@@ -1,12 +1,17 @@
 # MA-033: captured launch side-effect policy
 
-Status: ready-for-agent
+Status: resolved; all 22 acceptance criteria qualified
 Date: 2026-09-28
 Source: `/to-spec ma-033`, synthesizing accepted decisions Q1-Q10.
 Inspected revision: `a5caf73a9031723b42b0bfd13b1fbd25ac893be9`;
 its tracked tree matches the interview baseline `5070d6d`.
-Implementation status: not started; this publication authorizes no code changes,
-commits, pushes, pull-request activity or releases.
+Implementation status: all nine tickets complete and qualified on `d8417ad`.
+The subsequent `/implement MA-033` request authorized commits, pushes, PR/CI and
+the review loop; merge/release remain unauthorized. The
+[archived record](../../finished_refactorings/2026-09-28-ma-033-launch-policy.md)
+maps every criterion to actual evidence; [PR 72](https://github.com/frathe/picfetch/pull/72)
+tracks latest-head reviews and checks. Baseline problem statements below describe
+the pre-implementation state, not remaining defects.
 Design: [accepted launch-policy design](../../docs/launch-policy.md)
 Decision: [captured launch policy ADR](../../docs/adr/0007-captured-launch-policy.md)
 Interview: [all ten accepted decisions](interview.md)
@@ -429,11 +434,10 @@ from an in-flight counter. Preserve queued callback staleness regressions.
 
 ### Acceptance criteria and commands
 
-These are future implementation gates, not tests run for this publication.
-**New** names are proposed behavioral suites/subcases and native runner suites.
-They do not exist yet. Planning may map them to suitable existing interfaces and
-tests while preserving every scenario and updating this command map. Paths below
-locate verification, not prescribed implementation files.
+These gates were specified before implementation and are now qualified in the
+archived record above. **New** names identify behavioral suites/subcases and native
+runner suites introduced by this implementation. Paths below locate verification,
+not prescribed implementation files. The exact command map remains the contract.
 
 Before claiming a pass, enumerate selected top-level tests with
 `go test -tags no_emoji,nodynamic -list '<anchored selection>' <package>` and compare
@@ -568,11 +572,11 @@ Command (new): `go test -tags no_emoji,nodynamic -count=1 -v ./scripts/nativegua
 Windows and both supported macOS architectures, plus native Windows with the
 Store tag. Preserve native Open With and predecessor behavior. Verify Explorer's
 real prerequisite/refusal without asserting Windows Explorer support. Stories 3, 24-28, 37, 58-59.
-Proposed new runner commands, after creating a dedicated evidence directory:
+Implemented runner commands, after creating a dedicated evidence directory:
 `go run ./scripts/nativeguards -suite launch-policy -capture .scratch/ma-033/evidence/native-launch-policy.json`;
 on Windows, `go run ./scripts/nativeguards -suite launch-policy-store -capture .scratch/ma-033/evidence/native-launch-policy-store.json`.
-Retain separate artifacts per platform/revision. These new suite names require
-implementation; runner fixtures alone do not satisfy native execution.
+Retain separate artifacts per platform/revision. Runner fixtures alone do not
+satisfy native execution; the archived record includes all required native runs.
 
 **AC21 — Ownership convergence.** All covered production callers consume the
 captured decision; policy-free effect routes and feature-derived update predicates
@@ -597,7 +601,7 @@ emulation. Add exact Qodana exclusions for new test files and assign every new
 root-UI top-level test to the shard manifest. Preserve source-local justified
 suppressions and update the package map if package ownership changes.
 
-The native suite names above are proposed focused additions, following the
+The native suite names above are implemented focused additions, following the
 existing command-admission/Favorite qualification pattern; implementation planning
 can retain equivalent existing suites if they enforce the same complete inventory.
 Keep inherited-PID, native Open With and trial prerequisite checks in scope without
@@ -629,9 +633,9 @@ installed Store package or new Store/platform trial support.
 
 ## Further Notes
 
-This is the local issue tracker's published specification with `ready-for-agent`
-status. The accepted design and ADR remain the decision record; this document is
-the behavior/story/test contract for subsequent planning. No additional user
+This is the local issue tracker's resolved specification. The accepted design
+and ADR remain the decision record; this document is the behavior/story/test
+contract used for implementation. No additional user
 interview or testing-seam approval is needed for the already accepted interfaces.
 
 Implementation should take the Deep SDD route because it crosses startup/UI
@@ -647,7 +651,8 @@ Resource cleanup covers ordinary error returns and orderly termination, not an
 uncatchable process kill. Preserve the application's existing evidence/error
 conventions for incomplete attempts.
 
-No code or runtime test was changed or executed to publish this specification.
-New test/suite names are requirements, not reported results. Documentation
+No code or runtime test was changed or executed for the original specification
+publication. The later implementation and qualification are recorded separately
+above; the original documentation
 validation passed for structure, story/criterion coverage, links, command syntax
 and existing test-name selections, separately from the future implementation gates.

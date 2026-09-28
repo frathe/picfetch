@@ -1,9 +1,9 @@
 # Capture launch permissions independently of feature lifetime
 
-Status: accepted design; implementation pending.
+Status: accepted; implemented and qualified in MA-033.
 
-PicFetch will capture validated launch permissions and storage selection before
-covered startup effects, and require root composition and updater admission to
+PicFetch captures validated launch permissions and storage selection before
+covered startup effects, and requires root composition and updater admission to
 consume that fixed decision. Deriving permission from live trial feature objects
 couples update safety to feature construction and lifetime; centralizing only
 viewer predicates would still leave direct updater calls dependent on caller

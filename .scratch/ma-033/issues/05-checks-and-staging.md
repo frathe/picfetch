@@ -51,4 +51,4 @@ restricted combinations, configured dependencies/stages, no read/write/worker
 admission, manual refusal protocol, root feature-lifetime and last-day persistence
 observations. Store-tagged and focused race variants also pass. Exact tests,
 review and changed-file GoLand evidence are in the
-[active plan](../../../plans/2026-09-28-ma-033-launch-policy.md).
+[archived record](../../../finished_refactorings/2026-09-28-ma-033-launch-policy.md).

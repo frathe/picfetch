@@ -1,6 +1,6 @@
 # MA-033 implementation tickets
 
-Status: ready-for-agent
+Status: resolved; all nine tickets complete
 Approved: 2026-09-28, after the user accepted the nine-ticket breakdown.
 Parent: [captured launch side-effect policy specification](../spec.md)
 Design: [accepted decisions](../../../docs/launch-policy.md)
@@ -9,9 +9,11 @@ Baseline: `a5caf73a9031723b42b0bfd13b1fbd25ac893be9`.
 
 Implementation began on 2026-09-28 under `/implement MA-033`, authorizing
 per-ticket commits, pushes, a draft PR/CI and a review loop after all tickets.
-The [active Deep SDD plan](../../../plans/2026-09-28-ma-033-launch-policy.md)
-records interfaces, routing and evidence. Tickets 01-08 are complete; 09 remains
-pending. All ten design decisions remain settled. No merge/release is authorized.
+The [archived Deep SDD record](../../../finished_refactorings/2026-09-28-ma-033-launch-policy.md)
+records interfaces, routing and evidence. All nine tickets and all 22 acceptance
+criteria are complete, qualified on d8417ad. [PR 72](https://github.com/frathe/picfetch/pull/72)
+tracks subsequent latest-head reviews and checks. All ten design decisions remain
+settled. No merge/release is authorized.
 
 ## Ticket graph and frontier
 
@@ -27,7 +29,7 @@ pending. All ten design decisions remain settled. No merge/release is authorized
 | [08: Complete policy adoption and native guard coverage](08-convergence-and-native-guards.md) | 04, 06, 07 | No remaining application bypasses and a strict native guard inventory. |
 | [09: Qualify the integrated implementation](09-integrated-qualification.md) | 08 | Native and repository evidence for the integrated result. |
 
-Initial frontier: **01 only**. After 02, the preparation, updater and Settings
+Historical initial frontier: **01 only**. After 02, the preparation, updater and Settings
 branches are logically independent. That does not authorize concurrent edits
 to shared root-UI files or contracts still in flux. Apply the repository's
 delegation limits; the lead owns cross-package design, review and fixes.
@@ -73,7 +75,7 @@ criterion passed.
   weaken existing refusal paths to stage the migration. Unmigrated operations
   retain their existing guards until their owning ticket replaces them.
 - Every ticket includes focused behavioral tests and verification commands.
-  Commands marked **new** name future guards, not tests that already exist.
+  Commands marked **new** named guards introduced by this implementation.
   Each V-number below a ticket's checklist identifies an executable verification
   command for those criteria. Package names locate tests, not required code layout.
 - Establish a behavioral red before green. List selected tests, retain uncached

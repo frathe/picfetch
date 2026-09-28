@@ -1,7 +1,6 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-28 after implementation and qualification of MA-031 and MA-032,
-and publication of MA-033's accepted design and specification.
+Updated 2026-09-29 after implementation and qualification of MA-031 through MA-033.
 The cross-feature architecture assessment of PR review history and
 implementation is dated 2026-09-26.
 
@@ -38,10 +37,11 @@ The [archived record](finished_refactorings/2026-09-28-ma-032-request-lifetimes.
 holds implementation evidence; [PR 71](https://github.com/frathe/picfetch/pull/71)
 tracks latest-head review dispositions and checks. MA-033's
 [accepted launch-policy design](docs/launch-policy.md) resolves all ten interview
-decisions; its [local specification](.scratch/ma-033/spec.md) is `ready-for-agent`
-with 60 stories and 22 acceptance criteria. Implementation planning, implementation
-and qualification remain open. It is planned architectural work, not an unresolved
-PR defect.
+decisions; its [resolved specification](.scratch/ma-033/spec.md) has 60 stories
+and 22 qualified acceptance criteria. All nine tickets are complete in the
+[archived record](finished_refactorings/2026-09-28-ma-033-launch-policy.md).
+[PR 72](https://github.com/frathe/picfetch/pull/72) tracks latest-head review
+dispositions and checks.
 
 Historical inspection baseline: `main` at `54fd7c3` (v1.1.2). At that revision,
 the root `internal/ui` package contained 55 production Go files, 10,835 non-test
@@ -54,7 +54,7 @@ explicit cross-feature composition in `internal/ui`.
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | All nine tickets complete and CI-qualified; latest review/checks in PR 69 |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | All nine tickets complete and CI-qualified; latest review/checks in PR 70 |
 | [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Complete: all 15 owners converged and qualified; review-loop evidence in PR 71 |
-| [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | Design accepted; specification ready-for-agent; implementation and qualification pending |
+| [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | All nine tickets complete and CI-qualified; latest review/checks in PR 72 |
 
 Priorities express architectural value, not the severity of a currently open bug.
 
@@ -574,23 +574,29 @@ passed on `fc7aa32`; the archived record maps all applicable acceptance criteria
 
 ## MA-033 — Capture launch side-effect policy once
 
-**P2; accepted independent refactoring.** The
+**P2; complete and qualified.** The
 [accepted design](docs/launch-policy.md),
 [ADR](docs/adr/0007-captured-launch-policy.md) and
 [completed interview](.scratch/ma-033/interview.md) resolve all ten decisions.
 Runtime policy is distinct from interactive command policy and must exist before
-feature construction. The [published specification](.scratch/ma-033/spec.md) is
-`ready-for-agent`, with 60 user stories, agreed testing interfaces and 22
-acceptance criteria. Implementation planning, implementation and qualification
-remain pending.
+feature construction. The [resolved specification](.scratch/ma-033/spec.md) has
+60 user stories, agreed testing interfaces and 22 qualified acceptance criteria.
+All nine tickets are complete; the
+[archived record](finished_refactorings/2026-09-28-ma-033-launch-policy.md) retains
+TDD, caller assessment, all native host/build captures, full CI and inspections.
+[PR 72](https://github.com/frathe/picfetch/pull/72) tracks latest-head reviews.
+
+The following rationale describes the historical pre-implementation state.
 
 **Evidence:** trial isolation first missed
 [manual update/apply paths](https://github.com/frathe/picfetch/pull/58#discussion_r4105976269),
 then [pre-app predecessor cleanup](https://github.com/frathe/picfetch/pull/58#discussion_r4106350305).
-Current guards repeat Store-managed/Explorer-trial/Location-Map-trial decisions
+The former guards repeated Store-managed/Explorer-trial/Location-Map-trial decisions
 in [main.go](main.go), [run.go](internal/ui/run.go) and
 [autoupdate.go](internal/ui/autoupdate.go). The UI guards also derive launch
-policy from live feature objects (`explorer.Trial`, `locationTrial`).
+policy from live feature objects (`explorer.Trial`, `locationTrial`). These covered
+routes now consume captured policy; the obsolete Options.ApplicationID adapter
+has been removed in favor of separate passive policy and effectful preparation.
 
 **Accepted refactor:** derive one immutable runtime policy from validated
 [launch.Options](internal/launch/launch.go) and distribution mode before normal
@@ -616,8 +622,9 @@ predecessor waiting and failed-restore backup protection. Focused TDD, changed-f
 GoLand inspections, full verification and relevant native startup guards remain
 required; current helper/native suites do not prove the new composition contract.
 Adding a new isolated launch mode changes one policy decision and its tests,
-not a search for scattered feature-name predicates. No implementation verification
-has been performed for this design interview.
+not a search for scattered feature-name predicates. The design interview itself
+ran no implementation verification; the subsequent completed checks are in the
+archived implementation record.
 
 ## Smaller opportunities and deliberate deferrals
 

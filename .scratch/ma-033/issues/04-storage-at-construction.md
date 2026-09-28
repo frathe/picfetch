@@ -49,4 +49,4 @@ construction combinations, actual cache-worker inputs, denied storage before
 preferences, ordinary fallback/cache resolution and immutable roots after later
 flags/feature close. Store-tagged construction and existing trial-launch cases
 also pass. Lead review and full changed-file inspection scope are in the
-[active plan](../../../plans/2026-09-28-ma-033-launch-policy.md).
+[archived record](../../../finished_refactorings/2026-09-28-ma-033-launch-policy.md).

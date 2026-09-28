@@ -1,6 +1,10 @@
 # MA-033: captured launch policy implementation
 
-Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`), 04 (`8528f7b`), 05 (`7a5629b`), 06 (`d8f84c0`), 07 (`08dd7b3`) and 08 (`99ba962`) complete; 09 active.
+Status: implementation accepted and qualified; all nine tickets complete.
+Tickets 01-08: `ccf4702`, `5ea960f`, `de5cb5c`, `8528f7b`, `7a5629b`,
+`d8f84c0`, `08dd7b3`, `99ba962`. Ticket 09 wiring is `d8417ad`; this
+documentation commit records its completed qualification. Latest-head review-loop
+dispositions and checks are tracked in [PR 72](https://github.com/frathe/picfetch/pull/72).
 Baseline: `9549e3b` (approved specification), runtime baseline `a5caf73`.
 Route: Deep SDD with vertical TDD slices.
 Authorization: 2026-09-28 `/implement MA-033`: implementation, per-ticket commits,
@@ -167,13 +171,16 @@ must record G1-G5 before spawning.
 
 - [x] Frame: deliverable, Deep route and non-goals.
 - [x] Spec: accepted decisions and executable criterion map.
-- [ ] Recon: close each ticket's concrete implementation questions before edits.
+- [x] Recon: close each ticket's concrete implementation questions before edits.
 - [x] Plan: task graph, contracts, owners and budgets.
 - [x] Delegation gate recorded for initial scout.
-- [ ] Red/green: record behavioral failure and passing command per slice.
-- [ ] Lead review: formatting, vet, criteria, negative guards, diff; fixes inline.
-- [ ] Final gate: generated inputs/notices, vet/build, shards, full race and native.
-- [ ] Land: per-ticket completion, commits, inspections and final review evidence.
+- [x] Red/green: record behavioral failure and passing command per slice.
+- [x] Lead review: formatting, vet, criteria, negative guards, diff; fixes inline.
+- [x] Final gate: generated inputs/notices, vet/build, shards, full race and native.
+- [x] Land: per-ticket completion, commits, inspections and implementation evidence.
+
+The separately authorized GitHub review loop follows this accepted implementation
+record; its final latest-head status is recorded in PR 72, not presumed here.
 
 ## Execution ledger
 
@@ -188,7 +195,7 @@ must record G1-G5 before spawning.
 | 06 | 0/0 | 1 | no | done |
 | 07 | 0/0 | 1 | no | done |
 | 08 | 1/1 | 1 | no | done |
-| 09 | 0/0 | 0 | CI | active |
+| 09 | 0/0 | 1 | CI | done |
 
 ## Verification evidence
 
@@ -622,3 +629,181 @@ directory with the fixture's existing compatibility path. This is controlled
 child/launcher compatibility, not real-model or UI latency requalification.
 A qualification-wiring commit is required before CI can furnish its evidence;
 the ticket stays in-progress until all final gates and native captures complete.
+
+### Ticket 09 integrated acceptance record
+
+Final code revision: `d8417ad2b688037adb65534aa49f4c39e862e374`.
+Native CI checks the synthetic merge `b0d30d66ed71c90928201f5abde9567a8b04a698`,
+whose parents are runtime baseline `a5caf73` and that head. Both revisions have
+tree `f5e032696a32788f2140beb504471603530c6b85`; this was checked through GitHub's
+commit API and local `git rev-parse HEAD^{tree}`. Captures retain the actual merge
+revision, not an inaccurately substituted head SHA. No code changed after these
+checks. Final review-loop evidence belongs in PR 72 and must identify its final
+head separately; the implementation record does not claim a future review pass.
+
+#### Acceptance reconciliation
+
+All 32 locally applicable commands in the parent's AC1-AC19 map were enumerated
+then executed uncached, with their original package selections and tags. Every
+selection passed. Logs are `09-ac-NN.log` and `09-ac-NN-inventory.log` under the
+local `.scratch/ma-033/evidence/` directory. The numbered log mapping below is
+explicit so a parent's pass cannot hide missing children. Strict native captures
+add exact per-child run/pass accounting for all six new guard families.
+Behavioral red/green and negative-mutation evidence is recorded per ticket above;
+09 reruns the integrated code rather than treating earlier checkmarks as proof.
+
+| Criterion | Integrated evidence and disposition |
+| --- | --- |
+| AC1 | Log 01: all six permission/reason combinations and dual-trial rejection. |
+| AC2 | Logs 02-03: absent/invalid refusal, explicit ordinary capture, immutability and feature replacement. |
+| AC3 | Log 04: fixed identities, independent roots and ordinary fallbacks; native fixture additionally verifies launcher identity. |
+| AC4 | Logs 05-06: exclusive reservation, concurrent claim, prerequisites and pre-app rejection. |
+| AC5 | Log 07: early exits, worker dispatch, native installation and predecessor ordering. |
+| AC6 | Logs 08-09: partial acquisition, cancellation and joined original/cleanup errors; exactly-once close. |
+| AC7 | Log 10: production composition observes selected roots before consumers and refuses missing policy. |
+| AC8 | Log 11: direct check/stage/apply refusal, including preconfigured clients and stages. |
+| AC9 | Logs 12-13: all record reads/writes/clears and last-check persistence; restore remains memory-only. |
+| AC10 | Log 14: real root actions and fixed feature lifetime; native captures include actual Settings composition. |
+| AC11 | Log 15: ordinary daily/manual gating, cancellation, retained stages and stale callbacks. |
+| AC12 | Logs 16-17: complete existing updater/apply/Perform regression selections, authentication and failure records. |
+| AC13 | Logs 18-20: actual startup hook, predecessor guards, failed-restore/unreadable backup retention before report consumption. |
+| AC14 | Logs 21-22: registered shutdown, producer completion, recorder flush/error and post-run finalization. |
+| AC15 | Logs 23-25: mounted controls/reasons, ordinary actions, stale closure and translation parity; Unicode-arrow guards also pass. |
+| AC16 | Log 26: all existing launch-option overrides and one-shot behavior. |
+| AC17 | Logs 27-29: compiled ordinary/Store selection and actual Store startup path; native Windows Store capture supplies host evidence separately. |
+| AC18 | Logs 30-31: Location recorder and manual-tool fixtures; Explorer package is honestly build-only. Both native macOS jobs run and pass TestNativeLibraryRunner once, with no skips. |
+| AC19 | Log 32: runner inventory, missing/skipped child, process failure, wrong host/tags and evidence metadata refusal fixtures. |
+| AC20 | Native per-host captures below; no simulated-platform result substitutes for a native run. |
+| AC21 | Lead caller assessment above, fixed-baseline diff and removal of all covered legacy application routes. |
+| AC22 | Local build gates, full native-amd64 CI race contract, complete IDE scope and post-suppression SARIF below. |
+
+#### Local build and analysis
+
+`make verify-build` passed on clean d8417ad: formatting/generated inputs, TUF root,
+artwork/tag vectors, dependency and AVIF notices, exact Qodana exclusions, tagged
+vet and build. `make check-test-shards-direct` passed all 740 tests in three shards.
+Focused policy/Settings race and ordinary compatibility selections passed. The
+complete race suite is supplied by qualifying native-amd64 GitHub CI rather than
+duplicated locally, as authorized for this workflow. No golden regeneration,
+dependency/model/runtime change or new distribution obligation was introduced.
+
+GoLand Project Default fallback (`get_file_problems`, `errorsOnly=false`) completed
+every one of the 54 changed Go files on d8417ad, with no timeouts/skipped files.
+The local raw scope/results record is `09-inspections-d8417ad.json`. The workflow
+and Qodana YAML were also inspected completely, with no findings. All 33 Go
+findings were weak warnings, assessed rather than discarded:
+
+- 29 duplicate test fragments: autoupdate/applyfailure_test.go (1),
+  autoupdate/updater_test.go (2), root autoupdate_test.go (4), clipboardwork_test.go
+  (1), compare_test.go (6), delete_test.go (1), favorites/favorites_test.go (5),
+  grid_test.go (3), openfiles_test.go (2), slideshow_test.go (4). All retain
+  intentional independent fixtures and existing exact DuplicatedCode exclusions.
+- Two explicit SourceKind("files") fixture conversions in mosaic_test.go retain
+  the existing exact GoRedundantConversion exclusion.
+- Two unchanged viewer.go presentation fragments match the retained ignored
+  `.scratch/ma-028/linux-reset-repair-2026-09-27/mutant-viewer.go` mutation copy.
+  No new production duplicate or actionable changed-code defect was found.
+
+Fresh Qodana run 36488219333, artifact 11000460422, was downloaded and its
+`/end/qodana.sarif.json` inspected directly: QDGO, exact d8417ad provenance,
+executionSuccessful=true, exitCode=0 and results=[] after suppressions. This is
+the configured PR differential scan, not a whole-repository claim or CSV total.
+CodeQL run 36488219330 passed Go and Actions analysis.
+
+#### Native execution and retained captures
+
+CI run [36488219351](https://github.com/frathe/picfetch/actions/runs/36488219351)
+passed every native job at the merge revision/tree identified above. All sidecars
+report Go 1.27.1, Dirty=false, Complete=true, and exactly one run/pass with no
+Rejected outcome for every required entry. Local copies use distinct
+`native-d8417ad-{linux,windows,macarm64,macamd64}` evidence directories.
+
+| Native host | Build | Required outcomes | Retained artifact |
+| --- | --- | --- | --- |
+| Linux amd64 | no_emoji,nodynamic | 165/165 | native-guards-Linux-36488219351-attempt-1 |
+| Windows amd64 | no_emoji,nodynamic | 166/166 | native-guards-Windows-36488219351-attempt-1 |
+| Windows amd64 | no_emoji,nodynamic,microsoftstore | 166/166 | same Windows artifact, independent launch-policy-store JSON/sidecar |
+| macOS arm64 | no_emoji,nodynamic | 169/169 | native-guards-macOS-arm64-36488219351-attempt-1 |
+| macOS amd64 | no_emoji,nodynamic | 169/169 | native-guards-macOS-amd64-36488219351-attempt-1 |
+
+Both macOS artifacts also contain `native-guards-trial-tools.json`; each contains
+one TestNativeLibraryRunner run and pass, with no failed/skipped event. This is
+native controlled-child/launcher compatibility, not model-quality or latency
+qualification. Native Open With/Cocoa and predecessor/inherited-PID guards ran
+as required. The actual Explorer prerequisite reports offline denial unverified
+(TCP probe timeout) on Linux/macOS and explicitly unsupported network isolation
+on Windows; refusal is the observed passing contract, not asserted new support.
+The standalone local clean d8417ad Linux capture independently passes 165/165.
+Store tags do not qualify installation of a Store package. No isolation policy
+was weakened and no unavailable host was represented by cross-compilation.
+
+Earlier 08dd7b3 Windows CI failed its unchanged clipboard multiple-file transport
+after its 30-second child deadline. The new d8417ad Windows run passed that guard
+and both launch-policy suites; no unrelated clipboard behavior was changed.
+All four Linux/amd64 Docker race jobs (non-ui, ui-1, ui-2, ui-3) passed, along
+with Validation's generated/notices/format/vet/build and Windows cross-build/vet.
+This completes the authorized CI equivalent of the broad Make verification gate.
+No open PR CodeQL alerts remain. All AC1-AC22 and ticket 09 V1-V5 are satisfied.
+Remaining limits are the accepted ones: path routing is not an adversarial
+filesystem sandbox; reservation cannot guarantee future disk writes; controlled
+trial fixtures do not qualify model quality, installed Store packaging or human
+Location Map latency; uncatchable process termination cannot promise finalization.
+
+Complete Go inspection scope (paths relative to the repository):
+
+```text
+internal/launch/launch.go
+internal/launch/launch_test.go
+internal/launch/policy.go
+internal/launch/policy_test.go
+internal/launch/preparation.go
+internal/launch/preparation_test.go
+internal/ui/analysiscache.go
+internal/ui/analysiscache/feature.go
+internal/ui/autoupdate.go
+internal/ui/autoupdate/applyfailure.go
+internal/ui/autoupdate/applyfailure_test.go
+internal/ui/autoupdate/launchpolicy_test.go
+internal/ui/autoupdate/updater.go
+internal/ui/autoupdate/updater_test.go
+internal/ui/autoupdate/whatsnew.go
+internal/ui/autoupdate_test.go
+internal/ui/build.go
+internal/ui/clipboardwork_test.go
+internal/ui/commandadmission.go
+internal/ui/compare_test.go
+internal/ui/delete_test.go
+internal/ui/e2e_test.go
+internal/ui/exif_test.go
+internal/ui/explorer_test.go
+internal/ui/favorites/add_test.go
+internal/ui/favorites/favorites.go
+internal/ui/favorites/favorites_test.go
+internal/ui/favthumbs_test.go
+internal/ui/features.go
+internal/ui/grid_test.go
+internal/ui/harness_test.go
+internal/ui/launchoptions.go
+internal/ui/launchoptions_test.go
+internal/ui/launchpolicy_test.go
+internal/ui/locationmap_test.go
+internal/ui/locationtrial.go
+internal/ui/mosaic_test.go
+internal/ui/openfiles_test.go
+internal/ui/preferences_wiring_test.go
+internal/ui/run.go
+internal/ui/session_test.go
+internal/ui/settingswin/heic_test.go
+internal/ui/settingswin/settingswin.go
+internal/ui/settingswin/settingswin_test.go
+internal/ui/slideshow_test.go
+internal/ui/startup.go
+internal/ui/trane_test.go
+internal/ui/viewer.go
+main.go
+main_startup.go
+main_startup_test.go
+main_test.go
+scripts/nativeguards/main.go
+scripts/nativeguards/main_test.go
+```
