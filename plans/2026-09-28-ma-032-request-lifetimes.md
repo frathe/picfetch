@@ -1,6 +1,6 @@
 # MA-032 implementation and evidence
 
-Status: tickets 01-04 complete; extraction accepted, ticket 05 is next.
+Status: tickets 01-05 complete; ticket 06 next; extraction accepted.
 Base: `04cb74c`. Draft PR: https://github.com/frathe/picfetch/pull/71.
 Authorization: 2026-09-28 `/implement MA-032`, TDD/SDD, a commit after each
 ticket, draft PR/CI, then ready-for-review and the GitHub Codex review loop.
@@ -44,9 +44,9 @@ The authorized GitHub full suite supplies the final broad race gate; use
 | 02 | display/vector.go, display contract tests, root shutdown tests; same delivery API; D2 verdict before adoption | T0; 1 T3 scout, focused V1-V5 | Complete |
 | 03 | display feature/load/preload/animation/lifecycle and affected tests; retained-load and playback protocols | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
 | 04 | root asyncop/drop/openfiles/explorer/locationmap and composition/tests; four basic owners | T0; 0 spawns (mechanical rule S), focused V1-V5 | Complete |
-| 05 | filework/save/export/search reconciliation and tests; committed callbacks stay explicit | T0; no spawn, focused V1-V4 | Blocked by verdict |
-| 06 | clipboardwork/clipboard/copyfiles/copyselection, viewer/harness and tests; retain capture and delivery completion | T0; optional 1 T1 task <=3 files, focused V1-V4 | Blocked by verdict |
-| 07 | favthumbs/autoupdate/viewer/harness and affected tests; basic tokens only | T0; optional 1 T1 task <=3 files, focused V1-V4 | Blocked by verdict |
+| 05 | filework/save/export/search reconciliation and tests; committed callbacks stay explicit | T0; no spawn, focused V1-V4 | Complete |
+| 06 | clipboardwork/clipboard/batch/copyselection, viewer/harness and tests; retain capture and delivery completion | T0; 0 spawns (mechanical rule S), focused V1-V4 | Ready |
+| 07 | favthumbs/autoupdate/viewer/harness and affected tests; basic tokens only | T0; 0 spawns (mechanical rule S), focused V1-V4 | Ready |
 | 08 | Restore only pilot runtime changes; test-only shared local contract | T0; no spawn, focused V1-V4 | Inapplicable: extraction accepted |
 | 09 | Remove remaining duplicate request mechanics; retain independent revisions; docs/metadata/evidence and full qualification | T0; no spawn, final gate | Blocked by selected branch |
 
@@ -218,6 +218,8 @@ review, no broad local suite. Formatting and whitespace clean.
 
 ### Ticket 04 — preparation and chooser (parent `0add587`)
 
+Committed as `9bda248`, pushed to draft PR 71.
+
 Scan, native chooser, root Explorer preparation and root Location Map preparation
 now use the shared Owner/Token API. Includes invalidation-only callers in source
 reconciliation and analysis-cache quiescence. Scan captures its parent HEIC context
@@ -245,3 +247,30 @@ repetition covered by existing exact test exclusions; viewer.go title/dropzone
 suggestions retain ticket 01's separate-policy disposition. All other files clean.
 Lead reviewed all four owners and inferred callers; no new background work or
 completion policy. Spawns 0, one review, no broad local suite.
+
+### Ticket 05 — committed file work (parent `9bda248`)
+
+Save, Export and search-origin reconciliation now use shared basic tokens,
+including search invalidation in sourcechange/visualsearch. No FinalDelivery:
+stale-but-committed writes still purge caches and queue current-source/alias
+reconciliation. Its independent fileWork.ctx, worker retries and delivery-bound
+operation completion are unchanged. Search retains its own owner/session checks;
+feature-local search lifecycles remain outside scope.
+
+Baseline three request-family suites passed (30.509s). Negative proof: deliberately
+discarding a stale committed export failed the existing navigate=true alias case
+with stale 8x16 pixels, thumbnail and native dimensions. Restored before migration.
+Final five enumerated top-level suites passed uncached under race (69.907s),
+including V1/V2 plus unrelated-commit reconciliation; no skips or race reports.
+Logs: `.scratch/ma-032/ticket05-{baseline,committed-red,ui,ui-list}.log`.
+Root vet, formatting, whitespace, exact exclusions and canonical Docker inventory
+(743/3) passed. GoLand inspected filework/save/export/sourcechange/visualsearch,
+including weak warnings, clean without timeout. One lead protocol review; no
+implementation spawns and no broad local race suite.
+
+CI recon routing: reuse T3 scout for the single failed Windows job on `9bda248`
+(run 36461891670, job 109062417787). G1 bounded read-only prompt; G2 exact log
+diagnostic and job URL; G3 no writes, one log plus <=2 implicated files;
+G4 independent platform evidence; G5 lead has not read the log. S/W: interpreting
+the failure location is not a supplied mechanical rewrite. Lead owns disposition
+and fixes. One recon turn budget, not delegated code review.

@@ -257,7 +257,7 @@ func (v *viewer) returnExhaustedBrowsingScope(scope browsingScope) {
 // restoreBrowsingOrigin restores interaction and selects an image without
 // starting a load. Its caller owns either fresh admission or a display retry.
 func (v *viewer) restoreBrowsingOrigin(origin browsingOrigin) int {
-	v.fileWork.searchLifecycle.invalidate()
+	v.fileWork.searchLifecycle.Invalidate()
 	v.grid.Close()
 	if v.FileCount() == 0 {
 		v.presentCommittedEmptyCollection()

@@ -171,6 +171,10 @@ Ticket 03 completes all three display owners and borrowed preload tokens; the
 display-local request implementation is removed. Load completion still retains
 its token for neighbor preloads; retries, animation acknowledgement, captures
 and the stronger harness worker barrier keep their existing protocols.
+Ticket 05 migrates Save, Export and search-origin reconciliation to basic tokens.
+Committed write callbacks remain explicit: stale requests still reconcile current
+sources/aliases using file work's independent context and tracked retry workers.
+Operation completion follows that reconciliation, not initiating-token release.
 No ADR is needed for this small reversible extraction decision. General
 concurrency vocabulary stays in this document, leaving the domain glossary
 unchanged. Dependencies and native distribution inputs remain unchanged.
