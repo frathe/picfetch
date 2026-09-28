@@ -66,8 +66,38 @@ COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 .PHONY: verify-build --skip-local-tests
 .PHONY: generate-updater-notices check-updater-notices generate-avif-notices check-avif-notices
 .PHONY: fossa-findings
+.PHONY: loc
 
 all: build
+
+loc: ## Show tracked source files and physical lines, split into Go production/tests and other source
+	@set -eu; \
+	file_list=$$(mktemp); counts=$$(mktemp); \
+	trap 'rm -f "$$file_list" "$$counts"' 0 1 2 3 15; \
+	git ls-files -z --format='./%(path)' -- \
+		'*.go' '*.c' '*.h' '*.m' '*.mm' '*.cc' '*.cpp' '*.cxx' '*.hpp' \
+		'*.swift' '*.py' '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' \
+		'*.ts' '*.mts' '*.cts' '*.tsx' '*.jsx' '*.rs' '*.jq' > "$$file_list"; \
+	xargs -0 awk '\
+		function category(path) { \
+			return path ~ /_test\.go$$/ ? "test" : (path ~ /\.go$$/ ? "production" : "other"); \
+		} \
+		BEGIN { for (i = 1; i < ARGC; i++) files[category(ARGV[i])]++; } \
+		{ lines[category(FILENAME)]++; } \
+		END { for (group in files) print group, files[group], lines[group] + 0; }' \
+		< "$$file_list" > "$$counts"; \
+	awk '\
+		{ files[$$1] += $$2; lines[$$1] += $$3; total_files += $$2; total_lines += $$3; } \
+		END { \
+			printf "%-26s %8s %12s\n", "Category", "Files", "Lines"; \
+			printf "%-26s %8d %12d\n", "Go production code", files["production"], lines["production"]; \
+			printf "%-26s %8d %12d\n", "Go tests", files["test"], lines["test"]; \
+			printf "%-26s %8d %12d\n", "Other source/scripts", files["other"], lines["other"]; \
+			printf "%-26s %8d %12d\n", "Total", total_files, total_lines; \
+			printf "\nGo tests: %.1f%% of source lines.\n", total_lines ? 100 * lines["test"] / total_lines : 0; \
+			print "Physical lines include comments and blank lines in tracked working-tree files."; \
+			print "Excludes untracked files, documentation, configuration and assets."; \
+		}' "$$counts"
 
 fossa-findings: ## Retrieve current FOSSA licensing findings (PR=61 or FOSSA_REVISION=<sha>; key in .env.local)
 	go run ./scripts/fossafindings
