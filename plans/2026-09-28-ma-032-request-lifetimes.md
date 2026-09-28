@@ -1,6 +1,6 @@
 # MA-032 implementation and evidence
 
-Status: tickets 01-02 complete; extraction accepted, ticket 03 is next.
+Status: tickets 01-03 complete; extraction accepted, ticket 04 is next.
 Base: `04cb74c`. Draft PR: https://github.com/frathe/picfetch/pull/71.
 Authorization: 2026-09-28 `/implement MA-032`, TDD/SDD, a commit after each
 ticket, draft PR/CI, then ready-for-review and the GitHub Codex review loop.
@@ -42,7 +42,7 @@ The authorized GitHub full suite supplies the final broad race gate; use
 | --- | --- | --- | --- |
 | 01 | New requestlife API/tests; asyncop/sort/viewer, affected harness and tests; real sort handoff and production shutdown; local scan retained | T0; at most 1 bounded T1 implementation; focused V1-V6, no full suite | Complete |
 | 02 | display/vector.go, display contract tests, root shutdown tests; same delivery API; D2 verdict before adoption | T0; 1 T3 scout, focused V1-V5 | Complete |
-| 03 | display feature/load/preload/animation/lifecycle and affected tests; retained-load and playback protocols | T0; optional 1 T1 task <=3 files, focused V1-V4 | Blocked by verdict |
+| 03 | display feature/load/preload/animation/lifecycle and affected tests; retained-load and playback protocols | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
 | 04 | root asyncop/drop/openfiles/explorer/locationmap and composition/tests; four basic owners | T0; optional 1 T1 task <=3 files, focused V1-V5 | Blocked by verdict |
 | 05 | filework/save/export/search reconciliation and tests; committed callbacks stay explicit | T0; no spawn, focused V1-V4 | Blocked by verdict |
 | 06 | clipboardwork/clipboard/copyfiles/copyselection, viewer/harness and tests; retain capture and delivery completion | T0; optional 1 T1 task <=3 files, focused V1-V4 | Blocked by verdict |
@@ -147,6 +147,8 @@ the first consumer only; extraction remains undecided until ticket 02.
 
 ### Ticket 02 — D2 verdict (candidate tree on parent `c415c7e`)
 
+Committed as `6a3f477`, pushed to draft PR 71.
+
 **Extraction accepted.** Recorded before any owner beyond sorting/SVG migrates.
 
 | Caller | Previous caller obligation | Shared guarantee now used | Retained feature policy |
@@ -186,3 +188,28 @@ rule S, captures parent contexts before Begin, and owns protocol review. No
 implementer is spawned to rediscover the already-understood token transformation.
 Existing behavior suites are run before/after their refactor; no inventory-mirror
 tests are added. New behavior gaps, if found, get a vertical failing test first.
+
+### Ticket 03 — display convergence (parent `6a3f477`)
+
+All three display owners now use requestlife. Load/retry/preload signatures use
+immutable shared tokens; load captures HEIC before Begin. Successful loading
+keeps its token beyond LoadDone, while failed terminal loading releases it.
+Animation uses basic tokens and preserves its per-frame acknowledgement, pause
+acquisition, completion and worker barrier. SVG retains FinalDelivery from 02.
+Removed `display/lifecycle.go`: its revision helper had no independent consumers;
+the existing `Feature.revision` for requested/displayed identity is unchanged.
+Root and other feature-local lifecycle implementations remain untouched.
+
+Baseline: ticket 02's complete display contract. Negative proof: deliberately
+releasing the load token in finishLoad failed the existing preload contract with
+`neighbor preparation was not admitted` (ticket03-retained-load-red.log), then
+the mutation was removed. Final uncached race output: display 3.272s (both
+enumerated suites, load/preloads/animation/captures and all pilot cases); root
+39.669s (CollectionLifecycle and all pilot/shutdown cases). Logs/enumerations:
+`.scratch/ma-032/ticket03-{display,display-list,ui,ui-list}.log`.
+Focused display vet passed. Docker shard inventory remains 743/3; exact exclusions
+unchanged. Four surviving changed Go files inspected with GoLand including weak
+warnings: feature.go/load.go/preload.go/animation.go, all clean without timeout.
+Lead diff/inventory review: no new join, queue, admission rule or release protocol;
+all retired generations remain under their existing barriers. Spawns 0, one lead
+review, no broad local suite. Formatting and whitespace clean.

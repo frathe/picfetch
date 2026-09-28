@@ -1,10 +1,13 @@
 package display
 
 import (
+	"context"
+
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/completion"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/requestlife"
 )
 
 // Request names one navigation, including its broken-source retries.
@@ -18,14 +21,13 @@ func (f *Feature) Load(request Request) {
 		return
 	}
 	f.beginRequest(request.Source)
-	token := f.loadLife.begin()
-	token.ctx = f.config.HEIC.CaptureContext(token.context())
+	token := f.loadLife.Begin(f.config.HEIC.CaptureContext(context.Background()))
 	done := f.load.Begin()
 	f.loadFinish = done
 	if f.config.Callbacks.Requested != nil {
 		f.config.Callbacks.Requested(f.snapshot.Requested)
 	}
-	if !token.current() {
+	if !token.Current() {
 		done()
 		return
 	}
@@ -33,15 +35,15 @@ func (f *Feature) Load(request Request) {
 }
 
 func (f *Feature) cancelLoad() {
-	f.loadLife.invalidate()
+	f.loadLife.Invalidate()
 	if f.loadFinish != nil {
 		f.loadFinish()
 		f.loadFinish = nil
 	}
 }
 
-func (f *Feature) attemptLoad(token requestToken, request Request, done func()) {
-	if !token.current() {
+func (f *Feature) attemptLoad(token requestlife.Token, request Request, done func()) {
+	if !token.Current() {
 		done()
 		return
 	}
@@ -57,20 +59,20 @@ func (f *Feature) attemptLoad(token requestToken, request Request, done func()) 
 		return
 	}
 	f.loadWorkers.Go(func() {
-		data, bounds, err := imaging.ReadAndProbe(token.context(), u)
+		data, bounds, err := imaging.ReadAndProbe(token.Context(), u)
 		if err == nil && f.config.Callbacks.Probed != nil {
 			f.config.Queue.Do(func() {
-				if token.current() && writer.Current() {
+				if token.Current() && writer.Current() {
 					f.config.Callbacks.Probed(bounds)
 				}
 			})
 		}
 		var loaded *imaging.LoadedImage
 		if err == nil {
-			loaded, err = imaging.DecodeRecord(token.context(), data, f.config.Cache.Budget())
+			loaded, err = imaging.DecodeRecord(token.Context(), data, f.config.Cache.Budget())
 		}
 		f.config.Queue.Do(func() {
-			if !token.current() {
+			if !token.Current() {
 				done()
 				return
 			}
@@ -93,7 +95,7 @@ func (f *Feature) attemptLoad(token requestToken, request Request, done func()) 
 			if loaded.AnimationTruncated && f.config.Callbacks.AnimationTruncated != nil {
 				f.config.Callbacks.AnimationTruncated(u)
 			}
-			if !token.current() {
+			if !token.Current() {
 				done()
 				return
 			}
@@ -102,18 +104,18 @@ func (f *Feature) attemptLoad(token requestToken, request Request, done func()) 
 	})
 }
 
-func (f *Feature) failedLoad(token requestToken, request Request, err error, done func()) {
+func (f *Feature) failedLoad(token requestlife.Token, request Request, err error, done func()) {
 	var replacement fyne.URI
 	if f.config.Callbacks.Failed != nil {
 		replacement = f.config.Callbacks.Failed(request.Source, err)
 	}
-	if !token.current() {
+	if !token.Current() {
 		done()
 		return
 	}
 	if replacement == nil {
 		f.snapshot.Loading = false
-		token.cancelContext()
+		token.Release()
 		done()
 		return
 	}
@@ -121,8 +123,8 @@ func (f *Feature) failedLoad(token requestToken, request Request, err error, don
 	f.attemptLoad(token, request, done)
 }
 
-func (f *Feature) finishLoad(token requestToken, request Request, loaded *imaging.LoadedImage, done func()) {
-	if !token.current() {
+func (f *Feature) finishLoad(token requestlife.Token, request Request, loaded *imaging.LoadedImage, done func()) {
+	if !token.Current() {
 		done()
 		return
 	}
@@ -131,7 +133,7 @@ func (f *Feature) finishLoad(token requestToken, request Request, loaded *imagin
 	if f.config.Callbacks.Presented != nil {
 		candidates = f.config.Callbacks.Presented(f.Snapshot())
 	}
-	if !token.current() {
+	if !token.Current() {
 		done()
 		return
 	}

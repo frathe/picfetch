@@ -166,6 +166,10 @@ delegate currentness and release handoff through one contract, and sorting also
 delegates its captured final-delivery finisher. SVG retains feature identities,
 debounce and raster workers. Passing real-consumer and production shutdown tests
 support the verdict. Tickets 03-07 may migrate; fallback 08 is inapplicable.
+Ticket 03 completes all three display owners and borrowed preload tokens; the
+display-local request implementation is removed. Load completion still retains
+its token for neighbor preloads; retries, animation acknowledgement, captures
+and the stronger harness worker barrier keep their existing protocols.
 No ADR is needed for this small reversible extraction decision. General
 concurrency vocabulary stays in this document, leaving the domain glossary
 unchanged. Dependencies and native distribution inputs remain unchanged.

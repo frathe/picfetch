@@ -6,11 +6,12 @@ import (
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/requestlife"
 )
 
 const preloadConcurrency = 2
 
-func (f *Feature) preloadOne(token requestToken, u fyne.URI) {
+func (f *Feature) preloadOne(token requestlife.Token, u fyne.URI) {
 	key := u.String()
 	cacheWrite := f.config.Cache.Capture()
 
@@ -28,17 +29,17 @@ func (f *Feature) preloadOne(token requestToken, u fyne.URI) {
 	// root only asks for two neighbors per settled image,
 	// but rapid navigation could otherwise stack an unbounded number
 	// of these full-size decode goroutines.
-	f.preloads.Go(token.context(), func(acquired bool) {
+	f.preloads.Go(token.Context(), func(acquired bool) {
 		defer f.preloads.Release(key, struct{}{})
 
 		// acquired is false when the token's context was cancelled while
 		// this was still queued for a slot - the pool runs fn either way
 		// precisely so the deferred Release above still clears the claim.
-		if !acquired || !token.current() {
+		if !acquired || !token.Current() {
 			return
 		}
 
-		data, bounds, err := imaging.ReadAndProbe(token.context(), u)
+		data, bounds, err := imaging.ReadAndProbe(token.Context(), u)
 		if err != nil {
 			return
 		}
@@ -58,7 +59,7 @@ func (f *Feature) preloadOne(token requestToken, u fyne.URI) {
 			return
 		}
 
-		loaded, err := imaging.DecodeRecord(token.context(), data, budget)
+		loaded, err := imaging.DecodeRecord(token.Context(), data, budget)
 		if err != nil {
 			return
 		}
@@ -68,7 +69,7 @@ func (f *Feature) preloadOne(token requestToken, u fyne.URI) {
 			return
 		}
 
-		if !token.current() {
+		if !token.Current() {
 			return
 		}
 
