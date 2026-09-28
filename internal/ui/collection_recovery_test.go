@@ -130,6 +130,7 @@ func collectionRuntimeLoss(t *testing.T) {
 			fynetest.Tap(explorerDialogButton(t, v, "Close"))
 			v.grid.SetOnResultChanged(nil)
 			v.favorites.SetDir(t.TempDir())
+			v.favorites.Settle()
 			if sibling {
 				v.favorites.AddCurrentList()
 				saveBrowsingFavorite(t, v, files)

@@ -31,6 +31,7 @@ func TestCollectionCapture(t *testing.T) {
 			t.Run(map[bool]string{false: "all", true: "selected"}[selected], func(t *testing.T) {
 				v, publish := streamingSearch(t)
 				v.favorites.SetDir(t.TempDir())
+				v.favorites.Settle()
 				publish(similarity.SearchPartial, 2, 1)
 				want := []fyne.URI{v.FileAt(0), v.FileAt(2), v.FileAt(1)}
 				if selected {
@@ -59,6 +60,7 @@ func TestCollectionCapture(t *testing.T) {
 		source := []fyne.URI{files[1], unavailable, files[0], files[0]}
 		favorite := storeFavorite(t, v, "Original", source...)
 		v.favorites.Open(0)
+		v.favorites.Settle()
 		waitForScan(t, v)
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)
@@ -108,6 +110,7 @@ func TestCollectionReplay(t *testing.T) {
 		uri := storage.NewFileURI(uitest.WriteTempFile(t, "u.heic", []byte("unavailable")))
 		favorite := storeFavorite(t, v, "Unavailable", uri, uri)
 		v.favorites.Open(0)
+		v.favorites.Settle()
 		waitForScan(t, v)
 		observation := v.state.Observe()
 		if observation.Count() != 0 || len(observation.Retained()) != 2 || observation.Favorite() != favorite {
@@ -132,6 +135,7 @@ func TestCollectionReplay(t *testing.T) {
 		missing := storage.NewFileURI(filepath.Join(t.TempDir(), "0-missing.jpg"))
 		storeFavorite(t, v, "Missing", missing, photo, photo)
 		v.favorites.Open(0)
+		v.favorites.Settle()
 		waitForScan(t, v)
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)
@@ -153,6 +157,7 @@ func TestCollectionReplay(t *testing.T) {
 		storeFavorite(t, v, "Truncated", photo, photo)
 		before := v.state.Observe()
 		v.favorites.Open(0)
+		v.favorites.Settle()
 		waitForScan(t, v)
 		if v.Generation() != before.Generation() || v.FileCount() != 0 || v.explorerInput.pendingLaunch || v.pendingPictureFrame || v.sortOp.done.Begun() {
 			t.Fatal("trial replay bypassed truncation refusal")
@@ -164,6 +169,7 @@ func TestCollectionReplay(t *testing.T) {
 		v.SetMaxScan(2)
 		storeFavorite(t, v, "Capped", photo, photo, photo)
 		v.favorites.Open(0)
+		v.favorites.Settle()
 		waitForScan(t, v)
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)
@@ -190,6 +196,7 @@ func TestCollectionReplay(t *testing.T) {
 				photo := uitest.TempDirJPEGURIs(t, "a.jpg")[0]
 				favorite := storeFavorite(t, v, "Bounded", unavailable, unavailable, photo, unavailable, photo)
 				v.favorites.Open(0)
+				v.favorites.Settle()
 				waitForScan(t, v)
 				waitForSort(t, v)
 				waitUntilLoaded(t, v)
@@ -264,6 +271,7 @@ func TestCollectionReplay(t *testing.T) {
 				photo := uitest.TempDirJPEGURIs(t, "a.jpg")[0]
 				favorite := storeFavorite(t, v, "Pending", unavailable, unavailable, photo, photo)
 				v.favorites.Open(0)
+				v.favorites.Settle()
 				select {
 				case <-entered:
 				case <-time.After(testTimeout):
@@ -326,6 +334,7 @@ func TestCollectionReplay(t *testing.T) {
 				if entry == "favorite" {
 					favorite = storeFavorite(t, v, "Recorded", recorded...)
 					v.favorites.Open(0)
+					v.favorites.Settle()
 				} else {
 					v.restoreSession()
 				}
@@ -345,6 +354,7 @@ func TestCollectionReplay(t *testing.T) {
 				if entry == "favorite" {
 					bookmark, _ := after.Bookmark(after.Count() - 1)
 					v.favorites.Open(0)
+					v.favorites.Settle()
 					waitForScan(t, v)
 					waitForSort(t, v)
 					waitUntilLoaded(t, v)

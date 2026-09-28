@@ -649,6 +649,7 @@ func TestCompareCommandIsolation_ShortcutsAreIgnored(t *testing.T) {
 		t.Fatalf("favstore.Save: %v", err)
 	}
 	v.favorites.SetDir(favoriteDir)
+	v.favorites.Settle()
 
 	var clipboardImage, clipboardFiles, wallpaper, revealed bool
 	uitest.StubClipboardCopy(t, func([]byte) error { clipboardImage = true; return nil })

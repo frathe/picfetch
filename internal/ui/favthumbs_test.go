@@ -31,6 +31,7 @@ import (
 // same discipline settleWallpaper gives the wallpaper goroutine.
 func settleFavoritePreviews(t *testing.T, v *viewer) {
 	t.Helper()
+	v.favorites.Settle()
 
 	if !v.favThumb.Begun() {
 		t.Fatal("no favorite-preview pass pending to settle")
@@ -50,6 +51,7 @@ func storeFavorite(t *testing.T, v *viewer, name string, files ...fyne.URI) stri
 		t.Fatalf("favstore.Save: %v", err)
 	}
 	v.favorites.SetDir(dir)
+	v.favorites.Settle()
 
 	return favstore.Dir(dir, name)
 }
@@ -80,6 +82,7 @@ func TestSyncFavoritePreviews_OpeningAFavoriteWritesPreviews(t *testing.T) {
 	favDir := storeFavorite(t, v, "Trip", first, second)
 
 	v.favorites.Menu().Items[2].Action()
+	v.favorites.Settle()
 	settleFavoritePreviews(t, v)
 	waitForScan(t, v)
 	waitForSort(t, v)
@@ -97,6 +100,7 @@ func TestSyncFavoritePreviews_PreferenceOffWritesNothing(t *testing.T) {
 	favDir := storeFavorite(t, v, "Trip", source)
 
 	v.favorites.Menu().Items[2].Action()
+	v.favorites.Settle()
 	waitForScan(t, v)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
@@ -122,6 +126,7 @@ func TestSyncFavoritePreviews_SecondOpenAddsNothing(t *testing.T) {
 	favDir := storeFavorite(t, v, "Trip", first, second)
 
 	v.favorites.Menu().Items[2].Action()
+	v.favorites.Settle()
 	settleFavoritePreviews(t, v)
 	waitForScan(t, v)
 	waitForSort(t, v)
@@ -129,6 +134,7 @@ func TestSyncFavoritePreviews_SecondOpenAddsNothing(t *testing.T) {
 	before := previewNames(t, favDir)
 
 	v.favorites.Menu().Items[2].Action()
+	v.favorites.Settle()
 	settleFavoritePreviews(t, v)
 	waitForScan(t, v)
 	waitForSort(t, v)
@@ -149,6 +155,7 @@ func TestSyncFavoritePreviews_WarmsTheGridThumbnailCache(t *testing.T) {
 	storeFavorite(t, v, "Trip", source)
 
 	v.favorites.Menu().Items[2].Action()
+	v.favorites.Settle()
 	settleFavoritePreviews(t, v)
 	waitForScan(t, v)
 	waitForSort(t, v)

@@ -254,23 +254,22 @@ func (p *managePanel) scrollIntoView(row int) {
 // for themselves: a second dialog would stack over the first and take the
 // keyboard from it.
 func (f *Feature) ShowManage() {
-	if !f.host.AdmitFavorite(ManageCommand) {
+	if f.stopped || !f.host.AdmitFavorite(ManageCommand) {
 		return
 	}
 	f.showManage()
 }
 
 func (f *Feature) showManage() {
-	if f.manageDialog != nil {
+	if f.manageDialog != nil || f.manageRequested || f.stopped {
 		return
 	}
+	f.manageRequested = true
+	f.refreshMenu()
+}
 
-	names, err := favstore.List(f.dir)
-	if err != nil {
-		f.reportError(lang.L("could not list favorites: %v"), err)
-		return
-	}
-
+func (f *Feature) buildManage() {
+	names := f.names
 	entries := make([]manageEntry, len(names))
 	for i, name := range names {
 		favoriteName := name
@@ -318,6 +317,7 @@ func (f *Feature) showManage() {
 // hideManage closes the dialog if it is up - Escape, or the Open button on
 // its way to the image view.
 func (f *Feature) hideManage() {
+	f.manageRequested = false
 	if f.manageDialog != nil {
 		f.manageDialog.Hide()
 	}
@@ -357,24 +357,32 @@ func (f *Feature) removeFavorite(name string) {
 }
 
 func (f *Feature) performRemove(name string) {
-	f.pending.Add(1)
-	go func() {
-		err := favstore.Remove(f.dir, name)
-		fyne.Do(func() {
-			defer f.pending.Done()
-
+	if f.stopped {
+		return
+	}
+	ctx, dir, queue := f.viewContext(), f.dir, f.ui
+	f.workers.Go(func() {
+		if ctx.Err() != nil {
+			return
+		}
+		err := favstore.Remove(dir, name)
+		queue.Do(func() {
+			if f.stopped {
+				return
+			}
 			if err != nil {
-				f.reportError(lang.L("could not remove favorite %q: %v"), name, err)
+				if ctx.Err() == nil {
+					f.reportError(lang.L("could not remove favorite %q: %v"), name, err)
+				}
 				return
 			}
 
 			f.refreshMenu()
-			f.host.ShowToast(fmt.Sprintf(lang.L("removed favorite %q"), name))
-			if f.managePanel != nil {
-				f.rebuildManage()
+			if ctx.Err() == nil {
+				f.host.ShowToast(fmt.Sprintf(lang.L("removed favorite %q"), name))
 			}
 		})
-	}()
+	})
 }
 
 // rebuildManage reopens the dialog on the list as it now stands, keeping
@@ -386,7 +394,7 @@ func (f *Feature) rebuildManage() {
 	row := f.managePanel.row
 
 	f.hideManage()
-	f.showManage()
+	f.buildManage()
 	// Not unconditional: a rebuild whose favstore.List failed reported that
 	// and left no dialog, and so nothing to put a ring on.
 	if f.managePanel != nil {

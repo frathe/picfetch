@@ -34,6 +34,10 @@ func TestFavoriteMembershipLimits(t *testing.T) {
 			dir, name := putDefinition(t, data)
 			_, loadErr := Load(dir, name)
 			_, countErr := Count(dir, name)
+			entries, listErr := (&Store{}).List(context.Background(), dir)
+			if listErr != nil || len(entries) != 1 || (entries[0].CountErr != nil) != (extra != 0) {
+				t.Fatalf("menu count boundary: %+v, %v", entries, listErr)
+			}
 			if extra == 0 && (loadErr != nil || countErr != nil) {
 				t.Fatalf("exact boundary rejected: %v / %v", loadErr, countErr)
 			}
@@ -87,6 +91,10 @@ func TestFavoriteMembership(t *testing.T) {
 				if count, err := Count(dir, name); err != nil || count != len(tc.paths) {
 					t.Fatalf("count = %d, %v", count, err)
 				}
+				entries, err := (&Store{}).List(context.Background(), dir)
+				if err != nil || len(entries) != 1 || entries[0].Count != len(tc.paths) || entries[0].CountErr != nil {
+					t.Fatalf("menu count disagrees: %+v, %v", entries, err)
+				}
 			})
 		}
 	})
@@ -106,6 +114,10 @@ func TestFavoriteMembership(t *testing.T) {
 				}
 				if _, err := Count(dir, name); err == nil {
 					t.Error("invalid definition counted successfully")
+				}
+				entries, err := (&Store{}).List(context.Background(), dir)
+				if err != nil || len(entries) != 1 || entries[0].Name != name || entries[0].CountErr == nil {
+					t.Fatalf("invalid menu count lost fallback: %+v, %v", entries, err)
 				}
 			})
 		}

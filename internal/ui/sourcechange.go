@@ -34,6 +34,7 @@ type sourceChange struct {
 // Reorder retains collection facts but retires generation-bound producers and
 // reconciles retained visits before choosing the one authoritative image load.
 func (v *viewer) commitCollectionReorder(ordered []fyne.URI) {
+	v.favorites.CancelOpen()
 	finishUpdate := v.beginBrowsingUpdate()
 	browsing := v.captureBrowsingReconciliation()
 	change := v.state.Reorder(ordered)
@@ -60,6 +61,7 @@ func (v *viewer) commitCollectionReorder(ordered []fyne.URI) {
 // Open preparation has already retired its feature surfaces. Commit complete
 // collection facts before rebinding derived readers or admitting display work.
 func (v *viewer) commitOpenedCollection(input collectionInput, merging bool, present func()) {
+	v.favorites.CancelOpen()
 	finishUpdate := v.beginBrowsingUpdate()
 	v.closeVisualSearch()
 	v.grid.Close()
@@ -98,6 +100,10 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 		return -1
 	}
 	defer v.beginBrowsingUpdate()()
+	// Settings reconciliation also runs before Favorites is constructed.
+	if v.favorites != nil {
+		v.favorites.CancelOpen()
+	}
 	browsing := v.captureBrowsingReconciliation()
 	if change.kind == sourceWritten {
 		v.locationMap.InvalidateSources(change.written)

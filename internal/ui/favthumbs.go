@@ -12,10 +12,16 @@ import (
 
 	"fyne.io/fyne/v2"
 
+	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/favthumbs"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 )
+
+// syncCapturedFavoritePreviews is the complete-open preview handoff.
+func (v *viewer) syncCapturedFavoritePreviews(owner *favstore.Owner, files []fyne.URI) {
+	v.SyncFavoritePreviews(owner.Path(), files)
+}
 
 // FavoritePreviewCache and SetFavoritePreviewCache are the settings
 // window's getter/setter pair for the preference, the same shape

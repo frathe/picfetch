@@ -428,6 +428,7 @@ func TestFindMoreLikeThisActionsCaptureRankedSources(t *testing.T) {
 				v := openGridWith(t, "a.jpg", "b.jpg")
 				v.settings.looseAnalysisCache = false
 				v.favorites.SetDir(t.TempDir())
+				v.favorites.Settle()
 				configureExplorer(v, func(options *explorerui.Options) {
 					options.Supported, options.AssetsReady, options.Settings.IntroSeen = true, true, true
 					options.Settings.CacheFavorites = true

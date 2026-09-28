@@ -100,6 +100,7 @@ func TestHandleKeyEvent_IgnoredWhileAFyneDialogIsUp(t *testing.T) {
 	dropAndWait(t, v, a, b)
 
 	v.showManageFavorites()
+	v.favorites.Settle()
 	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
 		t.Fatalf("setup: overlay count = %d, want the Manage Favorites dialog", n)
 	}
@@ -125,6 +126,7 @@ func TestHandleKeyEvent_DialogSwallowsTheAppsOtherKeysToo(t *testing.T) {
 	warmThumbs(t, v)
 
 	v.showManageFavorites()
+	v.favorites.Settle()
 	startIndex := v.state.Observe().index
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
@@ -154,6 +156,7 @@ func TestHandleTypedRune_IgnoredWhileAFyneDialogIsUp(t *testing.T) {
 	}
 
 	v.showManageFavorites()
+	v.favorites.Settle()
 	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
 		t.Fatalf("setup: overlay count = %d, want the Manage Favorites dialog", n)
 	}

@@ -909,6 +909,7 @@ func TestBrowsingActionTargets(t *testing.T) {
 	t.Run("frozen_image_favorite_during_new_rankings", func(t *testing.T) {
 		v, publish := streamingSearch(t)
 		v.favorites.SetDir(t.TempDir())
+		v.favorites.Settle()
 		publish(similarity.SearchPartial, 2, 1)
 		v.grid.SimulateHover(1)
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
@@ -922,6 +923,7 @@ func TestBrowsingActionTargets(t *testing.T) {
 	t.Run("filtered_ranked_grid_favorite", func(t *testing.T) {
 		v, publish := streamingSearch(t)
 		v.favorites.SetDir(t.TempDir())
+		v.favorites.Settle()
 		publish(similarity.SearchPartial, 2, 1)
 		v.grid.HandleRune('/')
 		v.grid.HandleRune('b')
@@ -934,6 +936,7 @@ func TestBrowsingActionTargets(t *testing.T) {
 		t.Run("ordinary_favorite/"+visit, func(t *testing.T) {
 			v := newTestViewer(t)
 			v.favorites.SetDir(t.TempDir())
+			v.favorites.Settle()
 			a := uitest.TempGPSJPEGURI(t, "a.jpg", 24, 16, 52.52, 13.405)
 			b := uitest.TempJPEGURI(t, "b.jpg", 24, 16, color.White)
 			dropAndWait(t, v, a, b)

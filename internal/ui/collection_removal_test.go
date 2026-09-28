@@ -139,6 +139,7 @@ func collectionRemovalReconciliation(t *testing.T) {
 func collectionCaptureAfterRemoval(t *testing.T) {
 	v := newTestViewer(t)
 	v.favorites.SetDir(t.TempDir())
+	v.favorites.Settle()
 	a, b, c := collectionRemovalSources(t)
 	u := storage.NewFileURI(filepath.Join(t.TempDir(), "unavailable.heic"))
 	dropAndWait(t, v, a, b, c)

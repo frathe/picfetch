@@ -518,6 +518,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		v.settings.looseAnalysisCache = false
 		v.analysisDir = t.TempDir()
 		v.favorites.SetDir(t.TempDir())
+		v.favorites.Settle()
 		files := []fyne.URI{v.FileAt(0), v.FileAt(1)}
 		v.findMoreLikeThis()
 		v.visualsearch.Settle()
@@ -551,6 +552,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		v.settings.looseAnalysisCache = true
 		v.analysisDir = t.TempDir()
 		v.favorites.SetDir(t.TempDir())
+		v.favorites.Settle()
 		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path()}
 
 		v.showExplorer()
@@ -585,6 +587,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		v.settings.looseAnalysisCache = true
 		root := t.TempDir()
 		v.favorites.SetDir(root)
+		v.favorites.Settle()
 		files := []fyne.URI{v.FileAt(0), v.FileAt(1)}
 		paths := []string{files[0].Path(), files[1].Path()}
 		v.findMoreLikeThis()
@@ -845,13 +848,16 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			t.Fatal(err)
 		}
 		v.favorites.SetDir(root)
+		v.favorites.Settle()
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		v.LeaveSimilarityMap()
 		// A new viewer has no prior map or in-memory analysis to fall back on.
 		v = newTestViewer(t)
 		v.favorites.SetDir(root)
+		v.favorites.Settle()
 		v.favorites.Menu().Items[2].Action()
+		v.favorites.Settle()
 		waitForScan(t, v)
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)

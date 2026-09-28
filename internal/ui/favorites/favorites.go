@@ -2,6 +2,7 @@
 package favorites
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -44,7 +45,7 @@ const (
 // Host is the viewer behavior used by the favorites feature.
 type Host interface {
 	CurrentFiles() []fyne.URI
-	OpenFavorite(dir string, files []fyne.URI)
+	OpenFavorite(owner *favstore.Owner, files []fyne.URI)
 	ShowToast(msg string)
 
 	// SyncFavoritePreviews brings the previews stored under favDir in line
@@ -72,6 +73,20 @@ type Feature struct {
 	host            Host
 	win             fyne.Window
 	dir             string
+	storage         Storage
+	ui              UIQueue
+	entries         []favstore.Entry
+	menuDir         string
+	viewCtx         context.Context
+	viewCancel      context.CancelFunc
+	openCancel      context.CancelFunc
+	refreshCancel   context.CancelFunc
+	refreshRevision uint64
+	refreshRunning  bool
+	refreshPending  bool
+	manageRequested bool
+	stopped         bool
+	confirmDialog   dialog.Dialog
 
 	menu         *fyne.Menu
 	addItem      *fyne.MenuItem
@@ -91,12 +106,12 @@ type Feature struct {
 	addDialog dialog.Dialog
 	addPanel  *addPanel
 
-	pending sync.WaitGroup
+	workers sync.WaitGroup
 }
 
 // New builds the Favorites menu without reading from disk.
 func New(host Host, win fyne.Window) *Feature {
-	f := &Feature{host: host, win: win, availability: Availability{Open: true, Manage: true}}
+	f := &Feature{host: host, win: win, availability: Availability{Open: true, Manage: true}, storage: &favstore.Store{}, ui: fyneQueue{}}
 	f.addItem = fyne.NewMenuItem(lang.L("Add Current List to Favorites…"), f.AddCurrentList)
 	f.addItem.Disabled = true
 	// Display-only, mirroring Manage Favorites… below: the binding itself
@@ -132,6 +147,10 @@ func (f *Feature) Dir() string { return f.dir }
 
 // SetDir selects the storage directory and populates the menu from it.
 func (f *Feature) SetDir(dir string) {
+	if f.stopped {
+		return
+	}
+	f.Close()
 	f.dir = dir
 	f.refreshMenu()
 }
@@ -142,6 +161,9 @@ type Availability struct{ Open, Add, Manage bool }
 // SetAvailability updates items without publishing the main menu. Root owns
 // its single refresh after applying all feature decisions.
 func (f *Feature) SetAvailability(availability Availability) bool {
+	if !availability.Open {
+		f.CancelOpen()
+	}
 	changed := f.availability != availability
 	f.availability = availability
 	f.syncCommandAvailability()
@@ -173,24 +195,28 @@ func ShortcutForIndex(index int) *desktop.CustomShortcut {
 
 // Open opens the favorite currently assigned to a zero-based shortcut slot.
 func (f *Feature) Open(index int) {
-	if index < 0 || index >= ShortcutCount || index >= len(f.names) {
+	if f.menuDir != f.dir || index < 0 || index >= ShortcutCount || index >= len(f.names) {
 		return
 	}
 	f.openFavorite(f.names[index])
 }
 
-func (f *Feature) refreshMenu() bool {
-	names, err := favstore.List(f.dir)
-	if err != nil {
-		f.reportError(lang.L("could not list favorites: %v"), err)
-		return false
+func (f *Feature) installMenu(entries []favstore.Entry) {
+	f.entries = entries
+	f.menuDir = f.dir
+	menuDir := f.dir
+	names := make([]string, len(entries))
+	for i, entry := range entries {
+		names[i] = entry.Name
 	}
 
 	items := []*fyne.MenuItem{f.addItem, fyne.NewMenuItemSeparator()}
 	for i, name := range names {
 		favoriteName := name
 		item := fyne.NewMenuItem(f.menuLabel(favoriteName), func() {
-			f.openFavorite(favoriteName)
+			if f.dir == menuDir {
+				f.openFavorite(favoriteName)
+			}
 		})
 		if shortcut := ShortcutForIndex(i); shortcut != nil {
 			item.Shortcut = shortcut
@@ -205,22 +231,17 @@ func (f *Feature) refreshMenu() bool {
 	f.menu.Items = items
 	f.syncCommandAvailability()
 	f.host.RefreshMenus()
-	return true
 }
 
-// menuLabel returns a favorite's Favorites-menu label: its name and its
-// stored file count, sourced from favstore.Count so the number always
-// matches what opening the favorite would try to load. A count that can't
-// be read falls back to the bare name rather than a toast - the favorite
-// still lists, still opens (through favoriteName in refreshMenu, never this
-// label), and still holds its accelerator slot; reportError per favorite
-// here would turn one broken file-list.json into a toast on every refresh.
+// menuLabel uses only the last complete worker snapshot. Unknown counts keep
+// the bare name and shortcut slot without producing a toast per invalid list.
 func (f *Feature) menuLabel(name string) string {
-	count, err := favstore.Count(f.dir, name)
-	if err != nil {
-		return name
+	for _, entry := range f.entries {
+		if entry.Name == name && entry.CountErr == nil {
+			return fmt.Sprintf(lang.L("%s (%d)"), name, entry.Count)
+		}
 	}
-	return fmt.Sprintf(lang.L("%s (%d)"), name, count)
+	return name
 }
 
 // AddCurrentList is the Favorites menu's own "Add Current List to
@@ -228,13 +249,16 @@ func (f *Feature) menuLabel(name string) string {
 // dialog; showAdd's initial parameter exists for Stage 5's Replace-Cancel,
 // which reopens with the name that just clashed still in the field.
 func (f *Feature) AddCurrentList() {
-	if !f.host.AdmitFavorite(AddCommand) {
+	if f.stopped || !f.host.AdmitFavorite(AddCommand) {
 		return
 	}
 	f.addFilesPrompt(f.host.CurrentFiles())
 }
 
 func (f *Feature) saveFavorite(name string) {
+	if f.stopped {
+		return
+	}
 	name = strings.TrimSpace(name)
 	if !favstore.ValidName(name) {
 		f.host.ShowToast(lang.L(`enter a name without / \ : * ? " < > |`))
@@ -271,6 +295,9 @@ func (f *Feature) saveFavorite(name string) {
 }
 
 func (f *Feature) writeFavorite(name string) {
+	if f.stopped {
+		return
+	}
 	files := slices.Clone(f.addFiles)
 	if f.addFiles == nil {
 		files = f.host.CurrentFiles()
@@ -302,23 +329,6 @@ func (f *Feature) writeFavorite(name string) {
 	f.host.ShowToast(fmt.Sprintf(lang.L("saved favorite %q"), name))
 }
 
-func (f *Feature) openFavorite(name string) {
-	if !f.host.AdmitFavorite(OpenCommand) {
-		return
-	}
-	files, err := favstore.Load(f.dir, name)
-	if err != nil {
-		f.reportError(lang.L("could not open favorite %q: %v"), name, err)
-		return
-	}
-
-	// Reported before the files are handed over, so whatever the host does
-	// with the list in the background starts alongside the scan this open
-	// triggers rather than behind it.
-	f.host.SyncFavoritePreviews(favstore.Dir(f.dir, name), files)
-	f.host.OpenFavorite(favstore.Dir(f.dir, name), files)
-}
-
 func (f *Feature) reportError(format string, args ...any) {
 	message := fmt.Sprintf(format, args...)
 	fyne.LogError("favorites operation failed", errors.New(message))
@@ -327,7 +337,7 @@ func (f *Feature) reportError(format string, args ...any) {
 
 // AddFiles opens naming for an explicit list.
 func (f *Feature) AddFiles(files []fyne.URI) {
-	if !f.host.AdmitFavorite(AddCommand) {
+	if f.stopped || !f.host.AdmitFavorite(AddCommand) {
 		return
 	}
 	f.addFilesPrompt(files)

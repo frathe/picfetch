@@ -1,6 +1,6 @@
 # MA-031 implementation and evidence
 
-Status: tickets 01-04 complete; implementing UI reads/lifecycle 05. Baseline: `f09af93` (planning branch), code
+Status: tickets 01-05 complete; validated saves 06 next. Baseline: `f09af93` (planning branch), code
 baseline `7e52ea5b5fe95ae7d0995e88fa765ab57d549b86`.
 
 Deliver shared validated Favorite membership and captured ownership to every
@@ -167,7 +167,7 @@ Lead owns review, Explorer/root qualification, fixes and the ticket commit.
 - [x] 02 similarity/search
 - [x] 03 maintenance
 - [x] 04 cohorts
-- [ ] 05 UI reads/lifetime
+- [x] 05 UI reads/lifetime
 - [ ] 06 saves
 - [ ] 07 removal
 - [ ] 08 previews
@@ -361,3 +361,42 @@ capture association. Raw output: `04-cohorts-storage.txt`, `04-cohorts-explorer.
 on the combined worktree. GoLand inspected both changed Go files including weak
 warnings on the tree based on 19d8786/8144d9e: clean, no timeout/skip. No new files,
 test exclusions, shard rows, formats or dependencies were needed.
+
+### Ticket 05 evidence
+
+Ordinary discovery/count/open now use shared validation on tracked workers.
+Refresh retains the last complete menu, coalesces requests and discards retired
+delivery. Open carries the captured owner plus complete occurrences through
+existing replay, checking admission again. Favorites owns the fourteenth test
+UIQueue; root shutdown and harness stop/join it before preview/collection cleanup.
+Native removal is tracked through OS return, not an unobserved UI callback.
+
+Observed red -> green: held reads blocked UI; queued callbacks delivered retired
+opens; identical replacement passed the old path-based load; source replacement
+failed to invalidate a held open. The final root guard compares durable scan
+handles, not a transient active counter. Disabling CancelOpen made its source
+case fail with "admitted another scan"; restoring it passed. Feature lifecycle
+guards also fail under that mutation. Raw guard: `05-root-guard-red.txt`.
+
+Enumerated and ran uncached shared membership/limits, complete Favorites feature,
+root ownership/admission/replay/capture/shutdown, all Favorite-named root tests,
+startup, Explorer/local Explorer, Map, browsing and modal/compare regressions.
+Logs: `05-membership.txt`, `05-feature.txt`, `05-root-ownership.txt`,
+`05-root-focused.txt`, `05-root-consumers.txt` in the local evidence directory.
+All selected cases pass without skips. Focused Favorites race suite and vet for
+favstore, Favorites and root also pass. Formatting and exact exclusions pass;
+root shard inventory contains 742 tests, including the new integration suite.
+
+GoLand inspected all 34 changed/new Go files, including weak warnings, on the
+ticket-05 tree based on 013aa9f. Final changed guards re-inspected clean. No
+timeout/skipped file. Intentional fixture duplicates in browsing, compare,
+Explorer-local, Favorites, step and visual-search tests are covered by their
+existing exact Qodana exclusions. Two viewer.go weak duplicate matches resolve
+only to the ignored `.scratch/ma-028/linux-reset-repair-2026-09-27/mutant-viewer.go`
+historical artifact, excluded from the production review scope (not shipped or
+present in CI); no production suppression or unrelated artifact edit was added.
+
+Temporary bridges remain explicit: synchronous Save/Exists move to the captured
+mutation lane in 06; root's captured-open owner currently forwards to the legacy
+preview API until 08. Neither bridge adds a definition decoder. AGENTS documents
+queue/shutdown ordering using writing-for-agents guidance. No dependency changes.

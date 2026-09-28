@@ -4,11 +4,9 @@ package favstore
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -68,37 +66,7 @@ func Exists(dir, name string) bool {
 
 // List returns favorite names sorted case-insensitively.
 func List(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() || !ValidName(entry.Name()) {
-			continue
-		}
-		info, err := os.Stat(filepath.Join(dir, entry.Name(), fileListName))
-		if err == nil && !info.IsDir() {
-			names = append(names, entry.Name())
-			continue
-		}
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, err
-		}
-	}
-
-	sort.Slice(names, func(i, j int) bool {
-		left, right := strings.ToLower(names[i]), strings.ToLower(names[j])
-		if left == right {
-			return names[i] < names[j]
-		}
-		return left < right
-	})
-	return names, nil
+	return listNames(context.Background(), dir)
 }
 
 // Save atomically writes files as the favorite named name.

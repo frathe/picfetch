@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 // newNameEntryFixture builds a nameEntry inside a shown window and gives it
@@ -180,11 +181,13 @@ func TestShowAddDownMovesToChoicesUpMovesBackToTheField(t *testing.T) {
 	f.showAdd("")
 
 	typeKey(t, f.win, fyne.KeyDown)
+	f.Settle()
 	if got := f.win.Canvas().Focused(); got != fyne.Focusable(f.addPanel.choices) {
 		t.Fatalf("focused after Down = %T, want the choice panel", got)
 	}
 
 	typeKey(t, f.win, fyne.KeyUp)
+	f.Settle()
 	if got := f.win.Canvas().Focused(); got != fyne.Focusable(f.addPanel.entry) {
 		t.Errorf("focused after Up = %T, want the name field again", got)
 	}
@@ -235,6 +238,7 @@ func TestShowAddReturnWithAValidNameSavesAndClosesTheDialog(t *testing.T) {
 	test.Type(f.addPanel.entry, "Trip")
 
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	if !favstore.Exists(f.dir, "Trip") {
 		t.Error("Return with a valid name did not save the favorite")
@@ -256,6 +260,7 @@ func TestShowAddReturnWithAnInvalidNameSavesNothingAndLeavesTheRingOnCancel(t *t
 	f.addPanel.entry.SetText("a/b")
 
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	if favstore.Exists(f.dir, "a/b") || favstore.Exists(f.dir, "a") {
 		t.Error("Return with an invalid name saved something")
@@ -278,8 +283,11 @@ func TestShowAddDownRightReturnSaves(t *testing.T) {
 	test.Type(f.addPanel.entry, "Trip")
 
 	typeKey(t, f.win, fyne.KeyDown)
+	f.Settle()
 	typeKey(t, f.win, fyne.KeyRight)
+	f.Settle()
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	if !favstore.Exists(f.dir, "Trip") {
 		t.Error("Down, Right, Return on Add did not save")
@@ -296,7 +304,9 @@ func TestShowAddDownReturnOnCancelClosesWithoutSaving(t *testing.T) {
 	test.Type(f.addPanel.entry, "Trip")
 
 	typeKey(t, f.win, fyne.KeyDown)
+	f.Settle()
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	if favstore.Exists(f.dir, "Trip") {
 		t.Error("Down, Return on Cancel saved the typed name")
@@ -313,6 +323,7 @@ func TestShowAddEscapeClosesWithoutSavingFromTheField(t *testing.T) {
 	test.Type(f.addPanel.entry, "Trip")
 
 	typeKey(t, f.win, fyne.KeyEscape)
+	f.Settle()
 
 	if favstore.Exists(f.dir, "Trip") {
 		t.Error("Escape from the field saved the typed name")
@@ -328,8 +339,10 @@ func TestShowAddEscapeClosesWithoutSavingFromTheChoices(t *testing.T) {
 	f.showAdd("")
 	test.Type(f.addPanel.entry, "Trip")
 	typeKey(t, f.win, fyne.KeyDown)
+	f.Settle()
 
 	typeKey(t, f.win, fyne.KeyEscape)
+	f.Settle()
 
 	if favstore.Exists(f.dir, "Trip") {
 		t.Error("Escape from the choices saved the typed name")
@@ -346,6 +359,7 @@ func TestShowAddTrimsTheName(t *testing.T) {
 	f.addPanel.entry.SetText("  Trip  ")
 
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	if !favstore.Exists(f.dir, "Trip") {
 		t.Error("Return did not save the trimmed name")
@@ -383,6 +397,7 @@ func TestShowAddClosingReleasesTheKeyboard(t *testing.T) {
 	f.showAdd("")
 
 	typeKey(t, f.win, fyne.KeyEscape)
+	f.Settle()
 
 	if got := f.win.Canvas().Focused(); got != nil {
 		t.Errorf("focused = %v, want nil after the dialog closed", got)
@@ -438,12 +453,16 @@ func TestShowAddDismissesBeforeOnChosenRuns(t *testing.T) {
 		files: []fyne.URI{storage.NewFileURI("/photos/a.jpg")},
 	}}
 	f := New(host, win)
+	f.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(func() { f.Stop(); f.Settle() })
 	f.SetDir(t.TempDir())
+	f.Settle()
 	host.f = f
 
 	f.showAdd("")
 	test.Type(f.addPanel.entry, "Trip")
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	if !host.called {
 		t.Fatal("SyncFavoritePreviews never ran - the save did not happen")

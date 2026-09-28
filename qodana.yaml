@@ -283,6 +283,8 @@ exclude:
       - "internal/ui/favorites/favorites_test.go"
       - "internal/ui/favorites/manage_test.go"
       - "internal/ui/favorites/search_test.go"
+      - "internal/ui/favorites/storage_test.go"
+      - "internal/ui/favorite_ownership_test.go"
       - "internal/ui/favthumbs_test.go"
       - "internal/ui/features_test.go"
       - "internal/ui/filestate_test.go"

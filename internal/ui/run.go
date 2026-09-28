@@ -138,6 +138,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices,
 }
 
 func (v *viewer) waitForShutdown() {
+	v.favorites.Wait()
 	v.waitHEIC()
 	v.help.Wait()
 	v.locationMap.Wait()
@@ -184,6 +185,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 	// same guaranteed-synchronous flush instead of racing it.
 	application.Lifecycle().SetOnStopped(func() {
 		view.stopping = true
+		view.favorites.Stop()
 		view.stopHEIC()
 		view.help.Stop()
 		view.closeLocationMap()
