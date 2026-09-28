@@ -1,6 +1,6 @@
 # MA-030: authoritative collection identity and committed transitions
 
-Status: implementation in progress; tickets 01-07 complete, tickets 08-09 pending.
+Status: implementation in progress; tickets 01-08 complete, ticket 09 pending.
 Baseline: `1f92396367acc41c663710ee4b4b981c43d1c184`.
 Branch: `feature/ma-030-collection-transitions`.
 Authority: [accepted design](../docs/collection-transitions.md),
@@ -232,7 +232,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 | 05 | 1/1 | 1 | no | Complete; sort handoff evidence below |
 | 06 | 1/1 | 2 | no | Complete; batch/removal handoff evidence below |
 | 07 | 1/1 | 1 | no | Complete; unavailable recovery evidence below |
-| 08 | 1/1 | 0 | no | Committed-write/current-binding test-seam scout complete |
+| 08 | 1/1 | 1 | no | Complete; committed-write/policy evidence below |
 | 09 | 1/1 | 0 | CI | Close/reset/stale-delivery test-seam scout complete |
 
 ### Progress
@@ -246,7 +246,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 - [x] 05 latest-choice sort handoff.
 - [x] 06 batch removals and shared survivor result.
 - [x] 07 unavailable retention and scoped recovery.
-- [ ] 08 committed writes and policy distinctions.
+- [x] 08 committed writes and policy distinctions.
 - [ ] 09 convergence, complete qualification and draft removal.
 - [ ] Fresh clean latest-commit Codex/security reviews and required CI.
 
@@ -748,3 +748,77 @@ Lead review confirms one authoritative publication, unchanged command admission,
 separate decoder-guide versus ordinary-retry policy, and existing cancellation/
 queue ownership. Ticket 06's GitHub jobs are all green on 2b08c3e; post-suppression
 SARIF and final fresh reviews remain required at the final gate.
+
+### Ticket 08 evidence — 2026-09-28
+
+Committed-source resolution now consumes the coherent collection observation,
+including its actual URI values, rather than reparsing the duplicate-key adapter.
+Both affected-source and current-image decisions are bound to a captured
+collection generation. A newly exposed race allowed a queued current-image
+decision to load an obsolete index after an earlier member was removed: removal
+moves selection without necessarily issuing a display request. Refresh now
+re-reads the current binding when collection generation or cache generation
+changes; changed display requests still suppress obsolete presentation. Alias
+resolution, metadata reads and completion stay in the tracked file-work lane.
+
+Caller inventory: save.go/saveRotation and export.go/exportAs preserve committed
+results despite stale action tokens and deliver afterFileWrite; viewer.go's
+AfterMetadataRemoved and mosaic.go's AfterFileExported deliver their existing
+Host notifications there too. Their existing commit-time image-cache purges are
+unchanged. Root sourceWritten invalidates derived content/map/analysis state,
+preserves Grid indexes and refreshes comparison. sourcesRevalidated additionally
+purges image content and rebuilds indexes, using the model's Remove result when
+missing sources exist. SetMaxFileSizeMB and pushDuplicateDistance retain named
+policy effects and no-op checks; analysis-cache maintenance keeps its separate
+quiescence/lifecycle owner. No new dispatcher, workers, packages or dependencies.
+
+Acceptance mapping:
+
+- CommittedEffects/callers/{save,export,metadata,mosaic}: actual disk commits,
+  held stale save/export results and delivered metadata/mosaic Host results;
+  replacement Favorite has a noncurrent symlink alias plus an unavailable entry.
+  All four invalidate affected derived producers without changing binding,
+  membership, chosen occurrence, unrelated pixels/rotation or stale toast text.
+  Required alias cases ran without skipping.
+- CommittedEffects/chosen_index_revalidation holds the second UI delivery,
+  removes an earlier member through root, and proves refreshed pixels still
+  belong to the chosen source at its new index, with no membership publication.
+- Lifecycle/committed_writes covers both queued decisions across same-membership
+  rebinding, unrelated replacement, close/reopen and terminal file-work admission
+  closure, for committed and uncommitted results (16 cases). Completion occurs
+  exactly once and includes required new work; disk truth survives cancellation.
+- ChangeKinds/content_and_policy covers content, validation, analysis, duplicate
+  threshold, and both unchanged-policy cases. It pins separate image/thumbnail/
+  Favorite/duplicate producer invalidation, generation, browsing rebinding and
+  Grid selection behavior. The encoded-limit fixture restores the global limit.
+
+TDD: chosen_index_revalidation failed against the old implementation because a
+queued export refresh selected the following image. The generation-bound refresh
+made it pass. Negative guards: skipping affected-source generation revalidation
+failed queued replacement; disabling alias matching failed all four caller cases;
+adding an analysis-policy blanket image-cache purge failed its distinct-effects
+case. All mutations restored before final verification.
+
+Verification on 3887956 + ticket 08 working tree:
+
+- Final verbose CommittedEffects/Lifecycle/ChangeKinds: PASS, 2.605s; all required
+  subcases ran. Location Map competing writes/replacement: all four cases PASS,
+  0.434s, preserving source versions and current-map facts.
+- Existing Save cancellation, Export current/noncurrent alias, unrelated export,
+  loaded-set revalidation, competing commit, metadata rotation, complete Explorer,
+  browsing reconciliation and search/source-retirement regressions: PASS, 17.822s.
+- Metadata-removal committed/uncommitted cancellation matrix: PASS, 0.184s;
+  mosaic committed/uncommitted cancellation matrix: PASS, 0.109s.
+- Focused race across new families plus existing save/export/metadata/alias,
+  browsing and search-retirement contracts: PASS, 75.545s.
+- UI vet, make fmt/fmt-check, exact Qodana exclusions, Docker shard inventory
+  (741 runnables) and git diff --check: PASS.
+- GoLand Inspect Code fallback, current IDE profile, errorsOnly=false: filework,
+  collection_effects_test, collection_recovery_test and collection_sort_test
+  completed with no findings (including weak warnings), no skips/timeouts.
+  Restored sourcechange also reinspected clean. No suppressions added.
+
+Lead review confirms all four write routes share the ordered root boundary,
+source I/O remains off UI, stale-request suppression stays separate from disk
+truth, and policy differences remain explicit. Ticket 07's GitHub jobs are all
+green on 3887956; final SARIF/review gates remain pending ticket 09.

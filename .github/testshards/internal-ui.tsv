@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 267 entries, 470.520s projected weight sum
+# ui-1: 268 entries, 470.520s projected weight sum
 # ui-2: 255 entries, 470.530s projected weight sum
 # ui-3: 218 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -52,6 +52,7 @@ TestCloseFiles_ResetsLoadedFilesToWelcomeState	ui-1
 TestCollectionAdmission	ui-1
 TestCollectionCapture	ui-1
 TestCollectionChangeKinds	ui-1
+TestCollectionCommittedEffects	ui-1
 TestCollectionCompatibility	ui-1
 TestCollectionFavoriteAssociation	ui-1
 TestCollectionLifecycle	ui-1

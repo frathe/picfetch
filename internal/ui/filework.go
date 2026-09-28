@@ -12,7 +12,6 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/completion"
-	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -114,7 +113,7 @@ func (v *viewer) afterFileWrite(result imaging.WriteResult, reload, refreshEXIF 
 		done()
 		return
 	}
-	files := v.state.snapshot()
+	files := v.state.Observe()
 	ctx := v.heicContext(v.fileWork.ctx)
 	v.fileWork.workers.Go(func() {
 		affected := writtenFileSources(ctx, result.Path, files)
@@ -143,7 +142,7 @@ func (v *viewer) afterFileWrite(result imaging.WriteResult, reload, refreshEXIF 
 
 // Exporting a new copy leaves loaded sources unchanged. Resolve aliases on a
 // worker before discarding their derived state, including noncurrent sources.
-func writtenFileSources(ctx context.Context, path string, files dupes.Snapshot) []fyne.URI {
+func writtenFileSources(ctx context.Context, path string, files collectionSnapshot) []fyne.URI {
 	if ctx.Err() != nil {
 		return nil
 	}
@@ -153,8 +152,8 @@ func writtenFileSources(ctx context.Context, path string, files dupes.Snapshot) 
 		if ctx.Err() != nil {
 			return nil
 		}
-		u, err := storage.ParseURI(files.KeyAt(i))
-		if err != nil || u.Scheme() != "file" {
+		u := files.FileAt(i)
+		if u == nil || u.Scheme() != "file" {
 			continue
 		}
 		if filepath.Clean(u.Path()) == filepath.Clean(path) {
@@ -166,10 +165,12 @@ func writtenFileSources(ctx context.Context, path string, files dupes.Snapshot) 
 	return affected
 }
 
-// A separate commit may invalidate the cache while this decision is queued.
-// Retry its current-file read without repeating global invalidation.
+// A collection commit can move the chosen occurrence without a new display
+// request, and a separate write can invalidate the cache. Re-read the current
+// binding in either case without repeating global invalidation.
 func (v *viewer) refreshWrittenFile(result imaging.WriteResult, reload, refreshEXIF bool, done func()) {
-	u, index, ok := v.CurrentFile()
+	collection := v.state.Observe()
+	u, index, ok := collection.Current()
 	if !ok {
 		done()
 		return
@@ -217,7 +218,7 @@ func (v *viewer) refreshWrittenFile(result imaging.WriteResult, reload, refreshE
 				done()
 				return
 			}
-			if !writer.Current() {
+			if collection.Generation() != v.Generation() || !writer.Current() {
 				v.refreshWrittenFile(result, reload, refreshEXIF, done)
 				return
 			}

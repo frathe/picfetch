@@ -194,6 +194,7 @@ func collectionLoadFailureReconciliation(t *testing.T) {
 }
 
 func TestCollectionLifecycle(t *testing.T) {
+	t.Run("committed_writes", collectionCommittedWriteLifecycle)
 	t.Run("load_recovery", func(t *testing.T) {
 		for _, action := range []string{"replacement", "close_reopen", "stop"} {
 			for _, delivery := range []string{"held", "queued"} {
