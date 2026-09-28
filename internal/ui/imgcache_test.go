@@ -172,8 +172,7 @@ func TestRemoveFile_PurgesCacheEntry(t *testing.T) {
 
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
-	v.state.files = []fyne.URI{a, b}
-	v.state.unsortedFiles = []fyne.URI{a, b}
+	v.state.replaceFiles([]fyne.URI{a, b}, []fyne.URI{a, b})
 	v.imgCache.Add(a.String(), &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 1, 1))}})
 
 	v.RemoveFile(0)
@@ -192,8 +191,7 @@ func TestAppState_RemoveFileEvictsCacheWithoutCallerAsking(t *testing.T) {
 
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
-	v.state.files = []fyne.URI{a, b}
-	v.state.unsortedFiles = []fyne.URI{a, b}
+	v.state.replaceFiles([]fyne.URI{a, b}, []fyne.URI{a, b})
 	v.imgCache.Add(a.String(), &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 1, 1))}})
 
 	v.state.removeFile(0)

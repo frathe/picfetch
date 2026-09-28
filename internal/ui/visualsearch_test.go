@@ -496,12 +496,15 @@ func TestFindMoreLikeThisActionsCaptureRankedSources(t *testing.T) {
 		for i := range files {
 			files[i] = storage.NewFileURI(filepath.Join(dir, fmt.Sprintf("%04d.jpg", i)))
 		}
-		v.state.files = append(files, v.state.files...)
-		v.state.index += prefix
+		files = append(files, v.state.files...)
+		index := v.CurrentIndex() + prefix
 		var calls atomic.Int64
-		for i, uri := range v.state.files {
-			v.state.files[i] = searchCountingURI{URI: uri, calls: &calls}
+		for i, uri := range files {
+			files[i] = searchCountingURI{URI: uri, calls: &calls}
 		}
+		v.state.replaceFiles(files, files)
+		v.state.Select(index)
+		calls.Store(0)
 		_ = v.preloadCandidates()
 		if got := calls.Load(); got > int64(len(v.state.files)+16) {
 			t.Fatalf("preloads captured the ranked order more than once: %d path reads for %d files", got, len(v.state.files))

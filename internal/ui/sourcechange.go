@@ -209,7 +209,7 @@ func (v *viewer) restoreBrowsingOrigin(origin browsingOrigin) int {
 	if !ok {
 		return -1
 	}
-	v.state.index = i
+	v.state.Select(i)
 	return i
 }
 

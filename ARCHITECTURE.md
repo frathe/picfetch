@@ -624,9 +624,11 @@ production shutdown joins both features after stopping admission.
 
 The application. Unexported `appState` is the file-set model (scan/drop
 order, displayed order, index, sort, merge) and publishes an immutable
-`dupes.Snapshot` — file keys plus generation — atomically on every write to
-`files`; `viewer.Generation()` reads the generation out of that snapshot
-rather than a separate counter. Unexported `viewer` is the Fyne façade.
+collection observation containing source/display order, retained unavailable
+occurrences, requested selection and generation-bound path lookup. Navigation
+shares immutable membership; `FileSet()` adapts URI keys and generation to
+`dupes.Snapshot` for workers. `viewer.Generation()` reads that observation.
+Unexported `viewer` is the Fyne façade.
 Construction order, overlay order, data flow, and concurrency: see
 `AGENTS.md`. Features expose state; `internal/ui` composes them.
 
@@ -652,6 +654,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `windowmenu_notdarwin.go` | No-op twin of the Darwin native-menu merge. |
 | `testdata/` | Golden screenshots for the e2e suite. |
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |
+| `collection.go` | Immutable `collectionSnapshot`, bound path bookmarks, `Observe` and `Select`; source/display/retained order and URI-key worker adapter share one publication. |
 | `sourcechange.go` | Complete source-removal, committed-write, validation-recovery and analysis-policy transitions. Detaches search before callback delivery and restores browsing after collection/cohort/Grid reconciliation; display keeps retry ownership. |
 | `lifecycle.go` | `requestLifecycle` / `requestToken` for root scan/sort/copy-selection and other root work. Display owns its load/GIF/SVG lifecycles internally. |
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / comparison ownership / `applyTitle`), reset/close (`clearToDropzone` releases cached and recycled-cell images through `grid.InvalidateContent`), merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |

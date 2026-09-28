@@ -1,6 +1,6 @@
 # MA-030: collection identity and committed transitions
 
-Status: accepted design; all eleven interview decisions resolved; implementation pending.
+Status: accepted design; ticket 01 implemented; tickets 02-09 remain open.
 Date: 2026-09-28
 Source: `/grill-with-docs MA-030`
 Inspected revision: `eb2ea0b2b3072f6baada09d7da81b68f577f863d`.
@@ -8,8 +8,14 @@ Inspected revision: `eb2ea0b2b3072f6baada09d7da81b68f577f863d`.
 Strengthen [MA-030](../needs_refactoring.md#ma-030)'s collection model and
 root reconciliation so callers no longer coordinate collection facts and
 feature update ordering independently. Both proposed slices are in scope.
-This document is the accepted design record. The executable specification and
-implementation plan are subsequent work; no production changes are included.
+This document is the accepted design record. The
+[local specification](../.scratch/ma-030/spec.md) is published as
+`ready-for-agent`, with 56 user stories, test seams and 18 command-backed
+acceptance criteria. The approved [nine implementation tickets](../.scratch/ma-030/issues/README.md)
+are published with blockers and per-ticket model assignments. The tracker is
+gitignored by repository convention. The
+[Deep SDD plan](../plans/2026-09-28-ma-030-collection-transitions.md) records
+completed ticket 01 and the remaining migration/qualification work.
 
 ## Accepted decisions
 
@@ -34,9 +40,9 @@ the shared design. All branches of the interview are resolved.
 | D11 / Q11: sort and navigation | At ordinary sort commit, preserve the latest chosen occurrence, including an image still loading. MA-029 origin restoration retains its explicit priority. Obsolete loads cannot publish after the handoff. |
 
 The [ownership ADR](adr/0005-collection-transition-ownership.md) records D3's
-tradeoff. Exact Go types, migration tasks and executable acceptance criteria
-belong to the subsequent specification and implementation plan; they must
-preserve the contracts below.
+tradeoff. The specification carries the executable acceptance map. Exact Go
+types, migration tasks and finalized test selections belong to the subsequent
+implementation plan; they must preserve the contracts below.
 
 ## Current source observations
 
@@ -260,11 +266,12 @@ The scout found no dedicated root test holding an image load across sort
 completion or covering merge into an unavailable-only collection; the
 implementation must add deliberate synchronization for those scenarios.
 
-The subsequent specification must bind every acceptance criterion to a command
-and retain the repository's required focused TDD, test/shard/exclusion upkeep,
-changed-code GoLand inspection and `make verify` gates. Documentation whitespace
-and local links are checked separately; these implementation gates have not run
-and are not claimed to pass.
+The local specification binds every acceptance criterion to a command and
+retains the repository's required focused TDD, test/shard/exclusion upkeep,
+changed-code GoLand inspection and `make verify` gates. Proposed tests must
+actually exist and run before a command can establish acceptance. Documentation
+whitespace and local links are checked separately; implementation gates have
+not run and are not claimed to pass.
 
 ## Interview work
 

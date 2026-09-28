@@ -466,7 +466,7 @@ func TestHEICUnavailableGuide(t *testing.T) {
 		x, y := storage.NewFileURI("/images/x.jpg"), storage.NewFileURI("/images/y.jpg")
 		files := []fyne.URI{a, x, a, y}
 		v.state.setFiles(files, files)
-		v.state.index = 2
+		v.state.Select(2)
 		if next := v.imageLoadFailed(a, heic.ErrUnavailable); next != nil {
 			t.Fatal("provider loss automatically retried another source")
 		}

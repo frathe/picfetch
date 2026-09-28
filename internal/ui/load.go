@@ -35,12 +35,14 @@ func (v *viewer) showImage(i int, intent commandIntent) {
 	v.cancelSave()
 	v.cancelExport()
 	v.exif.Invalidate()
-	n := len(v.state.files)
-	v.state.index = ((i % n) + n) % n
+	if !v.state.Select(i) {
+		return
+	}
 	if v.slides.Active() && v.img.Image != nil {
 		v.startFade(0, 1)
 	}
-	v.display.Load(display.Request{Source: v.state.files[v.state.index], Transition: v.slides.Active()})
+	source, _, _ := v.state.Observe().Current()
+	v.display.Load(display.Request{Source: source, Transition: v.slides.Active()})
 }
 
 func (v *viewer) invalidateLoad() uint64 {
@@ -182,8 +184,9 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 		v.loadingBar.Hide()
 		return nil
 	}
-	v.state.index = next
-	return v.state.files[v.state.index]
+	v.state.Select(next)
+	source, _, _ = v.state.Observe().Current()
+	return source
 }
 
 func (v *viewer) imageAnimationTruncated(source fyne.URI) {
@@ -191,25 +194,27 @@ func (v *viewer) imageAnimationTruncated(source fyne.URI) {
 }
 
 func (v *viewer) preloadCandidates() []fyne.URI {
-	n := len(v.state.files)
+	collection := v.state.Observe()
+	n := collection.Count()
 	if n < 2 {
 		return nil
 	}
-	next, prev := (v.state.index+1)%n, (v.state.index-1+n)%n
+	_, current, _ := collection.Current()
+	next, prev := (current+1)%n, (current-1+n)%n
 	if scope := v.captureBrowsingScope(); scope.restricted {
 		var ok bool
-		next, ok = scope.Next(v.state.index, 1)
+		next, ok = scope.Next(current, 1)
 		if !ok {
 			return nil
 		}
-		prev, _ = scope.Next(v.state.index, -1)
+		prev, _ = scope.Next(current, -1)
 	}
 	var candidates []fyne.URI
-	if next != v.state.index {
-		candidates = append(candidates, v.state.files[next])
+	if next != current {
+		candidates = append(candidates, collection.FileAt(next))
 	}
-	if prev != next && prev != v.state.index {
-		candidates = append(candidates, v.state.files[prev])
+	if prev != next && prev != current {
+		candidates = append(candidates, collection.FileAt(prev))
 	}
 	return candidates
 }

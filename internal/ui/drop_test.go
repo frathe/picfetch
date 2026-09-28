@@ -459,8 +459,7 @@ func TestCancelScan_PreservesExistingFilesInMergeMode(t *testing.T) {
 	v := newTestViewer(t)
 
 	existing := uitest.TempJPEGURI(t, "existing.jpg", 4, 4, color.White)
-	v.state.files = []fyne.URI{existing}
-	v.state.unsortedFiles = []fyne.URI{existing}
+	v.state.replaceFiles([]fyne.URI{existing}, []fyne.URI{existing})
 	v.dropzone.Hide()
 
 	v.scanOp.active = true

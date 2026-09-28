@@ -131,8 +131,7 @@ func TestStaleFileStateCompletionsDoNotOverwriteNewerState(t *testing.T) {
 	stale := []fyne.URI{
 		uitest.FakeURI{FileName: "stale.jpg", Ext: ".jpg"},
 	}
-	v.state.files = append([]fyne.URI(nil), current...)
-	v.state.unsortedFiles = append([]fyne.URI(nil), current...)
+	v.state.replaceFiles(current, current)
 
 	staleScanToken := v.scanOp.lifecycle.begin()
 	v.scanOp.lifecycle.begin()

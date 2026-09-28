@@ -259,8 +259,7 @@ func TestSetSortMode_SnapshotDoesNotAliasUnsortedFiles(t *testing.T) {
 		unsorted = append(unsorted, uitest.FakeURI{FileName: fmt.Sprintf("img_%05d.jpg", i), Ext: ".jpg"})
 	}
 
-	v.state.files = append([]fyne.URI(nil), unsorted...)
-	v.state.unsortedFiles = unsorted
+	v.state.replaceFiles(unsorted, unsorted)
 
 	v.SetSortMode(filesort.ByModTime)
 
@@ -370,8 +369,7 @@ func TestCaptureSort_CancelsHeldReadWithoutInstallingOrder(t *testing.T) {
 		}, nil
 	})
 	current := []fyne.URI{uitest.FakeURI{FileName: "current.jpg", Ext: ".jpg"}}
-	v.state.files = slices.Clone(current)
-	v.state.unsortedFiles = slices.Clone(current)
+	v.state.replaceFiles(current, current)
 	applied := false
 	v.startSort(filesort.ByCaptureDate, []fyne.URI{source}, func(ordered []fyne.URI) {
 		applied = true
@@ -431,7 +429,7 @@ func TestCaptureSort_CancellationRestoresMenuAndAllowsRetry(t *testing.T) {
 	// the other file. Name order and capture-date fallback order differ.
 	before := []fyne.URI{source, b}
 	v.state.setFiles([]fyne.URI{b, source}, before)
-	v.state.index = 1
+	v.state.Select(1)
 	v.applyTitle()
 	v.syncMenus()
 	title := v.win.Title()

@@ -108,7 +108,7 @@ func TestDeletion_ReorderBeforeConfirmationPreservesIdentity(t *testing.T) {
 	v.display.WaitPreloads()
 	v.deletion.Request()
 	v.state.reorder([]fyne.URI{b, a})
-	v.state.index = 1
+	v.state.Select(1)
 	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
 	v.deletion.Settle()

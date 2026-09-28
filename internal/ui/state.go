@@ -1,11 +1,13 @@
 package ui
 
 import (
+	"slices"
 	"sync/atomic"
 
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/dupes"
+	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/filesort"
 )
 
@@ -23,17 +25,9 @@ type appState struct {
 	sortMode         filesort.Mode
 	mergeMode        bool
 
-	// published is the immutable {keys, generation} view of files that
-	// readers off the UI goroutine use instead of touching the slice -
-	// internal/dupes, whose Model is read from hashing workers while the
-	// UI goroutine replaces files underneath them.
-	//
-	// Every write to files republishes under a bumped generation as its
-	// last act, so the two move together. The revision counter this
-	// replaces was separate from the list it described, and in finishSort
-	// it advanced before the files did: a worker could see the new
-	// generation over the old list.
-	published atomic.Pointer[dupes.Snapshot]
+	// Readers retain immutable collection data and selection together. Membership
+	// writes advance generation; Select shares the data without changing it.
+	published atomic.Pointer[collectionSnapshot]
 
 	// onRemove is the image-cache eviction hook: removeFile calls it with
 	// the URI it just dropped, after publish(), so a subscriber always
@@ -53,11 +47,10 @@ func newAppState(sortMode filesort.Mode, mergeMode bool) appState {
 // current files, at the next generation. Mutators call it last; nothing
 // else may.
 func (s *appState) publish() {
-	var gen uint64
-	if prev := s.published.Load(); prev != nil {
-		gen = prev.Generation()
-	}
+	s.publishGeneration(s.Observe().Generation() + 1)
+}
 
+func (s *appState) publishGeneration(generation uint64) {
 	keys := make([]string, len(s.files))
 	for i, u := range s.files {
 		if u != nil {
@@ -65,18 +58,30 @@ func (s *appState) publish() {
 		}
 	}
 
-	snap := dupes.NewSnapshot(keys, gen+1)
+	files := slices.Clone(s.files)
+	retained := slices.Clone(s.unavailableOrder)
+	if retained == nil {
+		for _, uri := range s.unsortedFiles {
+			retained = append(retained, collectionSource{uri: uri})
+		}
+	}
+	snap := collectionSnapshot{data: &collectionData{
+		files: files, source: slices.Clone(s.unsortedFiles), retained: retained,
+		fileSet: dupes.NewSnapshot(keys, generation),
+		occurrences: fileidentity.NewIndex(len(files), func(i int) string {
+			if files[i] != nil {
+				return files[i].Path()
+			}
+			return ""
+		}),
+	}, index: s.index}
 	s.published.Store(&snap)
 }
 
 // snapshot is the current published view of the file set. Safe from any
 // goroutine; it is the only read of the file set that is.
 func (s *appState) snapshot() dupes.Snapshot {
-	if p := s.published.Load(); p != nil {
-		return *p
-	}
-
-	return dupes.Snapshot{}
+	return s.Observe().FileSet()
 }
 
 func (s *appState) SortMode() filesort.Mode {
@@ -102,8 +107,8 @@ func (s *appState) setFiles(unsorted, files []fyne.URI) {
 }
 
 func (s *appState) replaceFiles(unsorted, files []fyne.URI) {
-	s.setFiles(unsorted, files)
 	s.index = 0
+	s.setFiles(unsorted, files)
 }
 
 // reorder replaces files with an already-sorted list of the same members,
@@ -182,8 +187,11 @@ func (s *appState) retainOrder(order []collectionSource) {
 	s.unavailableOrder = nil
 	for _, source := range order {
 		if source.unavailable {
-			s.unavailableOrder = order
-			return
+			s.unavailableOrder = slices.Clone(order)
+			break
 		}
 	}
+	// Legacy retained-order adapter. File-set generation changes with the
+	// accompanying membership operation, not this value-only observation refresh.
+	s.publishGeneration(s.Observe().Generation())
 }

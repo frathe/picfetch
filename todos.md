@@ -67,8 +67,13 @@
   policy (MA-030 through MA-033).
   [MA-030's accepted design](docs/collection-transitions.md) resolves all eleven
   interview decisions and requires both collection-model and reconciliation
-  slices. Specification, implementation planning and implementation remain
-  open. MA-031 through MA-033 remain proposals.
+  slices. Its [local specification](.scratch/ma-030/spec.md) is `ready-for-agent`:
+  56 user stories and 18 acceptance criteria cover both slices. The approved
+  [nine implementation tickets](.scratch/ma-030/issues/README.md) are published
+  with blockers and model assignments. The
+  [Deep SDD implementation record](plans/2026-09-28-ma-030-collection-transitions.md)
+  records ticket 01 complete (coherent snapshots and live navigation); tickets
+  02-09 and final review/CI remain open. MA-031 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

@@ -211,6 +211,7 @@ exclude:
       - "internal/ui/batch_test.go"
       - "internal/ui/clipboard_test.go"
       - "internal/ui/clipboardwork_test.go"
+      - "internal/ui/collection_test.go"
       - "internal/ui/compare/async_tile_test.go"
       - "internal/ui/compare/compare_test.go"
       - "internal/ui/compare/renderer_test.go"

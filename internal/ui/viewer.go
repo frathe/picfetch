@@ -758,11 +758,7 @@ func (v *viewer) ShowEmptyStateError(msg string) {
 // CurrentFile returns the collection's selected source and index. During
 // navigation its source can differ from display's published content.
 func (v *viewer) CurrentFile() (u fyne.URI, index int, ok bool) {
-	if len(v.state.files) == 0 {
-		return nil, 0, false
-	}
-
-	return v.state.files[v.state.index], v.state.index, true
+	return v.state.Observe().Current()
 }
 
 // displayedFile identifies published content, including outgoing pixels while
@@ -871,12 +867,12 @@ func (v *viewer) Modifiers() fyne.KeyModifier {
 
 // FileCount is how many files are currently loaded.
 func (v *viewer) FileCount() int {
-	return len(v.state.files)
+	return v.state.Observe().Count()
 }
 
 // FileAt returns the file at index i.
 func (v *viewer) FileAt(i int) fyne.URI {
-	return v.state.files[i]
+	return v.state.Observe().FileAt(i)
 }
 
 // OpenFiles sends a file list through the same scan, merge, sort, and display
@@ -892,7 +888,8 @@ func (v *viewer) OpenFavorite(dir string, files []fyne.URI) {
 
 // CurrentIndex is the index of the file on screen.
 func (v *viewer) CurrentIndex() int {
-	return v.state.index
+	_, index, _ := v.state.Observe().Current()
+	return index
 }
 
 // Generation is the current index-to-URI file-set revision. Navigation does

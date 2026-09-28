@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 254 entries, 470.520s projected weight sum
+# ui-1: 256 entries, 470.520s projected weight sum
 # ui-2: 255 entries, 470.530s projected weight sum
 # ui-3: 218 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -49,6 +49,8 @@ TestClearToDropzone_ClearsInspect	ui-1
 TestClearToDropzone_ExitsPictureFrameMode	ui-1
 TestCloseFilesItem_DisabledAgainAfterCloseFiles	ui-1
 TestCloseFiles_ResetsLoadedFilesToWelcomeState	ui-1
+TestCollectionCompatibility	ui-1
+TestCollectionModel	ui-1
 TestCommandAdmissionPolicy	ui-1
 TestCommandAdmissionQueries	ui-1
 TestCommandAdmissionTextEditing	ui-1

@@ -23,8 +23,7 @@ func TestRevealCurrentFile_HandsThePathToTheFileManager(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
 	jpegURI := uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})
-	v.state.files = []fyne.URI{jpegURI}
-	v.state.index = 0
+	v.state.replaceFiles([]fyne.URI{jpegURI}, []fyne.URI{jpegURI})
 
 	var got string
 	uitest.StubReveal(t, func(path string) error {
@@ -47,8 +46,8 @@ func TestRevealCurrentFile_RevealsTheDisplayedFileNotTheFirst(t *testing.T) {
 
 	first := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.RGBA{R: 100, A: 255})
 	second := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.RGBA{G: 100, A: 255})
-	v.state.files = []fyne.URI{first, second}
-	v.state.index = 1
+	v.state.replaceFiles([]fyne.URI{first, second}, []fyne.URI{first, second})
+	v.state.Select(1)
 
 	var got string
 	uitest.StubReveal(t, func(path string) error {
@@ -82,7 +81,8 @@ func TestRevealCurrentFile_NoFilesIsNoop(t *testing.T) {
 func TestRevealCurrentFile_DispatchFailureShowsToast(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
-	v.state.files = []fyne.URI{uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})}
+	files := []fyne.URI{uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})}
+	v.state.replaceFiles(files, files)
 	uitest.StubReveal(t, func(string) error { return errors.New("boom") })
 
 	v.revealCurrentFile()
@@ -110,7 +110,7 @@ func TestWireRevealShortcut_RevealsCurrentFile(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
 	jpegURI := uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})
-	v.state.files = []fyne.URI{jpegURI}
+	v.state.replaceFiles([]fyne.URI{jpegURI}, []fyne.URI{jpegURI})
 
 	var got string
 	uitest.StubReveal(t, func(path string) error {
@@ -166,7 +166,7 @@ func TestRevealActionsFile_MenuItemRevealsCurrentFile(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
 	jpegURI := uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})
-	v.state.files = []fyne.URI{jpegURI}
+	v.state.replaceFiles([]fyne.URI{jpegURI}, []fyne.URI{jpegURI})
 
 	var got string
 	uitest.StubReveal(t, func(path string) error {

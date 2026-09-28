@@ -6,7 +6,6 @@ import (
 	"image"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -75,8 +74,7 @@ func (v *viewer) reconcileSearchOrigin() {
 	if v.fileWork.closed || !v.searchActive() {
 		return
 	}
-	sessionID, generation := v.visualsearch.State().SessionID, v.Generation()
-	files := slices.Clone(v.state.files)
+	sessionID, collection := v.visualsearch.State().SessionID, v.state.Observe()
 	after := v.visualsearch.Suspend()
 	token := v.fileWork.searchLifecycle.begin()
 	ctx, queue := token.context(), v.fileWork.ui
@@ -87,7 +85,8 @@ func (v *viewer) reconcileSearchOrigin() {
 			return
 		}
 		var missing []int
-		for i, source := range files {
+		for i := range collection.Count() {
+			source := collection.FileAt(i)
 			if ctx.Err() != nil {
 				return
 			}
@@ -100,7 +99,7 @@ func (v *viewer) reconcileSearchOrigin() {
 		}
 		queue.Do(func() {
 			defer token.cancelContext()
-			if !token.current() || v.fileWork.closed || generation != v.Generation() || !v.searchActive() || sessionID != v.visualsearch.State().SessionID {
+			if !token.current() || v.fileWork.closed || collection.Generation() != v.Generation() || !v.searchActive() || sessionID != v.visualsearch.State().SessionID {
 				return
 			}
 			v.reconcileSources(sourceChange{kind: sourcesRevalidated, removed: missing})
