@@ -62,6 +62,7 @@ func TestCollectionModel(t *testing.T) {
 		}
 	})
 	t.Run("operations", func(t *testing.T) {
+		t.Run("unavailability", collectionModelUnavailability)
 		t.Run("reorder", func(t *testing.T) {
 			a, b := storage.NewFileURI("/images/a.jpg"), storage.NewFileURI("/images/b.jpg")
 			u := storage.NewFileURI("/images/u.heic")
@@ -258,6 +259,7 @@ func TestCollectionMerge(t *testing.T) {
 }
 
 func TestCollectionUnavailable(t *testing.T) {
+	t.Run("runtime_loss", collectionRuntimeLoss)
 	t.Run("favorite_open", func(t *testing.T) {
 		v := newTestViewer(t)
 		v.startHEICCheck(false)
@@ -493,6 +495,7 @@ func TestCollectionFavoriteAssociation(t *testing.T) {
 }
 
 func TestCollectionReconciliation(t *testing.T) {
+	t.Run("load_failure", collectionLoadFailureReconciliation)
 	t.Run("reorder", collectionReorderReconciliation)
 	t.Run("removal", collectionRemovalReconciliation)
 	for _, kind := range []string{"replacement", "merge"} {

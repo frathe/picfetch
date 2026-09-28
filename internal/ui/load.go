@@ -120,22 +120,6 @@ func (v *viewer) applyLoadedTitle(snapshot display.Snapshot) {
 }
 
 func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
-	retained := v.retainedOrder()
-	remaining := v.state.fileOccurrence(v.state.index)
-	for i, entry := range retained {
-		if !entry.unavailable && entry.uri.String() == source.String() {
-			remaining--
-			if remaining != 0 {
-				continue
-			}
-			if errors.Is(err, heic.ErrUnavailable) {
-				retained[i].unavailable = true
-			} else {
-				retained = append(retained[:i], retained[i+1:]...)
-			}
-			break
-		}
-	}
 	msg := fmt.Sprintf(lang.L("could not read %q: %v"), source.Name(), err)
 	var dimensions *imaging.InvalidDimensionsError
 	var tooLarge *imaging.InputTooLargeError
@@ -146,16 +130,18 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 		msg = fmt.Sprintf(lang.L("%q is too large to open"), source.Name())
 	}
 	i := v.state.index
-	restoredIndex := v.reconcileSources(sourceChange{kind: sourceLoadFailed, removed: []int{i}})
+	kind := sourceLoadFailed
+	if errors.Is(err, heic.ErrUnavailable) {
+		kind = sourceUnavailable
+	}
+	restoredIndex := v.reconcileSources(sourceChange{kind: kind, removed: []int{i}})
 	if len(v.state.files) == 0 {
 		v.ShowEmptyStateError(msg)
-		v.state.retainOrder(retained)
 		if errors.Is(err, heic.ErrUnavailable) {
 			v.explainUnavailableHEIC([]fyne.URI{source}, true)
 		}
 		return nil
 	}
-	v.state.retainOrder(retained)
 	if errors.Is(err, heic.ErrUnavailable) {
 		// A cached capability can disappear after sibling admission. Keep
 		// the surviving collection, but stop this request at its own guide

@@ -1,6 +1,6 @@
 # MA-030: authoritative collection identity and committed transitions
 
-Status: implementation in progress; tickets 01-06 complete, ticket 07 next.
+Status: implementation in progress; tickets 01-07 complete, tickets 08-09 pending.
 Baseline: `1f92396367acc41c663710ee4b4b981c43d1c184`.
 Branch: `feature/ma-030-collection-transitions`.
 Authority: [accepted design](../docs/collection-transitions.md),
@@ -231,9 +231,9 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 | 04 | 1/1 | 1 | no | Complete; replay/capture evidence below |
 | 05 | 1/1 | 1 | no | Complete; sort handoff evidence below |
 | 06 | 1/1 | 2 | no | Complete; batch/removal handoff evidence below |
-| 07 | 1/1 | 0 | no | Runtime decoder-loss/retry seam scout complete |
-| 08 | 1/1 | 0 | no | Committed-write/current-binding test-seam scout in progress |
-| 09 | 1/0 | 0 | CI | Pending |
+| 07 | 1/1 | 1 | no | Complete; unavailable recovery evidence below |
+| 08 | 1/1 | 0 | no | Committed-write/current-binding test-seam scout complete |
+| 09 | 1/1 | 0 | CI | Close/reset/stale-delivery test-seam scout complete |
 
 ### Progress
 
@@ -245,10 +245,16 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 - [x] 04 saved replay and capture.
 - [x] 05 latest-choice sort handoff.
 - [x] 06 batch removals and shared survivor result.
-- [ ] 07 unavailable retention and scoped recovery.
+- [x] 07 unavailable retention and scoped recovery.
 - [ ] 08 committed writes and policy distinctions.
 - [ ] 09 convergence, complete qualification and draft removal.
 - [ ] Fresh clean latest-commit Codex/security reviews and required CI.
+
+09 scout gate: G1 bounded Close Files/reset/scan/replay delivery test inventory;
+G2 concrete locations and barriers checked by targeted reads; G3 read-only;
+G4 native chooser, scanning, reset and shutdown tests span separate lifetimes;
+G5 lead has not traced those concrete tests. Shell inventory cannot explain
+barriers and assertions. This is reconnaissance, not delegated review or design.
 
 ### Ticket 01 evidence — 2026-09-28
 
@@ -680,3 +686,65 @@ Lead review confirms the concrete survivor map is constructed only in the model,
 root effects run after complete publication, stale committed URI effects remain
 authoritative and deletion Close/Stop/Settle semantics are unchanged. Ticket 05
 GitHub jobs are green on 2efaa44; final SARIF and fresh reviews remain open.
+
+### Ticket 07 evidence — 2026-09-28
+
+MarkUnavailable now commits browsable removal, exact retained occurrence status,
+source placement, association and the shared survivor map together. It reuses
+the model removal walk without source I/O or callbacks. Root names decoder loss
+separately, applies the same remapping/derived effects, then stops at the existing
+guide. Ordinary failures continue in display's original retry chain. Removed
+fileOccurrence, retainOrder and retainedOrder; no post-publication repair remains
+in load.go. No package moves, workers, dependencies or user-visible strings.
+
+Acceptance evidence:
+
+- Model/operations/unavailability: middle-of-three repeated occurrence, source
+  and retained placement, survivor ordinals, unique cache effect, immutable old
+  snapshot, final browsable exhaustion with retained association and no Current,
+  and invalid-index no-ops.
+- Unavailable/runtime_loss/{false,true}: actual HEIC worker failure after cached
+  capability admission, one publication, complete facts at sibling Grid callback,
+  last-member and sibling guide stops, retained Favorite capture, real mixed
+  Favorite save, support recheck without reinsertion, and explicit reopen.
+  The empty Grid does not emit a result-change callback; final observation and
+  mounted guidance cover that case. Existing MA-028 disables Add Current List
+  with no browsable image; capture remains complete, and strengthened
+  HEICBackendLossPreservesSession proves actual shutdown persistence plus binding.
+- Unavailable/runtime_loss/retained_search_origin restores a nested Explorer
+  origin while stopping at guidance rather than admitting another image.
+- Reconciliation/load_failure/scoped_retry runs all four existing browsing
+  recovery cases; repeated_origin preserves the exact last repeated origin over
+  an ordinary successor, with one generation and one display request chain.
+- Lifecycle/load_recovery: all 12 combinations of ordinary/unavailable failure,
+  held/queued delivery and replacement/close-reopen/production Stop. Old LoadDone
+  completes before releasing held work, current retained facts stay intact, no
+  stale guide/retry appears, and workers settle through existing barriers.
+
+TDD: real last-member/sibling decoder failures initially exposed association
+loss and incomplete callback observations. The model adapter initially failed
+the exact retained-occurrence assertion. Negative guards independently failed
+last-member retention when Replace cleared association on browsable exhaustion,
+and explicit-origin tests when recovery ignored the restored origin. The latter
+also failed the strengthened repeated-origin test. All mutations restored.
+Reader-open count is not retry admission (other image consumers may read); the
+test pins display RequestRevision and the original LoadDone handle instead.
+
+Verification on 2b08c3e + ticket 07 working tree:
+
+- Final verbose Model/Unavailable/Lifecycle/Reconciliation: PASS, 3.801s, every
+  required subcase ran. Broader HEIC/browsing acceptance run: PASS, 4.844s.
+- Complete display PresentationContract: PASS, 0.250s.
+- Focused race across all Collection and HEIC families, BrowsingLoadRecovery,
+  BrowsingVisitLifecycle and search/source retirement: PASS, 152.582s.
+- UI/display vet, make fmt/fmt-check, exact Qodana exclusions, Docker shard check
+  (740 runnables) and git diff --check: PASS.
+- GoLand Inspect Code fallback, current IDE profile, errorsOnly=false: all eight
+  changed code files (collection, collection_test, collection_recovery_test,
+  heic, heic_test, load, sourcechange, state under internal/ui) completed with
+  no findings, including weak warnings; no skips/timeouts or suppressions.
+
+Lead review confirms one authoritative publication, unchanged command admission,
+separate decoder-guide versus ordinary-retry policy, and existing cancellation/
+queue ownership. Ticket 06's GitHub jobs are all green on 2b08c3e; post-suppression
+SARIF and final fresh reviews remain required at the final gate.

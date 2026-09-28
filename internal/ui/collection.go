@@ -240,16 +240,22 @@ func (s *appState) Remove(indices []int) collectionChange {
 	for _, i := range indices {
 		positions[i] = true
 	}
-	return s.remove(positions, nil)
+	return s.remove(positions, nil, false)
 }
 
 // RemoveTargets applies completed OS moves by exact URI key. Unavailable and
 // repeated entries match; symlinks are never resolved to their destinations.
 func (s *appState) RemoveTargets(targets []fyne.URI) collectionChange {
-	return s.remove(nil, collectionTargetKeys(targets))
+	return s.remove(nil, collectionTargetKeys(targets), false)
 }
 
-func (s *appState) remove(positions map[int]bool, targets map[string]bool) collectionChange {
+// MarkUnavailable removes one browsable occurrence but retains its source-order
+// slot and association. Decoder recovery requires explicit replay admission.
+func (s *appState) MarkUnavailable(index int) collectionChange {
+	return s.remove(map[int]bool{index: true}, nil, true)
+}
+
+func (s *appState) remove(positions map[int]bool, targets map[string]bool, unavailable bool) collectionChange {
 	before := s.Observe()
 	change := collectionChange{before: before, after: before, survivors: make(map[fileidentity.Occurrence]fileidentity.Occurrence, before.Count())}
 	input := collectionInput{favorite: before.Favorite(), index: before.index}
@@ -307,7 +313,10 @@ func (s *appState) remove(positions map[int]bool, targets map[string]bool) colle
 			position := entryPosition{key, uriOrdinals[key]}
 			uriOrdinals[key]++
 			if removed[position] {
-				continue
+				if !unavailable {
+					continue
+				}
+				entry.unavailable = true
 			}
 		}
 		input.retained = append(input.retained, entry)

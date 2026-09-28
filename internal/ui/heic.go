@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"fmt"
-	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -34,17 +33,6 @@ func (v *viewer) heicContext(ctx context.Context) context.Context {
 
 func (v *viewer) persistedFiles(files []fyne.URI) []fyne.URI {
 	return v.state.Observe().captureFiles(files)
-}
-
-func (v *viewer) retainedOrder() []collectionSource {
-	if v.state.unavailableOrder != nil {
-		return slices.Clone(v.state.unavailableOrder)
-	}
-	order := make([]collectionSource, len(v.state.unsortedFiles))
-	for i, uri := range v.state.unsortedFiles {
-		order[i].uri = uri
-	}
-	return order
 }
 
 func retainedSources(skipped, order []fyne.URI) []collectionSource {

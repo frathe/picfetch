@@ -106,29 +106,3 @@ func (s *appState) replaceFiles(unsorted, files []fyne.URI) {
 func (s *appState) clearFiles() {
 	s.Clear()
 }
-
-// Stable sorting preserves each repeated URI's occurrence ordinal across displayed,
-// unsorted and retained orders even when other sources move around it.
-func (s *appState) fileOccurrence(i int) int {
-	key := s.files[i].String()
-	occurrence := 0
-	for _, uri := range s.files[:i+1] {
-		if uri.String() == key {
-			occurrence++
-		}
-	}
-	return occurrence
-}
-
-func (s *appState) retainOrder(order []collectionSource) {
-	s.unavailableOrder = nil
-	for _, source := range order {
-		if source.unavailable {
-			s.unavailableOrder = slices.Clone(order)
-			break
-		}
-	}
-	// Legacy retained-order adapter. File-set generation changes with the
-	// accompanying membership operation, not this value-only observation refresh.
-	s.publishGeneration(s.Observe().Generation())
-}

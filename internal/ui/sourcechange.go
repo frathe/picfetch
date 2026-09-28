@@ -15,6 +15,7 @@ const (
 	sourcesRemoved sourceChangeKind = iota
 	sourcesTrashed
 	sourceLoadFailed
+	sourceUnavailable
 	sourcesRevalidated
 	sourceWritten
 	analysisPolicyChanged
@@ -87,11 +88,12 @@ func (v *viewer) commitOpenedCollection(input collectionInput, merging bool, pre
 // Trash consumes it after its outcome notification. Other changes admit any
 // required load here, after reconciliation.
 func (v *viewer) reconcileSources(change sourceChange) int {
+	failedLoad := change.kind == sourceLoadFailed || change.kind == sourceUnavailable
 	indices := slices.Sorted(slices.Values(change.removed))
 	indices = slices.Compact(slices.DeleteFunc(indices, func(i int) bool {
 		return i < 0 || i >= len(v.state.files)
 	}))
-	if (change.kind == sourcesRemoved || change.kind == sourcesTrashed || change.kind == sourceLoadFailed) && len(indices) == 0 && !v.state.Observe().ContainsTargets(change.targets) {
+	if (change.kind == sourcesRemoved || change.kind == sourcesTrashed || failedLoad) && len(indices) == 0 && !v.state.Observe().ContainsTargets(change.targets) {
 		return -1
 	}
 	defer v.beginBrowsingUpdate()()
@@ -115,7 +117,9 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 	var committed collectionChange
 	if len(indices) > 0 || len(change.targets) > 0 {
 		v.invalidateSort()
-		if len(change.targets) > 0 {
+		if change.kind == sourceUnavailable {
+			committed = v.state.MarkUnavailable(indices[0])
+		} else if len(change.targets) > 0 {
 			committed = v.state.RemoveTargets(change.targets)
 		} else {
 			committed = v.state.Remove(indices)
@@ -133,7 +137,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 	v.explorer.SourcesChanged()
 
 	switch change.kind {
-	case sourcesRemoved, sourcesTrashed, sourceLoadFailed, sourcesRevalidated:
+	case sourcesRemoved, sourcesTrashed, sourceLoadFailed, sourceUnavailable, sourcesRevalidated:
 		v.grid.FilesChanged()
 		if len(v.state.files) == 0 {
 			v.grid.Close()
@@ -156,7 +160,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 			index = v.state.index
 		}
 	}
-	if index >= 0 && change.kind != sourceLoadFailed && change.kind != sourcesTrashed {
+	if index >= 0 && !failedLoad && change.kind != sourcesTrashed {
 		v.loadImage(index)
 	}
 	if restore {

@@ -548,13 +548,17 @@ func TestHEICBackendLossPreservesSession(t *testing.T) {
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	v.OpenFavorite(t.TempDir(), []fyne.URI{storage.NewFileURI(path)})
+	favorite := t.TempDir()
+	v.OpenFavorite(favorite, []fyne.URI{storage.NewFileURI(path)})
 	waitForScan(t, v)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 	v.settleHEIC()
 	if checks.Load() != 2 {
 		t.Fatalf("backend loss checks=%d, want one recheck", checks.Load())
+	}
+	if v.state.Observe().Favorite() != favorite {
+		t.Fatal("backend loss erased the unavailable-only Favorite association")
 	}
 	if saved := preferences.LoadHEICObservation(v.app); saved.Available || !saved.CheckedAt.IsZero() {
 		t.Fatalf("failed recheck retained invalidated observation: %+v", saved)
