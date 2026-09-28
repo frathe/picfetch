@@ -96,8 +96,11 @@ membership even when its analysis preference is off, with a separate opt-out tha
 blocks both Favorite records and general fallback for those members.
 Producer inventory preserves healthy Favorites alongside per-entry errors;
 incomplete membership disables general reuse/writes for that producer. Cache maintenance
-retains each Favorite directory and list version through inventory and rechecks
-membership before stale removal. Inventory handles unreadable Favorite definitions
+retains directory/list and record identity values through batched inventory;
+`cache_access.go` reacquires bounded access and rechecks owner, cache directory
+and record before classification/removal. Unknown membership blocks automatic
+stale cleanup but permits explicit clearing of captured recognized records.
+Inventory handles unreadable Favorite definitions
 independently so healthy peers remain inspectable and cleanable.
 `encoder.go` (cgo) sets the non-Windows telemetry opt-out before library loading,
 disables telemetry through the runtime API before session creation, and owns

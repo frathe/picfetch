@@ -153,27 +153,21 @@ func (m CacheManager) maintain(ctx context.Context, roots CacheRoots, mode *Cach
 		if retune != nil {
 			remove = record.general && tx.report.Remaining.General.Bytes > tx.limit()
 		}
-		if mode != nil && *mode == RemoveStale {
-			var unavailable bool
-			remove, unavailable = record.stale()
-			if unavailable {
-				tx.report.Unavailable++
-			}
-		}
 		if !remove {
 			tx.report.Skipped++
 			continue
 		}
-		// Favorite saves do not take the analysis lease. Recheck its captured
-		// membership immediately before an unlink based on stale-list analysis.
-		if mode != nil && *mode == RemoveStale && record.favorite != nil && !record.favorite.current() {
+		removed, unavailable, err := record.remove(ctx, mode != nil && *mode == RemoveStale)
+		if unavailable {
 			tx.report.Unavailable++
-			tx.report.Skipped++
-			continue
 		}
-		if err := record.root.Remove(record.name); err != nil {
+		if err != nil {
 			tx.report.Failures++
 			failures = append(failures, err)
+			continue
+		}
+		if !removed {
+			tx.report.Skipped++
 			continue
 		}
 		tx.removed(record)
@@ -196,8 +190,8 @@ func (m CacheManager) maintain(ctx context.Context, roots CacheRoots, mode *Cach
 	tx.completed = true
 	return tx.report, errors.Join(failures...)
 }
-func (r managedAnalysis) stale() (bool, bool) {
-	if r.favorite != nil && !r.favorite.current() {
+func (r managedAnalysis) stale(root *os.Root) (bool, bool) {
+	if r.favorite != nil && r.favorite.members == nil {
 		return false, true
 	}
 	if r.temporary {
@@ -206,7 +200,7 @@ func (r managedAnalysis) stale() (bool, bool) {
 	if r.info.Size() > 1024*1024 {
 		return true, false
 	}
-	file, err := r.root.Open(r.name)
+	file, err := root.Open(r.name)
 	if err != nil {
 		return false, true
 	}

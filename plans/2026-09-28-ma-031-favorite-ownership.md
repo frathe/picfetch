@@ -1,6 +1,6 @@
 # MA-031 implementation and evidence
 
-Status: tickets 01-02 complete; frontier 03/04/05. Baseline: `f09af93` (planning branch), code
+Status: tickets 01-03 complete; cohort verification finishing; next UI reads 05. Baseline: `f09af93` (planning branch), code
 baseline `7e52ea5b5fe95ae7d0995e88fa765ab57d549b86`.
 
 Deliver shared validated Favorite membership and captured ownership to every
@@ -165,7 +165,7 @@ Lead owns review, Explorer/root qualification, fixes and the ticket commit.
 - [x] Deep plan and task graph recorded; no PR existed at start.
 - [x] 01 shared ownership/Map
 - [x] 02 similarity/search
-- [ ] 03 maintenance
+- [x] 03 maintenance
 - [ ] 04 cohorts
 - [ ] 05 UI reads/lifetime
 - [ ] 06 saves
@@ -185,8 +185,8 @@ to include weak warnings rather than warning-threshold batch filtering.
 | --- | --- | --- | --- | --- |
 | 01 | 2/1 | 2 | no | complete; native qualification remains 09 |
 | 02 | 1/1 | 2 | no | complete |
-| 03 | 0/0 | 0 | no | frontier |
-| 04 | 1/0 | 0 | no | frontier; bounded T1 approved |
+| 03 | 0/0 | 2 | no | complete |
+| 04 | 1/1 | 1 | no | adapter verified; lead root checks finishing |
 | 05 | 1/0 | 0 | no | frontier |
 | 06 | 0/0 | 0 | no | blocked by 05 |
 | 07 | 0/0 | 0 | no | blocked by 06 |
@@ -285,3 +285,46 @@ Temporary maintenance bridge: `cache_records.go` acquires a shared owner to
 open its analysis directory, but the old maintenance inventory still retains
 analysis roots. Ticket 03 replaces those deferred handles with values and
 record revalidation; there is no remaining parallel membership decoder there.
+
+### Ticket 03 evidence
+
+Removed the maintenance bridge: inventories now retain owner, cache-directory
+and record identity values only. `cache_access.go` owns bounded reacquisition,
+classification and final owner/directory/record revalidation. Enumeration reads
+64-entry batches without a count cap. Every acquisition closes before moving
+to the next Favorite or record. The existing exclusive lease, quiescence,
+revocation, temporary-file treatment, payload format and transaction ledger stay
+in similarity. Unknown membership blocks stale classification; explicit clear
+may still remove recognized records in the captured directory.
+
+Observed red -> green: clear followed moved owners and identical/replaced lists;
+both modes deleted fresh records and followed replaced analysis directories;
+deferred inventories retained one root per Favorite. New tests replace these
+observations after the full inventory via the first committed removal callback.
+Native unknown-membership clear/stale cases complement the existing Unix-only
+unreadable-symlink fixture; they do not depend on a platform skip.
+
+Enumerated 30 analysis-cache/ownership suites. Uncached output in
+`03-maintenance.txt` and `03-shared-inventory.txt` confirms all selected cases
+passed, without local skips. Commands:
+
+```
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/similarity -run '^(TestAnalysisCache.*|TestFavoriteAnalysisOwnership)$'
+go test -tags no_emoji,nodynamic -count=1 -v ./internal/favstore -run '^TestFavoriteInventory$/^(membership|resources)$'
+go vet -tags no_emoji,nodynamic ./internal/similarity
+make fmt-check check-qodana-test-exclusions check-test-shards-direct
+```
+
+This includes healthy peers, unknown owners, stale-list replacement, writer
+retirement, quiescence, partial failures and exact cancelled-removal accounting.
+32/130 deferred inventories retain all records, zero idle Favorite handles,
+three peak handles, and permit every directory move. Measured GC heap growth
+was +31,512/+233,984 bytes including runtime noise. Value associations grow;
+handles do not. General-directory observations are local cache facts, not a
+second Favorite ownership authority.
+
+GoLand inspected all four changed/new maintenance Go files on the ticket-03
+working tree based on 19d8786, including weak warnings: clean, no timeout/skip.
+No new test files or root test names; manifests remain exact. Native qualification
+is still ticket 09. Cohort changes concurrently present were not part of this
+ticket's implementation or commit.

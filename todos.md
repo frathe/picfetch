@@ -86,9 +86,9 @@
   `ready-for-agent`, with 70 stories, test boundaries and 22 acceptance criteria
   covering both migration stages. The approved
   [nine implementation tickets](.scratch/ma-031/issues/README.md) are published
-  with blockers and verification commands. Tickets 01-02 are complete (shared
-  bounded ownership, Location Map and scoped similarity/search); 03 maintenance,
-  04 cohorts and 05 UI reads are the unblocked frontier.
+  with blockers and verification commands. Tickets 01-03 are complete (shared
+  bounded ownership, Location Map, scoped similarity/search and maintenance);
+  04 cohort verification is finishing; 05 UI reads is next.
   [Deep SDD implementation and evidence](plans/2026-09-28-ma-031-favorite-ownership.md)
   records the nine-ticket sequence, shared contract and verification gates.
   MA-032 and MA-033 remain proposals.
