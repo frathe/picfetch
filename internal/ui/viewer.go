@@ -297,7 +297,7 @@ type viewer struct {
 
 	// regionCopyLifecycle cancels stale crop/encode work; regionCopyDoAndWait
 	// is a per-viewer seam for deterministic UI-hop tests.
-	regionCopyLifecycle requestLifecycle
+	regionCopyLifecycle requestlife.Owner
 	regionCopyDoAndWait func(func())
 
 	// info is the persistent info overlay (I key) - see internal/ui/infoview,

@@ -124,7 +124,7 @@ func (v *viewer) copyGridSelection() {
 		return
 	}
 	v.clipboardWork.workers.Go(func() {
-		if !token.current() {
+		if !token.Current() {
 			v.completeClipboardCopy(token, done, nil)
 			return
 		}

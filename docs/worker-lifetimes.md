@@ -175,6 +175,9 @@ Ticket 05 migrates Save, Export and search-origin reconciliation to basic tokens
 Committed write callbacks remain explicit: stale requests still reconcile current
 sources/aliases using file work's independent context and tracked retry workers.
 Operation completion follows that reconciliation, not initiating-token release.
+Ticket 06 migrates whole-image/Grid clipboard and region-copy basic tokens.
+Shared busy admission, captured pixels, acquisition-bound pause release, native
+worker tracking and queued clipboard completion remain separate local policies.
 No ADR is needed for this small reversible extraction decision. General
 concurrency vocabulary stays in this document, leaving the domain glossary
 unchanged. Dependencies and native distribution inputs remain unchanged.

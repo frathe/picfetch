@@ -1,6 +1,6 @@
 # MA-032 implementation and evidence
 
-Status: tickets 01-05 complete; ticket 06 next; extraction accepted.
+Status: tickets 01-06 complete; ticket 07 next; extraction accepted.
 Base: `04cb74c`. Draft PR: https://github.com/frathe/picfetch/pull/71.
 Authorization: 2026-09-28 `/implement MA-032`, TDD/SDD, a commit after each
 ticket, draft PR/CI, then ready-for-review and the GitHub Codex review loop.
@@ -45,7 +45,7 @@ The authorized GitHub full suite supplies the final broad race gate; use
 | 03 | display feature/load/preload/animation/lifecycle and affected tests; retained-load and playback protocols | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
 | 04 | root asyncop/drop/openfiles/explorer/locationmap and composition/tests; four basic owners | T0; 0 spawns (mechanical rule S), focused V1-V5 | Complete |
 | 05 | filework/save/export/search reconciliation and tests; committed callbacks stay explicit | T0; no spawn, focused V1-V4 | Complete |
-| 06 | clipboardwork/clipboard/batch/copyselection, viewer/harness and tests; retain capture and delivery completion | T0; 0 spawns (mechanical rule S), focused V1-V4 | Ready |
+| 06 | clipboardwork/clipboard/batch/copyselection, viewer/harness and tests; retain capture and delivery completion | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
 | 07 | favthumbs/autoupdate/viewer/harness and affected tests; basic tokens only | T0; 0 spawns (mechanical rule S), focused V1-V4 | Ready |
 | 08 | Restore only pilot runtime changes; test-only shared local contract | T0; no spawn, focused V1-V4 | Inapplicable: extraction accepted |
 | 09 | Remove remaining duplicate request mechanics; retain independent revisions; docs/metadata/evidence and full qualification | T0; no spawn, final gate | Blocked by selected branch |
@@ -250,6 +250,8 @@ completion policy. Spawns 0, one review, no broad local suite.
 
 ### Ticket 05 — committed file work (parent `9bda248`)
 
+Committed as `fe49175`, pushed to draft PR 71.
+
 Save, Export and search-origin reconciliation now use shared basic tokens,
 including search invalidation in sourcechange/visualsearch. No FinalDelivery:
 stale-but-committed writes still purge caches and queue current-source/alias
@@ -274,3 +276,27 @@ diagnostic and job URL; G3 no writes, one log plus <=2 implicated files;
 G4 independent platform evidence; G5 lead has not read the log. S/W: interpreting
 the failure location is not a supplied mechanical rewrite. Lead owns disposition
 and fixes. One recon turn budget, not delegated code review.
+
+### Ticket 06 — clipboard and region copy (parent `fe49175`)
+
+Both clipboard owners now use shared basic tokens. Whole-image/Grid dispatch
+retains busy admission, encoding cancellation and the queued result/menu-bound
+completion; shutdown can finish cancelled returned work without UI delivery.
+Region copying retains CaptureStable's acquisition-bound pause release and its
+existing DoAndWait callback before shared clipboard finishing. Native work stays
+under the existing clipboard worker barrier. No universal delivery wrapper.
+
+All 12 enumerated V1/V2 top-level tests passed before (8.696s) and after (8.687s)
+under uncached race testing, with no skips/race findings. Deliberate early operation
+completion failed the existing queued-results case, then was restored. Logs:
+`.scratch/ma-032/ticket06-{baseline,delivery-red,ui,ui-list}.log`.
+Root vet, formatting, whitespace, exact exclusions and Docker inventory (743/3)
+passed. Seven files inspected with GoLand including weak warnings: clipboardwork,
+clipboard, batch, copyselection, viewer, run and harness_test. No new findings;
+viewer's unchanged duplication suggestions retain the prior disposition.
+One lead review, zero implementation spawns, no broad local suite.
+
+Windows recon returned an existing native clipboard multiple-path test failure,
+but its connector could not expose the artifact payload. One bounded follow-up
+also hit download DNS/cache limits. Lead will retrieve raw events through gh;
+no defect or clean platform gate inferred from the summary alone.

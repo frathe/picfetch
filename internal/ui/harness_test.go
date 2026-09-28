@@ -254,7 +254,7 @@ func drain(t *testing.T, v *viewer) {
 	v.invalidateLoad()
 	v.scanOp.lifecycle.Invalidate()
 	v.sortOp.lifecycle.Invalidate()
-	v.regionCopyLifecycle.invalidate()
+	v.regionCopyLifecycle.Invalidate()
 	v.display.Stop()
 	v.closeFavoritePreviews()
 	v.grid.Stop()

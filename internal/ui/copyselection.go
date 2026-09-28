@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -59,7 +60,7 @@ func (v *viewer) captureRegionCopySource() (copyselection.Source, func(), bool) 
 // successful copy. The feature invokes it only after it has hidden its own
 // overlay and cleared its transient state.
 func (v *viewer) finishRegionCopy() {
-	v.regionCopyLifecycle.invalidate()
+	v.regionCopyLifecycle.Invalidate()
 	if v.regionCopyRelease != nil {
 		v.regionCopyRelease()
 		v.regionCopyRelease = nil
@@ -141,20 +142,20 @@ func (v *viewer) copyRegionSelection(bounds image.Rectangle) {
 		v.syncMenus()
 		return
 	}
-	token := v.regionCopyLifecycle.begin()
+	token := v.regionCopyLifecycle.Begin(context.Background())
 
 	v.clipboardWork.workers.Go(func() {
 		defer v.completeClipboardCopy(clipboardToken, done, nil)
-		defer token.cancelContext()
+		defer token.Release()
 
-		if !token.current() {
+		if !token.Current() {
 			return
 		}
 		data, err := v.regionCopy.Encode(bounds)
-		if err == nil && token.current() {
+		if err == nil && token.Current() {
 			err = clipboard.CopyImage(data)
 		}
-		if !token.current() {
+		if !token.Current() {
 			return
 		}
 
@@ -163,7 +164,7 @@ func (v *viewer) copyRegionSelection(bounds image.Rectangle) {
 			do = fyne.DoAndWait
 		}
 		do(func() {
-			if !token.current() {
+			if !token.Current() {
 				return
 			}
 			if err != nil {
