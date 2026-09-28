@@ -1,6 +1,6 @@
 # MA-032: request lifetimes and disposable result delivery
 
-Status: extraction accepted after the sorting/SVG pilot; convergence in progress.
+Status: extraction accepted; all 15 owners converged, final qualification in progress.
 Date: 2026-09-28
 Source: `/grill-with-docs ma-032`
 Implementation inspected at `4c759b2`; unchanged in the relevant paths at `68477a9`.
@@ -10,7 +10,7 @@ The user accepted the recommended answers in three rounds and invoked
 `/to-spec` to proceed with the consolidated design. The
 [local interview](../.scratch/ma-032/interview.md) retains the questions and
 source observations. The [local specification](../.scratch/ma-032/spec.md) is
-published as `ready-for-agent`, with 60 user stories and 20 acceptance criteria
+accepted with 60 user stories and 20 acceptance criteria
 covering the conditional extraction and fallback. The user approved
 [nine implementation tickets](../.scratch/ma-032/issues/README.md) and requested
 a feature branch and documentation commit. On 2026-09-28 the user authorized
@@ -33,10 +33,10 @@ fails, retain local implementations and deliver shared contract tests and the
 documented lifetime rules, with evidence explaining why extraction was rejected.
 Both are legitimate outcomes of MA-032.
 
-The proposed implementation location is a small Fyne-independent
+The accepted implementation is the small Fyne-independent
 `internal/requestlife` package using standard-library contexts and a
-caller-supplied dispatcher. The specification fixes interface behavior; exact
-exported names belong to implementation planning. No new dependency, native
+caller-supplied dispatcher. `Owner` admits immutable `Token` values;
+`Token.FinalDelivery` creates a disposable `Delivery`. No new dependency, native
 integration or disk format is needed.
 
 ## Resolved decisions
@@ -83,7 +83,7 @@ only that token and makes it non-current without advancing the owner's revision.
 Old release cannot cancel a newer token or the supplied parent. Basic revision
 and cancellation operations remain safe for concurrent observation/use.
 
-The final-delivery candidate owns the release handoff for one disposable
+FinalDelivery owns the release handoff for one disposable
 terminal result. Before handoff, early worker exit releases its request.
 Handoff transfers responsibility before invoking the dispatcher: a dispatcher
 may execute immediately or queue the callback. Returning from the worker after
@@ -112,7 +112,7 @@ event loop that has stopped is not assumed to deliver pending callbacks.
   per-generation completion signal. An obsolete sort still finishes its own
   delivery without clearing a newer sort's progress or applying old ordering.
 - Display SVG rendering retains vector/display identity checks, debounce,
-  raster workers and publication. The candidate replaces its manual
+  raster workers and publication. FinalDelivery replaces its manual
   worker-to-callback release handoff and request-currentness boilerplate.
 - A successful load retains its request token for neighbor preloads after
   `LoadDone`. Retry chains retain their existing token and completion. Load
@@ -145,8 +145,9 @@ stale-result rejection, not a production join of all display workers.
 the production contract. The pilot's responsibility reduction requires recorded
 lead assessment as well as passing behavioral tests.
 
-No runtime tests, native qualification or changed-code inspections were run
-for this documentation-only interview, specification and ticket publication.
+The original interview/spec publication was documentation-only. Implementation
+test selections, red/green evidence, inspections and current CI/review gates are
+recorded separately in the linked Deep SDD evidence.
 
 ## Limits and follow-on work
 
@@ -182,8 +183,10 @@ Ticket 07 completes Favorite preview synchronization and update requests. Previe
 HEIC capability is captured before Begin; owner/version/cache policy and retired
 preview workers remain local. Updater admission, serialized durable staging and
 queued stale-event checks still use their existing worker/completion protocol.
-All 15 inventoried owners are migrated; ticket 09 removes the unused root request
-implementation and qualifies the combined result.
+All 15 inventoried owners are migrated. Ticket 09 removes the unused root request
+implementation and its four superseded tests; shared package contracts cover those
+behaviors. Root's independent atomic revision and its test remain. There are no
+temporary progress/token adapters or feature-local lifecycle migrations.
 No ADR is needed for this small reversible extraction decision. General
 concurrency vocabulary stays in this document, leaving the domain glossary
 unchanged. Dependencies and native distribution inputs remain unchanged.

@@ -1,6 +1,7 @@
 # MA-032 implementation and evidence
 
-Status: tickets 01-07 complete; ticket 09 next; fallback 08 inapplicable.
+Status: tickets 01-07 complete; ticket 09 local qualification complete, CI pending.
+Fallback 08 inapplicable.
 Base: `04cb74c`. Draft PR: https://github.com/frathe/picfetch/pull/71.
 Authorization: 2026-09-28 `/implement MA-032`, TDD/SDD, a commit after each
 ticket, draft PR/CI, then ready-for-review and the GitHub Codex review loop.
@@ -48,7 +49,7 @@ The authorized GitHub full suite supplies the final broad race gate; use
 | 06 | clipboardwork/clipboard/batch/copyselection, viewer/harness and tests; retain capture and delivery completion | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
 | 07 | favthumbs/autoupdate/viewer/harness and affected tests; basic tokens only | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
 | 08 | Restore only pilot runtime changes; test-only shared local contract | T0; no spawn, focused V1-V4 | Inapplicable: extraction accepted |
-| 09 | Remove remaining duplicate request mechanics; retain independent revisions; docs/metadata/evidence and full qualification | T0; no spawn, final gate | Ready |
+| 09 | Remove remaining duplicate request mechanics; retain independent revisions; docs/metadata/evidence and full qualification | T0; no spawn, final gate | Local gates complete; full CI pending |
 
 Every ticket updates exact Qodana exclusions, root test shards, architecture when
 needed, local issue checkboxes and this record before its commit. GoLand changed
@@ -305,6 +306,8 @@ no defect or clean platform gate inferred from the summary alone.
 
 ### Ticket 07 — previews and updates (parent `cbf4279`)
 
+Committed as `573d3d6`, pushed to draft PR 71.
+
 The final two root owners use shared basic tokens. Favorite preview capability
 capture now precedes Begin; captured Favorite owner, full membership, source
 versions and cache writers are unchanged. All-generation preview workers still
@@ -332,3 +335,54 @@ decode exited status 1 at 30.03s with no decoded paths, matching the fixture's
 30-second context limit. Neither this package nor that subprocess changed in
 MA-032. Root cause remains unproven; do not change unrelated platform behavior
 from this one timeout-shaped failure. Latest-head Windows CI must pass.
+
+### Ticket 09 — convergence (candidate on parent `573d3d6`)
+
+Lead inventory and diff assessment: all 15 owners use requestlife, with inferred
+tokens and invalidation-only callers included. No aliases, temporary progress
+forms, mutable token contexts, or duplicate request implementations remain in
+root/display. Root lifecycle.go retains only its independent atomic revision;
+its original revision test remains. Four obsolete root-local request tests are
+removed because the stronger public requestlife contract covers those behaviors.
+The ui-3 manifest count is reduced by four; exact Qodana exclusions remain valid.
+Display's unused duplicate was already removed in 03. Explorer/compare and other
+feature-local lifecycles, native workers and independent revisions are unchanged.
+
+| Owner inventory | Count | Retained local protocol |
+| --- | --- | --- |
+| Root sort | 1 | Progress/rollback/collection commit; shared FinalDelivery |
+| Display SVG | 1 | Debounce, raster workers, pixel identities; shared FinalDelivery |
+| Display load and animation | 2 | Retry/load completion, borrowed retained preloads, playback acknowledgement/capture |
+| Root scan, native chooser, Explorer preparation, Location Map preparation | 4 | Admission, collection checks, native/feature workers and queued results |
+| Root Save, Export, search-origin reconciliation | 3 | Committed effects, independent reconciliation retries/completion |
+| Root whole-image/Grid clipboard and region copy | 2 | Busy admission, captured pixels/pause release, native and queued completion |
+| Root Favorite preview and updater | 2 | Captured owner/version/cache policy, durable staging, all-worker barriers |
+
+Final uncached race evidence after duplicate removal: requestlife 2 suites/1.020s;
+display 2 suites/3.637s (entire presentation contract plus MA032 delivery);
+root 52 suites/98.793s; map preparation/lifecycle 2 suites/20.982s.
+All applicable AC1-AC16 selections are covered, including held/queued real shutdown,
+Spiral's blocked-read exception, HEIC backend lifetimes and retained preloads.
+Every selection enumerated, all required children passed; no empty selections,
+skips or races. Logs: `.scratch/ma-032/ticket09-{contract,display,ui,maps}{,-list}.log`.
+AC17 uses the recorded 02 verdict; AC18 inventory converged; AC19 inapplicable.
+
+`make check-test-shards verify-build` passed: native Docker inventory 739/3;
+formatting, exact exclusions, TUF/generated assets/tag vectors/third-party notices,
+full-repo vet and build. Full race suite is delegated to native Linux/amd64 CI
+under the user-authorized review workflow instead of duplicating it locally.
+Dependencies, native payloads, formats and user-visible strings unchanged.
+
+GoLand re-inspected every one of the 48 surviving changed Go files against this
+final code, including weak warnings, with no skipped files, errors or timeouts.
+Raw scope/results: `.scratch/ma-032/ticket09-goland.json`. The ten weak duplicate
+fragments are the previously assessed fixtures (autoupdate_test 445/641/776/906,
+filestate_test 39/72, openfiles_test 258/295), covered by exact test exclusions,
+and viewer's separate title/dropzone policies (507/620). No actionable finding
+or new suppression. This IDE fallback does not replace CI post-suppression SARIF.
+Writing-for-agents informed the concise AGENTS pointer to the lifetime contract;
+architecture, lifetime design and open-work status now describe the converged code.
+
+Ticket 09 remains in qualification until fresh full CI, CodeQL and Qodana SARIF
+are assessed. The PR stays draft. After all ticket points are complete, mark it
+ready and run the separate latest-head code/security review loop; do not merge.

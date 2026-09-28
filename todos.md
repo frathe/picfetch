@@ -96,11 +96,11 @@
   latest-head code/security reviews, dispositions and final checks.
   [MA-032's design record](docs/worker-lifetimes.md) resolves all nine interview
   decisions. Its [local specification](.scratch/ma-032/spec.md) is published as
-  `ready-for-agent`, with 60 user stories, test boundaries and 20 acceptance
+  accepted, with 60 user stories, test boundaries and 20 acceptance
   criteria. It defines a root sort/display SVG pilot, a conditional root/display
   token migration and a contracts-and-tests fallback. Its
-  [nine approved tickets](.scratch/ma-032/issues/README.md) are published as
-  with [Deep SDD implementation and evidence](plans/2026-09-28-ma-032-request-lifetimes.md)
+  [nine approved tickets](.scratch/ma-032/issues/README.md) have
+  [Deep SDD implementation and evidence](plans/2026-09-28-ma-032-request-lifetimes.md)
   underway. Tickets 01-07 are complete: the accepted sorting/SVG pilot and all
   15 root/display request owners. Ticket 09 qualification remains;
   fallback 08 is inapplicable. Each completed ticket gets its own commit;

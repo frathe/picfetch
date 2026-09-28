@@ -7,7 +7,7 @@
 # weights: single CI attempt; projected test sums, not measured shard runtimes
 # ui-1: 270 entries, 470.520s projected weight sum
 # ui-2: 255 entries, 470.530s projected weight sum
-# ui-3: 218 entries, 504.870s projected weight sum
+# ui-3: 214 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
 # evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
 # name	shard
@@ -665,10 +665,6 @@ TestRasterFormatKeepsNoVectorState	ui-3
 TestRecordWindowPosition_CounterClockwiseSpiralDragFiresTheOtherWay	ui-3
 TestRefreshMenus_FavoriteChangeRepublishesTheBarThroughTheViewer	ui-3
 TestRequestDelete_DoesNothingWhileTheExportPromptIsUp	ui-3
-TestRequestLifecycleBeginCancelsAndSupersedesPrevious	ui-3
-TestRequestLifecycleConcurrentBeginLeavesOneCurrentToken	ui-3
-TestRequestLifecycleInvalidateCancelsWithoutReplacement	ui-3
-TestRequestTokenCancelDoesNotSupersedeNewerRequest	ui-3
 TestResetRotation_Key0ClearsRotationAndZoom	ui-3
 TestResizeToImage	ui-3
 TestRestoreSession_LoadsSavedFilesAndHidesLink	ui-3

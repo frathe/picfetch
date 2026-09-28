@@ -45,7 +45,7 @@ explicit cross-feature composition in `internal/ui`.
 | --- | --- | --- | --- |
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | All nine tickets complete and CI-qualified; latest review/checks in PR 69 |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | All nine tickets complete and CI-qualified; latest review/checks in PR 70 |
-| [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Accepted design; nine tickets ready-for-agent |
+| [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Extraction accepted; all 15 owners migrated, qualification in progress |
 | [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | Recommended independent small task |
 
 Priorities express architectural value, not the severity of a currently open bug.
@@ -507,18 +507,15 @@ ownership. No disk-format migration is part of this design.
 
 ## MA-032 — Consolidate proven worker-lifetime mechanics
 
-**Design status:** all nine decisions are accepted in the
-[consolidated design](docs/worker-lifetimes.md). The
-[ready-for-agent specification](.scratch/ma-032/spec.md) defines 60 user stories,
-test boundaries and 20 acceptance criteria for extraction or fallback.
-[Nine approved implementation tickets](.scratch/ma-032/issues/README.md) are
-published as `ready-for-agent`, with explicit pilot and conditional branch gates.
-Pilot root sorting and display SVG final delivery; require reduced caller
-responsibilities before completing basic-token migration within root/display.
-Preserve feature-owned admission, completion and shutdown policies. If the
-pilot cannot meet that bar, retain local implementations and share contract
-tests/documentation. [Implementation and evidence](plans/2026-09-28-ma-032-request-lifetimes.md)
-are underway, beginning with ticket 01; the SVG verdict still gates adoption.
+**Implementation status:** the sorting/SVG pilot accepted extraction under all
+nine decisions in the [design](docs/worker-lifetimes.md). All 15 root/display
+owners use `internal/requestlife`; only sorting/SVG use disposable final delivery.
+Duplicated root/display request implementations are removed; independent
+revisions, feature completion, workers and shutdown policy remain local.
+The [specification](.scratch/ma-032/spec.md) and
+[tickets](.scratch/ma-032/issues/README.md) retain their command-backed acceptance
+criteria; fallback ticket 08 is inapplicable. Final qualification and the GitHub
+review loop remain in [the evidence record](plans/2026-09-28-ma-032-request-lifetimes.md).
 
 **P2; medium confidence.** The need for consistent contracts is strong; a
 universal task manager is not justified. Pilot a small extraction before any
@@ -532,9 +529,9 @@ and [persistence despite discarded UI delivery](https://github.com/frathe/picfet
 Location Map's [committed cleanup lifetime](https://github.com/frathe/picfetch/pull/58#discussion_r4111247911)
 required surviving ordinary close while still responding to terminal Stop.
 
-**Current seam:** request-token mechanics repeat in
-[root](internal/ui/lifecycle.go), [display](internal/ui/display/lifecycle.go) and
-[Explorer](internal/ui/explorer/lifecycle.go); root/display are especially close.
+**Resulting seam:** [requestlife](internal/requestlife/request.go) owns common
+root/display request mechanics; [Explorer](internal/ui/explorer/lifecycle.go)
+and other feature-local lifecycles remain outside this change.
 Worker admission, retired work and queues are independently composed across
 features. [run.go](internal/ui/run.go) and
 [harness_test.go](internal/ui/harness_test.go) enumerate different shutdown
