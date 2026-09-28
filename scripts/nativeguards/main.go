@@ -47,6 +47,13 @@ func (s *suite) require(pkg string, tests ...string) {
 func suiteFor(name, hostOS string) (suite, error) {
 	s := suite{name: name}
 	switch name {
+	case "favorite-ownership":
+		if hostOS != "linux" && hostOS != "windows" && hostOS != "darwin" {
+			return suite{}, fmt.Errorf("favorite-ownership requires Linux, Windows or macOS, running on %s", hostOS)
+		}
+		s.goos = hostOS
+		s.requireFavoriteOwnership()
+		return s, nil
 	case "command-admission":
 		if hostOS != "linux" && hostOS != "windows" && hostOS != "darwin" {
 			return suite{}, fmt.Errorf("command-admission requires Linux, Windows or macOS, running on %s", hostOS)
@@ -91,6 +98,43 @@ func suiteFor(name, hostOS string) (suite, error) {
 	}
 	s.requireHEIC()
 	return s, nil
+}
+
+// Favorite ownership uses focused parents so native root UI checks do not
+// select platform-specific golden rendering or installed-codec qualification.
+func (s *suite) requireFavoriteOwnership() {
+	families := []struct {
+		pkg, parent string
+		children    []string
+	}{
+		{"internal/favstore", "TestFavoriteOwnership", []string{"move", "directory_replacement", "list_replacement", "list_change", "idle_removal", "active_release"}},
+		{"internal/favstore", "TestFavoriteCancellation", []string{"cancelled", "changed_while_reading", "growth", "save_before", "save_after", "save_after_replacement"}},
+		{"internal/favstore", "TestFavoriteConflicts", []string{
+			"publication", "retirement", "occupied", "identical_list", "directory", "base", "missing_list",
+			"removal_identical_list", "removal_directory", "removal_move", "removal_missing_list", "removal_malformed", "removal_cancelled", "removal_committed_after_cancel",
+		}},
+		{"internal/similarity", "TestAnalysisCacheFileURIPathsReopen", []string{"general", "favorite"}},
+		{"internal/favthumbs", "TestSyncFavoriteOwnership", []string{"held_read", "publication", "cleanup", "sweep", "fresh_record", "move", "remove", "identical_list", "directory"}},
+		{"internal/ui/favorites", "TestFavoriteStorageLifecycle", []string{"close", "source", "root", "modal", "stop", "active_native_call"}},
+		{"internal/ui/favorites", "TestFavoriteStorageCommittedEffects", []string{"removal_close", "removal_root", "removal_stop", "removal_failed_after_close", "close", "root", "stop", "replacement", "refresh_failure"}},
+		{"internal/ui", "TestFavoriteOwnershipIntegration", []string{
+			"preview_queued_open", "preview_queued_save", "native_removal_close", "native_removal_root", "native_removal_shutdown",
+			"committed_save_close", "committed_save_opt_out", "committed_save_shutdown", "queued_replay", "modal", "source", "malformed", "identical_replacement", "shutdown",
+		}},
+		{"internal/ui", "TestFavoritePreviewAfterCommitBeforeNotificationRejectsOldMemoryHit", nil},
+		{"internal/ui", "TestShutdownCancelsFavoritePreviews", nil},
+	}
+	var parents []string
+	for _, family := range families {
+		tests := []string{family.parent}
+		for _, child := range family.children {
+			tests = append(tests, family.parent+"/"+child)
+		}
+		s.require(family.pkg, tests...)
+		parents = append(parents, family.parent)
+	}
+	s.packages = slices.Compact(s.packages)
+	s.runTests = "^(" + strings.Join(parents, "|") + ")$"
 }
 
 // requireHEIC records the cases that currently exist, including named fixture
@@ -270,7 +314,7 @@ func validateEvents(input io.Reader, required []guard, log io.Writer) error {
 func run(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("nativeguards", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	name := flags.String("suite", "", "linux, windows, macos, store, or command-admission")
+	name := flags.String("suite", "", "linux, windows, macos, store, command-admission, or favorite-ownership")
 	capturePath := flags.String("capture", "", "raw go test JSON output path")
 	skipCodecs := flags.Bool("skip-heic-codecs", false, "exclude installed HEIC codec tests in Windows GitHub Actions only")
 	if err := flags.Parse(args); err != nil {
@@ -280,7 +324,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || *capturePath == "" {
-		return errors.New("usage: nativeguards -suite linux|windows|macos|store|command-admission -capture <json-file> [-skip-heic-codecs]")
+		return errors.New("usage: nativeguards -suite linux|windows|macos|store|command-admission|favorite-ownership -capture <json-file> [-skip-heic-codecs]")
 	}
 	s, err := suiteFor(*name, runtime.GOOS)
 	if err != nil {
@@ -300,7 +344,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	execute := func(ctx context.Context, args []string, out io.Writer) error {
 		cmd := exec.CommandContext(ctx, "go", args...)
 		cmd.Env = os.Environ()
-		if s.name != "command-admission" {
+		if s.name != "command-admission" && s.name != "favorite-ownership" {
 			cmd.Env = append(cmd.Env, "PICFETCH_HEIC_NATIVE_TEST=1")
 		}
 		cmd.Stdout = out
@@ -313,6 +357,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 	if s.name == "command-admission" {
 		_, _ = fmt.Fprintln(stdout, "Command admission: filesystem and isolated native-menu guards; physical-input qualification remains separate.")
+	} else if s.name == "favorite-ownership" {
+		_, _ = fmt.Fprintln(stdout, "Favorite ownership: captured filesystem identities, URI paths, mutation and UI/preview lifecycle guards; native Trash uses isolated fixtures.")
 	} else {
 		_, _ = fmt.Fprintln(stdout, "HEIC: this inventory checks implemented cases; full fixture, packaged-open, codec-absence/recheck and target-matrix evidence remains a separate qualification requirement.")
 	}

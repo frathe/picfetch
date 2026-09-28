@@ -10,6 +10,40 @@ import (
 )
 
 func TestFavoriteOwnership(t *testing.T) {
+	t.Run("active_release", func(t *testing.T) {
+		dir, name := putDefinition(t, `{"0":"/offline.jpg"}`)
+		path := Dir(dir, name)
+		definition, err := Open(context.Background(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		access, err := definition.Owner.Acquire(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = access.Root.Close() }()
+		cancel()
+		if err := access.Current(ctx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("active access ignored cancellation: %v", err)
+		}
+		if err := access.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := access.Root.Stat("."); err == nil {
+			t.Fatal("Close retained active directory access")
+		}
+		if err := os.Rename(path, filepath.Join(dir, "Released")); err != nil {
+			t.Fatalf("cancelled active operation pinned its directory after Close: %v", err)
+		}
+		if stale, err := definition.Owner.Acquire(context.Background()); !errors.Is(err, ErrRetired) {
+			if stale != nil {
+				_ = stale.Close()
+			}
+			t.Fatalf("released owner followed a moved directory: %v", err)
+		}
+	})
 	for _, change := range []string{"move", "directory_replacement", "list_replacement", "list_change", "idle_removal"} {
 		t.Run(change, func(t *testing.T) {
 			dir, name := putDefinition(t, `{"0":"/offline.jpg"}`)

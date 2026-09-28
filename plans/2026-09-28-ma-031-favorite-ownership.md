@@ -581,3 +581,50 @@ the agent's four-file fixture adaptation and reviewed currentness boundaries.
 Architecture and agent guide now document captured preview ownership, with the
 writing-for-agents skill keeping this beside the existing source-version rule.
 No dependencies, shipped assets or persistent formats changed.
+
+### Ticket 09 native inventory (fixed before implementation)
+
+Use a separate focused `favorite-ownership` native suite on Linux, Windows and
+both existing macOS architectures. Adding root UI to the full native package
+suite would also select Linux-only golden tests, so a parent-name filter is
+required. No codec-exception flag applies. Retain raw JSON and fail missing,
+skipped or failed registered parents/children using the existing event validator.
+
+Required parents and children:
+- favstore `TestFavoriteOwnership`: move, directory_replacement, list_replacement,
+  list_change, idle_removal, new active_release (cancel, explicit close, then move).
+- favstore `TestFavoriteCancellation`: cancelled, changed_while_reading, growth,
+  save_before, save_after, save_after_replacement.
+- favstore `TestFavoriteConflicts`: publication, retirement, occupied,
+  identical_list, directory, base, missing_list; removal_identical_list,
+  removal_directory, removal_move, removal_missing_list, removal_malformed,
+  removal_cancelled, removal_committed_after_cancel.
+- similarity `TestAnalysisCacheFileURIPathsReopen`: general, favorite.
+- favthumbs `TestSyncFavoriteOwnership`: held_read, publication, cleanup, sweep,
+  fresh_record, move, remove, identical_list, directory.
+- favorites `TestFavoriteStorageLifecycle`: close, source, root, modal, stop,
+  active_native_call; `TestFavoriteStorageCommittedEffects`: removal_close,
+  removal_root, removal_stop, removal_failed_after_close, close, root, stop,
+  replacement, refresh_failure.
+- root `TestFavoriteOwnershipIntegration`: preview_queued_open, preview_queued_save,
+  native_removal_close/root/shutdown, committed_save_close/opt_out/shutdown,
+  queued_replay, modal, source, malformed, identical_replacement, shutdown.
+- root `TestFavoritePreviewAfterCommitBeforeNotificationRejectsOldMemoryHit`
+  and `TestShutdownCancelsFavoritePreviews`.
+
+T0 implements this cross-package qualification; the bounded native scout was
+already completed in 06. No further delegate can improve the hot final-gate work.
+
+The qualification implementation is pushed before closing ticket 09 because
+native CI must execute a real committed revision. Ticket 09 remains claimed;
+its completion/evidence commit follows verified native/full results. Local
+`nativeguards -suite favorite-ownership` passed all 76 exact requirements on
+Linux/amd64, with raw JSON in `09-native-linux.json`. Runner tests reject every
+required result when missing, skipped or failed. Initial unknown-suite and
+missing-workflow reds are `09-native-inventory-red.txt` and
+`09-native-workflow-red.txt`. Making Access.Close a no-op fails active_release
+(`09-active-release-red.txt`); restored code passes. GoLand inspected all three
+changed Go files including weak warnings on the c58a07f-based tree: clean,
+no timeouts/skips. Focused vet, runner tests and Make formatting/exclusions/shards
+pass; no new test file or root top-level name. Complete platform/CI acceptance
+is still pending and is not inferred from local success.
