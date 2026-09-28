@@ -106,8 +106,8 @@ func TestHandleKeyEvent_IgnoredWhileAFyneDialogIsUp(t *testing.T) {
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 
-	if len(v.state.files) != 2 {
-		t.Errorf("files = %d, want the session left alone behind the dialog", len(v.state.files))
+	if v.state.Observe().Count() != 2 {
+		t.Errorf("files = %d, want the session left alone behind the dialog", v.state.Observe().Count())
 	}
 	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
 		t.Errorf("overlay count = %d, want the dialog still up", n)
@@ -125,7 +125,7 @@ func TestHandleKeyEvent_DialogSwallowsTheAppsOtherKeysToo(t *testing.T) {
 	warmThumbs(t, v)
 
 	v.showManageFavorites()
-	startIndex := v.state.index
+	startIndex := v.state.Observe().index
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyG})
 	if v.grid.Visible() {
@@ -133,8 +133,8 @@ func TestHandleKeyEvent_DialogSwallowsTheAppsOtherKeysToo(t *testing.T) {
 	}
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
-	if v.state.index != startIndex {
-		t.Errorf("index = %d, want %d: the arrows navigated behind the dialog", v.state.index, startIndex)
+	if v.state.Observe().index != startIndex {
+		t.Errorf("index = %d, want %d: the arrows navigated behind the dialog", v.state.Observe().index, startIndex)
 	}
 }
 
@@ -185,7 +185,7 @@ func TestHandleKeyEvent_DeleteCardIsNotACanvasOverlay(t *testing.T) {
 	if v.deletion.Visible() {
 		t.Error("Escape no longer reaches the delete card")
 	}
-	if len(v.state.files) != 2 {
+	if v.state.Observe().Count() != 2 {
 		t.Error("Escape on the card reset the loaded file set")
 	}
 }

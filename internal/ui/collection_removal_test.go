@@ -37,7 +37,7 @@ func collectionRemovalReconciliation(t *testing.T) {
 		before := v.Generation()
 		v.RemoveFiles([]int{4, 0, 0})
 		waitUntilLoaded(t, v)
-		if v.Generation() != before+1 || v.searchActive() || v.grid.Visible() || v.currentImageOccurrence().Ordinal != 0 || v.state.index != 0 || v.FileAt(0).String() != a.String() {
+		if v.Generation() != before+1 || v.searchActive() || v.grid.Visible() || v.currentImageOccurrence().Ordinal != 0 || v.state.Observe().index != 0 || v.FileAt(0).String() != a.String() {
 			t.Fatal("batch survivor mapping lost the retained later image occurrence")
 		}
 	})
@@ -55,7 +55,7 @@ func collectionRemovalReconciliation(t *testing.T) {
 		uitest.StubTrashMove(t, os.Remove)
 		collectionTrash(t, v, v.FileAt(0), v.FileAt(2))
 		waitUntilLoaded(t, v)
-		if v.searchActive() || v.grid.Visible() || v.display.RequestRevision() != revision+1 || v.FileAt(v.state.index).String() != origin.String() {
+		if v.searchActive() || v.grid.Visible() || v.display.RequestRevision() != revision+1 || v.FileAt(v.state.Observe().index).String() != origin.String() {
 			t.Fatal("Trash did not restore the explicit image origin with exactly one load")
 		}
 	})

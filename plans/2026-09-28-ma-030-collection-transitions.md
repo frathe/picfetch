@@ -1,6 +1,7 @@
 # MA-030: authoritative collection identity and committed transitions
 
-Status: implementation in progress; tickets 01-08 complete, ticket 09 pending.
+Status: tickets 01-08 complete; ticket 09 implementation/local qualification complete,
+awaiting its draft-PR full CI gate before closure and review.
 Baseline: `1f92396367acc41c663710ee4b4b981c43d1c184`.
 Branch: `feature/ma-030-collection-transitions`.
 Authority: [accepted design](../docs/collection-transitions.md),
@@ -233,7 +234,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 | 06 | 1/1 | 2 | no | Complete; batch/removal handoff evidence below |
 | 07 | 1/1 | 1 | no | Complete; unavailable recovery evidence below |
 | 08 | 1/1 | 1 | no | Complete; committed-write/policy evidence below |
-| 09 | 1/1 | 0 | CI | Close/reset/stale-delivery test-seam scout complete |
+| 09 | 1/1 | 1 | CI pending | Both migrations complete; local qualification below |
 
 ### Progress
 
@@ -822,3 +823,134 @@ Lead review confirms all four write routes share the ordered root boundary,
 source I/O remains off UI, stale-request suppression stays separate from disk
 truth, and policy differences remain explicit. Ticket 07's GitHub jobs are all
 green on 3887956; final SARIF/review gates remain pending ticket 09.
+
+### Ticket 09 qualification candidate — 2026-09-28
+
+Both migrations are now implemented. The raw files/unsortedFiles/index/
+unavailableOrder/favoriteDir fields and setFiles/replaceFiles/clearFiles/
+publish/publishGeneration/snapshot bridges are removed. Immutable collectionData
+is the only membership/order/association storage. Replace, Reorder and Select
+are the only atomic stores; Remove, RemoveTargets, MarkUnavailable, Merge and
+Clear compose those operations. Selection shares immutable data; stable reorder
+shares source/retained projections and builds the occurrence index only once.
+Root readers and fixtures use observations/operations, never writable mirrors.
+Map and browsing restoration reuse the model's occurrence index. No new worker,
+package, dependency, native behavior, schema or user-visible string was added.
+
+Lead ownership/ordering assessment against baseline 1f923963:
+
+| Previous obligation | Final authority and caller disposition |
+| --- | --- |
+| Mutable appState fields plus separately published duplicate keys | collection.go owns all facts and one coherent publication; state.go retains only standing sort/merge preferences and the atomic observation |
+| Root HEIC retained-order repair and persistedFiles adapter | Model MarkUnavailable/Capture own exact occurrences and gaps; heic.go only prepares admitted retained inputs and presents support guidance |
+| explorerInput Favorite association | Removed; model observation supplies the candidate to Explorer. Explorer's own captured favoriteDir belongs to its analysis session and containment-checked cohort persistence, not a writable loaded-collection mirror |
+| Scan/open/merge partial fields and duplicated completion ordering | drop.go prepares complete input; commitOpenedCollection publishes, invalidates/rebinds features and flushes notifications before final display admission |
+| Favorite/session discovery semantics | OpenFavorite and startup session explicitly choose replay through the common scanner/admission/sort/commit path; storage owners/formats stay unchanged |
+| Start-time chosen image during sort | commitCollectionReorder reads the latest model selection, preserves explicit browsing-origin priority, rebinds before one load and invalidates an ineligible obsolete load |
+| Per-item removal and consumer-computed survivors | One model walk returns exact-URI effects and path/ordinal survivors. Root passes that same map to Grid bookmarks, retained visits, image origins and frozen scopes; no consumer reconstructs it |
+| Deletion feature's second load/empty decision | ReconcileDeletedFiles owns outcome presentation and one final load; deletion keeps OS moves and its cancellation/completion lifetime |
+| Load-failure retained repair/retry | Model commits once; ordinary failure returns a scoped successor to the original display retry chain; unavailable failure retains membership and stops at guidance |
+| Committed write/source validation | fileWork captures the observation, performs alias/source I/O on tracked workers, revalidates both queued decisions and calls named sourceWritten/sourcesRevalidated effects; removals use the shared batch result |
+| Policy updates | Existing analysis/duplicate adapters retain separate effects and no-op checks; no membership publication, universal purge or automatic analysis restart |
+| Close Files/reset/shutdown | Clear after surface retirement, then empty presentation. Committed empty presentation does not clear unavailable membership. Shutdown preserves session capture and cancels existing admissions; harness joins/drains chooser, fileWork, HEIC, scan/sort and feature lanes in their established order |
+| Derived compatibility adapters | dupeFileSet forwards immutable URI keys/generation; Host Count/FileAt/Current project an observation. Feature-local Grid indexes, display request generations, source/cache versions and browsing visit bindings retain their separate domains |
+
+The inventory is an ownership assessment, not only an old-symbol search. No
+source I/O moved onto UI, model methods call no features, and feature workers,
+caches, query history, comparison, map cameras and Picture-frame timing remain
+with their existing owners. The initial fixture migration was mechanical, then
+hot reader loops were changed to capture one observation without slice cloning.
+All previous test assertions remain, using production observations instead of
+private mirrored fields. Old method names in test titles remain descriptive
+compatibility names, not retained setters.
+
+New lifecycle evidence: Close Files' registered menu action and reset clear
+every fact in one publication while mounting the welcome surface. Twelve held
+scan/replay/sort cases cover cancel, replacement, close/reopen and production
+shutdown, including repeated members, retained HEIC and fresh Explorer cohorts.
+Queued native chooser results cannot reopen a closed/replaced collection or
+cross terminal chooser admission. Validation-removal deletes multiple repeated
+sources in one commit, preserves the unavailable gap/Favorite, retires search and
+restores the surviving image origin before exactly one load.
+
+TDD/convergence: existing behavior contracts were green before bridge removal;
+they were rerun after the structural change. The new close/reset guard failed
+both cases when authoritative Clear was deliberately omitted, then passed after
+restoration. Earlier tickets record independent intended-violation failures for
+immutable input, association publication, replay deduplication, latest choice,
+shared survivor remapping, unavailable retention and committed-write revalidation.
+The new production-shutdown fixture initially leaked capture-date preferences
+into the shared test app; its cleanup now restores preferences and session data.
+A validation test initially supplied an out-of-range rank; correcting that
+fixture is not claimed as behavioral red evidence.
+
+#### Final AC mapping
+
+All names below have the TestCollection prefix unless another exact family is
+shown. Every named Collection case ran uncached without skipping. Full outputs
+and exact case inventory are retained locally in `.scratch/ma-030/evidence/09-*.log`.
+
+| AC | Concrete final evidence |
+| --- | --- |
+| 1 | Model/snapshots, operations/selection; Compatibility/navigation_snapshots; TestGenerationTracksFileSetIdentityNotNavigation and TestFileSnapshot_KeysAndGenerationMoveTogether |
+| 2 | Model/operations/{replacement,merge,reorder,unavailability,clear,selection} |
+| 3 | Model/occurrences/{earlier,later,targets,uri_keys_and_path_bookmarks}; Capture/after_removal; repeated image/load origins |
+| 4 | Admission/{empty_input,merge}; Lifecycle/preparation 12 cases; Replay/pending_capability/{canceled,superseded}; TestVisualSimilarityExplorer/favorite_identity_cancel; TestStaleFileStateCompletions and existing TestHandleDrop cases |
+| 5 | Removal/{partial_batch,empty,unavailable_survivor,stale_delivery,symlink_target,unmatched_keeps_search}; Reconciliation/removal; deletion/TestPerformDelete_MovesSymlinkWithoutFollowingIt (ran, no skip) |
+| 6 | Unavailable/favorite_open and runtime_loss/{false,true,retained_search_origin}; TestHEICBackendLossPreservesSession, TestHEICUnavailableFiles and guidance cases |
+| 7 | FavoriteAssociation/replacement and all merge/containment cases; Capture/{saving,ranked_selected}; existing Explorer Favorite identity/cohort cases |
+| 8 | Merge/{unavailable_existing,per_input_limit}; FavoriteAssociation/merge unavailable matrix; Admission/merge no-ops |
+| 9 | Replay: real Favorite/session singleton/repeated, missing, limits/floor/truncation, pending capability and discovery aliases; complete filescan/favstore/session suites |
+| 10 | Capture/{orders,saving,ranked_selected,after_removal}; TestFindMoreLikeThisActionsCaptureRankedSources |
+| 11 | SortHandoff/{loaded_latest,pending_latest,canceled,superseded}; Reconciliation/reorder/{explicit_origin,empty_scope}; display/TestPresentationContract |
+| 12 | Reconciliation/{replacement,merge,reorder,removal,validation_removal,load_failure}; TestBrowsingCollectionChanges, TestFindMoreLikeThisSourceAndSortRetirement and TestLocationMap |
+| 13 | CommittedEffects/{callers,chosen_index_revalidation}; Lifecycle/committed_writes; existing SaveChanges cancellation, Export alias/unrelated, FileMutation and MetadataRemoval alias cases; EXIF/mosaic committed cancellation matrices |
+| 14 | ChangeKinds/{reorder,removal,content_and_policy}, including unchanged-policy no-ops and cache/producer distinctions |
+| 15 | Lifecycle/{close_facts,preparation,queued_chooser,load_recovery,committed_writes}; TestBrowsingVisitLifecycle, TestOpenChooser and TestEscapeUnwindsModesBeforeReset |
+| 16 | Compatibility/navigation_snapshots plus existing TestCommandAdmission*, TestWindowCommandAdmissionMatrix, TestCompare*, TestCopySelection*, TestBrowsing* (live/frozen/duplicate scopes and returns), TestFindMoreLikeThis* (query history), TestAdvance*, TestSlide* and Picture-frame keyboard/shutdown cases. These existing tests, not duplicate wrappers, are the finalized compatibility gate |
+| 17 | Lead ownership/ordering inventory above plus all AC1-16 evidence |
+| 18 | Local checks/inspections below pass; complete native-amd64 CI race and fresh post-suppression Qodana SARIF remain pending this candidate push |
+
+#### Local qualification
+
+Analyzed revision: 6a852718659fbf7302c86fe1edcb44483fb0d91e plus ticket 09 working
+tree (candidate commit containing this record). Final comment-only clarification
+in viewer.go was reinspected with identical findings. No code changed after the
+functional/race run except that comment.
+
+- All 14 Collection families enumerated, then `-count=1 -v -run '^TestCollection'`:
+  PASS, 9.869s, no missing or skipped subcase.
+- Compatibility selection (CommandAdmission*, WindowCommandAdmissionMatrix,
+  Browsing*, FindMoreLikeThis*, CopySelection*, Compare*, Escape, LocationMap*,
+  HEIC*, Advance*, Slide*, TogglePictureFrameMode*, Picture-frame keys/shutdown):
+  PASS, 40.318s, 578 passing test/subtest entries. Optional
+  TestHEICNativeImageOperations skipped because its native opt-in was not set;
+  this is not native qualification. Required harness HEIC cases all ran.
+- Complete TestVisualSimilarityExplorer: PASS, 14.239s. Existing open/chooser,
+  reset, save/export, sort/selection, info/reveal reader regressions: PASS,
+  12.162s. Metadata alias/rotation plus reveal cases: PASS, 0.158s. Exact
+  noncurrent-alias/loaded-set/competing-commit FileMutation cases recorded in
+  `09-mutation.log`.
+- Complete uncached verbose filescan/favstore/session: PASS; display
+  PresentationContract, Trash symlink and EXIF/mosaic committed-cancellation
+  suites: PASS. Their actual case output is retained, not only parent results.
+- Focused race: all Collection families, BrowsingVisitLifecycle, Escape,
+  generation and file-snapshot contracts: PASS, 143.198s. Full broad race is
+  assigned to GitHub's native-amd64 suite under the authorized review workflow.
+- `make fmt`, `make check-test-platform verify-build check-test-shards` and
+  `git diff --check`: PASS. Includes TUF/generated assets/notices, exact Qodana
+  exclusions, all-package vet/build and Docker shard check: 741 runnables.
+- GoLand Inspect Code fallback, IDE profile, errorsOnly=false: every one of the
+  78 changed Go files since baseline completed. Eight initial timeouts were
+  repeated successfully; no partial/missing final results. Exact file scope and
+  28 weak duplicate fragments are in `09-inspections.json`; no errors or ordinary
+  warnings. All test fragments are independent scenario fixtures covered by
+  existing exact DuplicatedCode exclusions. Viewer applyTitle (20 lines) and
+  presentDropzone (26) retain their previously assessed title/HEIC-presentation
+  overlap: those different presentation conditions are intentional, not another
+  collection authority or commit sequence. No broad suppression/extraction added.
+
+Ticket 08's full CI, CodeQL and Qodana jobs passed on 6a852718. That older head
+does not qualify this candidate. Keep PR 69 draft until ticket 09's complete CI
+gate succeeds, then record completion, remove draft and begin the fresh Codex
+code/security review loop. No merge or release is authorized.

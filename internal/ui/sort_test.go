@@ -28,7 +28,7 @@ import (
 // real bug: cancelling a first-ever drop's reorder has nothing loaded yet
 // to lose, but cancelling a resort of files already on screen must leave
 // that set and the displayed image alone. v.sortOp.active is what tells the two
-// states apart - during a first drop's reorder, v.state.files reads
+// states apart - during a first drop's reorder, v.state.Observe().DisplayFiles() reads
 // exactly like the empty "nothing to reset" state that Escape otherwise
 // closes the window on.
 //
@@ -49,7 +49,7 @@ func TestHandleDrop_NaturalSortsByDefault(t *testing.T) {
 	dropAndWait(t, v, img10, img1, img2)
 
 	var got []string
-	for _, u := range v.state.files {
+	for _, u := range v.state.Observe().DisplayFiles() {
 		got = append(got, u.Name())
 	}
 	want := []string{"IMG_1.jpg", "IMG_2.jpg", "IMG_10.jpg"}
@@ -94,7 +94,7 @@ func TestToggleSort_CyclesThroughAllModesAndBackToName(t *testing.T) {
 	natural := []string{"IMG_1.jpg", "IMG_2.jpg", "IMG_10.jpg"}
 	scanOrder := namesOf(dropOrder) // IMG_10.jpg, IMG_1.jpg, IMG_2.jpg
 
-	if got := namesOf(v.state.files); !slices.Equal(got, natural) {
+	if got := namesOf(v.state.Observe().DisplayFiles()); !slices.Equal(got, natural) {
 		t.Fatalf("files = %v, want natural-sorted %v before any toggle", got, natural)
 	}
 	if v.state.SortMode() != filesort.ByName {
@@ -106,7 +106,7 @@ func TestToggleSort_CyclesThroughAllModesAndBackToName(t *testing.T) {
 	// throughout.
 	v.ShowImage(1)
 	waitUntilLoaded(t, v)
-	if got := v.state.files[v.state.index].Name(); got != "IMG_2.jpg" {
+	if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != "IMG_2.jpg" {
 		t.Fatalf("displayed file = %q, want IMG_2.jpg before cycling", got)
 	}
 	if title := v.win.Title(); !strings.Contains(title, "(2/3)") {
@@ -133,10 +133,10 @@ func TestToggleSort_CyclesThroughAllModesAndBackToName(t *testing.T) {
 		if v.state.SortMode() != step.mode {
 			t.Fatalf("sortMode = %v, want %v", v.state.SortMode(), step.mode)
 		}
-		if got := namesOf(v.state.files); !slices.Equal(got, scanOrder) {
+		if got := namesOf(v.state.Observe().DisplayFiles()); !slices.Equal(got, scanOrder) {
 			t.Errorf("[mode %v] files = %v, want %v", step.mode, got, scanOrder)
 		}
-		if got := v.state.files[v.state.index].Name(); got != "IMG_2.jpg" {
+		if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != "IMG_2.jpg" {
 			t.Errorf("[mode %v] displayed file = %q, want IMG_2.jpg to stay in view", step.mode, got)
 		}
 
@@ -157,10 +157,10 @@ func TestToggleSort_CyclesThroughAllModesAndBackToName(t *testing.T) {
 	if v.state.SortMode() != filesort.ByName {
 		t.Fatalf("sortMode = %v, want filesort.ByName after wrapping around", v.state.SortMode())
 	}
-	if got := namesOf(v.state.files); !slices.Equal(got, natural) {
+	if got := namesOf(v.state.Observe().DisplayFiles()); !slices.Equal(got, natural) {
 		t.Errorf("files = %v, want natural-sorted %v after wrapping around", got, natural)
 	}
-	if got := v.state.files[v.state.index].Name(); got != "IMG_2.jpg" {
+	if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != "IMG_2.jpg" {
 		t.Errorf("displayed file = %q, want IMG_2.jpg to stay in view", got)
 	}
 
@@ -184,7 +184,7 @@ func TestSetSortMode_JumpsDirectlyRatherThanCycling(t *testing.T) {
 	img1 := uitest.TempJPEGURI(t, "IMG_1.jpg", 4, 4, color.White)
 	dropAndWait(t, v, img10, img1) // natural sort: IMG_1.jpg, IMG_10.jpg
 
-	current := v.state.files[v.state.index].Name()
+	current := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name()
 
 	v.SetSortMode(filesort.ByDropOrder)
 
@@ -195,14 +195,14 @@ func TestSetSortMode_JumpsDirectlyRatherThanCycling(t *testing.T) {
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if got := v.state.files[v.state.index].Name(); got != current {
+	if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != current {
 		t.Errorf("displayed file = %q, want it to stay on %q across the sort-mode change", got, current)
 	}
 }
 
 // TestSetSortMode_SafeWithNoFilesLoaded guards the settings window's own
 // call site: unlike toggleSort's S key (gated behind handleKeyEvent's
-// len(v.state.files)<2 guard), the settings window can change the sort order
+// v.state.Observe().Count()<2 guard), the settings window can change the sort order
 // before anything has ever been dropped.
 func TestSetSortMode_SafeWithNoFilesLoaded(t *testing.T) {
 	v := newTestViewer(t)
@@ -234,7 +234,7 @@ func TestInvalidateSortCancelsAndFinalizesCurrentProgress(t *testing.T) {
 
 // TestSetSortMode_SnapshotDoesNotAliasUnsortedFiles is a -race regression
 // test for the snapshot SetSortMode hands to startSort's goroutine: a plain
-// slice-header copy of v.state.unsortedFiles aliases its backing array, which
+// slice-header copy of v.state.Observe().SourceFiles() aliases its backing array, which
 // RemoveFile (a failed-decode retry, a Shift+Delete) then shifts *in place*
 // on the UI goroutine while filesort.Order is still copying it - an
 // unsynchronized read/write on the same memory. Nothing here asserts: the
@@ -259,7 +259,7 @@ func TestSetSortMode_SnapshotDoesNotAliasUnsortedFiles(t *testing.T) {
 		unsorted = append(unsorted, uitest.FakeURI{FileName: fmt.Sprintf("img_%05d.jpg", i), Ext: ".jpg"})
 	}
 
-	v.state.replaceFiles(unsorted, unsorted)
+	v.state.Replace(collectionInput{source: unsorted, display: unsorted})
 
 	v.SetSortMode(filesort.ByModTime)
 
@@ -273,10 +273,10 @@ func TestSetSortMode_SnapshotDoesNotAliasUnsortedFiles(t *testing.T) {
 // TestHandleKeyEvent_EscapeDuringFirstDropReorderDoesNotCloseWindow guards
 // keys.go's Escape branch: a first-ever drop's scan clears v.scanOp.active back
 // to false before applyScannedFiles's startSort (drop.go/sort.go) has
-// actually populated v.state.files, so for as long as that reorder is still
-// computing, v.state.files reads exactly like the "nothing left to reset" state
+// actually populated v.state.Observe().DisplayFiles(), so for as long as that reorder is still
+// computing, v.state.Observe().DisplayFiles() reads exactly like the "nothing left to reset" state
 // Escape otherwise closes the window on. v.sortOp.active is what tells the two
-// apart. Drives the in-flight state directly - v.sortOp.active true, v.state.files
+// apart. Drives the in-flight state directly - v.sortOp.active true, v.state.Observe().DisplayFiles()
 // still empty, and sortOp.lifecycle armed - rather than racing a real drop's
 // background goroutine to reproduce that window, the same approach
 // TestCancelScan_CancelsInFlightScanWithNoFilesYet uses for the gathering
@@ -320,24 +320,24 @@ func TestHandleKeyEvent_EscapeDuringResortOfExistingFilesDoesNotClearThem(t *tes
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
 	dropAndWait(t, v, a, b)
 
-	filesBefore := append([]fyne.URI(nil), v.state.files...)
-	indexBefore := v.state.index
+	filesBefore := append([]fyne.URI(nil), v.state.Observe().DisplayFiles()...)
+	indexBefore := v.state.Observe().index
 
 	v.sortOp.lifecycle.begin()
 	v.sortOp.active = true
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 
-	if len(v.state.files) != len(filesBefore) {
-		t.Fatalf("files = %v, want unchanged %v after cancelling a resort", v.state.files, filesBefore)
+	if v.state.Observe().Count() != len(filesBefore) {
+		t.Fatalf("files = %v, want unchanged %v after cancelling a resort", v.state.Observe().DisplayFiles(), filesBefore)
 	}
-	for i, u := range v.state.files {
+	for i, u := range v.state.Observe().DisplayFiles() {
 		if u.String() != filesBefore[i].String() {
 			t.Errorf("files[%d] = %q, want unchanged %q after cancelling a resort", i, u, filesBefore[i])
 		}
 	}
-	if v.state.index != indexBefore {
-		t.Errorf("index = %d, want unchanged %d after cancelling a resort", v.state.index, indexBefore)
+	if v.state.Observe().index != indexBefore {
+		t.Errorf("index = %d, want unchanged %d after cancelling a resort", v.state.Observe().index, indexBefore)
 	}
 	if v.img.Image == nil {
 		t.Error("the displayed image should not be cleared by cancelling a resort")
@@ -369,7 +369,7 @@ func TestCaptureSort_CancelsHeldReadWithoutInstallingOrder(t *testing.T) {
 		}, nil
 	})
 	current := []fyne.URI{uitest.FakeURI{FileName: "current.jpg", Ext: ".jpg"}}
-	v.state.replaceFiles(current, current)
+	v.state.Replace(collectionInput{source: current, display: current})
 	applied := false
 	v.startSort(filesort.ByCaptureDate, []fyne.URI{source}, func(ordered []fyne.URI) {
 		applied = true
@@ -391,8 +391,8 @@ func TestCaptureSort_CancelsHeldReadWithoutInstallingOrder(t *testing.T) {
 	if reads != 1 || !closed {
 		t.Errorf("reads=%d closed=%v, want 1/true", reads, closed)
 	}
-	if applied || !slices.Equal(v.state.files, current) {
-		t.Errorf("obsolete sort installed %v", v.state.files)
+	if applied || !slices.Equal(v.state.Observe().DisplayFiles(), current) {
+		t.Errorf("obsolete sort installed %v", v.state.Observe().DisplayFiles())
 	}
 }
 
@@ -428,7 +428,7 @@ func TestCaptureSort_CancellationRestoresMenuAndAllowsRetry(t *testing.T) {
 	// Keep a real displayed image, with a controlled ancillary reader for
 	// the other file. Name order and capture-date fallback order differ.
 	before := []fyne.URI{source, b}
-	v.state.setFiles([]fyne.URI{b, source}, before)
+	v.state.Replace(collectionInput{source: []fyne.URI{b, source}, display: before, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
 	v.state.Select(1)
 	v.applyTitle()
 	v.syncMenus()
@@ -436,8 +436,8 @@ func TestCaptureSort_CancellationRestoresMenuAndAllowsRetry(t *testing.T) {
 	title := v.win.Title()
 	assertRestored := func() {
 		t.Helper()
-		if !slices.Equal(v.state.files, before) || v.state.index != 1 {
-			t.Errorf("cancelled sort changed files/index: %v/%d", v.state.files, v.state.index)
+		if !slices.Equal(v.state.Observe().DisplayFiles(), before) || v.state.Observe().index != 1 {
+			t.Errorf("cancelled sort changed files/index: %v/%d", v.state.Observe().DisplayFiles(), v.state.Observe().index)
 		}
 		if v.Generation() != collection.Generation() {
 			t.Fatal("canceled sort published a collection generation")
@@ -479,7 +479,7 @@ func TestCaptureSort_CancellationRestoresMenuAndAllowsRetry(t *testing.T) {
 	requireSortChild(t, v, filesort.DisplayName(filesort.ByCaptureDate)).Action()
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
-	if got := v.state.files; !slices.Equal(got, []fyne.URI{b, source}) {
+	if got := v.state.Observe().DisplayFiles(); !slices.Equal(got, []fyne.URI{b, source}) {
 		t.Errorf("retry order=%v, want capture-date order b.jpg, a.jpg", got)
 	}
 	if !requireSortChild(t, v, filesort.DisplayName(filesort.ByCaptureDate)).Checked {
@@ -511,7 +511,7 @@ func TestCaptureSort_SupersededCompletionPreservesCancellationBaseline(t *testin
 			CloseFunc: func() error { return nil },
 		}, nil
 	})
-	v.state.setFiles([]fyne.URI{b, source}, []fyne.URI{b, source})
+	v.state.Replace(collectionInput{source: []fyne.URI{b, source}, display: []fyne.URI{b, source}, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
 	collection := v.state.Observe()
 	waitRead := func() func() {
 		t.Helper()

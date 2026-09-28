@@ -112,7 +112,7 @@ func TestBatchDelete_RemovesEverySelectedFileAndLeavesTheGridOpen(t *testing.T) 
 		return nil
 	})
 
-	kept := v.state.files[1].Path()
+	kept := v.state.Observe().DisplayFiles()[1].Path()
 	v.grid.ClearSelection()
 	v.grid.SelectAll()
 	// Deselect the middle one, so this is a real subset rather than "all".
@@ -130,8 +130,8 @@ func TestBatchDelete_RemovesEverySelectedFileAndLeavesTheGridOpen(t *testing.T) 
 	if slices.Contains(moved, kept) {
 		t.Errorf("the deselected file %q was moved to the Trash", kept)
 	}
-	if len(v.state.files) != 1 {
-		t.Errorf("len(v.state.files) = %d, want 1 left", len(v.state.files))
+	if v.state.Observe().Count() != 1 {
+		t.Errorf("v.state.Observe().Count() = %d, want 1 left", v.state.Observe().Count())
 	}
 	if !v.grid.Visible() {
 		t.Error("the grid should stay open after a batch delete, so the user keeps their place")
@@ -154,8 +154,8 @@ func TestBatchDelete_ClosesTheGridWhenNothingIsLeft(t *testing.T) {
 	v.deletion.HandleKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
 	v.deletion.Settle()
 
-	if len(v.state.files) != 0 {
-		t.Fatalf("len(v.state.files) = %d, want every file gone", len(v.state.files))
+	if v.state.Observe().Count() != 0 {
+		t.Fatalf("v.state.Observe().Count() = %d, want every file gone", v.state.Observe().Count())
 	}
 	if v.grid.Visible() {
 		t.Error("the grid should close once its last file is deleted")
@@ -239,7 +239,7 @@ func TestCopy_WhileGridVisibleCopiesTheSelectionAsFileReferences(t *testing.T) {
 	handler.TypedShortcut(&fyne.ShortcutCopy{})
 	waitForClipboard(t, v)
 
-	want := []string{v.state.files[0].Path(), v.state.files[1].Path(), v.state.files[2].Path()}
+	want := []string{v.state.Observe().DisplayFiles()[0].Path(), v.state.Observe().DisplayFiles()[1].Path(), v.state.Observe().DisplayFiles()[2].Path()}
 	if !slices.Equal(got, want) {
 		t.Errorf("CopyFiles paths = %v, want %v", got, want)
 	}
@@ -261,7 +261,7 @@ func TestCopy_WhileGridVisibleFallsBackToTheHighlightedCell(t *testing.T) {
 	handler.TypedShortcut(&fyne.ShortcutCopy{})
 	waitForClipboard(t, v)
 
-	if want := []string{v.state.files[1].Path()}; !slices.Equal(got, want) {
+	if want := []string{v.state.Observe().DisplayFiles()[1].Path()}; !slices.Equal(got, want) {
 		t.Errorf("CopyFiles paths = %v, want %v", got, want)
 	}
 }
@@ -347,13 +347,13 @@ func TestRemoveFiles_DropsEveryIndexAndPurgesTheirCacheEntries(t *testing.T) {
 	}
 	dropAndWait(t, v, uris...)
 
-	gone := []string{v.state.files[0].String(), v.state.files[2].String()}
-	kept := v.state.files[1].String()
+	gone := []string{v.state.Observe().DisplayFiles()[0].String(), v.state.Observe().DisplayFiles()[2].String()}
+	kept := v.state.Observe().DisplayFiles()[1].String()
 
 	v.RemoveFiles([]int{0, 2})
 
-	if len(v.state.files) != 1 || v.state.files[0].String() != kept {
-		t.Errorf("v.state.files = %v, want only %s left", v.state.files, kept)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != kept {
+		t.Errorf("v.state.Observe().DisplayFiles() = %v, want only %s left", v.state.Observe().DisplayFiles(), kept)
 	}
 	for _, key := range gone {
 		if v.imgCache.Contains(key) {
@@ -374,12 +374,12 @@ func TestRemoveFiles_HandlesUnsortedIndices(t *testing.T) {
 	}
 	dropAndWait(t, v, uris...)
 
-	kept := v.state.files[1].String()
+	kept := v.state.Observe().DisplayFiles()[1].String()
 
 	v.RemoveFiles([]int{2, 0})
 
-	if len(v.state.files) != 1 || v.state.files[0].String() != kept {
-		t.Errorf("v.state.files = %v, want only %s left", v.state.files, kept)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != kept {
+		t.Errorf("v.state.Observe().DisplayFiles() = %v, want only %s left", v.state.Observe().DisplayFiles(), kept)
 	}
 }
 

@@ -151,7 +151,7 @@ func collectionReorderReconciliation(t *testing.T) {
 		v.SetSortMode(filesort.ByDropOrder)
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)
-		if v.searchActive() || v.state.index != 3 || v.currentImageOccurrence().Ordinal != 1 || v.FileAt(3).Path() != duplicate.Path() {
+		if v.searchActive() || v.state.Observe().index != 3 || v.currentImageOccurrence().Ordinal != 1 || v.FileAt(3).Path() != duplicate.Path() {
 			t.Fatal("latest ranked image displaced the explicit repeated image origin")
 		}
 	})

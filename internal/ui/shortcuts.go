@@ -121,7 +121,7 @@ func wireFavoriteShortcuts(c shortcutAdder, open func(index int)) {
 // AddShortcut rather than handleKeyEvent's plain SetOnTypedKey dispatch, for
 // the same reason wireOpenShortcuts does: modified key combos never reach
 // TypedKey at all. Deliberately not gated behind handleKeyEvent's
-// len(v.state.files)<2 navigation guard - both work fine with a single file
+// two-file navigation guard - both work fine with a single file
 // loaded, and copyImageToClipboard/copyPathToClipboard already no-op safely
 // when nothing is loaded yet.
 //

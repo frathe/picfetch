@@ -24,7 +24,7 @@ tracks final review dispositions and latest-head checks.
 MA-030 has an [accepted design](docs/collection-transitions.md) and
 [ready-for-agent specification](.scratch/ma-030/spec.md); implementation
 is underway: [tickets 01-08 are complete](plans/2026-09-28-ma-030-collection-transitions.md),
-with ticket 09 and final qualification remaining.
+with ticket 09 locally qualified and awaiting its full draft-PR CI gate and final review.
 MA-031 through MA-033 remain proposals, not accepted implementation plans or
 unresolved PR defects.
 
@@ -36,7 +36,7 @@ explicit cross-feature composition in `internal/ui`.
 
 | ID | Priority | Remaining work | Status |
 | --- | --- | --- | --- |
-| [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | Tickets 01-08 complete; 09 and final review/CI open |
+| [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | 01-08 complete; 09 locally qualified, CI/review open |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | Recommended; medium scope |
 | [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Conditional extraction; medium scope |
 | [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | Recommended independent small task |
@@ -363,7 +363,8 @@ collection-model/root-reconciliation division. Both slices below are required.
 The [local specification](.scratch/ma-030/spec.md) is `ready-for-agent`, with
 test seams and command-backed acceptance criteria. The
 [implementation plan](plans/2026-09-28-ma-030-collection-transitions.md) records
-tickets 01-08 complete and the remaining migration/qualification work.
+tickets 01-08 complete and ticket 09's completed migration/local qualification;
+full current-head CI and final review remain open.
 
 **Recurring evidence:** [sort generation/grouping](https://github.com/frathe/picfetch/pull/17#discussion_r3950334572),
 [premature Favorite identity](https://github.com/frathe/picfetch/pull/18#discussion_r3983220066),

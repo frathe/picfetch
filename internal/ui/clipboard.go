@@ -18,7 +18,8 @@ func (v *viewer) copyPathToClipboard() {
 	if _, ok := v.admitCommand(commandRequest{command: commandCopyPath}); !ok {
 		return
 	}
-	v.app.Clipboard().SetContent(v.state.files[v.state.index].Path())
+	source, _, _ := v.CurrentFile()
+	v.app.Clipboard().SetContent(source.Path())
 }
 
 // copyImageToClipboard puts the currently displayed frame onto the system

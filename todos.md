@@ -74,8 +74,9 @@
   [Deep SDD implementation record](plans/2026-09-28-ma-030-collection-transitions.md)
   records tickets 01-08 complete (coherent snapshots, live navigation, atomic
   replacement, retained merge, saved replay/capture, sort handoff, batch removal
-  unavailable recovery, and committed write/policy effects); ticket 09 and final
-  review/CI remain open. MA-031 through MA-033 remain proposals.
+  unavailable recovery, and committed write/policy effects). Ticket 09's bridge
+  removal, lifecycle convergence and local qualification are complete; its draft
+  qualification CI and final review remain open. MA-031 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

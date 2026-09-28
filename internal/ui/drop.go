@@ -21,8 +21,8 @@ import (
 // handleDrop stops touching the filesystem without interrupting navigation,
 // preloading, or animation for an already-loaded merge-mode file set.
 //
-// Unlike reset, it never touches v.state.files or v.state.unsortedFiles: a merge-mode
-// scan can be cancelled mid-way through without losing images that were
+// Unlike reset, it never changes the collection: a merge-mode scan can be
+// cancelled mid-way through without losing images that were
 // already loaded before it started. Only a scan that had nothing loaded yet
 // (the first-ever drop) needs the drop zone put back the way handleDrop
 // found it.
@@ -33,7 +33,7 @@ func (v *viewer) cancelScan() {
 	v.pendingPictureFrame = false
 	v.explorerInput.pendingLaunch = false
 
-	if len(v.state.files) == 0 {
+	if v.state.Observe().Count() == 0 {
 		v.showWelcomeState()
 		v.dropzone.Show()
 	}
@@ -396,12 +396,9 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 	v.applyScannedCollection(merging, images, uris, favoriteDir, skipped, sourceOrder)
 }
 
-// applyScannedFiles merges or replaces the file set with images, then
-// reorders v.state.unsortedFiles/v.state.files under the current sort mode in the
-// background via startSort (sort.go) - same reason SetSortMode does: the
-// capture-date/modified/size modes stat or Exif-read every file, which would
-// otherwise freeze the UI for as long as this scan just took to gather them,
-// right as it finishes.
+// applyScannedFiles prepares the display order on a worker before committing
+// replacement or merge. Capture-date/modified/size sorting can read every source;
+// preparation leaves the previous complete collection authoritative throughout.
 //
 // On a non-merge drop of one file, the URI the user opened is shown after
 // the reorder rather than index 0, so sibling expansion does not jump to
@@ -409,20 +406,9 @@ func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images 
 // directory, which is never in the image list, so that lookup fails and
 // we still land on index 0.
 //
-// v.state.unsortedFiles and v.state.files are deliberately only ever written together,
-// once the reorder lands - never one without the other. A replacement also
-// resets index in that same callback. This
-// matters because RemoveFile's own comment documents them as required to
-// always hold the same set of files (just possibly different order) so a
-// later sort toggle doesn't resurrect a removed file; updating
-// v.state.unsortedFiles synchronously here but leaving v.state.files to catch up later
-// would violate that invariant for as long as the background reorder is
-// still running, and could leave v.state.index pointing past the end of a v.state.files
-// a *different*, later-landing reorder (a concurrent SetSortMode call, say)
-// has already replaced out from under it. Keeping both deferred to the same
-// onDone callback means that can't happen: whichever reorder's generation is
-// current when it finishes is the one and only writer of both fields for
-// that landing.
+// The current sort callback commits both projections, retained membership,
+// association and selection together. Stale preparation cannot install one
+// order ahead of the other or resurrect a source removed while sorting.
 func (v *viewer) applyScannedFiles(merging bool, images, dropped []fyne.URI, favoriteDir string) {
 	v.applyScannedCollection(merging, images, dropped, favoriteDir, nil, images)
 }
@@ -431,12 +417,7 @@ func (v *viewer) applyScannedCollection(merging bool, images, dropped []fyne.URI
 	v.closeVisualSearch()
 	var unsorted []fyne.URI
 	if merging {
-		// Copied rather than appended onto v.state.unsortedFiles directly - same
-		// reason SetSortMode's own snapshot is a copy: this slice is about to
-		// be read by a background goroutine, and appending onto
-		// v.state.unsortedFiles's existing backing array (when it has spare
-		// capacity) would let a concurrent RemoveFile mutate the same memory
-		// the goroutine is reading.
+		// SourceFiles returns an owned copy for background sort preparation.
 		unsorted = append(v.state.Observe().SourceFiles(), images...)
 	} else {
 		unsorted = images

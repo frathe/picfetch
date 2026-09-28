@@ -187,13 +187,16 @@ func collectionLoadFailureReconciliation(t *testing.T) {
 		load := v.display.LoadDone()
 		waitUntilLoaded(t, v)
 		waitHandle(t, "single failure retry chain", load)
-		if reads.Load() == 0 || v.searchActive() || v.grid.Visible() || v.currentImageOccurrence().Ordinal != 1 || v.state.index != 1 || v.display.RequestRevision() != revision+1 || v.Generation() != generation+1 || v.state.Observe().Favorite() != "favorite" {
-			t.Fatalf("load failure: reads=%d search=%v grid=%v occurrence=%v index=%d revision=%d->%d generation=%d->%d favorite=%q", reads.Load(), v.searchActive(), v.grid.Visible(), v.currentImageOccurrence(), v.state.index, revision, v.display.RequestRevision(), generation, v.Generation(), v.state.Observe().Favorite())
+		if reads.Load() == 0 || v.searchActive() || v.grid.Visible() || v.currentImageOccurrence().Ordinal != 1 || v.state.Observe().index != 1 || v.display.RequestRevision() != revision+1 || v.Generation() != generation+1 || v.state.Observe().Favorite() != "favorite" {
+			t.Fatalf("load failure: reads=%d search=%v grid=%v occurrence=%v index=%d revision=%d->%d generation=%d->%d favorite=%q", reads.Load(), v.searchActive(), v.grid.Visible(), v.currentImageOccurrence(), v.state.Observe().index, revision, v.display.RequestRevision(), generation, v.Generation(), v.state.Observe().Favorite())
 		}
 	})
 }
 
 func TestCollectionLifecycle(t *testing.T) {
+	t.Run("queued_chooser", collectionQueuedChooserLifecycle)
+	t.Run("close_facts", collectionCloseFacts)
+	t.Run("preparation", collectionPreparationLifecycle)
 	t.Run("committed_writes", collectionCommittedWriteLifecycle)
 	t.Run("load_recovery", func(t *testing.T) {
 		for _, action := range []string{"replacement", "close_reopen", "stop"} {

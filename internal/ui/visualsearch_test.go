@@ -374,13 +374,13 @@ func TestFindMoreLikeThisProgressiveForegroundIdentity(t *testing.T) {
 		t.Fatalf("preloads left the captured search order: %v", got)
 	}
 	publish(similarity.SearchFinal, 3, 2)
-	if v.grid.Visible() || v.state.index != 2 {
+	if v.grid.Visible() || v.state.Observe().index != 2 {
 		t.Fatal("progress replaced opened image")
 	}
 	v.StepImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.index != 1 {
-		t.Fatalf("opened visit navigation changed to %d", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("opened visit navigation changed to %d", v.state.Observe().index)
 	}
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 	if !slices.Equal(v.grid.ResultIndexes(), []int{0, 3, 2}) {
@@ -491,28 +491,28 @@ func TestFindMoreLikeThisActionsCaptureRankedSources(t *testing.T) {
 		// Keep the real opened images at the end of a large captured collection.
 		// No decoding or scan is needed to observe the naming-dialog admission.
 		const prefix = 4096
-		files := make([]fyne.URI, prefix, prefix+len(v.state.files))
+		files := make([]fyne.URI, prefix, prefix+v.state.Observe().Count())
 		dir := t.TempDir()
 		for i := range files {
 			files[i] = storage.NewFileURI(filepath.Join(dir, fmt.Sprintf("%04d.jpg", i)))
 		}
-		files = append(files, v.state.files...)
+		files = append(files, v.state.Observe().DisplayFiles()...)
 		index := v.CurrentIndex() + prefix
 		var calls atomic.Int64
 		for i, uri := range files {
 			files[i] = searchCountingURI{URI: uri, calls: &calls}
 		}
-		v.state.replaceFiles(files, files)
+		v.state.Replace(collectionInput{source: files, display: files})
 		v.state.Select(index)
 		calls.Store(0)
 		_ = v.preloadCandidates()
-		if got := calls.Load(); got > int64(len(v.state.files)+16) {
-			t.Fatalf("preloads captured the ranked order more than once: %d path reads for %d files", got, len(v.state.files))
+		if got := calls.Load(); got > int64(v.state.Observe().Count()+16) {
+			t.Fatalf("preloads captured the ranked order more than once: %d path reads for %d files", got, v.state.Observe().Count())
 		}
 		calls.Store(0)
 		v.favorites.AddCurrentList()
-		if got := calls.Load(); got > int64(2*len(v.state.files)) {
-			t.Fatalf("Favorite naming repeatedly scanned the original collection: %d path reads for %d files", got, len(v.state.files))
+		if got := calls.Load(); got > int64(2*v.state.Observe().Count()) {
+			t.Fatalf("Favorite naming repeatedly scanned the original collection: %d path reads for %d files", got, v.state.Observe().Count())
 		}
 	})
 	for _, action := range []string{"copy", "trash", "compare", "favorite-list"} {
@@ -786,8 +786,8 @@ func TestFindMoreLikeThisSourceAndSortRetirement(t *testing.T) {
 				t.Fatalf("search restored before removals finished: requested=%v want=%v", got, kept[0])
 			}
 			waitUntilLoaded(t, v)
-			if v.searchActive() || v.grid.Visible() || !slices.EqualFunc(v.state.files, kept, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
-				t.Fatalf("batch restoration lost healthy survivors: files=%v", v.state.files)
+			if v.searchActive() || v.grid.Visible() || !slices.EqualFunc(v.state.Observe().DisplayFiles(), kept, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
+				t.Fatalf("batch restoration lost healthy survivors: files=%v", v.state.Observe().DisplayFiles())
 			}
 			if got, ok := v.DisplayedFile(); !ok || got.String() != kept[0].String() {
 				t.Fatalf("batch restored the wrong displayed source: %v", got)
@@ -806,7 +806,7 @@ func TestFindMoreLikeThisSourceAndSortRetirement(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "all-deleted":
-				for _, source := range v.state.files {
+				for _, source := range v.state.Observe().DisplayFiles() {
 					if err := os.Remove(source.Path()); err != nil {
 						t.Fatal(err)
 					}
@@ -898,7 +898,7 @@ func TestFindMoreLikeThisInitialRoundTrip(t *testing.T) {
 			v.SetMergeMode(true)
 			dropAndWait(t, v, duplicate)
 			origin, occurrences := -1, 0
-			for i, uri := range v.state.files {
+			for i, uri := range v.state.Observe().DisplayFiles() {
 				if uri.Path() == duplicate.Path() {
 					origin = i
 					occurrences++
@@ -925,15 +925,15 @@ func TestFindMoreLikeThisInitialRoundTrip(t *testing.T) {
 				origin--
 			}
 			waitUntilLoaded(t, v)
-			if v.searchActive() || v.grid.Visible() || v.state.index != origin {
-				t.Fatalf("image origin restored index %d, want occurrence at %d", v.state.index, origin)
+			if v.searchActive() || v.grid.Visible() || v.state.Observe().index != origin {
+				t.Fatalf("image origin restored index %d, want occurrence at %d", v.state.Observe().index, origin)
 			}
 			if got, ok := v.DisplayedFile(); !ok || got.Path() != duplicate.Path() {
 				t.Fatal("image origin lost its source")
 			}
 			v.StepImage(1)
 			waitUntilLoaded(t, v)
-			if v.state.index != origin+1 {
+			if v.state.Observe().index != origin+1 {
 				t.Fatal("navigation did not continue after the restored occurrence")
 			}
 		})
@@ -979,10 +979,10 @@ func TestFindMoreLikeThisInitialRoundTrip(t *testing.T) {
 		v.grid.HandleKey(&fyne.KeyEvent{Name: fyne.KeySpace})
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
 		waitUntilLoaded(t, v)
-		opened := v.state.index
+		opened := v.state.Observe().index
 		frozen := favoriteListHost{v}.CurrentFiles()
 		publish(similarity.SearchFinal, 3, 2)
-		if v.grid.Visible() || v.state.index != opened || !slices.Equal(frozen, favoriteListHost{v}.CurrentFiles()) {
+		if v.grid.Visible() || v.state.Observe().index != opened || !slices.Equal(frozen, favoriteListHost{v}.CurrentFiles()) {
 			t.Fatal("final publication retargeted the opened visit")
 		}
 		v.returnToSearchGrid()
@@ -1114,13 +1114,13 @@ func TestFindMoreLikeThisInitialRoundTrip(t *testing.T) {
 			v.grid.SimulateHover(1)
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyReturn})
 			waitUntilLoaded(t, v)
-			if v.state.index != 2 || v.grid.Visible() {
+			if v.state.Observe().index != 2 || v.grid.Visible() {
 				t.Fatal("opening did not use the ranked source")
 			}
 			v.StepImage(1)
 			waitUntilLoaded(t, v)
-			if v.state.index != 0 {
-				t.Fatalf("stepping left ranked order: %d", v.state.index)
+			if v.state.Observe().index != 0 {
+				t.Fatalf("stepping left ranked order: %d", v.state.Observe().index)
 			}
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
 			if !v.grid.Visible() || !v.searchActive() {

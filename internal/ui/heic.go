@@ -31,10 +31,6 @@ func (v *viewer) heicContext(ctx context.Context) context.Context {
 	return v.heic.capability.CaptureContext(ctx)
 }
 
-func (v *viewer) persistedFiles(files []fyne.URI) []fyne.URI {
-	return v.state.Observe().captureFiles(files)
-}
-
 func retainedSources(skipped, order []fyne.URI) []collectionSource {
 	missing := make(map[string]bool, len(skipped))
 	for _, uri := range skipped {

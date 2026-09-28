@@ -141,18 +141,6 @@ func (s browsingScope) Recover(failed, restored int) (int, bool) {
 	return 0, false
 }
 
-// sourceOccurrences captures only the bookmarked path, without retaining an
-// index for unrelated collection members.
-func (v *viewer) sourceOccurrences(path string) fileidentity.Index {
-	collection := v.state.Observe()
-	return fileidentity.NewIndex(collection.Count(), func(i int) string {
-		if uri := collection.FileAt(i); uri != nil && uri.Path() == path {
-			return path
-		}
-		return ""
-	})
-}
-
 func (v *viewer) currentImageOccurrence() fileidentity.Occurrence {
 	collection := v.state.Observe()
 	if _, position, ok := collection.Current(); ok {

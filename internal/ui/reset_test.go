@@ -37,11 +37,11 @@ func TestViewerReset(t *testing.T) {
 
 	v.reset()
 
-	if v.state.files != nil {
-		t.Errorf("files = %v, want nil after reset", v.state.files)
+	if v.state.Observe().DisplayFiles() != nil {
+		t.Errorf("files = %v, want nil after reset", v.state.Observe().DisplayFiles())
 	}
-	if v.state.index != 0 {
-		t.Errorf("index = %d, want 0 after reset", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Errorf("index = %d, want 0 after reset", v.state.Observe().index)
 	}
 	if v.img.Image != nil {
 		t.Error("image should be cleared after reset")
@@ -138,7 +138,7 @@ func TestEscapeResetRestoresNativeWindow(t *testing.T) {
 				t.Errorf("native window after reset: maximized=%v size=%v; want maximized=%v size=%v (logical canvas=%v)",
 					native.maximized, native.nativeSize, wantMaximized, wantSize, native.Canvas().Size())
 			}
-			if len(v.state.files) != 0 || !v.dropzone.Visible() {
+			if v.state.Observe().Count() != 0 || !v.dropzone.Visible() {
 				t.Fatal("reset did not return to the empty welcome view")
 			}
 		})

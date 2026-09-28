@@ -318,7 +318,7 @@ func TestGridBrowseDuringAnalysis(t *testing.T) {
 					t.Fatal("no completion to hold across reorder")
 				}
 				synctest.Wait()
-				ordered := slices.Clone(f.v.state.files)
+				ordered := slices.Clone(f.v.state.Observe().DisplayFiles())
 				slices.Reverse(ordered)
 				f.v.state.Reorder(ordered)
 				f.v.grid.FilesChanged()
@@ -579,14 +579,14 @@ func TestHandleKeyEvent_GridVisible_SwallowsNavigation(t *testing.T) {
 
 	warmThumbs(t, v)
 	v.grid.Toggle()
-	before := v.state.index
+	before := v.state.Observe().index
 
 	// Right is intercepted by the grid (it moves the highlight) rather
 	// than falling through to normal next-image navigation.
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 
-	if v.state.index != before {
-		t.Errorf("index changed to %d while the grid was up, want unchanged from %d", v.state.index, before)
+	if v.state.Observe().index != before {
+		t.Errorf("index changed to %d while the grid was up, want unchanged from %d", v.state.Observe().index, before)
 	}
 	if !v.grid.Visible() {
 		t.Error("Right should not close the grid")
@@ -610,8 +610,8 @@ func TestHandleKeyEvent_GridVisible_ReturnNavigatesAndCloses(t *testing.T) {
 	if v.grid.Visible() {
 		t.Error("committing a cell should close the grid")
 	}
-	if v.state.index != 1 {
-		t.Errorf("index = %d, want 1 - the highlighted image should now be on screen", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Errorf("index = %d, want 1 - the highlighted image should now be on screen", v.state.Observe().index)
 	}
 }
 
@@ -876,7 +876,7 @@ func TestShutdownStopsGridAdmission(t *testing.T) {
 	t.Cleanup(win.Close)
 	t.Cleanup(func() { drain(t, v) })
 	src := uitest.TempJPEGURI(t, "source.jpg", 4, 4, color.White)
-	v.state.replaceFiles([]fyne.URI{src}, []fyne.URI{src})
+	v.state.Replace(collectionInput{source: []fyne.URI{src}, display: []fyne.URI{src}})
 	lifecycle, ok := application.Lifecycle().(interface{ OnStopped() func() })
 	if !ok {
 		t.Fatal("test lifecycle has no stopped hook")

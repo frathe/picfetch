@@ -834,7 +834,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				overlay := v.win.Canvas().Overlays().Top()
 				token := observeExplorer(v.explorer)
 
-				files := slices.Clone(v.state.files)
+				files := slices.Clone(v.state.Observe().DisplayFiles())
 				handler := &fyne.ShortcutHandler{}
 				wireGlobalShortcuts(handler, v)
 				key, modifier := fyne.Key1, fyne.KeyModifierShortcutDefault
@@ -849,7 +849,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				handler.TypedShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: modifier})
 				v.openChooserWorkers.Wait()
 				v.chooserUI.Drain()
-				if v.win.Canvas().Overlays().Top() != overlay || !token.current() || !slices.Equal(v.state.files, files) || v.scanOp.active {
+				if v.win.Canvas().Overlays().Top() != overlay || !token.current() || !slices.Equal(v.state.Observe().DisplayFiles(), files) || v.scanOp.active {
 					t.Fatal("application shortcut discarded the Explorer modal or changed its collection")
 				}
 			})
@@ -1780,7 +1780,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 
 	t.Run("presets_pending_members", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
-		files := slices.Clone(v.state.files)
+		files := slices.Clone(v.state.Observe().DisplayFiles())
 		dir := t.TempDir()
 		if err := favstore.Save(dir, "Pending", files); err != nil {
 			t.Fatal(err)
@@ -1944,7 +1944,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	t.Run("presets_favorite", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
 		dir := t.TempDir()
-		if err := favstore.Save(dir, "Cameras", slices.Clone(v.state.files)); err != nil {
+		if err := favstore.Save(dir, "Cameras", slices.Clone(v.state.Observe().DisplayFiles())); err != nil {
 			t.Fatal(err)
 		}
 		preview := uitest.EncodeJPEG(t, 32, 24, color.White)
@@ -2065,7 +2065,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 
 	t.Run("create_cohort_favorite", func(t *testing.T) {
 		v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
-		files := slices.Clone(v.state.files)
+		files := slices.Clone(v.state.Observe().DisplayFiles())
 		dir := t.TempDir()
 		for _, name := range []string{"Cats", "Other"} {
 			if err := favstore.Save(dir, name, files); err != nil {

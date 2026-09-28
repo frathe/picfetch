@@ -108,7 +108,7 @@ func (v *viewer) finishSort(token requestToken, ordered []fyne.URI, sortDone fun
 	defer token.cancelContext()
 
 	// Superseded either by a newer sort or by something else that changed
-	// v.state.files/v.state.unsortedFiles while this one was still computing
+	// collection membership while this one was still computing
 	// (Shift+Delete, or Escape/File>Close - see those call sites' own
 	// invalidateSort call). Applying ordered in either case would silently
 	// clobber newer state, so just drop it.
@@ -126,7 +126,7 @@ func (v *viewer) finishSort(token requestToken, ordered []fyne.URI, sortDone fun
 	// current when it finishes gets to clear it.
 	//
 	// The generation bump now rides on the file-set write itself
-	// (appState.publish), so it happens inside onDone rather than ahead of
+	// (the collection commit), so it happens inside onDone rather than ahead of
 	// it - a worker can no longer see the new generation over the old list.
 	v.sortOp.finish()
 	v.sortModeBefore = nil
@@ -141,8 +141,8 @@ func (v *viewer) finishSort(token requestToken, ordered []fyne.URI, sortDone fun
 // per-file stat/Exif loop notice and stop promptly instead of running to
 // completion in the background for a result nobody will see.
 //
-// The pending mode is restored by invalidateSort. v.state.files/v.state.unsortedFiles
-// are never touched until a reorder's own onDone callback runs (see
+// The pending mode is restored by invalidateSort. Collection facts are
+// unchanged until a reorder's own onDone callback runs (see
 // applyScannedFiles's and SetSortMode's own comments on why the pairing is
 // atomic), so cancelling before that lands leaves them exactly as they
 // already were - the untouched pre-sort file set, still fully intact and on
@@ -154,7 +154,7 @@ func (v *viewer) cancelSort() {
 	}
 	v.invalidateSort()
 
-	if len(v.state.files) == 0 {
+	if v.state.Observe().Count() == 0 {
 		v.showWelcomeState()
 		v.dropzone.Show()
 	}

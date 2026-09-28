@@ -27,9 +27,9 @@ func (v *viewer) revealCurrentFile() {
 		return
 	}
 
-	// Read the path here, not in the goroutine: state.files/state.index
-	// carry no synchronization of their own and belong to the UI goroutine.
-	path := v.state.files[v.state.index].Path()
+	// Capture the admitted choice now; later navigation must not retarget it.
+	source, _, _ := v.CurrentFile()
+	path := source.Path()
 
 	// reveal is finished once this goroutine has fully run, error
 	// reporting included, so a test can wait for the whole operation

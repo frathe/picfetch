@@ -21,11 +21,9 @@ import (
 // over the loaded files while staying Fyne-free: every fact it stores is
 // keyed by the URI string the rest of the app already keys its caches by.
 //
-// It forwards appState's published snapshot rather than reading
-// v.state.files, so there is one definition of "the file set" for every
-// consumer and only one goroutine ever touches the slice. The nil-URI
-// guard every duplicate helper used to apply before it touched a
-// fyne.URI lives in publish, which writes "" for an absent URI.
+// It forwards the collection's immutable URI-key projection, so workers retain
+// the keys and generation from one observation. Collection indexing represents
+// nil URIs as empty keys before any duplicate consumer sees them.
 type dupeFileSet struct {
 	v *viewer
 }
@@ -33,7 +31,7 @@ type dupeFileSet struct {
 // Snapshot is the viewer's published, immutable view of the file set:
 // what dupes.Model reads instead of walking a live count and key lookup
 // while the UI goroutine replaces the slice underneath it.
-func (s dupeFileSet) Snapshot() dupes.Snapshot { return s.v.state.snapshot() }
+func (s dupeFileSet) Snapshot() dupes.Snapshot { return s.v.state.Observe().FileSet() }
 
 // jumpIfHiddenExtra moves the display to the current file's group
 // representative when the model has just made that file a hidden extra -
@@ -54,7 +52,7 @@ func (v *viewer) jumpIfHiddenExtra() {
 		return
 	}
 	vis := v.dupes.Visibility()
-	if i := v.state.index; vis.HiddenExtra(i) {
+	if i := v.CurrentIndex(); vis.HiddenExtra(i) {
 		v.loadImage(vis.RepresentativeOf(i))
 	}
 }
@@ -127,7 +125,7 @@ func (v *viewer) randomVisibleOther(current int) (int, bool) {
 		return scope.indexes[rand.IntN(len(scope.indexes))], true
 	}
 	if !v.dupes.HideDuplicates() {
-		return randomOtherIndex(len(v.state.files), current), v.FileCount() > 0
+		return randomOtherIndex(v.state.Observe().Count(), current), v.FileCount() > 0
 	}
 
 	vis := v.dupes.VisibleIndexesExcept(current)

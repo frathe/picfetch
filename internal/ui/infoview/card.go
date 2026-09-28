@@ -4,7 +4,7 @@
 // card container - the current file's raw facts (byte size, EXIF presence,
 // RAW-preview flag), and its own toggle preference and text formatting. It has no window of its own
 // and reads nothing outside itself: internal/ui builds the State snapshot
-// Update renders from, since only it has state.files/zoom/vector to read.
+// Update renders from, since only it reads collection/zoom/display together.
 package infoview
 
 import (
@@ -22,7 +22,7 @@ import (
 )
 
 // State is the snapshot Update renders: the position/name info gathered
-// from state.files, and the pixel dimensions and zoom level gathered from
+// from the collection, and the pixel dimensions and zoom level gathered from
 // vector/zoom - none of which this package has access to. Built by
 // internal/ui's viewer.infoState, the one function every caller shares.
 type State struct {

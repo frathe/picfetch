@@ -317,7 +317,7 @@ func TestLocationMap(t *testing.T) {
 		selected("west.jpg")
 		press(fyne.KeyEnter)
 		waitUntilLoaded(t, v)
-		if v.locationMap.Visible() || v.state.files[v.state.index].Name() != "west.jpg" {
+		if v.locationMap.Visible() || v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "west.jpg" {
 			t.Fatal("Enter did not open the selected singleton")
 		}
 		press(fyne.KeyEscape)
@@ -382,7 +382,7 @@ func TestLocationMap(t *testing.T) {
 		}
 		press(fyne.KeyEnter)
 		waitUntilLoaded(t, v)
-		if v.state.files[v.state.index].Name() != "east.jpg" {
+		if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "east.jpg" {
 			t.Fatal("zoom/Fit All lost keyboard selection")
 		}
 	})
@@ -410,7 +410,7 @@ func TestLocationMap(t *testing.T) {
 		locationPhoto(t, v, "b.jpg")
 		press(fyne.KeyEnter)
 		waitUntilLoaded(t, v)
-		if v.locationMap.Visible() || v.grid.Visible() || v.state.files[v.state.index].Name() != "a.jpg" {
+		if v.locationMap.Visible() || v.grid.Visible() || v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "a.jpg" {
 			t.Fatal("selection did not follow its source after a cluster split")
 		}
 		press(fyne.KeyEscape)
@@ -637,7 +637,7 @@ func TestLocationMap(t *testing.T) {
 					}
 				} else {
 					waitUntilLoaded(t, v)
-					if v.locationMap.Visible() || v.grid.Visible() || v.state.index != 0 {
+					if v.locationMap.Visible() || v.grid.Visible() || v.state.Observe().index != 0 {
 						t.Fatal("singleton preview did not open its image directly")
 					}
 				}
@@ -1080,10 +1080,10 @@ func TestLocationMap(t *testing.T) {
 			waitUntilLoaded(t, v)
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 			waitUntilLoaded(t, v)
-			if v.FileAt(v.state.index).Path() != a.Path() {
+			if v.FileAt(v.state.Observe().index).Path() != a.Path() {
 				t.Fatal("surviving frozen visit escaped to newly adjacent image")
 			}
-			v.RemoveFile(v.state.index)
+			v.RemoveFile(v.state.Observe().index)
 			v.grid.Settle()
 			v.locationMap.Settle()
 			if !v.locationMap.Visible() || v.grid.Visible() {
@@ -1712,12 +1712,12 @@ func TestLocationMap(t *testing.T) {
 			}
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 			waitUntilLoaded(t, v)
-			if v.state.index != 2 {
+			if v.state.Observe().index != 2 {
 				t.Fatal("cluster image arrows escaped frozen membership")
 			}
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 			waitUntilLoaded(t, v)
-			if v.state.index != 0 {
+			if v.state.Observe().index != 0 {
 				t.Fatal("cluster image wrap included unlocated source")
 			}
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
@@ -2802,7 +2802,7 @@ func TestLocationMap(t *testing.T) {
 		v.locationMap.Settle()
 		photo := locationPhoto(t, v, "c.jpg")
 		photo.MouseIn(&desktop.MouseEvent{})
-		if v.state.index != 0 {
+		if v.state.Observe().index != 0 {
 			t.Fatal("hover changed requested image")
 		}
 		if !locationFilenameVisible(t, v, "c.jpg") {
@@ -2810,17 +2810,17 @@ func TestLocationMap(t *testing.T) {
 		}
 		fynetest.Tap(photo)
 		waitUntilLoaded(t, v)
-		if v.state.index != 2 || v.locationMap.Visible() {
+		if v.state.Observe().index != 2 || v.locationMap.Visible() {
 			t.Fatal("photo did not enter requested map image")
 		}
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 		waitUntilLoaded(t, v)
-		if v.state.index != 0 {
+		if v.state.Observe().index != 0 {
 			t.Fatal("map image navigation escaped mapped collection order")
 		}
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyLeft})
 		waitUntilLoaded(t, v)
-		if v.state.index != 2 {
+		if v.state.Observe().index != 2 {
 			t.Fatal("map image reverse navigation escaped mapped collection order")
 		}
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})

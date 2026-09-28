@@ -9,6 +9,11 @@ import (
 	"github.com/frathe/picfetch/internal/fileidentity"
 )
 
+type collectionSource struct {
+	uri         fyne.URI
+	unavailable bool
+}
+
 // collectionData is immutable after publication. Selection observations share
 // it, so navigation never rebuilds membership or its occurrence indexes.
 type collectionData struct {
@@ -17,6 +22,26 @@ type collectionData struct {
 	fileSet       dupes.Snapshot
 	occurrences   fileidentity.Index
 	favorite      string
+}
+
+// withDisplay copies only the changing projection. Source and retained slices
+// are immutable values owned by this data; a reorder can safely share them.
+func (d collectionData) withDisplay(files []fyne.URI, generation uint64) *collectionData {
+	d.files = slices.Clone(files)
+	keys := make([]string, len(files))
+	for i, uri := range files {
+		if uri != nil {
+			keys[i] = uri.String()
+		}
+	}
+	d.fileSet = dupes.NewSnapshot(keys, generation)
+	d.occurrences = fileidentity.NewIndex(len(files), func(i int) string {
+		if files[i] != nil {
+			return files[i].Path()
+		}
+		return ""
+	})
+	return &d
 }
 
 // collectionInput carries prepared orders and a candidate association. Replace
@@ -186,27 +211,28 @@ func (s *appState) Select(i int) bool {
 	if count == 0 {
 		return false
 	}
-	s.index = ((i % count) + count) % count
-	observation.index = s.index
+	observation.index = ((i % count) + count) % count
 	s.published.Store(&observation)
 	return true
 }
 
 func (s *appState) Replace(input collectionInput) collectionChange {
 	before := s.Observe()
-	s.unsortedFiles = slices.Clone(input.source)
-	s.files = slices.Clone(input.display)
-	s.unavailableOrder = slices.Clone(input.retained)
-	s.favoriteDir = input.favorite
-	if len(s.files) == 0 && len(s.unavailableOrder) == 0 {
-		s.favoriteDir = ""
+	data := collectionData{source: slices.Clone(input.source), retained: slices.Clone(input.retained), favorite: input.favorite}
+	if data.retained == nil {
+		for _, uri := range data.source {
+			data.retained = append(data.retained, collectionSource{uri: uri})
+		}
 	}
-	s.index = 0
-	if count := len(s.files); count > 0 {
-		s.index = ((input.index % count) + count) % count
+	if len(input.display) == 0 && len(data.retained) == 0 {
+		data.favorite = ""
 	}
-	s.publish()
-	return collectionChange{before: before, after: s.Observe()}
+	after := collectionSnapshot{data: data.withDisplay(input.display, before.Generation()+1)}
+	if count := after.Count(); count > 0 {
+		after.index = ((input.index % count) + count) % count
+	}
+	s.published.Store(&after)
+	return collectionChange{before: before, after: after}
 }
 
 func (s *appState) Clear() collectionChange { return s.Replace(collectionInput{}) }
@@ -334,18 +360,16 @@ func (s *appState) remove(positions map[int]bool, targets map[string]bool, unava
 func (s *appState) Reorder(files []fyne.URI) collectionChange {
 	before := s.Observe()
 	bookmark, chosen := before.Bookmark(before.index)
-	s.files = slices.Clone(files)
-	if chosen {
-		identities := fileidentity.NewIndex(len(files), func(i int) string {
-			if files[i] != nil {
-				return files[i].Path()
-			}
-			return ""
-		})
-		s.index = identities.Resolve(bookmark.occurrence)
+	data := collectionData{}
+	if before.data != nil {
+		data = *before.data
 	}
-	s.publish()
-	return collectionChange{before: before, after: s.Observe()}
+	after := collectionSnapshot{data: data.withDisplay(files, before.Generation()+1)}
+	if chosen {
+		after.index = max(0, after.data.occurrences.Resolve(bookmark.occurrence))
+	}
+	s.published.Store(&after)
+	return collectionChange{before: before, after: after}
 }
 
 // Merge takes additions in source/retained order and an already-prepared full

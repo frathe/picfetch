@@ -19,8 +19,8 @@ func TestJumpIfHiddenExtra_MovesToRepresentative(t *testing.T) {
 	v.jumpIfHiddenExtra()
 	waitUntilLoaded(t, v)
 
-	if v.state.index != 0 {
-		t.Errorf("index after jumpIfHiddenExtra = %d, want 0 (the representative)", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Errorf("index after jumpIfHiddenExtra = %d, want 0 (the representative)", v.state.Observe().index)
 	}
 }
 
@@ -34,8 +34,8 @@ func TestJumpIfHiddenExtra_NoopWhileInspecting(t *testing.T) {
 	v.jumpIfHiddenExtra()
 	waitUntilLoaded(t, v)
 
-	if v.state.index != 1 {
-		t.Errorf("index = %d, want 1 - inspect is the state where sitting on an extra is the point", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Errorf("index = %d, want 1 - inspect is the state where sitting on an extra is the point", v.state.Observe().index)
 	}
 }
 
@@ -47,8 +47,8 @@ func TestJumpIfHiddenExtra_JumpsAgainAfterClearInspect(t *testing.T) {
 	v.jumpIfHiddenExtra()
 	waitUntilLoaded(t, v)
 
-	if v.state.index != 0 {
-		t.Errorf("index after ClearInspect and jumpIfHiddenExtra = %d, want 0", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Errorf("index after ClearInspect and jumpIfHiddenExtra = %d, want 0", v.state.Observe().index)
 	}
 }
 
@@ -78,8 +78,8 @@ func hiddenExtraViewer(t *testing.T) *viewer {
 	// ends up parked on an extra.
 	v.ShowImage(1)
 	waitUntilLoaded(t, v)
-	if v.state.index != 1 {
-		t.Fatalf("premises: index = %d, want 1 (the extra) before the jump", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("premises: index = %d, want 1 (the extra) before the jump", v.state.Observe().index)
 	}
 
 	return v

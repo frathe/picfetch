@@ -61,11 +61,12 @@ func (v *viewer) deleteGridSelection() {
 	}
 
 	ts := make([]deletion.Target, 0, len(targets))
+	collection := v.state.Observe()
 	for _, i := range targets {
-		if i < 0 || i >= len(v.state.files) {
+		if i < 0 || i >= collection.Count() {
 			continue
 		}
-		ts = append(ts, deletion.Target{URI: v.state.files[i]})
+		ts = append(ts, deletion.Target{URI: collection.FileAt(i)})
 	}
 
 	v.deletion.RequestFiles(ts)
@@ -108,9 +109,10 @@ func (v *viewer) copyGridSelection() {
 	targets := v.grid.Targets()
 
 	paths := make([]string, 0, len(targets))
+	collection := v.state.Observe()
 	for _, i := range targets {
-		if i >= 0 && i < len(v.state.files) {
-			paths = append(paths, v.state.files[i].Path())
+		if i >= 0 && i < collection.Count() {
+			paths = append(paths, collection.FileAt(i).Path())
 		}
 	}
 	if len(paths) == 0 {

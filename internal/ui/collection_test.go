@@ -157,7 +157,7 @@ func TestCollectionModel(t *testing.T) {
 			if state.Select(0) {
 				t.Fatal("empty collection admitted selection")
 			}
-			state.replaceFiles([]fyne.URI{a, b, a}, []fyne.URI{a, b, a})
+			state.Replace(collectionInput{source: []fyne.URI{a, b, a}, display: []fyne.URI{a, b, a}})
 			before := state.Observe()
 			bookmark, _ := before.Bookmark(2)
 			if !state.Select(-1) {
@@ -173,7 +173,7 @@ func TestCollectionModel(t *testing.T) {
 			if _, index, _ := before.Current(); index != 0 {
 				t.Fatal("navigation changed a retained observation")
 			}
-			state.replaceFiles([]fyne.URI{a, b, a}, []fyne.URI{a, b, a})
+			state.Replace(collectionInput{source: []fyne.URI{a, b, a}, display: []fyne.URI{a, b, a}})
 			replaced := state.Observe()
 			if replaced.Resolve(bookmark) != -1 {
 				t.Fatal("old bookmark resolved into unrelated replacement")
@@ -495,6 +495,7 @@ func TestCollectionFavoriteAssociation(t *testing.T) {
 }
 
 func TestCollectionReconciliation(t *testing.T) {
+	t.Run("validation_removal", collectionValidationRemoval)
 	t.Run("load_failure", collectionLoadFailureReconciliation)
 	t.Run("reorder", collectionReorderReconciliation)
 	t.Run("removal", collectionRemovalReconciliation)

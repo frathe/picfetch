@@ -80,7 +80,9 @@ func (v *viewer) startVisualSearch(reference string) {
 	}
 	var paths []string
 	seen := map[string]bool{}
-	for _, uri := range v.state.files {
+	collection := v.state.Observe()
+	for i := range collection.Count() {
+		uri := collection.FileAt(i)
 		if uri != nil && !seen[uri.Path()] {
 			seen[uri.Path()] = true
 			paths = append(paths, uri.Path())

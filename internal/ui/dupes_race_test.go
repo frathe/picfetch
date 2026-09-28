@@ -9,7 +9,7 @@ import (
 )
 
 // dupes.Model.Compute runs on a hash-pool worker (internal/ui/grid's
-// hashengine) while the UI goroutine replaces v.state.files. Reaching the
+// hashengine) while the UI goroutine replaces v.state.Observe().DisplayFiles(). Reaching the
 // live slice through dupeFileSet's Count()/KeyAt(i) pair means a shrink
 // landing between those two reads, or part-way through the loop over
 // them, indexes past the end - and the slice header itself is read with

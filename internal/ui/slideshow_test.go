@@ -48,8 +48,8 @@ func TestTogglePictureFrameMode_EntersAndExitsFullScreen(t *testing.T) {
 	}
 
 	// Exiting must not touch the loaded set.
-	if len(v.state.files) != 2 {
-		t.Errorf("files = %d, want 2 to remain loaded after leaving picture-frame mode", len(v.state.files))
+	if v.state.Observe().Count() != 2 {
+		t.Errorf("files = %d, want 2 to remain loaded after leaving picture-frame mode", v.state.Observe().Count())
 	}
 }
 
@@ -88,14 +88,14 @@ func TestHandleKeyEvent_EscapeLeavesPictureFrameModeWithoutResetting(t *testing.
 	if v.win.FullScreen() {
 		t.Error("Escape should leave full-screen")
 	}
-	if len(v.state.files) != 2 {
-		t.Errorf("files = %d, want the loaded set untouched by Escape while in picture-frame mode", len(v.state.files))
+	if v.state.Observe().Count() != 2 {
+		t.Errorf("files = %d, want the loaded set untouched by Escape while in picture-frame mode", v.state.Observe().Count())
 	}
 
 	// A second Escape, now that picture-frame mode is off, falls through to
 	// the usual reset behavior.
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
-	if v.state.files != nil {
+	if v.state.Observe().DisplayFiles() != nil {
 		t.Error("a second Escape should reset the session, same as usual")
 	}
 }
@@ -109,13 +109,13 @@ func TestHandleKeyEvent_UpDownAdjustIntervalInsteadOfNavigating(t *testing.T) {
 
 	v.togglePictureFrameMode()
 	t.Cleanup(func() { settleSlideshow(t, v) })
-	startIndex := v.state.index
+	startIndex := v.state.Observe().index
 
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyUp})
 	if want := slideshow.DefaultInterval + time.Second; v.slides.Interval() != want {
 		t.Errorf("interval after Up = %v, want %v", v.slides.Interval(), want)
 	}
-	if v.state.index != startIndex {
+	if v.state.Observe().index != startIndex {
 		t.Error("Up should not navigate while in picture-frame mode")
 	}
 
@@ -124,7 +124,7 @@ func TestHandleKeyEvent_UpDownAdjustIntervalInsteadOfNavigating(t *testing.T) {
 	if want := slideshow.DefaultInterval - time.Second; v.slides.Interval() != want {
 		t.Errorf("interval after Up then two Downs = %v, want %v", v.slides.Interval(), want)
 	}
-	if v.state.index != startIndex {
+	if v.state.Observe().index != startIndex {
 		t.Error("Down should not navigate while in picture-frame mode")
 	}
 }
@@ -142,8 +142,8 @@ func TestHandleKeyEvent_UpDownNavigateOutsidePictureFrameMode(t *testing.T) {
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyDown})
 	waitUntilLoaded(t, v)
 
-	if v.state.index != 1 {
-		t.Errorf("index = %d, want 1 after Down outside picture-frame mode", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Errorf("index = %d, want 1 after Down outside picture-frame mode", v.state.Observe().index)
 	}
 	if v.slides.Interval() != 0 {
 		t.Errorf("interval = %v, want it untouched by a navigation key", v.slides.Interval())
@@ -163,8 +163,8 @@ func TestHandleKeyEvent_LeftRightStillNavigateInPictureFrameMode(t *testing.T) {
 	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 	waitUntilLoaded(t, v)
 
-	if v.state.index != 1 {
-		t.Errorf("index = %d, want 1 after Right in picture-frame mode", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Errorf("index = %d, want 1 after Right in picture-frame mode", v.state.Observe().index)
 	}
 }
 
@@ -199,15 +199,15 @@ func TestAdvance_WrapsAroundAtTheEnd(t *testing.T) {
 
 	v.Advance()
 	waitUntilLoaded(t, v)
-	if v.state.index != 1 {
-		t.Fatalf("index = %d, want 1 after the first Advance", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("index = %d, want 1 after the first Advance", v.state.Observe().index)
 	}
 
 	// A slideshow left running has to loop rather than stop at the end.
 	v.Advance()
 	waitUntilLoaded(t, v)
-	if v.state.index != 0 {
-		t.Errorf("index = %d, want 0 - Advance past the last file wraps around", v.state.index)
+	if v.state.Observe().index != 0 {
+		t.Errorf("index = %d, want 0 - Advance past the last file wraps around", v.state.Observe().index)
 	}
 }
 
@@ -231,7 +231,7 @@ func TestShow_TracksAnimatedGIFLoopDuration(t *testing.T) {
 		t.Errorf("AnimDuration after loading the gif = %v, want %v", got, want)
 	}
 
-	v.ShowImage(v.state.index + 1)
+	v.ShowImage(v.state.Observe().index + 1)
 	waitUntilLoaded(t, v)
 
 	if got := v.slides.AnimDuration(); got != 0 {
@@ -306,15 +306,15 @@ func TestAdvance_ShuffleOnNeverRepeatsCurrentIndex(t *testing.T) {
 	v.slides.SetShuffle(true)
 
 	for i := range 20 {
-		before := v.state.index
+		before := v.state.Observe().index
 		v.Advance()
 		waitUntilLoaded(t, v)
 
-		if v.state.index == before {
+		if v.state.Observe().index == before {
 			t.Fatalf("iteration %d: index stayed at %d after Advance with shuffle on", i, before)
 		}
-		if v.state.index < 0 || v.state.index >= len(v.state.files) {
-			t.Fatalf("iteration %d: index = %d out of range", i, v.state.index)
+		if v.state.Observe().index < 0 || v.state.Observe().index >= v.state.Observe().Count() {
+			t.Fatalf("iteration %d: index = %d out of range", i, v.state.Observe().index)
 		}
 	}
 }
@@ -438,7 +438,7 @@ func TestShowImage_InPictureFrameModeEndsFullyOpaque(t *testing.T) {
 	v.togglePictureFrameMode()
 	t.Cleanup(func() { settleSlideshow(t, v) })
 
-	v.ShowImage(v.state.index + 1)
+	v.ShowImage(v.state.Observe().index + 1)
 	waitUntilLoaded(t, v)
 
 	if v.img.Translucency != 0 {
@@ -528,7 +528,7 @@ func TestShutdownStopsPictureFrameWithQueuedAdvance(t *testing.T) {
 	case <-time.After(testTimeout):
 		t.Fatal("advance was not queued")
 	}
-	before := v.state.index
+	before := v.state.Observe().index
 	lifecycle, ok := application.Lifecycle().(interface{ OnStopped() func() })
 	if !ok {
 		t.Fatal("test app lifecycle does not expose its stopped hook")
@@ -543,7 +543,7 @@ func TestShutdownStopsPictureFrameWithQueuedAdvance(t *testing.T) {
 	}
 	// The worker must be cancellable before its held UI callback can run.
 	v.slides.Settle()
-	if v.state.index != before {
+	if v.state.Observe().index != before {
 		t.Fatal("queued advance changed a stopped viewer")
 	}
 	v.slides.Toggle()

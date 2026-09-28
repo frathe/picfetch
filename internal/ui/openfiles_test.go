@@ -241,12 +241,12 @@ func TestRunFileChooser_PreservesPathIdentity(t *testing.T) {
 	waitForScan(t, v)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
-	if len(v.state.unsortedFiles) != len(paths) {
-		t.Fatalf("opened files = %v", v.state.unsortedFiles)
+	if len(v.state.Observe().SourceFiles()) != len(paths) {
+		t.Fatalf("opened files = %v", v.state.Observe().SourceFiles())
 	}
 	for i, path := range paths {
-		if v.state.unsortedFiles[i].Path() != path.Path() {
-			t.Errorf("opened %q, want %q in selection order", v.state.unsortedFiles[i].Path(), path.Path())
+		if v.state.Observe().SourceFiles()[i].Path() != path.Path() {
+			t.Errorf("opened %q, want %q in selection order", v.state.Observe().SourceFiles()[i].Path(), path.Path())
 		}
 	}
 }
@@ -279,8 +279,8 @@ func TestOpenChooser_ReverseCompletionKeepsLatestRequest(t *testing.T) {
 	waitForScan(t, v)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
-	if len(v.state.files) != 1 || v.state.files[0].String() != b.String() {
-		t.Fatalf("older chooser replaced the latest selection: %v", v.state.files)
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != b.String() {
+		t.Fatalf("older chooser replaced the latest selection: %v", v.state.Observe().DisplayFiles())
 	}
 }
 
@@ -311,14 +311,14 @@ func TestOpenChooser_InterveningInputDiscardsHeldResult(t *testing.T) {
 			} else {
 				v.closeFiles()
 			}
-			expected := slices.Clone(v.state.files)
+			expected := slices.Clone(v.state.Observe().DisplayFiles())
 			unblock()
 			settleChooser(t, v)
 			waitForScan(t, v)
 			waitForSort(t, v)
 			waitUntilLoaded(t, v)
-			if !slices.EqualFunc(v.state.files, expected, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
-				t.Fatalf("obsolete result replaced %s state: %v", action, v.state.files)
+			if !slices.EqualFunc(v.state.Observe().DisplayFiles(), expected, func(a, b fyne.URI) bool { return a.String() == b.String() }) {
+				t.Fatalf("obsolete result replaced %s state: %v", action, v.state.Observe().DisplayFiles())
 			}
 		})
 	}
@@ -493,7 +493,7 @@ func TestOpenChooser_ShutdownDiscardsHeldResult(t *testing.T) {
 	if v.scanOp.lifecycle.currentRevision() != scanRevision {
 		t.Fatal("held result started a scan after shutdown")
 	}
-	if len(v.state.files) != 1 || v.state.files[0].String() != before.String() {
+	if v.state.Observe().Count() != 1 || v.state.Observe().DisplayFiles()[0].String() != before.String() {
 		t.Fatal("held chooser changed the stopped viewer")
 	}
 	v.openFileDialog()
@@ -519,7 +519,7 @@ func TestOpenChooser_QueuedDeliveryIsDiscardedAfterReset(t *testing.T) {
 	v.reset()
 	revision := v.scanOp.lifecycle.currentRevision()
 	queue.Drain()
-	if len(v.state.files) != 0 || v.scanOp.lifecycle.currentRevision() != revision {
+	if v.state.Observe().Count() != 0 || v.scanOp.lifecycle.currentRevision() != revision {
 		t.Fatal("queued obsolete result restarted opening files after reset")
 	}
 }

@@ -76,7 +76,7 @@ func TestCompareFirstNavigation_ShowsCachedSizeAndEXIF(t *testing.T) {
 	a := uitest.TempJPEGURI(t, "a.jpg", 19, 13, color.White)
 	data := uitest.GPSJPEG(t, 19, 13, 50.85, 4.35)
 	b := storage.NewFileURI(uitest.WriteTempFile(t, "b.jpg", data))
-	v.state.setFiles([]fyne.URI{a, b}, []fyne.URI{a, b})
+	v.state.Replace(collectionInput{source: []fyne.URI{a, b}, display: []fyne.URI{a, b}, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
 	v.compare.Open([2]fyne.URI{a, b})
 	waitForCompare(t, v)
 	v.compare.Close()
@@ -138,7 +138,7 @@ func TestFinishLoad_PreloadsBothNeighbors(t *testing.T) {
 // TestAttemptLoad_CacheHitServesFileRemovedFromDisk proves a cache hit
 // really does skip the disk read: b's file is deleted from disk right after
 // it's preloaded, so a real (non-cached) load of it would fail and trigger
-// retryAfterLoadFailure, dropping it from v.state.files. Navigating to it
+// retryAfterLoadFailure, dropping it from v.state.Observe().DisplayFiles(). Navigating to it
 // succeeding instead demonstrates the display came from imgCache.
 func TestAttemptLoad_CacheHitServesFileRemovedFromDisk(t *testing.T) {
 	v := newTestViewer(t)
@@ -159,11 +159,11 @@ func TestAttemptLoad_CacheHitServesFileRemovedFromDisk(t *testing.T) {
 	v.ShowImage(1)
 	waitUntilLoaded(t, v)
 
-	if v.state.index != 1 {
-		t.Fatalf("index = %d, want 1 - a cache hit must not fall through to retryAfterLoadFailure", v.state.index)
+	if v.state.Observe().index != 1 {
+		t.Fatalf("index = %d, want 1 - a cache hit must not fall through to retryAfterLoadFailure", v.state.Observe().index)
 	}
-	if len(v.state.files) != 2 {
-		t.Fatalf("files = %v, want b still present - a cache hit must not treat it as broken", v.state.files)
+	if v.state.Observe().Count() != 2 {
+		t.Fatalf("files = %v, want b still present - a cache hit must not treat it as broken", v.state.Observe().DisplayFiles())
 	}
 }
 
@@ -172,7 +172,7 @@ func TestRemoveFile_PurgesCacheEntry(t *testing.T) {
 
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
-	v.state.replaceFiles([]fyne.URI{a, b}, []fyne.URI{a, b})
+	v.state.Replace(collectionInput{source: []fyne.URI{a, b}, display: []fyne.URI{a, b}})
 	v.imgCache.Add(a.String(), &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 1, 1))}})
 
 	v.RemoveFile(0)
@@ -188,7 +188,7 @@ func TestAppState_RemoveReportsEffectsWithoutMutatingCache(t *testing.T) {
 
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
-	v.state.replaceFiles([]fyne.URI{a, b}, []fyne.URI{a, b})
+	v.state.Replace(collectionInput{source: []fyne.URI{a, b}, display: []fyne.URI{a, b}})
 	v.imgCache.Add(a.String(), &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 1, 1))}})
 
 	change := v.state.Remove([]int{0})
@@ -268,8 +268,8 @@ func TestAttemptLoad_ReportsAFileTooLargeToOpen(t *testing.T) {
 	if v.img.Image != nil {
 		t.Error("no image should be loaded after a file is refused for its size")
 	}
-	if len(v.state.files) != 0 {
-		t.Errorf("files = %v, want the refused file dropped from the set", v.state.files)
+	if v.state.Observe().Count() != 0 {
+		t.Errorf("files = %v, want the refused file dropped from the set", v.state.Observe().DisplayFiles())
 	}
 	if !v.toast.card.Visible() {
 		t.Fatal("expected a toast after a file was refused for its size")
@@ -306,8 +306,8 @@ func TestAttemptLoad_ToastsAndFallsBackToAStaticFrameForAnOversizedAnimation(t *
 	if v.display.AnimationBegun() {
 		t.Error("the animation signal is armed, want no animation goroutine for a refused animation")
 	}
-	if len(v.state.files) != 1 {
-		t.Errorf("files = %v, want the file kept - it is valid, just too big to animate", v.state.files)
+	if v.state.Observe().Count() != 1 {
+		t.Errorf("files = %v, want the file kept - it is valid, just too big to animate", v.state.Observe().DisplayFiles())
 	}
 	if !v.toast.card.Visible() {
 		t.Fatal("expected a toast explaining why the animation isn't playing")

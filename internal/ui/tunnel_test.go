@@ -73,7 +73,7 @@ func TestHypnoTunnel(t *testing.T) {
 				CloseFunc: func() error { return nil },
 			}, nil
 		})
-		v.state.setFiles([]fyne.URI{held}, []fyne.URI{held})
+		v.state.Replace(collectionInput{source: []fyne.URI{held}, display: []fyne.URI{held}, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
 		v.openSpiral()
 		select {
 		case <-started:
@@ -183,14 +183,14 @@ func TestHypnoTunnel(t *testing.T) {
 	t.Run("snapshot", func(t *testing.T) {
 		v := newTestViewer(t)
 		uris := uitest.TempDirJPEGURIs(t, "c.jpg", "a.jpg", "b.jpg")
-		v.state.setFiles(uris, uris)
+		v.state.Replace(collectionInput{source: uris, display: uris, index: v.state.Observe().index, favorite: v.state.Observe().Favorite()})
 		v.dupes.SetHideDuplicates(true) // Unanalysed files remain eligible.
 		reads := v.dupes.VisibilityReads()
 		got := v.tunnelSources()
 		if !slices.Equal(got, uris) || v.dupes.VisibilityReads() != reads+1 {
 			t.Fatal("snapshot must retain main order with one visibility read")
 		}
-		v.state.clearFiles()
+		v.state.Clear()
 		if !slices.Equal(got, uris) {
 			t.Fatal("snapshot changed with the viewer")
 		}

@@ -167,7 +167,7 @@ func TestBrowsingCollectionChanges(t *testing.T) {
 		publish(similarity.SearchFinal, 0, 4)
 		v.RemoveFile(1)
 		waitUntilLoaded(t, v)
-		if v.searchActive() || v.state.index != 1 || v.currentImageOccurrence().Ordinal != 0 {
+		if v.searchActive() || v.state.Observe().index != 1 || v.currentImageOccurrence().Ordinal != 0 {
 			t.Fatal("origin ordinal was not remapped to its exact surviving occurrence")
 		}
 	})
@@ -203,7 +203,7 @@ func TestBrowsingCollectionChanges(t *testing.T) {
 		v.SetSortMode(filesort.ByDropOrder)
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)
-		if v.searchActive() || v.state.index != 3 || v.FileAt(v.state.index).Path() != duplicate.Path() {
+		if v.searchActive() || v.state.Observe().index != 3 || v.FileAt(v.state.Observe().index).Path() != duplicate.Path() {
 			t.Fatal("sort replaced the repeated image origin with its first occurrence")
 		}
 	})
@@ -232,7 +232,7 @@ func TestBrowsingCollectionChanges(t *testing.T) {
 		publish(similarity.SearchFinal, 0, 1)
 		v.RemoveFile(14)
 		waitUntilLoaded(t, v)
-		if v.searchActive() || !v.browsing.has(browsingExplorer) || v.FileAt(v.state.index).Path() != second.Path() {
+		if v.searchActive() || !v.browsing.has(browsingExplorer) || v.FileAt(v.state.Observe().index).Path() != second.Path() {
 			t.Fatal("missing Explorer origin fell back outside its restored cohort")
 		}
 	})
@@ -396,7 +396,7 @@ func TestBrowsingProgressiveScopes(t *testing.T) {
 		}
 		v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
 		waitUntilLoaded(t, v)
-		if v.state.index != 1 {
+		if v.state.Observe().index != 1 {
 			t.Fatal("new mapped member did not become navigable")
 		}
 	})
@@ -898,8 +898,8 @@ func TestBrowsingScope(t *testing.T) {
 		for _, key := range []fyne.KeyName{fyne.KeyRight, fyne.KeyLeft, fyne.KeyHome, fyne.KeyEnd} {
 			v.handleKeyEvent(&fyne.KeyEvent{Name: key})
 			v.display.Settle()
-			if v.state.index != 0 || v.display.RequestRevision() != before {
-				t.Fatalf("%s selected an image outside an empty cohort: index=%d revision=%d", key, v.state.index, v.display.RequestRevision())
+			if v.state.Observe().index != 0 || v.display.RequestRevision() != before {
+				t.Fatalf("%s selected an image outside an empty cohort: index=%d revision=%d", key, v.state.Observe().index, v.display.RequestRevision())
 			}
 		}
 	})

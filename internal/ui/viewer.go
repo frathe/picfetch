@@ -232,8 +232,8 @@ type viewer struct {
 	// discarded. Used for two things: gating cancelSort (nothing to cancel
 	// if nothing's in flight) and handleKeyEvent's Escape case (keys.go) -
 	// a first-ever drop clears v.scanOp.active before startSort has actually
-	// populated v.state.files, so without this Escape would see
-	// len(v.state.files) == 0 and quit the window instead of cancelling
+	// committed a collection, so without this Escape would see
+	// no browsable files and quit the window instead of cancelling
 	// the still-computing reorder. sortOp.lifecycle owns the cancellable
 	// filesort.Order request, staying separate from display's navigation lifecycle so
 	// reordering cannot stop an unrelated decode, preload, or playing GIF.
@@ -300,7 +300,7 @@ type viewer struct {
 	// which owns its own widgets, its standing show/hide preference, and the
 	// current file's raw facts (byte size, EXIF presence, RAW-preview flag).
 	// toggleInfoOverlay/syncInfoOverlayVisibility/updateInfoOverlay (info.go)
-	// are the thin glue that builds its State snapshot from state.files/
+	// are the thin glue that builds its State snapshot from the collection,
 	// zoom/vector, none of which infoview has access to.
 	info *infoview.Card
 
@@ -535,7 +535,7 @@ func (v *viewer) applyTitle() {
 // open, so this also recomputes the menus; syncMenus refreshes the native
 // bar only if something in that matrix actually moved.
 func (v *viewer) HighlightChanged(i int) {
-	if i < 0 || i >= len(v.state.files) {
+	if i < 0 || i >= v.state.Observe().Count() {
 		v.gridTitle = ""
 		v.applyTitle()
 	} else {
@@ -552,10 +552,11 @@ func (v *viewer) HighlightChanged(i int) {
 // `(index/count) [WxH] /absolute/path` from the already-probed native
 // size - not a new decode. applyTitle strips mode prefixes for this form.
 func (v *viewer) gridHighlightTitle(i int) string {
-	u := v.state.files[i]
+	collection := v.state.Observe()
+	u := collection.FileAt(i)
 	if v.grid.BrowsingDuplicates() {
 		head := ""
-		if n := len(v.state.files); n > 1 {
+		if n := collection.Count(); n > 1 {
 			head = fmt.Sprintf("(%d/%d) ", i+1, n)
 		}
 		if w, h, ok := v.dupes.NativeSizeAt(i); ok {
@@ -564,7 +565,7 @@ func (v *viewer) gridHighlightTitle(i int) string {
 		return head + u.Path()
 	}
 	title := u.Name()
-	if n := len(v.state.files); n > 1 {
+	if n := collection.Count(); n > 1 {
 		title = fmt.Sprintf("%s  (%d/%d)", title, i+1, n)
 	}
 	return title
@@ -626,8 +627,8 @@ func (v *viewer) presentDropzone() {
 
 	// The info card's own standing preference is left alone - it's a
 	// preference like sortMode/mergeMode, so the card comes back on the
-	// next load if it was on. state.files and img.Image are already
-	// cleared above, so this call only hides the widget.
+	// next load if it was on. No browsable selection or pixels remain, so this
+	// call only hides the widget; unavailable membership can still be retained.
 	v.syncInfoOverlayVisibility()
 
 	v.loadingBar.Hide()
@@ -699,12 +700,14 @@ func (v *viewer) MergeMode() bool {
 	return v.state.MergeMode()
 }
 
-// showFileIfPresent looks up target in v.state.files by URI identity and shows it
+// showFileIfPresent looks up target in the collection by URI identity and shows it
 // if found, reporting whether it was. Used to keep the same file in view
 // across an operation - a sort toggle or a merge - that reorders or extends
-// v.state.files without changing what's currently on screen.
+// membership without changing what's currently on screen.
 func (v *viewer) showFileIfPresent(target fyne.URI) bool {
-	for i, u := range v.state.files {
+	collection := v.state.Observe()
+	for i := range collection.Count() {
+		u := collection.FileAt(i)
 		if u.String() == target.String() {
 			v.loadImage(i)
 			return true
@@ -922,9 +925,9 @@ func (v *viewer) CurrentIndex() int {
 //
 // It is read out of the published snapshot rather than a counter of its
 // own, so the generation and the keys it describes are one value - see
-// appState.publish.
+// collectionSnapshot.
 func (v *viewer) Generation() uint64 {
-	return v.state.snapshot().Generation()
+	return v.state.Observe().Generation()
 }
 
 // Unfocus releases Fyne's canvas focus.
@@ -945,12 +948,12 @@ func (v *viewer) Advance() {
 		return
 	}
 	if v.slides.Shuffle() {
-		if i, ok := v.randomVisibleOther(v.state.index); ok {
+		if i, ok := v.randomVisibleOther(v.CurrentIndex()); ok {
 			v.loadImage(i)
 		}
 		return
 	}
-	if i, ok := v.nextVisibleIndex(v.state.index, 1); ok {
+	if i, ok := v.nextVisibleIndex(v.CurrentIndex(), 1); ok {
 		v.loadImage(i)
 	}
 }
@@ -969,7 +972,7 @@ func (v *viewer) StepImage(delta int) {
 	if _, ok := v.admitCommand(commandRequest{command: commandNavigate}); !ok {
 		return
 	}
-	i, ok := v.nextVisibleIndex(v.state.index, delta)
+	i, ok := v.nextVisibleIndex(v.CurrentIndex(), delta)
 	if !ok {
 		return
 	}

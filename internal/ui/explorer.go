@@ -161,7 +161,7 @@ func (v *viewer) LeaveSimilarityMap() {
 	v.grid.Close()
 	v.syncMenus()
 	if v.FileCount() > 0 && v.img.Image == nil {
-		v.ShowImage(v.state.index)
+		v.ShowImage(v.CurrentIndex())
 	}
 }
 func (v *viewer) cancelExplorerPreparation() {

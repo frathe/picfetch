@@ -113,8 +113,10 @@ func (v *viewer) applyLoadedTitle(snapshot display.Snapshot) {
 		title += " (animated)"
 	}
 	v.slides.SetAnimDuration(snapshot.Duration)
-	if n := len(v.state.files); n > 1 {
-		title = fmt.Sprintf("%s  (%d/%d)", title, v.state.index+1, n)
+	collection := v.state.Observe()
+	if n := collection.Count(); n > 1 {
+		_, index, _ := collection.Current()
+		title = fmt.Sprintf("%s  (%d/%d)", title, index+1, n)
 	}
 	v.setTitle(title)
 }
@@ -129,13 +131,13 @@ func (v *viewer) imageLoadFailed(source fyne.URI, err error) fyne.URI {
 	case errors.As(err, &tooLarge):
 		msg = fmt.Sprintf(lang.L("%q is too large to open"), source.Name())
 	}
-	i := v.state.index
+	i := v.CurrentIndex()
 	kind := sourceLoadFailed
 	if errors.Is(err, heic.ErrUnavailable) {
 		kind = sourceUnavailable
 	}
 	restoredIndex := v.reconcileSources(sourceChange{kind: kind, removed: []int{i}})
-	if len(v.state.files) == 0 {
+	if v.state.Observe().Count() == 0 {
 		v.ShowEmptyStateError(msg)
 		if errors.Is(err, heic.ErrUnavailable) {
 			v.explainUnavailableHEIC([]fyne.URI{source}, true)

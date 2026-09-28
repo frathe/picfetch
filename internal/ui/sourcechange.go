@@ -88,12 +88,13 @@ func (v *viewer) commitOpenedCollection(input collectionInput, merging bool, pre
 // Trash consumes it after its outcome notification. Other changes admit any
 // required load here, after reconciliation.
 func (v *viewer) reconcileSources(change sourceChange) int {
+	before := v.state.Observe()
 	failedLoad := change.kind == sourceLoadFailed || change.kind == sourceUnavailable
 	indices := slices.Sorted(slices.Values(change.removed))
 	indices = slices.Compact(slices.DeleteFunc(indices, func(i int) bool {
-		return i < 0 || i >= len(v.state.files)
+		return i < 0 || i >= before.Count()
 	}))
-	if (change.kind == sourcesRemoved || change.kind == sourcesTrashed || failedLoad) && len(indices) == 0 && !v.state.Observe().ContainsTargets(change.targets) {
+	if (change.kind == sourcesRemoved || change.kind == sourcesTrashed || failedLoad) && len(indices) == 0 && !before.ContainsTargets(change.targets) {
 		return -1
 	}
 	defer v.beginBrowsingUpdate()()
@@ -126,20 +127,21 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 		}
 		browsing = browsing.remap(committed.survivors)
 	}
+	after := v.state.Observe()
 	for _, removed := range committed.removed {
 		v.imgCache.Remove(removed.String())
-		if v.state.Observe().Occurrences().Resolve(fileidentity.Occurrence{Path: removed.Path()}) < 0 {
+		if after.Occurrences().Resolve(fileidentity.Occurrence{Path: removed.Path()}) < 0 {
 			v.explorer.RemoveCohortSource(removed.Path())
 		}
 	}
-	v.browsing.reconcile(v.Generation(), browsing.survivors)
+	v.browsing.reconcile(after.Generation(), browsing.survivors)
 	v.cancelExplorerPreparation()
 	v.explorer.SourcesChanged()
 
 	switch change.kind {
 	case sourcesRemoved, sourcesTrashed, sourceLoadFailed, sourceUnavailable, sourcesRevalidated:
 		v.grid.FilesChanged()
-		if len(v.state.files) == 0 {
+		if after.Count() == 0 {
 			v.grid.Close()
 		}
 	case duplicatePolicyChanged:
@@ -154,10 +156,11 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 		v.compare.Refresh()
 	}
 	index := v.finishBrowsingReconciliation(browsing)
-	if change.kind == sourcesRevalidated && index < 0 && v.FileCount() > 0 {
+	if change.kind == sourcesRevalidated && index < 0 && after.Count() > 0 {
 		scope := v.captureBrowsingScope()
-		if !scope.restricted || slices.Contains(scope.indexes, v.state.index) {
-			index = v.state.index
+		_, current, _ := after.Current()
+		if !scope.restricted || slices.Contains(scope.indexes, current) {
+			index = current
 		}
 	}
 	if index >= 0 && !failedLoad && change.kind != sourcesTrashed {
@@ -268,7 +271,7 @@ func (v *viewer) restoreBrowsingOrigin(origin browsingOrigin) int {
 		}
 		return -1
 	}
-	i, ok := scope.RestoreImage(origin.image, v.sourceOccurrences(origin.image.Path))
+	i, ok := scope.RestoreImage(origin.image, v.state.Observe().Occurrences())
 	if !ok {
 		return -1
 	}

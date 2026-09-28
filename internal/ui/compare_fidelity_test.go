@@ -352,7 +352,7 @@ func TestCompareInputLimit_FailsWithoutRemovingEitherSelectedSource(t *testing.T
 		t.Errorf("selection after input-limit failure = %v, want %v", got, beforeSelection)
 	}
 	if v.FileCount() != 2 || v.FileAt(0).Name() != "a-small.png" || v.FileAt(1).Name() != "b-large.png" {
-		t.Errorf("file set after input-limit failure = %v, want both original files", v.state.files)
+		t.Errorf("file set after input-limit failure = %v, want both original files", v.state.Observe().DisplayFiles())
 	}
 	if !strings.Contains(v.toast.text.Text, "input limit") {
 		t.Errorf("input-limit failure toast = %q, want encoded-size reason", v.toast.text.Text)

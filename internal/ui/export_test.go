@@ -594,7 +594,7 @@ func TestHandleKeyEvent_ExportPromptSwallowsNavigationButRespondsToItsOwnKeys(t 
 	if !v.exportPrompt.Visible() {
 		t.Fatal("setup: the export prompt should be up after promptExport")
 	}
-	startIndex := v.state.index
+	startIndex := v.state.Observe().index
 	if startIndex != 1 {
 		t.Fatalf("setup: index = %d, want the middle image (1) so Home and End both move", startIndex)
 	}
@@ -609,7 +609,7 @@ func TestHandleKeyEvent_ExportPromptSwallowsNavigationButRespondsToItsOwnKeys(t 
 	if got := v.exportPrompt.Selected(); got != pngChoice {
 		t.Errorf("selection after Left = %d, want pngChoice (%d)", got, pngChoice)
 	}
-	if v.state.index != startIndex {
+	if v.state.Observe().index != startIndex {
 		t.Error("Left/Right handled by the export prompt must not also navigate the image behind it")
 	}
 
@@ -619,8 +619,8 @@ func TestHandleKeyEvent_ExportPromptSwallowsNavigationButRespondsToItsOwnKeys(t 
 		{Name: fyne.KeyUp}, {Name: fyne.KeyDown}, {Name: fyne.KeyHome}, {Name: fyne.KeyEnd},
 	} {
 		v.handleKeyEvent(ev)
-		if v.state.index != startIndex {
-			t.Errorf("%v changed the index to %d while the export prompt was up, want unchanged from %d", ev.Name, v.state.index, startIndex)
+		if v.state.Observe().index != startIndex {
+			t.Errorf("%v changed the index to %d while the export prompt was up, want unchanged from %d", ev.Name, v.state.Observe().index, startIndex)
 		}
 	}
 
@@ -673,7 +673,7 @@ func TestHandleKeyEvent_ExportPromptSwallowsNavigationButRespondsToItsOwnKeys(t 
 	if v.exportPrompt.Visible() {
 		t.Error("Escape should dismiss the export prompt")
 	}
-	if len(v.state.files) != 3 {
+	if v.state.Observe().Count() != 3 {
 		t.Error("Escape on the export prompt must not also reset the loaded file set")
 	}
 	if closed() {
