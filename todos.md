@@ -105,7 +105,14 @@
   all 15 root/display request owners and full qualification on `fc7aa32`.
   Fallback 08 is inapplicable. Per-ticket commits and latest-head GitHub
   review-loop acceptance are tracked in [PR 71](https://github.com/frathe/picfetch/pull/71).
-  MA-033 remains a proposal.
+  MA-033's [accepted launch-policy design](docs/launch-policy.md) resolves all ten
+  decisions in its [completed interview](.scratch/ma-033/interview.md).
+  The [local specification](.scratch/ma-033/spec.md) is `ready-for-agent`, with
+  60 user stories, agreed testing interfaces and 22 acceptance criteria.
+  Its [nine approved implementation tickets](.scratch/ma-033/issues/README.md)
+  are published with blocking edges and verification commands; ticket 01 is the
+  initial frontier. Detailed implementation planning, implementation and
+  qualification remain open.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

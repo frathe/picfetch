@@ -155,6 +155,12 @@ _Avoid_: Resize, max dimension, scale, downsample
 The edition of PicFetch installed and updated through Microsoft Store.
 _Avoid_: Windows edition (PicFetch also has portable Windows downloads)
 
+**Isolated trial**:
+An explicitly launched Explorer or Location Map qualification session that
+uses separate settings, saved collections and analysis storage, and cannot
+self-update. Isolation does not itself promise network denial.
+_Avoid_: Offline mode, sandbox, temporary browsing visit
+
 **Content similarity**:
 Relatedness in what images depict, including across different visual media
 or styles.
