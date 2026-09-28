@@ -1,6 +1,6 @@
 # MA-030: authoritative collection identity and committed transitions
 
-Status: implementation in progress; tickets 01-05 complete, ticket 06 next.
+Status: implementation in progress; tickets 01-06 complete, ticket 07 next.
 Baseline: `1f92396367acc41c663710ee4b4b981c43d1c184`.
 Branch: `feature/ma-030-collection-transitions`.
 Authority: [accepted design](../docs/collection-transitions.md),
@@ -155,6 +155,11 @@ Budget: <= 1 scout, <= 2 planned review rounds, full suite no.
 Owner: T0 inline. Files: model, sourcechange/viewer, browsing tests.
 Depends: 02. Contract: Remove indexes versus RemoveTargets exact URI keys;
 one publication, one survivor map, all matching unavailable targets included.
+Confirmed exhausted-Trash red requires final presentation at root as well:
+deletion Host narrows to `ReconcileDeletedFiles(uris, msg)` plus CurrentFile,
+ShowToast and ForceRepaint; the feature no longer makes a second load/empty-state
+decision. Existing payload tests retain a collection-only fake root; real scope
+and one-load behavior are verified in root integration cases.
 Test/verify: Removal (partial success, stale completion, unavailable/repeated,
 single publication, symlink), model occurrences (earlier/later repeats/gaps),
 Capture/after_removal, Reconciliation/removal, ChangeKinds/removal;
@@ -225,8 +230,9 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 | 03 | 1/0 | 2 | no | Complete; merge and CI race evidence below |
 | 04 | 1/1 | 1 | no | Complete; replay/capture evidence below |
 | 05 | 1/1 | 1 | no | Complete; sort handoff evidence below |
-| 06 | 1/1 | 0 | no | Batch-removal test-seam scout complete |
-| 07-08 | 1 each/0 | 0 | no | Pending |
+| 06 | 1/1 | 2 | no | Complete; batch/removal handoff evidence below |
+| 07 | 1/1 | 0 | no | Runtime decoder-loss/retry seam scout complete |
+| 08 | 1/1 | 0 | no | Committed-write/current-binding test-seam scout in progress |
 | 09 | 1/0 | 0 | CI | Pending |
 
 ### Progress
@@ -238,7 +244,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 - [x] 03 retained merge.
 - [x] 04 saved replay and capture.
 - [x] 05 latest-choice sort handoff.
-- [ ] 06 batch removals and shared survivor result.
+- [x] 06 batch removals and shared survivor result.
 - [ ] 07 unavailable retention and scoped recovery.
 - [ ] 08 committed writes and policy distinctions.
 - [ ] 09 convergence, complete qualification and draft removal.
@@ -355,6 +361,18 @@ source locations verifiable by targeted reads; G3 no writes; G4 deletion and
 root browsing, URI identity and cache effects span several test families; G5
 lead has not traced those barriers. S/W do not replace flow tracing. Reuse the
 scout while the lead owns ticket 05 design, implementation and review.
+
+07 scout gate: G1 bounded runtime decoder-loss and retry-chain test inventory;
+G2 concrete test locations and barriers verified by targeted reads; G3 read-only;
+G4 HEIC capability, root recovery, retained scopes and display span separate test
+families; G5 lead has not traced the concrete fixture lifetimes. S/W do not
+replace flow tracing; reuse the scout during lead-owned ticket 06 work.
+
+08 scout gate: G1 bounded committed-write, alias and policy test inventory; G2
+source locations and deterministic barriers checked by targeted reads; G3 no
+writes; G4 save/export/metadata/mosaic workers and root policy tests span several
+families; G5 lead has not traced those concrete test lifetimes. S/W do not replace
+flow tracing; reuse the scout while lead verifies ticket 06.
 
 ### Ticket 03 evidence
 
@@ -569,3 +587,96 @@ Lead review confirms no source I/O in the model, no blanket purge, no bypass of
 origin priority or duplicate/visit policies, and no dependency/UI-string changes.
 Ticket 04's latest GitHub jobs are green on 96d8ce1; this is not a substitute for
 the final revision's post-suppression SARIF and fresh Codex code/security reviews.
+
+### Ticket 06 evidence
+
+`Remove` applies browsable indexes against one observation; `RemoveTargets`
+matches captured URI keys against both available and unavailable entries.
+One publication returns before/after snapshots, one path-occurrence survivor map,
+and unique removed URI effects. Source/retained filtering uses URI ordinals,
+while browsing uses path ordinals; neither resolves filesystem aliases. A
+surviving requested occurrence is remapped, removed selection clamps, and only
+full membership exhaustion clears association. Unmatched/invalid removal is a
+no-op. Root remaps captured visits from the model result, then evicts affected
+cache keys, updates cohort/Grid/map facts and restores a valid scope. Removed the
+per-item state mutator, onRemove callback and independently computed root mapping.
+
+An additional behavioral red showed the deletion feature starting an unrelated
+image after root returned an exhausted search/cohort to its map. Its Host now
+delivers successful URIs plus the outcome message in one call; root owns the
+sole scoped display/empty-state handoff. `sourcesTrashed` keeps that final load
+separate from ordinary removal and display's failed-load retry. Model publication
+is separate from committed-empty presentation, so last-browsable deletion no
+longer issues another Clear or discards unavailable survivors. Explicit Close
+still clears full membership. No new workers, dependency or translated string.
+
+Acceptance mapping:
+
+- Removal/{partial_batch,empty,unavailable_survivor,stale_delivery,symlink_target,
+  unmatched_keeps_search}: actual controlled OS moves, partial failure, duplicate
+  target deduplication, matching unavailable deletion, one generation, callback
+  observation of complete facts, old snapshot immutability, queued completion
+  after replacement, destination survival, and no unrelated search retirement.
+- Model/occurrences/{earlier,later,targets,uri_keys_and_path_bookmarks}: exact
+  source/gap removal, concrete shared map, repeated occurrence selection,
+  distinction between full URI keys and same-path bookmarks, association clearing
+  only after full exhaustion, and invalid/unmatched no-op.
+- Capture/after_removal saves a real Favorite and shutdown session; neither can
+  reinsert removed entries or scramble gaps after mixed ordinary/target removal.
+- Reconciliation/removal/{repeated_image_origin,image_origin_single_load,
+  partial_collection,partial_cohort,partial_cluster,exhausted_trash/false|true}:
+  exact middle-of-three repeated origin, one display request, partial OS failure
+  and unavailable survivors under retained search/cohort/map origins, preserved
+  selection/return, and no widening of exhausted restricted scopes.
+- ChangeKinds/removal verifies affected cache eviction without purging unrelated
+  content/writers, preserved duplicate facts and rejection of old producers.
+  The migrated model/cache test explicitly proves the model only reports effects.
+
+TDD: initial root reds showed 2->5 generation for a three-occurrence batch,
+retained deleted targets, 2->4 on last-browsable presentation, lost association,
+and ignored queued unavailable-target completion. Model reds behind the old
+per-item adapter showed absent survivor maps and incomplete target removal.
+Exhausted-Trash integration then failed for both Grid and image origins, driving
+the narrowed Host. The cluster fixture initially attempted a deliberately
+forbidden search from Location Map; it now keeps the map origin directly and
+waits its tracked return validation, preserving existing command admission.
+
+Negative guards: disabling unavailable-target filtering failed model targets and
+root retained/partial batches; dropping the shared map failed the middle repeated
+origin; omitting cache eviction failed ChangeKinds/removal. Retaining removed
+source-order entries failed persisted capture. Re-enabling a second Trash load
+failed the exact-one-load guard, and bypassing scope eligibility failed both
+exhausted origin cases. All mutations restored before final verification.
+
+Verification on 2efaa44 + ticket 06 working tree:
+
+- Final verbose Removal/Model/Capture/Reconciliation/ChangeKinds: PASS, 2.413s;
+  every named case ran, symlink case passed without skipping.
+- Collection/Browsing/RemoveFile/Deletion/AppState/HEIC/BatchDelete/search-source
+  retirement regressions: PASS, 11.469s.
+- Explorer source_changes (including held remove_after_reorder), Grid
+  source_identity and Location Map automatic_rebuild: PASS, 1.123s, all subcases.
+- Full deletion package: PASS, 0.047s. Explicit valid/broken symlink contract:
+  PASS, 0.036s, no skips.
+- Focused race across all Collection suites, browsing reconciliation/recovery/
+  emptiness, search retirement, Deletion and BatchDelete: PASS, 115.807s.
+- UI/deletion vet, make fmt/fmt-check, shard inventory (739 runnables), exact
+  Qodana exclusions and git diff --check: PASS.
+
+GoLand Inspect Code fallback covered all 15 changed code files, weak warnings
+included, with no skips/timeouts: build, collection, collection_removal_test,
+collection_replay_test, collection_sort_test, collection_test, deletion/deletion,
+deletion/deletion_test, filestate_test, imgcache_test, sourcechange, state,
+state_test, viewer and visualsearch_test (all .go under internal/ui). No errors
+or ordinary warnings. Intentional weak duplicate fragments: paired file-state
+transition sequences (17 lines each), root/model cache fixtures (6 each), and
+Grid/image search retirement fixtures (14 each), all under existing exact test
+exclusions. Viewer's existing title (20/16) and dropzone/HEIC presentation (26)
+fragments retain their prior justified disposition; the old Trash duplicate
+fragment disappeared. Restored collection/sourcechange/viewer reinspected with
+the same findings; no new suppression.
+
+Lead review confirms the concrete survivor map is constructed only in the model,
+root effects run after complete publication, stale committed URI effects remain
+authoritative and deletion Close/Stop/Settle semantics are unchanged. Ticket 05
+GitHub jobs are green on 2efaa44; final SARIF and fresh reviews remain open.

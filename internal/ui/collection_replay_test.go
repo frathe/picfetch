@@ -25,6 +25,7 @@ import (
 )
 
 func TestCollectionCapture(t *testing.T) {
+	t.Run("after_removal", collectionCaptureAfterRemoval)
 	t.Run("ranked_selected", func(t *testing.T) {
 		for _, selected := range []bool{false, true} {
 			t.Run(map[bool]string{false: "all", true: "selected"}[selected], func(t *testing.T) {

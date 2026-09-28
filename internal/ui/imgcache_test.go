@@ -182,11 +182,8 @@ func TestRemoveFile_PurgesCacheEntry(t *testing.T) {
 	}
 }
 
-// TestAppState_RemoveFileEvictsCacheWithoutCallerAsking proves the eviction
-// is appState's own invariant, not RemoveFile's - it calls the low-level
-// mutator v.state.removeFile directly, bypassing v.RemoveFile entirely, so a
-// future mutator that goes through appState gets the same guarantee for free.
-func TestAppState_RemoveFileEvictsCacheWithoutCallerAsking(t *testing.T) {
+// Model changes report removed identities; root owns effects on external caches.
+func TestAppState_RemoveReportsEffectsWithoutMutatingCache(t *testing.T) {
 	v := newTestViewer(t)
 
 	a := uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White)
@@ -194,10 +191,10 @@ func TestAppState_RemoveFileEvictsCacheWithoutCallerAsking(t *testing.T) {
 	v.state.replaceFiles([]fyne.URI{a, b}, []fyne.URI{a, b})
 	v.imgCache.Add(a.String(), &imaging.LoadedImage{Frames: []image.Image{image.NewRGBA(image.Rect(0, 0, 1, 1))}})
 
-	v.state.removeFile(0)
+	change := v.state.Remove([]int{0})
 
-	if v.imgCache.Contains(a.String()) {
-		t.Error("appState.removeFile should evict the removed file's imgCache entry via its onRemove hook")
+	if !v.imgCache.Contains(a.String()) || len(change.removed) != 1 || change.removed[0] != a {
+		t.Error("model must report removed URI identities without touching the external cache")
 	}
 }
 

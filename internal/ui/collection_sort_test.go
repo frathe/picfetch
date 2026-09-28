@@ -226,6 +226,7 @@ func collectionReorderReconciliation(t *testing.T) {
 }
 
 func TestCollectionChangeKinds(t *testing.T) {
+	t.Run("removal", collectionRemovalEffects)
 	t.Run("reorder", func(t *testing.T) {
 		v := openGridWith(t, "b.jpg", "a.jpg", "c.jpg")
 		v.display.WaitPreloads()

@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 265 entries, 470.520s projected weight sum
+# ui-1: 266 entries, 470.520s projected weight sum
 # ui-2: 255 entries, 470.530s projected weight sum
 # ui-3: 218 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -57,6 +57,7 @@ TestCollectionFavoriteAssociation	ui-1
 TestCollectionMerge	ui-1
 TestCollectionModel	ui-1
 TestCollectionReconciliation	ui-1
+TestCollectionRemoval	ui-1
 TestCollectionReplay	ui-1
 TestCollectionSortHandoff	ui-1
 TestCollectionUnavailable	ui-1
@@ -291,7 +292,7 @@ TestActionsMenu_SortItemNoopWhenAlreadySelected	ui-2
 TestActionsMenu_ToggleMergeMode	ui-2
 TestActionsMenu_WallpaperSetsDesktop	ui-2
 TestAdvance_ShuffleOnNeverRepeatsCurrentIndex	ui-2
-TestAppState_RemoveFileEvictsCacheWithoutCallerAsking	ui-2
+TestAppState_RemoveReportsEffectsWithoutMutatingCache	ui-2
 TestApplySettings_ChangesSortWhenAsked	ui-2
 TestApplyStagedUpdate_SameVersionRemovesWithoutApply	ui-2
 TestAttemptLoad_DisplaysAnImageLargerThanTheWholeCacheBudget	ui-2

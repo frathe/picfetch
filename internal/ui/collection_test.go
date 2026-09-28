@@ -18,6 +18,7 @@ import (
 )
 
 func TestCollectionModel(t *testing.T) {
+	t.Run("occurrences", collectionRemovalOccurrences)
 	t.Run("snapshots", func(t *testing.T) {
 		a, b := storage.NewFileURI("/images/a.jpg"), storage.NewFileURI("/images/b.jpg")
 		u := storage.NewFileURI("/images/unavailable.heic")
@@ -493,6 +494,7 @@ func TestCollectionFavoriteAssociation(t *testing.T) {
 
 func TestCollectionReconciliation(t *testing.T) {
 	t.Run("reorder", collectionReorderReconciliation)
+	t.Run("removal", collectionRemovalReconciliation)
 	for _, kind := range []string{"replacement", "merge"} {
 		t.Run(kind, func(t *testing.T) {
 			v, publish := streamingSearch(t)

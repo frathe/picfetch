@@ -13,6 +13,7 @@ type sourceChangeKind uint8
 
 const (
 	sourcesRemoved sourceChangeKind = iota
+	sourcesTrashed
 	sourceLoadFailed
 	sourcesRevalidated
 	sourceWritten
@@ -25,6 +26,7 @@ const (
 type sourceChange struct {
 	kind    sourceChangeKind
 	removed []int
+	targets []fyne.URI
 	written []fyne.URI
 }
 
@@ -32,7 +34,7 @@ type sourceChange struct {
 // reconciles retained visits before choosing the one authoritative image load.
 func (v *viewer) commitCollectionReorder(ordered []fyne.URI) {
 	finishUpdate := v.beginBrowsingUpdate()
-	browsing := v.captureBrowsingReconciliation(nil)
+	browsing := v.captureBrowsingReconciliation()
 	change := v.state.Reorder(ordered)
 	v.browsing.reconcile(change.after.Generation(), browsing.survivors)
 	v.grid.FilesChanged()
@@ -82,17 +84,18 @@ func (v *viewer) commitOpenedCollection(input collectionInput, merging bool, pre
 
 // reconcileSources returns an image requested by origin restoration, or -1.
 // A failed load consumes that index through display's existing retry chain;
-// all other changes admit any required load here, after reconciliation.
+// Trash consumes it after its outcome notification. Other changes admit any
+// required load here, after reconciliation.
 func (v *viewer) reconcileSources(change sourceChange) int {
 	indices := slices.Sorted(slices.Values(change.removed))
 	indices = slices.Compact(slices.DeleteFunc(indices, func(i int) bool {
 		return i < 0 || i >= len(v.state.files)
 	}))
-	if len(indices) == 0 && (change.kind == sourcesRemoved || change.kind == sourceLoadFailed) {
+	if (change.kind == sourcesRemoved || change.kind == sourcesTrashed || change.kind == sourceLoadFailed) && len(indices) == 0 && !v.state.Observe().ContainsTargets(change.targets) {
 		return -1
 	}
 	defer v.beginBrowsingUpdate()()
-	browsing := v.captureBrowsingReconciliation(indices)
+	browsing := v.captureBrowsingReconciliation()
 	if change.kind == sourceWritten {
 		v.locationMap.InvalidateSources(change.written)
 	}
@@ -100,7 +103,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 	restore := browsing.origin != nil
 	// Closing comparison can deliver a pending ranking. Detach search first,
 	// before any callback can expose the collection being reconciled.
-	if v.comparisonActive() && (len(indices) > 0 || change.kind == sourcesRevalidated || restore && !browsing.origin.grid.Visible) {
+	if v.comparisonActive() && (len(indices) > 0 || len(change.targets) > 0 || change.kind == sourcesRevalidated || restore && !browsing.origin.grid.Visible) {
 		v.compare.Close()
 	}
 	if change.kind == sourcesRevalidated || change.kind == sourceWritten {
@@ -109,10 +112,19 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 	if change.kind == sourcesRevalidated {
 		v.imgCache.Purge()
 	}
-	for _, i := range slices.Backward(indices) {
+	var committed collectionChange
+	if len(indices) > 0 || len(change.targets) > 0 {
 		v.invalidateSort()
-		removed := v.state.removeFile(i)
-		if v.state.snapshot().IndexOf(removed.String()) < 0 {
+		if len(change.targets) > 0 {
+			committed = v.state.RemoveTargets(change.targets)
+		} else {
+			committed = v.state.Remove(indices)
+		}
+		browsing = browsing.remap(committed.survivors)
+	}
+	for _, removed := range committed.removed {
+		v.imgCache.Remove(removed.String())
+		if v.state.Observe().Occurrences().Resolve(fileidentity.Occurrence{Path: removed.Path()}) < 0 {
 			v.explorer.RemoveCohortSource(removed.Path())
 		}
 	}
@@ -121,7 +133,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 	v.explorer.SourcesChanged()
 
 	switch change.kind {
-	case sourcesRemoved, sourceLoadFailed, sourcesRevalidated:
+	case sourcesRemoved, sourcesTrashed, sourceLoadFailed, sourcesRevalidated:
 		v.grid.FilesChanged()
 		if len(v.state.files) == 0 {
 			v.grid.Close()
@@ -144,7 +156,7 @@ func (v *viewer) reconcileSources(change sourceChange) int {
 			index = v.state.index
 		}
 	}
-	if index >= 0 && change.kind != sourceLoadFailed {
+	if index >= 0 && change.kind != sourceLoadFailed && change.kind != sourcesTrashed {
 		v.loadImage(index)
 	}
 	if restore {
@@ -160,30 +172,13 @@ type browsingReconciliation struct {
 	origin    *browsingOrigin
 }
 
-// Capture before mutation and detach search before any feature callback. The
-// occurrence map is shared by every retained visit and the detached origin.
-func (v *viewer) captureBrowsingReconciliation(removed []int) browsingReconciliation {
+// Capture before mutation and detach search before any feature callback. After
+// publication, remap applies the model's one survivor result to these values.
+func (v *viewer) captureBrowsingReconciliation() browsingReconciliation {
 	change := browsingReconciliation{}
-	if len(removed) > 0 {
-		change.survivors = make(map[fileidentity.Occurrence]fileidentity.Occurrence, v.FileCount())
-		before, after := map[string]int{}, map[string]int{}
-		for i, source := range v.state.files {
-			path := source.Path()
-			old := fileidentity.Occurrence{Path: path, Ordinal: before[path]}
-			before[path]++
-			if _, deleted := slices.BinarySearch(removed, i); deleted {
-				continue
-			}
-			change.survivors[old] = fileidentity.Occurrence{Path: path, Ordinal: after[path]}
-			after[path]++
-		}
-	}
 	kind := v.browsing.current().binding.kind
 	if (kind == browsingExplorer || kind == browsingCluster) && v.grid.Visible() {
 		bookmark := v.grid.CaptureVisit()
-		if change.survivors != nil {
-			bookmark = bookmark.RemapOccurrences(change.survivors)
-		}
 		change.grid = &bookmark
 	}
 	if v.locationVisitActive() {
@@ -191,8 +186,20 @@ func (v *viewer) captureBrowsingReconciliation(removed []int) browsingReconcilia
 		v.locationInput.prepare = nil
 	}
 	if origin, detached := v.detachSearchOrigin(); detached {
-		remapped := origin.remap(change.survivors)
-		change.origin = &remapped
+		change.origin = &origin
+	}
+	return change
+}
+
+func (change browsingReconciliation) remap(survivors map[fileidentity.Occurrence]fileidentity.Occurrence) browsingReconciliation {
+	change.survivors = survivors
+	if change.grid != nil {
+		bookmark := change.grid.RemapOccurrences(survivors)
+		change.grid = &bookmark
+	}
+	if change.origin != nil {
+		origin := change.origin.remap(survivors)
+		change.origin = &origin
 	}
 	return change
 }
@@ -240,7 +247,7 @@ func (v *viewer) restoreBrowsingOrigin(origin browsingOrigin) int {
 	v.fileWork.searchLifecycle.invalidate()
 	v.grid.Close()
 	if v.FileCount() == 0 {
-		v.clearToDropzone()
+		v.presentCommittedEmptyCollection()
 		return -1
 	}
 	scope := v.captureBrowsingScope()

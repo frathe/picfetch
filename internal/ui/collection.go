@@ -31,6 +31,8 @@ type collectionInput struct {
 
 type collectionChange struct {
 	before, after collectionSnapshot
+	survivors     map[fileidentity.Occurrence]fileidentity.Occurrence
+	removed       []fyne.URI
 }
 
 type collectionSnapshot struct {
@@ -208,6 +210,115 @@ func (s *appState) Replace(input collectionInput) collectionChange {
 }
 
 func (s *appState) Clear() collectionChange { return s.Replace(collectionInput{}) }
+
+func collectionTargetKeys(targets []fyne.URI) map[string]bool {
+	keys := make(map[string]bool, len(targets))
+	for _, uri := range targets {
+		keys[uri.String()] = true
+	}
+	return keys
+}
+
+// ContainsTargets also observes unavailable members. Root uses this read-only
+// admission check before retiring visits for an already committed OS effect.
+func (s collectionSnapshot) ContainsTargets(targets []fyne.URI) bool {
+	if len(targets) == 0 {
+		return false
+	}
+	keys := collectionTargetKeys(targets)
+	for _, entry := range s.Retained() {
+		if keys[entry.uri.String()] {
+			return true
+		}
+	}
+	return false
+}
+
+// Remove deletes the named browsable occurrences, not every matching source.
+func (s *appState) Remove(indices []int) collectionChange {
+	positions := make(map[int]bool, len(indices))
+	for _, i := range indices {
+		positions[i] = true
+	}
+	return s.remove(positions, nil)
+}
+
+// RemoveTargets applies completed OS moves by exact URI key. Unavailable and
+// repeated entries match; symlinks are never resolved to their destinations.
+func (s *appState) RemoveTargets(targets []fyne.URI) collectionChange {
+	return s.remove(nil, collectionTargetKeys(targets))
+}
+
+func (s *appState) remove(positions map[int]bool, targets map[string]bool) collectionChange {
+	before := s.Observe()
+	change := collectionChange{before: before, after: before, survivors: make(map[fileidentity.Occurrence]fileidentity.Occurrence, before.Count())}
+	input := collectionInput{favorite: before.Favorite(), index: before.index}
+	// URI occurrences map source/retained order; path occurrences map browsing
+	// bookmarks. Neither domain resolves aliases or reads the filesystem.
+	type entryPosition struct {
+		key     string
+		ordinal int
+	}
+	removed := make(map[entryPosition]bool)
+	uriOrdinals, pathOrdinals := map[string]int{}, map[string]int{}
+	removedKeys := make(map[string]bool)
+	recordRemoval := func(uri fyne.URI) {
+		if key := uri.String(); !removedKeys[key] {
+			removedKeys[key] = true
+			change.removed = append(change.removed, uri)
+		}
+	}
+	for i := range before.Count() {
+		uri := before.FileAt(i)
+		key, path := uri.String(), uri.Path()
+		entry := entryPosition{key, uriOrdinals[key]}
+		uriOrdinals[key]++
+		if positions[i] || targets[key] {
+			removed[entry] = true
+			recordRemoval(uri)
+			continue
+		}
+		bookmark, _ := before.Bookmark(i)
+		change.survivors[bookmark.occurrence] = fileidentity.Occurrence{Path: path, Ordinal: pathOrdinals[path]}
+		pathOrdinals[path]++
+		if i == before.index {
+			input.index = len(input.display)
+		}
+		input.display = append(input.display, uri)
+	}
+	clear(uriOrdinals)
+	for _, uri := range before.SourceFiles() {
+		key := uri.String()
+		entry := entryPosition{key, uriOrdinals[key]}
+		uriOrdinals[key]++
+		if !removed[entry] {
+			input.source = append(input.source, uri)
+		}
+	}
+	clear(uriOrdinals)
+	for _, entry := range before.Retained() {
+		key := entry.uri.String()
+		if entry.unavailable {
+			if targets[key] {
+				recordRemoval(entry.uri)
+				continue
+			}
+		} else {
+			position := entryPosition{key, uriOrdinals[key]}
+			uriOrdinals[key]++
+			if removed[position] {
+				continue
+			}
+		}
+		input.retained = append(input.retained, entry)
+	}
+	if len(change.removed) == 0 {
+		return change
+	}
+	input.index = max(0, min(input.index, len(input.display)-1))
+	change.after = s.Replace(input).after
+	return change
+}
 
 // Reorder publishes an already-prepared stable order of the same membership.
 // Selection is captured at commit, not when background sorting was admitted.

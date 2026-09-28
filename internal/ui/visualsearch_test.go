@@ -696,7 +696,7 @@ func TestFindMoreLikeThisSourceAndSortRetirement(t *testing.T) {
 			case "ordinary":
 				v.RemoveFiles([]int{0, 2})
 			case "committed-trash":
-				v.ReconcileDeletedFiles(removed)
+				v.ReconcileDeletedFiles(removed, "removed fixture")
 			case "source-failure":
 				searchHost{v}.Failed(searchui.SessionError{Err: errors.New("search source changed")})
 				drainFileWork(t, v)
@@ -777,9 +777,7 @@ func TestFindMoreLikeThisSourceAndSortRetirement(t *testing.T) {
 			case "ordinary":
 				v.RemoveFiles([]int{0, 2})
 			case "committed-trash":
-				if !v.ReconcileDeletedFiles(removed) {
-					t.Fatal("completed removals were ignored")
-				}
+				v.ReconcileDeletedFiles(removed, "removed fixture")
 			case "source-failure":
 				searchHost{v}.Failed(searchui.SessionError{Err: errors.New("search source changed")})
 				drainFileWork(t, v)

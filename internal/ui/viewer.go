@@ -577,6 +577,20 @@ func (v *viewer) gridHighlightTitle(i int) string {
 // are responsible for repainting.
 func (v *viewer) clearToDropzone() {
 	defer v.beginBrowsingUpdate()()
+	v.retireCollectionSurface()
+	v.state.Clear()
+	v.presentDropzone()
+}
+
+// A committed removal can leave unavailable members but no browsable image.
+// Reset feature/pixel presentation without publishing another model change.
+func (v *viewer) presentCommittedEmptyCollection() {
+	defer v.beginBrowsingUpdate()()
+	v.retireCollectionSurface()
+	v.presentDropzone()
+}
+
+func (v *viewer) retireCollectionSurface() {
 	v.locationMap.SetSources(nil)
 	v.closeLocationMap()
 	v.closeVisualSearch()
@@ -592,9 +606,6 @@ func (v *viewer) clearToDropzone() {
 	v.invalidateLoad()    // invalidate any decode/preload or animation still in flight
 	v.invalidateSort()    // cancel a sort still in flight - see sortOp's field comment
 	v.scanOp.invalidate() // same shape: supersede the token and finish the overlay if a scan is in flight
-
-	v.state.clearFiles()
-	v.presentDropzone()
 }
 
 // presentDropzone clears pixels and presents an empty browsing surface without
@@ -744,7 +755,11 @@ func (v *viewer) showWelcomeState() {
 // placeholder art, and raises a toast. Used whenever a drop, scan, or
 // decode ends with nothing to display.
 func (v *viewer) ShowEmptyStateError(msg string) {
-	v.clearToDropzone()
+	if v.FileCount() > 0 {
+		v.clearToDropzone()
+	} else {
+		v.presentCommittedEmptyCollection()
+	}
 	v.showEmptyCollectionError(msg)
 }
 
@@ -800,15 +815,8 @@ func (v *viewer) AfterMetadataRemoved(_ fyne.URI, result imaging.WriteResult) {
 	v.exif.Refresh()
 }
 
-// RemoveFile drops the file at v.state.files[i] from both v.state.files and
-// v.state.unsortedFiles, keeping them in sync so a later sort toggle doesn't
-// resurrect a file that failed to load. v.state.files is trimmed by index rather
-// than by URI match, since merge mode allows dropping the same file twice
-// and a match would risk removing the wrong duplicate; unsortedFiles has
-// no equivalent index to use, but any matching duplicate there is an
-// equally valid one to drop. Evicting the removed file's decode from
-// imgCache is appState's job rather than this method's - see its onRemove
-// hook (state.go), which fires for every removal however it is reached.
+// RemoveFile removes one occurrence from the model's paired orders. Root
+// reconciliation owns cache eviction and retained browsing effects afterward.
 func (v *viewer) RemoveFile(i int) {
 	v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: []int{i}})
 }
@@ -816,10 +824,8 @@ func (v *viewer) RemoveFile(i int) {
 // RemoveFiles drops every named index in one pass for an admitted ordinary
 // command. Completed Trash operations use ReconcileDeletedFiles instead.
 //
-// Descending, so an earlier removal can't shift a later index out from under
-// the same call, and sorted first because the caller's order is not something
-// this should depend on. Duplicates are skipped rather than removing two
-// different files for one index named twice.
+// The model interprets every index against one snapshot, ignoring duplicates
+// and invalid indexes, and publishes one complete result for the batch.
 //
 // The grid is reconciled here, at the end, rather than by the caller: every
 // index it holds - its selection, its filter's display→host mapping, its
@@ -837,22 +843,28 @@ func (v *viewer) RemoveFiles(indices []int) {
 // ReconcileDeletedFiles applies completed OS moves by identity. A confirmation
 // may finish after ordering or mode changes; these are facts about files that
 // already reached the Trash, so ordinary command admission cannot discard them.
-func (v *viewer) ReconcileDeletedFiles(uris []fyne.URI) bool {
-	keys := make(map[string]struct{}, len(uris))
-	for _, uri := range uris {
-		keys[uri.String()] = struct{}{}
+func (v *viewer) ReconcileDeletedFiles(uris []fyne.URI, msg string) {
+	before := v.state.Observe().Generation()
+	index := v.reconcileSources(sourceChange{kind: sourcesTrashed, targets: uris})
+	if v.state.Observe().Generation() == before {
+		v.ShowToast(msg)
+		return
 	}
-	var indices []int
-	for i, uri := range v.state.files {
-		if _, moved := keys[uri.String()]; moved {
-			indices = append(indices, i)
+	if v.FileCount() == 0 {
+		v.ShowEmptyStateError(msg)
+		return
+	}
+	if index < 0 {
+		if _, current, ok := v.CurrentFile(); ok {
+			if candidate, eligible := v.captureBrowsingScope().Recover(current, -1); eligible {
+				index = candidate
+			}
 		}
 	}
-	if len(indices) == 0 {
-		return false
+	v.ShowToast(msg)
+	if index >= 0 {
+		v.loadImage(index)
 	}
-	v.reconcileSources(sourceChange{kind: sourcesRemoved, removed: indices})
-	return true
 }
 
 // Modifiers is which keyboard modifiers are held right now, for the feature

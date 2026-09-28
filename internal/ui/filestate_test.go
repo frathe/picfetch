@@ -23,7 +23,7 @@ import (
 // keep indices meaningful.
 //
 // internal/ui/state_test.go draws the boundary against this file: it tests
-// appState - newAppState, replaceFiles, removeFile, clearFiles - as a plain
+// appState - newAppState, Replace, Remove, Clear - as a plain
 // struct with no viewer and no Fyne app. This file tests what the viewer
 // must hold true across real transitions.
 

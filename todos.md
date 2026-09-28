@@ -72,8 +72,9 @@
   [nine implementation tickets](.scratch/ma-030/issues/README.md) are published
   with blockers and model assignments. The
   [Deep SDD implementation record](plans/2026-09-28-ma-030-collection-transitions.md)
-  records tickets 01-05 complete (coherent snapshots, live navigation, atomic
-  replacement, retained merge, saved replay/capture and sort handoff); tickets 06-09 and final
+  records tickets 01-06 complete (coherent snapshots, live navigation, atomic
+  replacement, retained merge, saved replay/capture, sort handoff and batch removal);
+  tickets 07-09 and final
   review/CI remain open. MA-031 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 

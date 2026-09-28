@@ -29,15 +29,6 @@ type appState struct {
 	// Readers retain immutable collection data and selection together. Membership
 	// writes advance generation; Select shares the data without changing it.
 	published atomic.Pointer[collectionSnapshot]
-
-	// onRemove is the image-cache eviction hook: removeFile calls it with
-	// the URI it just dropped, after publish(), so a subscriber always
-	// observes the new generation before being asked to evict against it.
-	// Wired in build.go, once the viewer (and its imgCache) exists - state:
-	// is built inside the viewer's own composite literal, so it cannot set
-	// its own hook. nil-guarded because a zero appState, as some tests
-	// construct directly, has no hook and must stay usable.
-	onRemove func(fyne.URI)
 }
 
 func newAppState(sortMode filesort.Mode, mergeMode bool) appState {
@@ -114,48 +105,6 @@ func (s *appState) replaceFiles(unsorted, files []fyne.URI) {
 
 func (s *appState) clearFiles() {
 	s.Clear()
-}
-
-func (s *appState) removeFile(i int) fyne.URI {
-	target := s.files[i]
-	occurrence := s.fileOccurrence(i)
-	s.files = append(s.files[:i], s.files[i+1:]...)
-	if s.index >= len(s.files) {
-		s.index = len(s.files) - 1
-	}
-
-	remaining := occurrence
-	for j, u := range s.unsortedFiles {
-		if u.String() == target.String() {
-			remaining--
-			if remaining != 0 {
-				continue
-			}
-			s.unsortedFiles = append(s.unsortedFiles[:j], s.unsortedFiles[j+1:]...)
-			break
-		}
-	}
-	// Remove the same occurrence from the retained order. Unavailable members
-	// keep their positions when a surviving source has the same URI as target.
-	remaining = occurrence
-	for j, source := range s.unavailableOrder {
-		if !source.unavailable && source.uri.String() == target.String() {
-			remaining--
-			if remaining != 0 {
-				continue
-			}
-			s.unavailableOrder = append(s.unavailableOrder[:j], s.unavailableOrder[j+1:]...)
-			break
-		}
-	}
-
-	s.publish()
-
-	if s.onRemove != nil {
-		s.onRemove(target)
-	}
-
-	return target
 }
 
 // Stable sorting preserves each repeated URI's occurrence ordinal across displayed,
