@@ -1,8 +1,9 @@
 # MA-032 implementation and evidence
 
-Status: tickets 01-07 complete; ticket 09 local qualification complete, CI pending.
-Fallback 08 inapplicable.
-Base: `04cb74c`. Draft PR: https://github.com/frathe/picfetch/pull/71.
+Status: accepted implementation complete; all eight applicable tickets qualified.
+Fallback 08 inapplicable. Post-implementation review-loop acceptance is tracked in
+[PR 71](https://github.com/frathe/picfetch/pull/71) against its latest head.
+Base: `04cb74c`. PR: https://github.com/frathe/picfetch/pull/71.
 Authorization: 2026-09-28 `/implement MA-032`, TDD/SDD, a commit after each
 ticket, draft PR/CI, then ready-for-review and the GitHub Codex review loop.
 No merge or release is authorized.
@@ -49,7 +50,7 @@ The authorized GitHub full suite supplies the final broad race gate; use
 | 06 | clipboardwork/clipboard/batch/copyselection, viewer/harness and tests; retain capture and delivery completion | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
 | 07 | favthumbs/autoupdate/viewer/harness and affected tests; basic tokens only | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
 | 08 | Restore only pilot runtime changes; test-only shared local contract | T0; no spawn, focused V1-V4 | Inapplicable: extraction accepted |
-| 09 | Remove remaining duplicate request mechanics; retain independent revisions; docs/metadata/evidence and full qualification | T0; no spawn, final gate | Local gates complete; full CI pending |
+| 09 | Remove remaining duplicate request mechanics; retain independent revisions; docs/metadata/evidence and full qualification | T0; no spawn, final gate | Complete |
 
 Every ticket updates exact Qodana exclusions, root test shards, architecture when
 needed, local issue checkboxes and this record before its commit. GoLand changed
@@ -88,8 +89,11 @@ The historical model names in the working agreement are interpreted as tiers.
 - [x] 01 shared request and sorting pilot.
 - [x] 02 SVG pilot and recorded verdict.
 - [x] Selected migration/fallback tickets committed separately.
-- [ ] 09 convergence, final CI and inspections.
-- [ ] PR ready, latest-commit clean Codex/security/CodeQL/Qodana/CI round.
+- [x] 09 convergence, final CI and inspections.
+
+The subsequent latest-head Codex code/security/CI review loop is recorded in
+PR 71. This archived record establishes implementation acceptance at `fc7aa32`;
+it does not claim a future review or a documentation-only commit has passed yet.
 
 ## Evidence
 
@@ -383,6 +387,30 @@ or new suppression. This IDE fallback does not replace CI post-suppression SARIF
 Writing-for-agents informed the concise AGENTS pointer to the lifetime contract;
 architecture, lifetime design and open-work status now describe the converged code.
 
-Ticket 09 remains in qualification until fresh full CI, CodeQL and Qodana SARIF
-are assessed. The PR stays draft. After all ticket points are complete, mark it
-ready and run the separate latest-head code/security review loop; do not merge.
+Committed as `fc7aa32`, pushed while the PR remained draft for full qualification.
+
+### Ticket 09 — full qualification accepted at `fc7aa32`
+
+All applicable AC1-AC18 and AC20 passed; AC19/fallback 08 are inapplicable.
+[Full CI](https://github.com/frathe/picfetch/actions/runs/36464379478) succeeded on
+`fc7aa323c562d8ce3f06572a73e380367dea6c8a`: validation, all four native
+Linux/amd64 Docker race jobs, Windows and Linux/macOS arm64/amd64 native guards.
+[CodeQL](https://github.com/frathe/picfetch/actions/runs/36464379663) completed both
+Go and Actions analyses successfully; no open alerts for refs/pull/71/merge.
+[Qodana](https://github.com/frathe/picfetch/actions/runs/36464379179) completed
+successfully. Directly read `/end/qodana.sarif.json` from artifact 10988801898:
+exact head provenance, executionSuccessful=true, exitCode=0, results=[] (zero
+post-suppression findings). No CSV-summary inference or licensing waiver.
+Full code inspection evidence above applies to this exact code; the archival
+commit is documentation-only and carries it forward with this revision stated.
+
+The earlier Windows guard failure did not reproduce. Artifact 10989790764 contains
+pass events for all three UTF-8 clipboard decoding cases: multiple 4.26s, single
+0.29s, read_failure 0.39s. No platform test/policy changes or skips were needed.
+
+All ticket checkboxes and owner dispositions are complete. Archive the accepted
+implementation, mark the draft ready, and await fresh latest-head code/security
+reviews and checks. Final review-loop evidence belongs in PR 71, avoiding a
+recursive claim that the evidence commit itself has already been reviewed.
+No merge/release authorized. Two agent instances supported bounded helper TDD
+and read-only SVG/CI recon; the lead owned every review and all caller changes.

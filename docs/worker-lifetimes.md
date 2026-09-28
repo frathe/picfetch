@@ -1,6 +1,6 @@
 # MA-032: request lifetimes and disposable result delivery
 
-Status: extraction accepted; all 15 owners converged, final qualification in progress.
+Status: extraction accepted; all 15 owners converged and qualified.
 Date: 2026-09-28
 Source: `/grill-with-docs ma-032`
 Implementation inspected at `4c759b2`; unchanged in the relevant paths at `68477a9`.
@@ -15,9 +15,10 @@ covering the conditional extraction and fallback. The user approved
 [nine implementation tickets](../.scratch/ma-032/issues/README.md) and requested
 a feature branch and documentation commit. On 2026-09-28 the user authorized
 implementation, per-ticket commits, a draft PR/CI and the subsequent review
-loop. The [Deep SDD record](../plans/2026-09-28-ma-032-request-lifetimes.md)
+loop. The [archived Deep SDD record](../finished_refactorings/2026-09-28-ma-032-request-lifetimes.md)
 tracks selected tickets and revision-bound evidence. Local specification and
-tickets remain gitignored.
+tickets remain gitignored. Latest-head post-implementation review-loop acceptance
+is recorded in [PR 71](https://github.com/frathe/picfetch/pull/71).
 
 ## Purpose and completion
 

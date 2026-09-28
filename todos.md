@@ -100,11 +100,11 @@
   criteria. It defines a root sort/display SVG pilot, a conditional root/display
   token migration and a contracts-and-tests fallback. Its
   [nine approved tickets](.scratch/ma-032/issues/README.md) have
-  [Deep SDD implementation and evidence](plans/2026-09-28-ma-032-request-lifetimes.md)
-  underway. Tickets 01-07 are complete: the accepted sorting/SVG pilot and all
-  15 root/display request owners. Ticket 09 qualification remains;
-  fallback 08 is inapplicable. Each completed ticket gets its own commit;
-  final qualification and the latest-head GitHub review loop remain open.
+  [archived Deep SDD implementation and evidence](finished_refactorings/2026-09-28-ma-032-request-lifetimes.md).
+  All eight applicable tickets are complete: the accepted sorting/SVG pilot,
+  all 15 root/display request owners and full qualification on `fc7aa32`.
+  Fallback 08 is inapplicable. Per-ticket commits and latest-head GitHub
+  review-loop acceptance are tracked in [PR 71](https://github.com/frathe/picfetch/pull/71).
   MA-033 remains a proposal.
   Keep feature state local and preserve explicit composition.
 

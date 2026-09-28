@@ -45,7 +45,7 @@ explicit cross-feature composition in `internal/ui`.
 | --- | --- | --- | --- |
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | All nine tickets complete and CI-qualified; latest review/checks in PR 69 |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | All nine tickets complete and CI-qualified; latest review/checks in PR 70 |
-| [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Extraction accepted; all 15 owners migrated, qualification in progress |
+| [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Complete: all 15 owners converged and qualified; review-loop evidence in PR 71 |
 | [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | Recommended independent small task |
 
 Priorities express architectural value, not the severity of a currently open bug.
@@ -514,8 +514,9 @@ Duplicated root/display request implementations are removed; independent
 revisions, feature completion, workers and shutdown policy remain local.
 The [specification](.scratch/ma-032/spec.md) and
 [tickets](.scratch/ma-032/issues/README.md) retain their command-backed acceptance
-criteria; fallback ticket 08 is inapplicable. Final qualification and the GitHub
-review loop remain in [the evidence record](plans/2026-09-28-ma-032-request-lifetimes.md).
+criteria; fallback ticket 08 is inapplicable. All applicable tickets passed full
+qualification in [the archived evidence](finished_refactorings/2026-09-28-ma-032-request-lifetimes.md).
+Latest-head review-loop acceptance is recorded in [PR 71](https://github.com/frathe/picfetch/pull/71).
 
 **P2; medium confidence.** The need for consistent contracts is strong; a
 universal task manager is not justified. Pilot a small extraction before any
