@@ -93,6 +93,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 	}
 
 	// Admission precedes collection replacement and all cancellation effects.
+	v.favorites.CancelOpen()
 	// A replacement request must not inherit --slideshow from the launch
 	// scan or its still-pending reorder.
 	if v.scanOp.active || v.sortOp.active {

@@ -16,12 +16,14 @@ import (
 
 	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/ui/widgets"
+	"github.com/frathe/picfetch/internal/uitest"
 )
 
 type fakeHost struct {
-	files  []fyne.URI
-	opened []fyne.URI
-	toasts []string
+	syncedOwners []*favstore.Owner
+	files        []fyne.URI
+	opened       []fyne.URI
+	toasts       []string
 
 	// syncedDirs/syncedFiles record every SyncFavoritePreviews call, and
 	// calls records the order OpenFavorite and SyncFavoritePreviews arrived
@@ -41,12 +43,15 @@ type fakeHost struct {
 }
 
 func (h *fakeHost) CurrentFiles() []fyne.URI { return slices.Clone(h.files) }
-func (h *fakeHost) OpenFavorite(_ string, files []fyne.URI) {
+func (h *fakeHost) OpenFavorite(owner *favstore.Owner, files []fyne.URI) {
+	h.SyncFavoritePreviews(owner, files)
 	h.opened = slices.Clone(files)
 	h.calls = append(h.calls, "open")
 }
 func (h *fakeHost) ShowToast(message string) { h.toasts = append(h.toasts, message) }
-func (h *fakeHost) SyncFavoritePreviews(favDir string, files []fyne.URI) {
+func (h *fakeHost) SyncFavoritePreviews(owner *favstore.Owner, files []fyne.URI) {
+	h.syncedOwners = append(h.syncedOwners, owner)
+	favDir := owner.Path()
 	h.syncedDirs = append(h.syncedDirs, favDir)
 	h.syncedFiles = append(h.syncedFiles, slices.Clone(files))
 	h.calls = append(h.calls, "sync")
@@ -66,7 +71,10 @@ func newFeature(t *testing.T, host *fakeHost) *Feature {
 	t.Cleanup(win.Close)
 
 	f := New(host, win)
+	f.SetUIQueue(&uitest.UIQueue{})
 	f.SetDir(t.TempDir())
+	f.Settle()
+	t.Cleanup(func() { f.Stop(); f.Settle() })
 	return f
 }
 
@@ -78,6 +86,7 @@ func TestMenuActionsRunThroughHostAdmission(t *testing.T) {
 	host := &fakeHost{files: []fyne.URI{storage.NewFileURI("/tmp/a.jpg")}}
 	f := newFeature(t, host)
 	f.writeFavorite("trip")
+	f.Settle()
 	if len(f.names) != 1 {
 		t.Fatalf("setup: favorites = %v, want [trip]", f.names)
 	}
@@ -88,8 +97,11 @@ func TestMenuActionsRunThroughHostAdmission(t *testing.T) {
 	before := host.runCommands
 
 	f.addItem.Action()
+	f.Settle()
 	f.manageItem.Action()
+	f.Settle()
 	favoriteItem.Action()
+	f.Settle()
 
 	if host.runCommands != before+3 {
 		t.Errorf("AdmitFavorite arrivals = %d, want %d", host.runCommands, before+3)
@@ -103,6 +115,7 @@ func TestMenuActionsRunThroughHostAdmission(t *testing.T) {
 
 	host.blockCommands = false
 	favoriteItem.Action()
+	f.Settle()
 	if len(host.calls) != 2 || host.calls[0] != "sync" || host.calls[1] != "open" {
 		t.Errorf("allowed favorite open calls = %v, want [sync open]", host.calls)
 	}
@@ -187,6 +200,7 @@ func TestSetDirBuildsSortedFavoriteItems(t *testing.T) {
 	}
 
 	f.SetDir(f.dir)
+	f.Settle()
 
 	if len(f.menu.Items) != 7 {
 		t.Fatalf("menu item count = %d, want 7", len(f.menu.Items))
@@ -220,6 +234,7 @@ func TestRefreshMenuLabelsCarryStoredCounts(t *testing.T) {
 	}
 
 	f.SetDir(f.dir)
+	f.Settle()
 
 	if len(f.names) != len(counts) {
 		t.Fatalf("f.names = %v, want %d favorites", f.names, len(counts))
@@ -254,6 +269,7 @@ func TestRefreshMenuFallsBackToBareNameForUnreadableCount(t *testing.T) {
 	}
 
 	f.SetDir(f.dir)
+	f.Settle()
 
 	if len(host.toasts) != 0 {
 		t.Errorf("SetDir raised toasts for an unreadable count: %v, want none", host.toasts)
@@ -273,6 +289,7 @@ func TestRefreshMenuFallsBackToBareNameForUnreadableCount(t *testing.T) {
 	}
 
 	item.Action()
+	f.Settle()
 
 	if len(host.toasts) != 1 || !strings.Contains(host.toasts[0], "Broken") {
 		t.Errorf("clicking the fallback item produced toasts = %v, want one naming %q", host.toasts, "Broken")
@@ -305,6 +322,7 @@ func TestOpenMapsDigitSlotsThroughNamesDespiteCountLabels(t *testing.T) {
 		}
 	}
 	f.SetDir(f.dir)
+	f.Settle()
 
 	for i, name := range f.names {
 		label := f.menu.Items[i+2].Label
@@ -313,6 +331,7 @@ func TestOpenMapsDigitSlotsThroughNamesDespiteCountLabels(t *testing.T) {
 		}
 
 		f.Open(i)
+		f.Settle()
 		want := fmt.Sprintf("/photos/%s/00.jpg", name)
 		if len(host.opened) == 0 || host.opened[0].Path() != want {
 			t.Errorf("Open(%d) opened %v, want first file %q for %q", i, host.opened, want, name)
@@ -330,6 +349,7 @@ func TestSetDirAssignsDigitShortcutsToFirstTenFavorites(t *testing.T) {
 	}
 
 	f.SetDir(f.dir)
+	f.Settle()
 
 	wantKeys := []fyne.KeyName{
 		fyne.Key1,
@@ -377,9 +397,11 @@ func TestOpenUsesCurrentSortedShortcutSlots(t *testing.T) {
 		}
 	}
 	f.SetDir(f.dir)
+	f.Settle()
 
 	for i := range ShortcutCount {
 		f.Open(i)
+		f.Settle()
 		want := fmt.Sprintf("/photos/%02d.jpg", i+1)
 		if len(host.opened) != 1 || host.opened[0].Path() != want {
 			t.Errorf("Open(%d) opened %v, want %q", i, host.opened, want)
@@ -390,14 +412,18 @@ func TestOpenUsesCurrentSortedShortcutSlots(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.SetDir(f.dir)
+	f.Settle()
 	f.Open(0)
+	f.Settle()
 	if len(host.opened) != 1 || host.opened[0].Path() != "/photos/new-first.jpg" {
 		t.Errorf("Open(0) after refresh opened %v, want the newly sorted first favorite", host.opened)
 	}
 
 	host.opened = nil
 	f.Open(-1)
+	f.Settle()
 	f.Open(ShortcutCount)
+	f.Settle()
 	if host.opened != nil {
 		t.Errorf("out-of-range shortcut opened %v", host.opened)
 	}
@@ -424,6 +450,7 @@ func TestCompareMenuState_DisablesStaticAndRefreshedFavoriteCommands(t *testing.
 		t.Fatal(err)
 	}
 	f.SetDir(f.dir)
+	f.Settle()
 
 	f.SetAvailability(Availability{})
 	for _, item := range f.menu.Items {
@@ -441,6 +468,7 @@ func TestCompareMenuState_DisablesStaticAndRefreshedFavoriteCommands(t *testing.
 		t.Fatal(err)
 	}
 	f.SetDir(f.dir)
+	f.Settle()
 	for _, item := range f.menu.Items {
 		if !item.IsSeparator && !item.Disabled {
 			t.Errorf("refreshed %q became enabled during comparison", item.Label)
@@ -501,6 +529,7 @@ func TestWriteFavoriteSavesCurrentListAndRefreshesMenu(t *testing.T) {
 	})
 
 	f.writeFavorite("Trip")
+	f.Settle()
 	if saves != 1 {
 		t.Fatalf("save notifications: %d", saves)
 	}
@@ -535,6 +564,7 @@ func TestAddCurrentListRefreshesMenusExactlyOnce(t *testing.T) {
 	f.AddCurrentList()
 	test.Type(f.addPanel.entry, "Trip")
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	if host.refreshMenus != 1 {
 		t.Errorf("RefreshMenus called %d times after adding a favorite, want 1", host.refreshMenus)
@@ -553,6 +583,7 @@ func TestWriteFavoriteSyncsPreviewsForSavedList(t *testing.T) {
 	f := newFeature(t, host)
 
 	f.writeFavorite("Trip")
+	f.Settle()
 
 	wantDir := favstore.Dir(f.dir, "Trip")
 	if len(host.syncedDirs) != 1 || host.syncedDirs[0] != wantDir {
@@ -570,6 +601,7 @@ func TestWriteFavoriteDoesNotSyncPreviewsForAFailedSave(t *testing.T) {
 	f := newFeature(t, host)
 
 	f.writeFavorite("Empty")
+	f.Settle()
 
 	if len(host.syncedDirs) != 0 {
 		t.Errorf("synced dirs = %v, want none when nothing was saved", host.syncedDirs)
@@ -581,6 +613,7 @@ func TestWriteFavoriteRejectsEmptyCurrentList(t *testing.T) {
 	f := newFeature(t, host)
 
 	f.writeFavorite("Empty")
+	f.Settle()
 
 	if favstore.Exists(f.dir, "Empty") {
 		t.Error("empty current list was saved")
@@ -595,6 +628,7 @@ func TestSaveFavoriteRejectsInvalidName(t *testing.T) {
 	f := newFeature(t, host)
 
 	f.saveFavorite("../escape")
+	f.Settle()
 
 	if len(host.toasts) != 1 || !strings.Contains(host.toasts[0], "enter a name") {
 		t.Errorf("toasts = %v", host.toasts)
@@ -616,6 +650,7 @@ func TestOpenFavoriteLoadsStoredList(t *testing.T) {
 	}
 
 	f.openFavorite("Trip")
+	f.Settle()
 
 	if len(host.opened) != 2 || host.opened[0].Path() != files[0].Path() ||
 		host.opened[1].Path() != files[1].Path() {
@@ -640,6 +675,7 @@ func TestOpenFavoriteSyncsPreviewsForLoadedList(t *testing.T) {
 	}
 
 	f.openFavorite("Trip")
+	f.Settle()
 
 	wantDir := favstore.Dir(f.dir, "Trip")
 	if len(host.syncedDirs) != 1 || host.syncedDirs[0] != wantDir {
@@ -660,6 +696,7 @@ func TestOpenFavoriteReportsLoadError(t *testing.T) {
 	f := newFeature(t, host)
 
 	f.openFavorite("Missing")
+	f.Settle()
 
 	if host.opened != nil {
 		t.Errorf("opened = %v, want nil", host.opened)
@@ -690,6 +727,7 @@ func raiseReplaceConfirm(t *testing.T, f *Feature, name string) {
 	f.showAdd("")
 	test.Type(f.addPanel.entry, name)
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 }
 
 func TestSaveFavoriteExistingNameRaisesConfirmationFocusedOnCancel(t *testing.T) {
@@ -726,7 +764,9 @@ func TestSaveFavoriteReplaceOnConfirmWritesNewListAndSyncsPreviews(t *testing.T)
 
 	raiseReplaceConfirm(t, f, "Trip")
 	typeKey(t, f.win, fyne.KeyRight)
+	f.Settle()
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	got, err := favstore.Load(f.dir, "Trip")
 	if err != nil {
@@ -762,6 +802,7 @@ func TestSaveFavoriteReplaceCancelReopensAddDialogWithNameStillInField(t *testin
 
 	raiseReplaceConfirm(t, f, "Trip")
 	typeKey(t, f.win, fyne.KeyReturn) // Return on Cancel, the default selection
+	f.Settle()
 
 	if f.addDialog == nil {
 		t.Fatal("Cancel did not reopen the Add dialog")
@@ -798,6 +839,7 @@ func TestSaveFavoriteReplaceEscapeReopensAddDialogWithNameStillInField(t *testin
 
 	raiseReplaceConfirm(t, f, "Trip")
 	typeKey(t, f.win, fyne.KeyEscape)
+	f.Settle()
 
 	if f.addDialog == nil {
 		t.Fatal("Escape did not reopen the Add dialog")

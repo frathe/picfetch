@@ -27,6 +27,7 @@ import (
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/mosaic"
 	"github.com/frathe/picfetch/internal/preferences"
+	"github.com/frathe/picfetch/internal/uitest"
 	"github.com/frathe/picfetch/internal/update"
 )
 
@@ -404,6 +405,8 @@ func TestStartViewerRuntime_ReplacesConstructionStopAfterGeometryRestoration(t *
 	}
 
 	v, win := buildStartupViewer(application)
+	v.favorites.SetUIQueue(&uitest.UIQueue{})
+	t.Cleanup(func() { v.favorites.Stop(); v.favorites.Settle() })
 	t.Cleanup(win.Close)
 	t.Cleanup(func() { imaging.SetMaxEncodedBytes(0) }) // process-wide - see memlimits.go
 
@@ -433,6 +436,7 @@ func TestStartViewerRuntime_ReplacesConstructionStopAfterGeometryRestoration(t *
 	}
 
 	startViewerRuntime(v, win, favoritesDir)
+	v.favorites.Settle()
 	runtimeStop := v.stopWinPosPoll
 	if runtimeStop == nil {
 		t.Fatal("startViewerRuntime left stopWinPosPoll nil")

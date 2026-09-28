@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/grid"
@@ -292,6 +293,13 @@ func (h searchHost) Failed(err error) {
 }
 
 type favoriteListHost struct{ *viewer }
+
+// OpenFavorite receives the owner captured by the complete storage read. Root
+// keeps preview policy and ordinary collection replay in their existing paths.
+func (h favoriteListHost) OpenFavorite(owner *favstore.Owner, files []fyne.URI) {
+	h.SyncFavoritePreviews(owner, files)
+	h.viewer.OpenFavorite(owner.Path(), files)
+}
 
 // CurrentFiles captures ranked indexes once before the naming dialog opens.
 func (h favoriteListHost) CurrentFiles() []fyne.URI {

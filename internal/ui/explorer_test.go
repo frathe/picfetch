@@ -793,6 +793,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					t.Fatal(err)
 				}
 				v.favorites.SetDir(dir)
+				v.favorites.Settle()
 				handler := &fyne.ShortcutHandler{}
 				wireGlobalShortcuts(handler, v)
 				key, modifier := fyne.Key1, fyne.KeyModifierShortcutDefault
@@ -803,6 +804,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					key, modifier = fyne.KeyF, fyne.KeyModifierAlt|fyne.KeyModifierShift
 				}
 				handler.TypedShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: modifier})
+				v.favorites.Settle()
 				if action == "open" {
 					waitForScan(t, v)
 					waitForSort(t, v)
@@ -826,6 +828,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					t.Fatal(err)
 				}
 				v.favorites.SetDir(dir)
+				v.favorites.Settle()
 				uitest.StubChooser(t, []fyne.URI{file}, nil)
 				fynetest.Tap(explorerButton(t, v, "Presets"))
 				settlePresetUI(v)
@@ -847,6 +850,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					key = fyne.KeyO
 				}
 				handler.TypedShortcut(&desktop.CustomShortcut{KeyName: key, Modifier: modifier})
+				v.favorites.Settle()
 				v.openChooserWorkers.Wait()
 				v.chooserUI.Drain()
 				if v.win.Canvas().Overlays().Top() != overlay || !token.current() || !slices.Equal(v.state.Observe().DisplayFiles(), files) || v.scanOp.active {
@@ -1817,7 +1821,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			}
 		})
 		v.favorites.SetDir(dir)
+		v.favorites.Settle()
 		v.favorites.Open(0)
+		v.favorites.Settle()
 		waitForScan(t, v)
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)
@@ -1970,7 +1976,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				options.Analyze = provider(group)
 			})
 			v.favorites.SetDir(dir)
+			v.favorites.Settle()
 			v.favorites.Open(0)
+			v.favorites.Settle()
 			waitForScan(t, v)
 			waitForSort(t, v)
 			waitUntilLoaded(t, v)
@@ -2078,6 +2086,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 				options.Settings.CacheFavorites = false
 			})
 			v.favorites.SetDir(dir)
+			v.favorites.Settle()
 			configureExplorer(v, func(options *explorerui.Options) {
 				options.Analyze = func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
 					var items []similarity.Item
@@ -2091,6 +2100,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		open := func(v *viewer, index int) {
 			v.favorites.Open(index)
+			v.favorites.Settle()
 			waitForScan(t, v)
 			waitForSort(t, v)
 			waitUntilLoaded(t, v)
@@ -4672,7 +4682,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 			t.Fatal(err)
 		}
 		v.favorites.SetDir(dir)
+		v.favorites.Settle()
 		v.favorites.Menu().Items[2].Action()
+		v.favorites.Settle()
 		waitForScan(t, v)
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)

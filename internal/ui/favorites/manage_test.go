@@ -324,12 +324,14 @@ func saveFavorites(t *testing.T, f *Feature, names ...string) {
 		}
 	}
 	f.SetDir(f.dir)
+	f.Settle()
 }
 
 func TestShowManageBuildsEmptyAndPopulatedDialogs(t *testing.T) {
 	f := newFeature(t, &fakeHost{})
 
 	f.ShowManage()
+	f.Settle()
 	if f.manageDialog == nil {
 		t.Fatal("showManage did not build an empty dialog")
 	}
@@ -339,6 +341,7 @@ func TestShowManageBuildsEmptyAndPopulatedDialogs(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.ShowManage()
+	f.Settle()
 	if f.manageDialog == nil {
 		t.Fatal("showManage did not build a populated dialog")
 	}
@@ -353,6 +356,7 @@ func TestShowManageRowsCarryTheMenuLabel(t *testing.T) {
 	saveFavorites(t, f, "Alpha", "beta")
 
 	f.ShowManage()
+	f.Settle()
 
 	if len(f.managePanel.rows) != 2 {
 		t.Fatalf("panel built %d rows, want 2", len(f.managePanel.rows))
@@ -373,11 +377,13 @@ func TestShowManageFocusesThePanelAndReleasesOnClose(t *testing.T) {
 	saveFavorites(t, f, "Alpha")
 
 	f.ShowManage()
+	f.Settle()
 	if f.win.Canvas().Focused() != f.managePanel {
 		t.Fatalf("focused = %v, want the panel", f.win.Canvas().Focused())
 	}
 
 	typeKey(t, f.win, fyne.KeyEscape)
+	f.Settle()
 
 	if f.manageDialog != nil || f.managePanel != nil {
 		t.Error("closing the dialog left it registered on the feature")
@@ -395,8 +401,10 @@ func TestShowManageTwiceDoesNotStackDialogs(t *testing.T) {
 	saveFavorites(t, f, "Alpha")
 
 	f.ShowManage()
+	f.Settle()
 	first, panel := f.manageDialog, f.managePanel
 	f.ShowManage()
+	f.Settle()
 
 	if f.manageDialog != first || f.managePanel != panel {
 		t.Error("a second showManage replaced the dialog that was already up")
@@ -407,6 +415,7 @@ func TestShowManageTwiceDoesNotStackDialogs(t *testing.T) {
 
 	f.manageDialog.Hide()
 	f.ShowManage()
+	f.Settle()
 	if f.manageDialog == nil {
 		t.Error("showManage refused to reopen after the dialog was closed")
 	}
@@ -423,9 +432,11 @@ func TestManageIgnoresACloseFromASupersededDialog(t *testing.T) {
 	saveFavorites(t, f, "Alpha")
 
 	f.ShowManage()
+	f.Settle()
 	superseded := f.manageDialog
 	f.manageDialog.Hide()
 	f.ShowManage()
+	f.Settle()
 	current, panel := f.manageDialog, f.managePanel
 
 	superseded.Hide()
@@ -444,8 +455,11 @@ func TestManageOpenHidesTheDialogAndOpensThatFavorite(t *testing.T) {
 	saveFavorites(t, f, "Alpha", "beta", "zebra")
 
 	f.ShowManage()
+	f.Settle()
 	typeKey(t, f.win, fyne.KeyDown)
+	f.Settle()
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	if len(host.opened) != 1 || host.opened[0].Path() != "/photos/beta.jpg" {
 		t.Errorf("opened = %v, want beta's stored file", host.opened)
@@ -464,8 +478,11 @@ func TestManageRemoveRaisesTheConfirmation(t *testing.T) {
 	saveFavorites(t, f, "Alpha")
 
 	f.ShowManage()
+	f.Settle()
 	typeKey(t, f.win, fyne.KeyRight)
+	f.Settle()
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	overlays := f.win.Canvas().Overlays().List()
 	if len(overlays) != 2 {
@@ -519,7 +536,9 @@ func TestManageConfirmationHandsTheKeyboardBack(t *testing.T) {
 	saveFavorites(t, f, "Alpha")
 
 	f.ShowManage()
+	f.Settle()
 	test.Tap(f.managePanel.rows[0].buttons[removeCol])
+	f.Settle()
 	dismissConfirm(t, f.win)
 
 	if f.win.Canvas().Focused() != f.managePanel {
@@ -530,6 +549,7 @@ func TestManageConfirmationHandsTheKeyboardBack(t *testing.T) {
 	}
 
 	typeKey(t, f.win, fyne.KeyEscape)
+	f.Settle()
 	if f.manageDialog != nil {
 		t.Error("the panel stopped answering Escape after the confirmation closed")
 	}
@@ -557,8 +577,11 @@ func raiseConfirm(t *testing.T, f *Feature) *widgets.ChoicePanel {
 	t.Helper()
 
 	f.ShowManage()
+	f.Settle()
 	typeKey(t, f.win, fyne.KeyRight)
+	f.Settle()
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	return confirmPanel(t, f.win)
 }
@@ -616,6 +639,7 @@ func TestManageConfirmationReturnOnCancelClosesWithoutRemoving(t *testing.T) {
 	panel := raiseConfirm(t, f)
 
 	typeKey(t, f.win, fyne.KeyReturn)
+	f.Settle()
 
 	if f.win.Canvas().Focused() == panel {
 		t.Fatal("Return on Cancel left the confirmation up")
@@ -640,6 +664,7 @@ func TestManageConfirmationEscapeClosesWithoutRemoving(t *testing.T) {
 	raiseConfirm(t, f)
 
 	typeKey(t, f.win, fyne.KeyEscape)
+	f.Settle()
 
 	if !favstore.Exists(f.dir, "Alpha") {
 		t.Error("Escape removed the favorite")
@@ -653,6 +678,7 @@ func TestManageConfirmationEscapeClosesWithoutRemoving(t *testing.T) {
 
 	// And the panel underneath is answering again, not just holding focus.
 	typeKey(t, f.win, fyne.KeyEscape)
+	f.Settle()
 	if f.manageDialog != nil {
 		t.Error("the manage panel stopped answering Escape after the confirmation closed")
 	}
@@ -668,11 +694,12 @@ func TestManageConfirmationRightThenReturnRemoves(t *testing.T) {
 	panel := raiseConfirm(t, f)
 
 	typeKey(t, f.win, fyne.KeyRight)
+	f.Settle()
 	if got := panel.Selected(); got != confirmChoice {
 		t.Fatalf("selected = %d, want Remove (%d)", got, confirmChoice)
 	}
 	typeKey(t, f.win, fyne.KeyReturn)
-	f.pending.Wait()
+	f.Settle()
 
 	if favstore.Exists(f.dir, "Alpha") {
 		t.Error("the confirmed removal left the favorite in place")
@@ -698,10 +725,11 @@ func TestPerformRemoveKeepsTheRingOnTheSameRow(t *testing.T) {
 	uitest.StubTrashMove(t, func(path string) error { return os.RemoveAll(path) })
 
 	f.ShowManage()
+	f.Settle()
 	f.managePanel.moveTo(1, removeCol)
 
 	f.performRemove("beta")
-	f.pending.Wait()
+	f.Settle()
 
 	if len(f.managePanel.rows) != 2 {
 		t.Fatalf("rebuilt panel has %d rows, want 2", len(f.managePanel.rows))
@@ -723,10 +751,11 @@ func TestPerformRemoveClampsTheRingWhenTheLastRowGoes(t *testing.T) {
 	uitest.StubTrashMove(t, func(path string) error { return os.RemoveAll(path) })
 
 	f.ShowManage()
+	f.Settle()
 	f.managePanel.moveTo(2, removeCol)
 
 	f.performRemove("zebra")
-	f.pending.Wait()
+	f.Settle()
 
 	if len(f.managePanel.rows) != 2 {
 		t.Fatalf("rebuilt panel has %d rows, want 2", len(f.managePanel.rows))
@@ -741,8 +770,9 @@ func TestPerformRemoveLeavesNoRingOnTheEmptyList(t *testing.T) {
 	uitest.StubTrashMove(t, func(path string) error { return os.RemoveAll(path) })
 
 	f.ShowManage()
+	f.Settle()
 	f.performRemove("Alpha")
-	f.pending.Wait()
+	f.Settle()
 
 	if len(f.managePanel.rows) != 0 {
 		t.Fatalf("rebuilt panel has %d rows, want the empty state", len(f.managePanel.rows))
@@ -750,6 +780,7 @@ func TestPerformRemoveLeavesNoRingOnTheEmptyList(t *testing.T) {
 	assertRing(t, f.managePanel, -1, -1)
 
 	typeKey(t, f.win, fyne.KeyEscape)
+	f.Settle()
 	if f.manageDialog != nil {
 		t.Error("the empty panel stopped answering Escape")
 	}
@@ -762,10 +793,11 @@ func TestPerformRemoveTrashesDirectoryAndRefreshesMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.SetDir(f.dir)
+	f.Settle()
 	uitest.StubTrashMove(t, func(path string) error { return os.RemoveAll(path) })
 
 	f.performRemove("Trip")
-	f.pending.Wait()
+	f.Settle()
 
 	if favstore.Exists(f.dir, "Trip") {
 		t.Error("favorite still exists after removal")
@@ -781,7 +813,7 @@ func TestPerformRemoveTrashesDirectoryAndRefreshesMenu(t *testing.T) {
 // TestPerformRemoveRefreshesMenusExactlyOnce is the delete-side half of the
 // same fix TestAddCurrentListRefreshesMenusExactlyOnce (favorites_test.go)
 // pins for add: performRemove does its rebuild on a goroutine and marshals
-// back through fyne.Do, so f.pending.Wait() is what makes this assertion safe
+// back through its owning UIQueue, so f.Settle() makes this assertion safe
 // to make at all. fyne.Menu.Refresh is SetMainMenu underneath - on Darwin
 // that rebuilds the whole native bar - so a stray call to it here, instead of
 // through host.RefreshMenus, would leave a duplicate "Window" menu and
@@ -794,11 +826,12 @@ func TestPerformRemoveRefreshesMenusExactlyOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.SetDir(f.dir)
+	f.Settle()
 	uitest.StubTrashMove(t, func(path string) error { return os.RemoveAll(path) })
 	host.refreshMenus = 0
 
 	f.performRemove("Trip")
-	f.pending.Wait()
+	f.Settle()
 
 	if host.refreshMenus != 1 {
 		t.Errorf("RefreshMenus called %d times after removing a favorite, want 1", host.refreshMenus)
@@ -815,7 +848,7 @@ func TestPerformRemoveReportsTrashError(t *testing.T) {
 	uitest.StubTrashMove(t, func(string) error { return wantErr })
 
 	f.performRemove("Trip")
-	f.pending.Wait()
+	f.Settle()
 
 	if !favstore.Exists(f.dir, "Trip") {
 		t.Error("favorite disappeared after failed removal")
@@ -835,11 +868,12 @@ func TestPerformRemoveFailureLeavesTheDialogAsItWas(t *testing.T) {
 	uitest.StubTrashMove(t, func(string) error { return errors.New("trash unavailable") })
 
 	f.ShowManage()
+	f.Settle()
 	panel := f.managePanel
 	f.managePanel.moveTo(1, removeCol)
 
 	f.performRemove("beta")
-	f.pending.Wait()
+	f.Settle()
 
 	if f.managePanel != panel {
 		t.Error("a failed removal rebuilt the dialog")

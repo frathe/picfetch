@@ -907,6 +907,7 @@ func TestLocationMap(t *testing.T) {
 			}
 			fresh := newTestViewer(t)
 			fresh.favorites.SetDir(filepath.Dir(dir))
+			fresh.favorites.Settle()
 			var reads atomic.Int32
 			source := uitest.ReaderURI(base, func() (io.ReadCloser, error) { reads.Add(1); return io.NopCloser(bytes.NewReader(data)), nil })
 			dropAndWait(t, fresh, source)
@@ -1411,6 +1412,7 @@ func TestLocationMap(t *testing.T) {
 			v := newTestViewer(t)
 			root := t.TempDir()
 			v.favorites.SetDir(root)
+			v.favorites.Settle()
 			data := uitest.EncodeJPEG(t, 24, 16, color.White)
 			var fail atomic.Bool
 			var reads [2]atomic.Int32
@@ -1488,6 +1490,7 @@ func TestLocationMap(t *testing.T) {
 				t.Helper()
 				fresh := newTestViewer(t)
 				fresh.favorites.SetDir(filepath.Dir(dir))
+				fresh.favorites.Settle()
 				fresh.OpenFavorite(dir, []fyne.URI{source})
 				waitForScan(t, fresh)
 				waitForSort(t, fresh)

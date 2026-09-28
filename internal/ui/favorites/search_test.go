@@ -24,6 +24,7 @@ func TestFindMoreLikeThisFavoritesCapturesBeforeNaming(t *testing.T) {
 	host.files = nil
 	f.addPanel.entry.SetText("Matches")
 	f.addPanel.entry.OnSubmitted("Matches")
+	f.Settle()
 	saved, err := favstore.Load(f.dir, "Matches")
 	if err != nil || len(saved) != 1 || saved[0].String() != original.String() {
 		t.Fatalf("saved captured result %v: %v", saved, err)

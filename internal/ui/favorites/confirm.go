@@ -65,6 +65,14 @@ type confirmation struct {
 // cannot be undone by this dialog's own teardown arriving late and
 // unfocusing it.
 func (f *Feature) showConfirm(c confirmation) dialog.Dialog {
+	ctx := f.viewContext()
+	guard := func(action func()) func() {
+		return func() {
+			if action != nil && !f.stopped && ctx.Err() == nil {
+				action()
+			}
+		}
+	}
 	// Unwrapped, unlike Fyne's own text dialogs: they wrap the message and
 	// then widen the dialog to fit it from a beforeShowHook, which a custom
 	// dialog has no equivalent of, so a wrapping label here would collapse to
@@ -82,11 +90,11 @@ func (f *Feature) showConfirm(c confirmation) dialog.Dialog {
 		// the default selection has to mean the same thing Escape does, and
 		// a caller like the Replace prompt (which reopens the Add dialog
 		// from onCancel) needs both paths there to agree.
-		widgets.Choice{Label: lang.L("Cancel"), OnChosen: c.onCancel},
+		widgets.Choice{Label: lang.L("Cancel"), OnChosen: guard(c.onCancel)},
 		widgets.Choice{
 			Label:      c.action,
 			Importance: c.importance,
-			OnChosen:   c.onConfirm,
+			OnChosen:   guard(c.onConfirm),
 		},
 	)
 	// The panel dismisses before running any choice's OnChosen (which is
@@ -96,7 +104,7 @@ func (f *Feature) showConfirm(c confirmation) dialog.Dialog {
 	// TypedKey's KeyEscape arm runs, cancelChoice's own OnChosen above is
 	// what a Return or a click on it runs.
 	panel.SetOnDismiss(func() { confirm.Hide() })
-	panel.SetOnCancel(c.onCancel)
+	panel.SetOnCancel(guard(c.onCancel))
 
 	confirm = dialog.NewCustomWithoutButtons(c.title, container.NewVBox(message, panel), f.win)
 	// dialog.SetOnClosed's own callback calls the func handed to it
@@ -104,11 +112,15 @@ func (f *Feature) showConfirm(c confirmation) dialog.Dialog {
 	// confirm.SetOnClosed(c.onClosed) would panic on Hide the first time a
 	// caller leaves onClosed unset, so the nil check has to live here.
 	confirm.SetOnClosed(func() {
+		if f.confirmDialog == confirm {
+			f.confirmDialog = nil
+		}
 		f.dialogChanged()
 		if c.onClosed != nil {
 			c.onClosed()
 		}
 	})
+	f.confirmDialog = confirm
 	confirm.Show()
 	f.dialogChanged()
 	// After Show, for the reason ShowManage focuses its own panel after Show:

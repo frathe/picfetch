@@ -1,8 +1,6 @@
 package favorites
 
 import (
-	"fmt"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -10,7 +8,6 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/ui/widgets"
 )
 
@@ -254,23 +251,22 @@ func (p *managePanel) scrollIntoView(row int) {
 // for themselves: a second dialog would stack over the first and take the
 // keyboard from it.
 func (f *Feature) ShowManage() {
-	if !f.host.AdmitFavorite(ManageCommand) {
+	if f.stopped || !f.host.AdmitFavorite(ManageCommand) {
 		return
 	}
 	f.showManage()
 }
 
 func (f *Feature) showManage() {
-	if f.manageDialog != nil {
+	if f.manageDialog != nil || f.manageRequested || f.stopped {
 		return
 	}
+	f.manageRequested = true
+	f.refreshMenu()
+}
 
-	names, err := favstore.List(f.dir)
-	if err != nil {
-		f.reportError(lang.L("could not list favorites: %v"), err)
-		return
-	}
-
+func (f *Feature) buildManage() {
+	names := f.names
 	entries := make([]manageEntry, len(names))
 	for i, name := range names {
 		favoriteName := name
@@ -299,6 +295,7 @@ func (f *Feature) showManage() {
 		}
 
 		f.manageDialog, f.managePanel = nil, nil
+		f.cancelRemove()
 		f.dialogChanged()
 		// The release grid.Overview.Close performs, for the same reason:
 		// every other key binding in this app is dispatched from the
@@ -318,6 +315,7 @@ func (f *Feature) showManage() {
 // hideManage closes the dialog if it is up - Escape, or the Open button on
 // its way to the image view.
 func (f *Feature) hideManage() {
+	f.manageRequested = false
 	if f.manageDialog != nil {
 		f.manageDialog.Hide()
 	}
@@ -339,42 +337,11 @@ func (f *Feature) focusManage() {
 // history is now the shared rule for every confirmation this package raises,
 // not just this one.
 func (f *Feature) removeFavorite(name string) {
-	f.showConfirm(confirmation{
-		title:      lang.L("Remove Favorite"),
-		message:    fmt.Sprintf(lang.L("Remove %q from favorites?"), name),
-		action:     lang.L("Remove"),
-		importance: widget.DangerImportance,
-		onConfirm:  func() { f.performRemove(name) },
-		// The confirmation is a second overlay and owns the keyboard while it
-		// is up; whichever way it goes, the panel underneath has to get it
-		// back. Fyne happens to hand it back on its own, because removing the
-		// top overlay drops only that overlay's focus manager and the
-		// dialog's below it still has the panel focused - but a dialog left
-		// unable to answer Escape is a dead end for the user, so this does
-		// not lean on it.
-		onClosed: f.focusManage,
-	})
+	f.beginRemove(name, true)
 }
 
 func (f *Feature) performRemove(name string) {
-	f.pending.Add(1)
-	go func() {
-		err := favstore.Remove(f.dir, name)
-		fyne.Do(func() {
-			defer f.pending.Done()
-
-			if err != nil {
-				f.reportError(lang.L("could not remove favorite %q: %v"), name, err)
-				return
-			}
-
-			f.refreshMenu()
-			f.host.ShowToast(fmt.Sprintf(lang.L("removed favorite %q"), name))
-			if f.managePanel != nil {
-				f.rebuildManage()
-			}
-		})
-	}()
+	f.beginRemove(name, false)
 }
 
 // rebuildManage reopens the dialog on the list as it now stands, keeping
@@ -386,7 +353,7 @@ func (f *Feature) rebuildManage() {
 	row := f.managePanel.row
 
 	f.hideManage()
-	f.showManage()
+	f.buildManage()
 	// Not unconditional: a rebuild whose favstore.List failed reported that
 	// and left no dialog, and so nothing to put a ring on.
 	if f.managePanel != nil {

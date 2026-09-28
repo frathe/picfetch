@@ -592,6 +592,7 @@ func (v *viewer) presentCommittedEmptyCollection() {
 }
 
 func (v *viewer) retireCollectionSurface() {
+	v.favorites.CancelOpen()
 	v.locationMap.SetSources(nil)
 	v.closeLocationMap()
 	v.closeVisualSearch()

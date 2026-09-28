@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"regexp"
 )
 
@@ -13,7 +15,7 @@ var managedAnalysisName = regexp.MustCompile(`^[0-9a-f]{64}\.json$`)
 var temporaryAnalysisName = regexp.MustCompile(`^\.[A-Za-z0-9_-]{20,64}\.tmp$`)
 
 type managedAnalysis struct {
-	root               *os.Root
+	directory          *analysisDirectory
 	name               string
 	info               fs.FileInfo
 	general, temporary bool
@@ -22,35 +24,25 @@ type managedAnalysis struct {
 type analysisInventory struct {
 	records   []managedAnalysis
 	usage     CacheUsage
-	roots     []*os.Root
 	favorites *favoriteInventory
 }
 
 func (i *analysisInventory) close() {
 	i.favorites.close()
-	for _, root := range i.roots {
-		_ = root.Close()
-	}
 }
 func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress func(CacheProgress)) error {
 	var failures []error
 	add := func(base, relative string, general bool, favorite *favoriteAnalysis) {
-		var root *os.Root
-		var err error
 		if favorite != nil {
-			root, err = openAnalysisDirectory(favorite.root, "analysis")
-		} else {
-			parent, openErr := os.OpenRoot(base)
-			if errors.Is(openErr, os.ErrNotExist) {
-				return
-			}
-			if openErr != nil {
-				failures = append(failures, openErr)
-				return
-			}
-			root, err = openAnalysisDirectory(parent, relative)
-			_ = parent.Close()
+			base = favorite.owner.Path()
 		}
+		base, err := filepath.Abs(base)
+		if err != nil {
+			failures = append(failures, err)
+			return
+		}
+		observation := &analysisDirectory{base: base, relative: relative, favorite: favorite}
+		access, err := observation.open(ctx)
 		if errors.Is(err, os.ErrNotExist) {
 			return
 		}
@@ -58,45 +50,68 @@ func (i *analysisInventory) scan(ctx context.Context, roots CacheRoots, progress
 			failures = append(failures, err)
 			return
 		}
-		i.roots = append(i.roots, root)
-		dir, err := root.Open(".")
+		defer access.close()
+		observation.parentInfo, err = access.parent.Stat(".")
 		if err != nil {
 			failures = append(failures, err)
 			return
 		}
-		entries, err := dir.ReadDir(-1)
-		_ = dir.Close()
+		observation.directory, err = access.root.Stat(".")
 		if err != nil {
 			failures = append(failures, err)
+			return
 		}
-		for _, entry := range entries {
-			if ctx.Err() != nil {
+		dir, err := access.root.Open(".")
+		if err != nil {
+			failures = append(failures, err)
+			return
+		}
+		defer func() { _ = dir.Close() }()
+		for {
+			if err := access.current(ctx); err != nil {
+				failures = append(failures, err)
 				return
 			}
-			temporary := temporaryAnalysisName.MatchString(entry.Name())
-			if !temporary && !managedAnalysisName.MatchString(entry.Name()) {
-				continue
+			entries, readErr := dir.ReadDir(64)
+			for _, entry := range entries {
+				if ctx.Err() != nil {
+					return
+				}
+				temporary := temporaryAnalysisName.MatchString(entry.Name())
+				if !temporary && !managedAnalysisName.MatchString(entry.Name()) {
+					continue
+				}
+				info, err := access.root.Lstat(entry.Name())
+				if err != nil {
+					failures = append(failures, err)
+					continue
+				}
+				if !info.Mode().IsRegular() {
+					continue
+				}
+				record := managedAnalysis{directory: observation, name: entry.Name(), info: info, general: general, temporary: temporary, favorite: favorite}
+				i.records = append(i.records, record)
+				size := &i.usage.Favorite
+				if general {
+					size = &i.usage.General
+				}
+				size.Bytes += uint64(info.Size())
+				if !temporary {
+					size.Records++
+				}
+				if progress != nil {
+					progress(CacheProgress{Phase: "inspect", Records: len(i.records), Bytes: i.usage.General.Bytes + i.usage.Favorite.Bytes})
+				}
 			}
-			info, err := root.Lstat(entry.Name())
+			if readErr != nil && !errors.Is(readErr, io.EOF) {
+				failures = append(failures, readErr)
+			}
+			err = access.current(ctx)
 			if err != nil {
 				failures = append(failures, err)
-				continue
 			}
-			if !info.Mode().IsRegular() {
-				continue
-			}
-			record := managedAnalysis{root: root, name: entry.Name(), info: info, general: general, temporary: temporary, favorite: favorite}
-			i.records = append(i.records, record)
-			size := &i.usage.Favorite
-			if general {
-				size = &i.usage.General
-			}
-			size.Bytes += uint64(info.Size())
-			if !temporary {
-				size.Records++
-			}
-			if progress != nil {
-				progress(CacheProgress{Phase: "inspect", Records: len(i.records), Bytes: i.usage.General.Bytes + i.usage.Favorite.Bytes})
+			if readErr != nil || err != nil {
+				return
 			}
 		}
 	}

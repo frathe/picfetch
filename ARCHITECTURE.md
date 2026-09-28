@@ -77,12 +77,15 @@ threads before reading requests; `worker_other.go` retains the macOS sandbox lau
 pipes; Windows does not install OS network denial and events keep `OfflineVerified`
 false. `offline.go` exposes that distinction through `EnforcesNetworkIsolation`
 and assembles the Linux filter for host-independent BPF decision tests.
-`cache_favorites.go` owns the shared Favorite inventory, retained directory handles,
-list versions and producer lease. Both producer admission and maintenance use it;
+`cache_favorites.go` adapts shared `favstore` owner observations to similarity's
+producer lease and membership index. Producers retain only intersections with
+their complete original input scope, including across explicit-save refresh;
+scope is independent of preparation order and producer write permission.
+Both producer admission and maintenance use it;
 unknown membership remains inspectable without admitting unleased writes.
 `cache.go` persists successful favorite representations in `analysis` beside
 `file-list.json`/`thumbs`, validates source/model/preprocessing versions, and uses
-directory handles plus file-list identity to avoid recreating removed favorites.
+short-lived owner-relative access to avoid following or recreating retired Favorites.
 `cache_payload.go` reads one JSON document through a hard byte bound, then checks
 its version, source identity shape, vector, digest and preview. General/Favorite
 reads, general write validation and maintenance share that decoder.
@@ -93,8 +96,11 @@ membership even when its analysis preference is off, with a separate opt-out tha
 blocks both Favorite records and general fallback for those members.
 Producer inventory preserves healthy Favorites alongside per-entry errors;
 incomplete membership disables general reuse/writes for that producer. Cache maintenance
-retains each Favorite directory and list version through inventory and rechecks
-membership before stale removal. Inventory handles unreadable Favorite definitions
+retains directory/list and record identity values through batched inventory;
+`cache_access.go` reacquires bounded access and rechecks owner, cache directory
+and record before classification/removal. Unknown membership blocks automatic
+stale cleanup but permits explicit clearing of captured recognized records.
+Inventory handles unreadable Favorite definitions
 independently so healthy peers remain inspectable and cleanable.
 `encoder.go` (cgo) sets the non-Windows telemetry opt-out before library loading,
 disables telemetry through the runtime API before session creation, and owns
@@ -315,13 +321,15 @@ release. `docs/microsoft-store.md` covers setup and recovery.
 
 Native Linux/Windows/macOS and explicit Microsoft Store validation. `main.go`
 selects suites, verifies build-selected inventories, runs the full packages
-(or the focused `command-admission` UI guards),
+(or the focused `command-admission` and `favorite-ownership` guards),
 retains raw Go test events and requires named guards to run/pass without skips.
 The macOS suite includes root main's Cocoa-linked delegate test; Windows includes
 native Unicode transport, wallpaper and updater guards. CI invokes this command
 with separate Windows/macOS command-admission runs for case-alias export and
 Darwin Copy key-equivalent behavior, without Linux-only golden rendering,
-and uploads its event files. `main_test.go` covers admission, selection, event
+and uploads its event files. Linux, Windows and both macOS architectures also
+require Favorite ownership's exact storage/URI/preview/UI parents and children,
+including active-handle release, with no codec exemptions. `main_test.go` covers admission, selection, event
 validation, process failures and workflow wiring through a per-call runner.
 
 ### `internal/ui/explorer`
@@ -450,8 +458,9 @@ measured checks, then indeterminate final grouping; retirement stops animation.
 `work.go` and Favorite reads project away unrelated EXIF strings before retaining
 points or facts. `favorites.go` stores
 versioned records only for saved Favorite members in the operation's live source
-scope; unrelated memberships and owner handles are not retained. Captured directory
-handles and membership namespaces preventing retired-owner publication.
+scope; `favstore.Inventory` validates complete definitions and retains shared
+owner observations without idle handles. Bounded `Owner.Acquire` operations and
+full-list membership namespaces prevent retired-owner publication.
 Committed source writes retire live facts immediately and schedule tracked disk
 invalidation, serialized with revalidated raw-fact publication. Each saved member
 owns at most one record, with its current source version inside the record.
@@ -668,7 +677,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. The combined pending set is cleared before that shared path refuses an active comparison, so deliveries cannot queue behind it. |
 | `memlimits.go` | `settings` value, `settingsState` / `ApplySettings`, memory-limit get/set that retune caches and `imaging.SetMaxEncodedBytes`. |
 | `theme.go` | Settings-facing appearance getter/setter; applies `internal/appearance` modes live. |
-| `favthumbs.go` | Viewer glue for `favthumbs.Sync` and `gridSink`; captures the saved Favorite preview limit (default 1000) and retires active work on edits; per-request completion plus all-pass worker tracking and terminal shutdown cancellation. |
+| `favthumbs.go` | Viewer glue for `favthumbs.Sync` and `gridSink`; carries the owner captured by complete opening or committed saving, captures the saved preview limit (default 1000), and retires active work on edits; per-request completion plus all-pass worker tracking and terminal shutdown cancellation. |
 | `load.go` | `ShowImage` admits fresh image selection; private `loadImage` continues already-admitted collection reconciliation and slideshow lifetimes through the same display path. Display retains requested/probed/presented/failure, retry and neighbor ownership; window/zoom sizing remains here. |
 | `toast.go` | Self-dismissing notification card and `ShowToast`. |
 | `info.go` | Persistent info overlay (I); EXIF link; RAW `(preview)` mark. |
@@ -708,7 +717,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/help/` | Manual, About, release notes/What's New (`whatsnew.go`), Help menu; embeds `manual.md` / `manual_de.md` and this build's `release-notes.md`. `make release` copies the canonical `.github/release-notes.md` into the bundle alongside the version bump. Both notes entry points share the bundled file and a singleton with a GitHub release-history link. `releaseart.go` replaces Markdown images before layout and loads GitHub-hosted HTTPS URLs on up to three background workers; `releaseimage.go` owns the allowlisted redirect policy and bounded HTTP fetch/decode. `releasework.go` cancels on close, stops admission on shutdown and exposes Wait/Settle with a per-instance UIQueue. Notes without images start no workers. Secret search phrase calls the viewer’s registered `SetOnSpiral` callback; `finis` in manual search opens the cursor-following companion (`finis.go`, embedded `finis.webp`), hosting `widgets.Gaze` with centered portrait geometry and its own hover surface. `ShowFinis` also serves welcome Trane; ten independent circles reveal the localized, wrapped bubble in `finis_clue.go`, whose click opens an empty focused manual search. | `New(app, title, art)` plus optional event callbacks. |
 | `internal/ui/spiral/` | Full-screen shader easter egg. `tunnel.go` owns serial preview admission and three texture slots; `playback.go` advances bounded GIF frames on the existing UI clock with independent flight origins; `flow.go` owns cycles, batch variation and route selection; `flight.go` owns safe route geometry used for admission/retirement; `shader.go` renders depth, feather and translucent composition. `uiqueue.go` marshals preview/frame callbacks with session checks. H toggles local help; F1 invokes the viewer's manual callback. The shared centre stays within a resized viewport. | Viewer supplies a frozen URI value to `Show` / `ShowForGesture`; `Close` cancels on UI and test `Settle` joins/drains off UI. Process shutdown does not join uninterruptible preview source reads. |
 | `internal/ui/settingswin/` | Settings: General/Appearance/Updates/Limits/Cache, update dialogs, snapshot seed, live apply, Singleton geometry. `Show(State, storeManaged)` replaces the GitHub update controls with Store-owned-update copy when applicable. | `Show(State, bool)` + Host (`ApplySettings`, `CheckForUpdatesNow`, `PerformUpdate`). |
-| `internal/ui/favorites/` | Favorites menu and add/overwrite/manage/remove dialogs. Fresh open/add/manage entries call consumer-side `AdmitFavorite` before storage/capture. `SetAvailability` renders host decisions for static and rebuilt dynamic entries. Modal-change callbacks refresh root menus; confirmation/rebuild controls remain feature-owned. `New` does no disk I/O; `SetDir` from `Run`. | 6-method `Host`. |
+| `internal/ui/favorites/` | Favorites menu and add/overwrite/manage/remove dialogs. `storage.go` owns tracked reads, coalesced refresh, captured-owner open handoff and the per-instance UIQueue. `mutations.go` serializes saves/removals and owns captured saves; `removal.go` binds confirmations and native outcomes to captured targets. Opening rechecks `AdmitFavorite` before existing replay. Close cancels view work; Stop closes admission; Wait/Settle join current/retired workers off UI, including native removal. Root source changes retire pending opens. `SetAvailability` renders host decisions; modal-change callbacks refresh menus. `New` does no disk I/O; `SetDir` from `Run`. | 6-method `Host`. |
 | `internal/ui/menus/` | Stateful File/Window/Actions items. `Apply(State)` renders supplied `Availability` plus labels/check states and detects changes; it has no surface/modal/busy admission formulas. Construction, accelerators and callbacks stay explicit. | No Host: snapshot from root `menuState`. |
 | `internal/ui/autoupdate/` | Shared serialized automatic/manual update worker: lazy verifier/client preparation, check/download progress events, same-process matching-stage reuse, all-worker settle, last-check-day persistence, staged apply/relaunch intent, the What's-New cache (`whatsnew.go`), and the apply-failure cache (`applyfailure.go`) — `ApplyStagedUpdate` writes it when `update.Apply` fails, and `internal/ui` reads and clears it on the next launch. Persisted stages carry a process-ephemeral authentication seal, so a stage from an earlier run is redownloaded and re-attested rather than trusted from the user-writable cache. Both UI caches are one JSON document each in `app.Cache()`, over the `saveCacheJSON` / `loadCacheJSON` / `clearCacheJSON` helpers in `cache.go`; a failed relaunch is deliberately *not* recorded, since it happens after the new binary is installed and verified. | No Host: takes a `context.Context` and a staleness func per call (`Start` / `StartManual`), plus `Persist` and per-`Updater` verifier-factory seams — cancellation stays the viewer's own `requestLifecycle`, not promoted here. |
 | `internal/ui/infoview/` | The persistent info overlay (I key): its four widgets - text, the EXIF link, the reveal link, the card - the current file's raw facts (byte size, EXIF presence, RAW-preview flag), its own toggle preference, and `formatFileSize`. The EXIF link follows `HasEXIF`; the reveal link is shown with the card itself. | No Host: `Update(State)` / `Sync(bool, State)` over a value snapshot built by `info.go`'s `infoState()`. |
@@ -826,18 +835,27 @@ unavailable.
 | File | Responsibility |
 |------|----------------|
 | `favstore.go` | `Save` / `Load` / `Count` / `DefaultDir`; trash-backed remove. |
-| `cohorts.go` | Favorite-owned named source memberships, preset links and explicit Unassigned overrides in version-2 `cohorts.json`; legacy arrays migrate on the next save; cancellable atomic writes bound to the observed file-list identity, with removed members filtered on load. |
+| `membership.go` | One strict numeric-position decoder, cancellable reads, validated encoding and the exact 64 MiB read/write definition limit. |
+| `ownership.go` | `Open` / `Definition`, captured directory/list `Owner`, short-lived `Access`, permanent observed retirement, full-list fingerprint and captured relative-path interpretation. `Observe` supports unknown-membership maintenance. |
+| `inventory.go` | Cancellable 64-entry enumeration, complete validation with scoped retained membership, healthy/unknown outcomes and enumeration completeness. |
+| `listing.go` | Batched Favorite discovery and complete validated counts, retaining bare names for unreadable definitions; no partial cancelled listing. |
+| `saving.go` | Captured mutation `Target`, absent-name/root observations, permanent conflict retirement, cancellable atomic Save and an authoritative committed definition/owner captured from the published file. |
+| `removal.go` | Revalidates the captured Target, releases all directory access before native Trash, and reports committed moves independently of cancellation. |
+| `cohorts.go` | Favorite-owned named source memberships, preset links and explicit Unassigned overrides in version-2 `cohorts.json`; legacy arrays migrate on the next save; shared captured Owner and complete normalized membership, with short-lived access for cancellable atomic writes and removed members filtered on load. |
 
 ### `internal/favthumbs`
 
 Disk-cached grid previews under `<favorite>/thumbs/`. `Sync` is the
-background pass; `Sink` is the caller’s in-memory thumb cache.
+background pass; `Sink` is the caller’s in-memory thumb cache. Disk operations
+take the original captured `favstore.Owner`, acquire bounded directory-relative
+access, and recheck ownership before publication/cleanup. Original image decoding
+retains no Favorite handles; preview work can create only the cache child.
 
 | File | Responsibility |
 |------|----------------|
 | `store.go` / `name.go` | On-disk lookup and filename scheme; `ReadContext` / `WriteContext` check cancellation through cache decode/encode and before atomic replacement. |
 | `sync.go` | Cancellable `Sync` walk: memory → disk → decode, then `Sink`; bounds original-decode preparation to the configured number of unique source paths (default 1000) and serializes those decodes. Later entries reuse memory/disk previews without original reads. A completed pass prunes against the full Favorite membership. |
-| `sweep.go` | Deletes stale preview files; Sync's membership scan and deletion walk check cancellation, preserving current tail previews and the offline-source guard. |
+| `sweep.go` | Deletes stale preview files; Sync's full-membership scan and deletion walk check cancellation and captured owner/record identity, preserving fresh replacements, current tail previews and the offline-source guard. |
 
 ### `internal/session`
 

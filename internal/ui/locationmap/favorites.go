@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -26,13 +25,10 @@ const favoriteGPSDirectory = ".location-map"
 const maxGPSRecordBytes = 64 * 1024
 const maxFavoriteCleanupEntries = 1024
 
-var errFavoriteRetired = errors.New("location Favorite owner retired")
-
 type favoriteOwner struct {
-	dir             string
-	root, records   *os.Root
-	directory, list os.FileInfo
-	members         map[string]bool
+	owner     *favstore.Owner
+	namespace string
+	members   map[string]bool
 }
 type favoriteFacts struct {
 	owners  []*favoriteOwner
@@ -45,10 +41,8 @@ type gpsRecord struct {
 }
 
 func (c *favoriteFacts) close() {
-	for _, owner := range c.owners {
-		_ = owner.records.Close()
-		_ = owner.root.Close()
-	}
+	c.owners = nil
+	c.members = nil
 }
 
 func openFavoriteFacts(ctx context.Context, dir string, sources []fyne.URI) (*favoriteFacts, error) {
@@ -59,148 +53,77 @@ func openFavoriteFacts(ctx context.Context, dir string, sources []fyne.URI) (*fa
 	if dir == "" || len(sources) == 0 {
 		return c, nil
 	}
-	live := make(map[string]bool, len(sources))
-	for _, source := range sources {
-		live[filepath.Clean(source.Path())] = true
+	paths := make([]string, len(sources))
+	for i, source := range sources {
+		paths[i] = source.Path()
 	}
-	folder, err := os.Open(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		return c, nil
-	}
-	if err != nil {
-		return c, err
-	}
-	defer func() { _ = folder.Close() }()
+	inventory, inventoryErr := favstore.Inventory(ctx, dir, paths)
 	var failures []error
-	for {
+	if inventoryErr != nil {
+		failures = append(failures, inventoryErr)
+	}
+	for _, favorite := range inventory.Favorites {
 		if err := ctx.Err(); err != nil {
-			return c, err
+			return c, errors.Join(append(failures, err)...)
 		}
-		entries, readErr := folder.ReadDir(64)
-		for _, entry := range entries {
-			if err := ctx.Err(); err != nil {
-				return c, err
-			}
-			if !entry.IsDir() || !favstore.ValidName(entry.Name()) {
-				continue
-			}
-			owner, err := openFavoriteOwner(ctx, favstore.Dir(dir, entry.Name()), live)
-			if err != nil {
-				if !errors.Is(err, errFavoriteRetired) && !errors.Is(err, os.ErrNotExist) {
-					failures = append(failures, err)
-				}
-				continue
-			}
-			if owner == nil {
-				continue
-			}
-			c.owners = append(c.owners, owner)
-			for path := range owner.members {
-				c.members[path] = append(c.members[path], owner)
-			}
+		if favorite.Err != nil {
+			continue
 		}
-		if readErr != nil {
-			if !errors.Is(readErr, io.EOF) {
-				failures = append(failures, readErr)
+		owner := &favoriteOwner{owner: favorite.Owner, namespace: favorite.Owner.Version(), members: favorite.Members}
+		if err := owner.prepare(ctx); err != nil {
+			if !errors.Is(err, favstore.ErrRetired) {
+				failures = append(failures, err)
 			}
-			break
+			continue
+		}
+		c.owners = append(c.owners, owner)
+		for path := range owner.members {
+			c.members[path] = append(c.members[path], owner)
 		}
 	}
 	return c, errors.Join(failures...)
 }
 
-func sameFavoriteVersion(a, b os.FileInfo) bool {
-	return os.SameFile(a, b) && a.Size() == b.Size() && a.ModTime().Equal(b.ModTime())
-}
-
-func openFavoriteOwner(ctx context.Context, dir string, live map[string]bool) (owner *favoriteOwner, err error) {
-	root, err := os.OpenRoot(dir)
+func (o *favoriteOwner) prepare(ctx context.Context) error {
+	access, err := o.owner.Acquire(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	defer func() {
-		if owner == nil || err != nil {
-			_ = root.Close()
-		}
-	}()
-	list, err := root.Stat("file-list.json")
+	defer func() { _ = access.Close() }()
+	if err := access.Root.Mkdir(favoriteGPSDirectory, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+		return err
+	}
+	cache, err := access.Root.OpenRoot(favoriteGPSDirectory)
 	if err != nil {
-		return nil, err
-	}
-	file, err := root.Open("file-list.json")
-	if err != nil {
-		return nil, err
-	}
-	data, err := io.ReadAll(io.LimitReader(file, 16*1024*1024+1))
-	_ = file.Close()
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > 16*1024*1024 {
-		return nil, errors.New("favorite membership exceeds location cache limit")
-	}
-	var members map[string]string
-	if err := json.Unmarshal(data, &members); err != nil {
-		return nil, err
-	}
-	directory, err := root.Stat(".")
-	if err != nil {
-		return nil, err
-	}
-	owner = &favoriteOwner{dir: dir, root: root, directory: directory, list: list, members: map[string]bool{}}
-	for index, path := range members {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		i, e := strconv.Atoi(index)
-		if e != nil || i < 0 {
-			return nil, errors.New("invalid Favorite member index")
-		}
-		if path = filepath.Clean(path); live[path] {
-			owner.members[path] = true
-		}
-	}
-	if len(owner.members) == 0 {
-		return nil, nil
-	}
-	if !owner.current() {
-		return nil, errFavoriteRetired
-	}
-	// Separate immutable membership namespaces keep an old producer's atomic
-	// rename out of a replacement Favorite even across a last-moment list change.
-	digest := sha256.Sum256(append(data, []byte(list.ModTime().UTC().Format("20060102T150405.000000000"))...))
-	namespace := hex.EncodeToString(digest[:])
-	if err := root.Mkdir(favoriteGPSDirectory, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
-		return nil, err
-	}
-	cache, err := root.OpenRoot(favoriteGPSDirectory)
-	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() { _ = cache.Close() }()
-	if err := cache.Mkdir(namespace, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
-		return nil, err
+	if err := access.Current(ctx); err != nil {
+		return err
 	}
-	records, err := cache.OpenRoot(namespace)
+	if err := cache.Mkdir(o.namespace, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+		return err
+	}
+	return o.cleanupRetired(ctx, access, cache, o.namespace)
+}
+
+func (o *favoriteOwner) records(ctx context.Context) (*favstore.Access, *os.Root, error) {
+	access, err := o.owner.Acquire(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	owner.records = records
-	if !owner.current() {
-		_ = records.Close()
-		return nil, errFavoriteRetired
+	records, err := access.Root.OpenRoot(filepath.Join(favoriteGPSDirectory, o.namespace))
+	if err != nil {
+		_ = access.Close()
+		return nil, nil, err
 	}
-	if err := owner.cleanupRetired(ctx, cache, namespace); err != nil {
-		_ = records.Close()
-		return nil, err
-	}
-	return owner, nil
+	return access, records, nil
 }
 
 // Cleanup is best-effort and bounded across directory and record entries.
 // Unexpected nested trees are never traversed. A later visit may reclaim more;
 // namespace isolation does not depend on completing this maintenance.
-func (o *favoriteOwner) cleanupRetired(ctx context.Context, cache *os.Root, namespace string) error {
+func (o *favoriteOwner) cleanupRetired(ctx context.Context, access *favstore.Access, cache *os.Root, namespace string) error {
 	folder, err := cache.Open(".")
 	if err != nil {
 		return ctx.Err()
@@ -216,7 +139,7 @@ func (o *favoriteOwner) cleanupRetired(ctx context.Context, cache *os.Root, name
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if remaining == 0 || !o.current() {
+			if remaining == 0 || access.Current(ctx) != nil {
 				return nil
 			}
 			remaining--
@@ -231,7 +154,7 @@ func (o *favoriteOwner) cleanupRetired(ctx context.Context, cache *os.Root, name
 			if err != nil {
 				continue
 			}
-			err = o.cleanRetiredRecords(ctx, records, &remaining)
+			err = o.cleanRetiredRecords(ctx, access, records, &remaining)
 			_ = records.Close()
 			if err != nil {
 				return err
@@ -239,7 +162,7 @@ func (o *favoriteOwner) cleanupRetired(ctx context.Context, cache *os.Root, name
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if o.current() {
+			if access.Current(ctx) == nil {
 				_ = cache.Remove(name) // Only succeeds for an empty namespace.
 			}
 		}
@@ -250,7 +173,7 @@ func (o *favoriteOwner) cleanupRetired(ctx context.Context, cache *os.Root, name
 	return ctx.Err()
 }
 
-func (o *favoriteOwner) cleanRetiredRecords(ctx context.Context, records *os.Root, remaining *int) error {
+func (o *favoriteOwner) cleanRetiredRecords(ctx context.Context, access *favstore.Access, records *os.Root, remaining *int) error {
 	folder, err := records.Open(".")
 	if err != nil {
 		return ctx.Err()
@@ -265,7 +188,7 @@ func (o *favoriteOwner) cleanRetiredRecords(ctx context.Context, records *os.Roo
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if !o.current() {
+			if access.Current(ctx) != nil {
 				return nil
 			}
 			*remaining -= 1
@@ -288,15 +211,6 @@ func (o *favoriteOwner) cleanRetiredRecords(ctx context.Context, records *os.Roo
 	return ctx.Err()
 }
 
-func (o *favoriteOwner) current() bool {
-	directory, err := os.Stat(o.dir)
-	if err != nil || !os.SameFile(directory, o.directory) {
-		return false
-	}
-	list, err := o.root.Stat("file-list.json")
-	return err == nil && sameFavoriteVersion(list, o.list)
-}
-
 func gpsRecordName(path string) string {
 	// One record per member bounds disk residency across source revisions and
 	// makes explicit committed-write invalidation independent of old versions.
@@ -313,30 +227,40 @@ func (c *favoriteFacts) load(ctx context.Context, source fyne.URI, version strin
 		if ctx.Err() != nil {
 			return imaging.Metadata{}, false, ctx.Err()
 		}
-		if !owner.current() {
+		metadata, hit, err := owner.load(ctx, source, version)
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, favstore.ErrRetired) {
 			continue
 		}
-		file, err := owner.records.Open(gpsRecordName(source.Path()))
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return imaging.Metadata{}, false, err
-		}
-		data, err := io.ReadAll(io.LimitReader(file, maxGPSRecordBytes+1))
-		_ = file.Close()
-		if err != nil {
-			return imaging.Metadata{}, false, err
-		}
-		var record gpsRecord
-		if len(data) > maxGPSRecordBytes || json.Unmarshal(data, &record) != nil || record.Schema != 1 || record.Path != filepath.Clean(source.Path()) || record.Version != version || record.Metadata.HasGPS && !validLocation(record.Metadata) {
-			continue
-		}
-		if ctx.Err() == nil && owner.current() {
-			return locationMetadata(record.Metadata), true, nil
+		if err != nil || hit {
+			return metadata, hit, err
 		}
 	}
 	return imaging.Metadata{}, false, nil
+}
+
+func (o *favoriteOwner) load(ctx context.Context, source fyne.URI, version string) (imaging.Metadata, bool, error) {
+	access, records, err := o.records(ctx)
+	if err != nil {
+		return imaging.Metadata{}, false, err
+	}
+	defer func() { _ = records.Close(); _ = access.Close() }()
+	file, err := records.Open(gpsRecordName(source.Path()))
+	if err != nil {
+		return imaging.Metadata{}, false, err
+	}
+	data, err := io.ReadAll(io.LimitReader(file, maxGPSRecordBytes+1))
+	_ = file.Close()
+	if err != nil {
+		return imaging.Metadata{}, false, err
+	}
+	var record gpsRecord
+	if len(data) > maxGPSRecordBytes || json.Unmarshal(data, &record) != nil || record.Schema != 1 || record.Path != filepath.Clean(source.Path()) || record.Version != version || record.Metadata.HasGPS && !validLocation(record.Metadata) {
+		return imaging.Metadata{}, false, nil
+	}
+	if err := access.Current(ctx); err != nil {
+		return imaging.Metadata{}, false, err
+	}
+	return locationMetadata(record.Metadata), true, nil
 }
 
 func (c *favoriteFacts) store(ctx context.Context, source fyne.URI, fact Fact) error {
@@ -359,10 +283,7 @@ func (c *favoriteFacts) store(ctx context.Context, source fyne.URI, fact Fact) e
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !owner.current() {
-			continue
-		}
-		if err := owner.publish(ctx, gpsRecordName(source.Path()), data); err != nil && !errors.Is(err, errFavoriteRetired) {
+		if err := owner.publish(ctx, gpsRecordName(source.Path()), data); err != nil && !errors.Is(err, favstore.ErrRetired) {
 			failures = append(failures, err)
 		}
 	}
@@ -399,11 +320,8 @@ func (f *Feature) invalidatePersistentFacts(queue UIQueue, dir string, sources [
 			if ctx.Err() != nil {
 				return
 			}
-			if !owner.current() {
-				continue
-			}
-			err := owner.records.Remove(gpsRecordName(source.Path()))
-			if err != nil && !errors.Is(err, os.ErrNotExist) && owner.current() {
+			err := owner.remove(ctx, gpsRecordName(source.Path()))
+			if err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, favstore.ErrRetired) {
 				f.cacheFailure(queue, f.lifetime, 0, err)
 			}
 		}
@@ -420,16 +338,30 @@ func (f *Feature) invalidatePersistentFacts(queue UIQueue, dir string, sources [
 	}
 }
 
-func (o *favoriteOwner) publish(ctx context.Context, name string, data []byte) error {
-	temporary := "." + rand.Text() + ".tmp"
-	file, err := o.records.OpenFile(temporary, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+func (o *favoriteOwner) remove(ctx context.Context, name string) error {
+	access, records, err := o.records(ctx)
 	if err != nil {
-		if !o.current() {
-			return errFavoriteRetired
-		}
 		return err
 	}
-	defer func() { _ = o.records.Remove(temporary) }()
+	defer func() { _ = records.Close(); _ = access.Close() }()
+	if err := access.Current(ctx); err != nil {
+		return err
+	}
+	return records.Remove(name)
+}
+
+func (o *favoriteOwner) publish(ctx context.Context, name string, data []byte) error {
+	access, records, err := o.records(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = records.Close(); _ = access.Close() }()
+	temporary := "." + rand.Text() + ".tmp"
+	file, err := records.OpenFile(temporary, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = records.Remove(temporary) }()
 	_, writeErr := file.Write(data)
 	syncErr := file.Sync()
 	closeErr := file.Close()
@@ -439,10 +371,10 @@ func (o *favoriteOwner) publish(ctx context.Context, name string, data []byte) e
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if !o.current() {
-		return errFavoriteRetired
+	if err := access.Current(ctx); err != nil {
+		return err
 	}
-	return o.records.Rename(temporary, name)
+	return records.Rename(temporary, name)
 }
 
 // SetFavoritesRoot captures root-owned configuration without filesystem work.
@@ -481,7 +413,7 @@ func (f *Feature) persistKnown(queue UIQueue, ctx context.Context, dir string, s
 }
 
 func (f *Feature) cacheFailure(queue UIQueue, ctx context.Context, generation uint64, err error) {
-	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, errFavoriteRetired) {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, favstore.ErrRetired) {
 		return
 	}
 	queue.Do(func() {

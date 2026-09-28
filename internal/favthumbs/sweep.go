@@ -8,9 +8,11 @@ import (
 	"strings"
 
 	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/favstore"
 )
 
-// Sweep deletes previews under favDir that no file in files maps to.
+// Sweep deletes previews under owner that no file in files maps to.
 //
 // A preview is kept when either its base name matches EntryName(f) for some
 // f in files - the current version of a source that could be stat-ed - or
@@ -19,16 +21,17 @@ import (
 // that cannot be stat-ed right now has an unknown current version, so every
 // preview that could belong to it is retained rather than destroyed on the
 // strength of a stat error that may only be temporary.
-func Sweep(favDir string, files []fyne.URI) error {
-	return sweepContext(context.Background(), favDir, files)
+func Sweep(owner *favstore.Owner, files []fyne.URI) error {
+	return sweepContext(context.Background(), owner, files)
 }
 
-func sweepContext(ctx context.Context, favDir string, files []fyne.URI) error {
-	if err := ctx.Err(); err != nil {
+func sweepContext(ctx context.Context, owner *favstore.Owner, files []fyne.URI) error {
+	access, err := acquirePreview(ctx, owner)
+	if err != nil {
 		return err
 	}
-	dir := Dir(favDir)
-	entries, err := os.ReadDir(dir)
+	defer func() { _ = access.Close() }()
+	dir, err := access.Root.Open(SubDir)
 	if err != nil {
 		// No thumbs directory means nothing to prune - not an error, since
 		// a favorite that has never had a preview written is the common
@@ -36,6 +39,11 @@ func sweepContext(ctx context.Context, favDir string, files []fyne.URI) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
+		return err
+	}
+	entries, err := dir.Readdir(-1)
+	_ = dir.Close()
+	if err != nil {
 		return err
 	}
 
@@ -68,7 +76,7 @@ func sweepContext(ctx context.Context, favDir string, files []fyne.URI) error {
 		// happens to carry a .jpg/.png name is not something Write ever
 		// produced, so it is left alone rather than risk removing something
 		// this package doesn't own.
-		if !entry.Type().IsRegular() {
+		if !entry.Mode().IsRegular() {
 			continue
 		}
 		name := entry.Name()
@@ -84,11 +92,32 @@ func sweepContext(ctx context.Context, favDir string, files []fyne.URI) error {
 		// One file failing to remove (permissions, a concurrent delete)
 		// should not stop the rest of the sweep from running; report the
 		// first error once the whole directory has been walked.
-		if err := os.Remove(filepath.Join(dir, name)); err != nil && firstErr == nil {
+		if err := removeStalePreview(ctx, access, filepath.Join(SubDir, name), entry); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
 	return firstErr
+}
+
+// A sweep must not unlink a replacement installed after its inventory.
+// Publication and cleanup share the same brief critical section.
+func removeStalePreview(ctx context.Context, access *favstore.Access, path string, observed os.FileInfo) error {
+	previewCommitMu.Lock()
+	defer previewCommitMu.Unlock()
+	if err := access.Current(ctx); err != nil {
+		return err
+	}
+	current, err := access.Root.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(observed, current) || observed.Size() != current.Size() || !observed.ModTime().Equal(current.ModTime()) {
+		return nil
+	}
+	return access.Root.Remove(path)
 }
 
 // retainedByOfflineGuard reports whether base begins with one of hashes

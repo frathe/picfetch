@@ -351,8 +351,10 @@ func TestFavoritesMenuItemOpensStoredFilesThroughViewer(t *testing.T) {
 		t.Fatalf("favstore.Save: %v", err)
 	}
 	v.favorites.SetDir(dir)
+	v.favorites.Settle()
 
 	v.favorites.Menu().Items[2].Action()
+	v.favorites.Settle()
 	waitForScan(t, v)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
@@ -390,10 +392,12 @@ func TestFavoriteShortcutOpensStoredFilesThroughViewer(t *testing.T) {
 		t.Fatalf("favstore.Save: %v", err)
 	}
 	v.favorites.SetDir(dir)
+	v.favorites.Settle()
 
 	handler := &fyne.ShortcutHandler{}
 	wireFavoriteShortcuts(handler, v.favorites.Open)
 	handler.TypedShortcut(favoriteui.ShortcutForIndex(0))
+	v.favorites.Settle()
 	waitForScan(t, v)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
@@ -411,10 +415,12 @@ func TestGlobalFavoriteShortcutOpensStoredFilesThroughViewer(t *testing.T) {
 		t.Fatalf("favstore.Save: %v", err)
 	}
 	v.favorites.SetDir(dir)
+	v.favorites.Settle()
 
 	handler := &fyne.ShortcutHandler{}
 	wireGlobalShortcuts(handler, v)
 	handler.TypedShortcut(favoriteui.ShortcutForIndex(0))
+	v.favorites.Settle()
 	waitForScan(t, v)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
@@ -486,6 +492,7 @@ func TestRefreshMenus_FavoriteChangeRepublishesTheBarThroughTheViewer(t *testing
 	v.win = recorder
 	defer func() { v.win = win }()
 	v.favorites.SetDir(dir)
+	v.favorites.Settle()
 
 	if len(recorder.published) == 0 {
 		t.Fatal("rebuilding the Favorites menu never reached refreshMainMenu - viewer.RefreshMenus has to re-publish the bar")
@@ -518,6 +525,7 @@ func TestWireManageFavoritesShortcut_OpensTheDialog(t *testing.T) {
 		KeyName:  fyne.KeyF,
 		Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift,
 	})
+	v.favorites.Settle()
 
 	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
 		t.Errorf("overlay count = %d, want 1 (the Manage Favorites dialog)", n)
@@ -540,6 +548,7 @@ func TestWireManageFavoritesShortcut_DoesNothingWhileTheDeleteCardIsUp(t *testin
 	}
 
 	v.showManageFavorites()
+	v.favorites.Settle()
 
 	if n := len(v.win.Canvas().Overlays().List()); n != 0 {
 		t.Errorf("overlay count = %d, want 0 - the dialog must not open over the delete card", n)
@@ -562,6 +571,7 @@ func TestWireManageFavoritesShortcut_DoesNothingWhileTheExportPromptIsUp(t *test
 	}
 
 	v.showManageFavorites()
+	v.favorites.Settle()
 
 	if n := len(v.win.Canvas().Overlays().List()); n != 0 {
 		t.Errorf("overlay count = %d, want 0 - the dialog must not open over the export prompt", n)

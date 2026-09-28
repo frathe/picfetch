@@ -39,7 +39,7 @@ func TestAnalysisCachePolicyProducerScope(t *testing.T) {
 					}
 					cacheTestFavorite(t, policy.Roots, member)
 					policy.FavoriteEnabled, policy.LooseEnabled = favoriteEnabled, looseEnabled
-					store, err := openRepresentationStore(context.Background(), policy, scope)
+					store, err := openRepresentationStore(context.Background(), policy, scope, nil)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -300,7 +300,7 @@ func TestAnalysisCachePolicyPromotionWarnings(t *testing.T) {
 					t.Fatal(err)
 				}
 				cacheTestFavorite(t, policy.Roots, item)
-				store, err := openRepresentationStore(ctx, policy, scope)
+				store, err := openRepresentationStore(ctx, policy, scope, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -323,7 +323,7 @@ func TestAnalysisCachePolicyPromotionWarnings(t *testing.T) {
 				if (preparer.warning != "") != (failure != "none") {
 					t.Fatalf("promotion warning: %q, failure=%s", preparer.warning, failure)
 				}
-				if _, hit := store.favorites.read(item); hit != (failure == "none") {
+				if _, hit := store.favorites.read(ctx, item); hit != (failure == "none") {
 					t.Fatalf("unexpected Favorite persistence: hit=%t, failure=%s", hit, failure)
 				}
 			})
@@ -451,7 +451,7 @@ func TestAnalysisCachePolicyIncompleteMembershipPreservesHealthyFavorites(t *tes
 		if err := os.Mkdir(lock, 0700); err != nil {
 			t.Fatal(err)
 		}
-		store, err := openRepresentationStore(context.Background(), policy, writeEnabledStores)
+		store, err := openRepresentationStore(context.Background(), policy, writeEnabledStores, nil)
 		if store != nil {
 			t.Cleanup(store.close)
 		}
@@ -500,7 +500,7 @@ func TestAnalysisCachePolicyIncompleteMembershipPreservesHealthyFavorites(t *tes
 			} else if err := os.Symlink("file-list.json", filepath.Join(blocked, "file-list.json")); err != nil {
 				t.Fatal(err)
 			}
-			partial, err := openRepresentationStore(context.Background(), policy, writeEnabledStores)
+			partial, err := openRepresentationStore(context.Background(), policy, writeEnabledStores, nil)
 			if partial != nil {
 				t.Cleanup(partial.close)
 			}
@@ -755,7 +755,7 @@ func cacheTestPolicy(t *testing.T) CachePolicy {
 
 func cacheTestStore(t *testing.T, policy CachePolicy) *representationStore {
 	t.Helper()
-	store, err := openRepresentationStore(context.Background(), policy, writeEnabledStores)
+	store, err := openRepresentationStore(context.Background(), policy, writeEnabledStores, nil)
 	if store != nil {
 		t.Cleanup(store.close)
 	}

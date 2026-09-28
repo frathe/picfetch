@@ -2,6 +2,7 @@ package favthumbs
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"image"
@@ -13,6 +14,8 @@ import (
 	"sync"
 
 	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/favstore"
 )
 
 // jpegQuality is the quality passed to image/jpeg when encoding a preview.
@@ -27,7 +30,7 @@ const jpegQuality = 85
 // between checking its identity and removing it.
 var previewCommitMu sync.Mutex
 
-// Write stores thumb as the current preview for src under favDir, replacing
+// Write stores thumb as the current preview for src under owner, replacing
 // any preview already on disk for it. It fails when src cannot be
 // identified with EntryName - typically because src no longer exists -
 // since a preview's filename is how Read later recognizes which version of
@@ -37,14 +40,14 @@ var previewCommitMu sync.Mutex
 // which is then renamed into place, mirroring favstore.Save: a reader can
 // never observe a partially written preview, and a failed encode never
 // clobbers a good one that was there before.
-func Write(favDir string, src fyne.URI, thumb image.Image) error {
-	return WriteContext(context.Background(), favDir, src, thumb)
+func Write(owner *favstore.Owner, src fyne.URI, thumb image.Image) error {
+	return WriteContext(context.Background(), owner, src, thumb)
 }
 
 // WriteContext checks cancellation before encoding, at encoder writes, and
 // before committing the temporary file. In-flight sampling/filesystem calls
 // must return before a boundary can observe cancellation.
-func WriteContext(ctx context.Context, favDir string, src fyne.URI, thumb image.Image) error {
+func WriteContext(ctx context.Context, owner *favstore.Owner, src fyne.URI, thumb image.Image) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -52,20 +55,36 @@ func WriteContext(ctx context.Context, favDir string, src fyne.URI, thumb image.
 	if !ok {
 		return fmt.Errorf("favthumbs: cannot determine entry name for %v", src)
 	}
-	return writeEntryContext(ctx, favDir, name, thumb)
+	return writeEntryContext(ctx, owner, name, thumb)
+}
+
+func acquirePreview(ctx context.Context, owner *favstore.Owner) (*favstore.Access, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if owner == nil {
+		return nil, favstore.ErrRetired
+	}
+	return owner.Acquire(ctx)
 }
 
 // name is captured before producing pixels, so a later source replacement
 // cannot label those pixels as the new file version.
-func writeEntryContext(ctx context.Context, favDir, name string, thumb image.Image) error {
+func writeEntryContext(ctx context.Context, owner *favstore.Owner, name string, thumb image.Image) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if thumb == nil {
 		return errors.New("favthumbs: nil thumbnail")
 	}
-	dir := Dir(favDir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	access, err := acquirePreview(ctx, owner)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = access.Close() }()
+	// Only the cache child may be created. Recreating a Favorite by pathname
+	// would give a retired pass ownership of a replacement directory.
+	if err := access.Root.Mkdir(SubDir, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 		return err
 	}
 
@@ -77,23 +96,18 @@ func writeEntryContext(ctx context.Context, favDir, name string, thumb image.Ima
 		ext = ".png"
 	}
 
-	if err := ctx.Err(); err != nil {
+	if err := access.Current(ctx); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".favthumb-*"+ext)
+	tmpPath := filepath.Join(SubDir, ".favthumb-"+rand.Text()+ext)
+	tmp, err := access.Root.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return err
 	}
-	tmpPath := tmp.Name()
 	// A no-op once the rename below has already moved tmpPath into place;
 	// left unchecked deliberately, since its only job left by then is
 	// cleanup on an error return above.
-	defer func() { _ = os.Remove(tmpPath) }()
-
-	if err := tmp.Chmod(0o644); err != nil {
-		_ = tmp.Close()
-		return err
-	}
+	defer func() { _ = access.Root.Remove(tmpPath) }()
 
 	var encErr error
 	if ext == ".png" {
@@ -123,10 +137,10 @@ func writeEntryContext(ctx context.Context, favDir, name string, thumb image.Ima
 	}
 	previewCommitMu.Lock()
 	defer previewCommitMu.Unlock()
-	if err := ctx.Err(); err != nil {
+	if err := access.Current(ctx); err != nil {
 		return err
 	}
-	if err := os.Rename(tmpPath, filepath.Join(dir, name+ext)); err != nil {
+	if err := access.Root.Rename(tmpPath, filepath.Join(SubDir, name+ext)); err != nil {
 		return err
 	}
 
@@ -141,7 +155,9 @@ func writeEntryContext(ctx context.Context, favDir, name string, thumb image.Ima
 	if ext == ".png" {
 		sibling = ".jpg"
 	}
-	_ = os.Remove(filepath.Join(dir, name+sibling))
+	if access.Current(ctx) == nil {
+		_ = access.Root.Remove(filepath.Join(SubDir, name+sibling))
+	}
 
 	return nil
 }
@@ -178,18 +194,18 @@ func hasAlpha(img image.Image) bool {
 	return false
 }
 
-// Read returns the current preview for src stored under favDir. It reports
+// Read returns the current preview for src stored under owner. It reports
 // false when there is no preview, when the stored preview is for an older
 // version of src, or when the stored preview cannot be decoded. A corrupt
 // preview is removed best-effort so a later memory hit can repair it.
-func Read(favDir string, src fyne.URI) (image.Image, bool) {
-	img, ok, _ := ReadContext(context.Background(), favDir, src)
+func Read(owner *favstore.Owner, src fyne.URI) (image.Image, bool) {
+	img, ok, _ := ReadContext(context.Background(), owner, src)
 	return img, ok
 }
 
 // ReadContext retains Read's tolerant cache-miss policy while reporting
 // cancellation distinctly, so a stopped pass cannot decode the original next.
-func ReadContext(ctx context.Context, favDir string, src fyne.URI) (image.Image, bool, error) {
+func ReadContext(ctx context.Context, owner *favstore.Owner, src fyne.URI) (image.Image, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, false, err
 	}
@@ -200,13 +216,17 @@ func ReadContext(ctx context.Context, favDir string, src fyne.URI) (image.Image,
 	if !ok {
 		return nil, false, nil
 	}
-	dir := Dir(favDir)
+	access, err := acquirePreview(ctx, owner)
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = access.Close() }()
 	for _, ext := range [...]string{".jpg", ".png"} {
-		if err := ctx.Err(); err != nil {
+		if err := access.Current(ctx); err != nil {
 			return nil, false, err
 		}
-		img, ok := decodeFile(ctx, filepath.Join(dir, name+ext))
-		if err := ctx.Err(); err != nil {
+		img, ok := decodeFile(ctx, access, filepath.Join(SubDir, name+ext))
+		if err := access.Current(ctx); err != nil {
 			return nil, false, err
 		}
 		if ok {
@@ -217,21 +237,25 @@ func ReadContext(ctx context.Context, favDir string, src fyne.URI) (image.Image,
 }
 
 // hasCurrentPreview reports whether a current preview for src is already
-// stored under favDir, without decoding it. Sync uses this instead of Read
+// stored under owner, without decoding it. Sync uses this instead of Read
 // for the one case where the pixels are not wanted - the caller already
 // holds the thumbnail in memory and only needs to know whether disk is
 // behind - since decoding a JPEG purely to learn that a file exists is
 // work nobody consumes.
-func hasCurrentPreview(favDir string, src fyne.URI) bool {
+func hasCurrentPreview(owner *favstore.Owner, src fyne.URI) bool {
 	name, ok := EntryName(src)
 	if !ok {
 		return false
 	}
 
-	dir := Dir(favDir)
+	access, err := acquirePreview(context.Background(), owner)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = access.Close() }()
 	for _, ext := range [...]string{".jpg", ".png"} {
-		if _, err := os.Stat(filepath.Join(dir, name+ext)); err == nil {
-			return true
+		if _, err := access.Root.Stat(filepath.Join(SubDir, name+ext)); err == nil {
+			return access.Current(context.Background()) == nil
 		}
 	}
 	return false
@@ -242,11 +266,11 @@ func hasCurrentPreview(favDir string, src fyne.URI) bool {
 // for every call), or it exists but is not a decodable image (a previous
 // write that never completed, or on-disk corruption) - either way that is
 // a plain miss for Read, not an error.
-func decodeFile(ctx context.Context, path string) (image.Image, bool) {
+func decodeFile(ctx context.Context, access *favstore.Access, path string) (image.Image, bool) {
 	if ctx.Err() != nil {
 		return nil, false
 	}
-	f, err := os.Open(path)
+	f, err := access.Root.Open(path)
 	if err != nil {
 		return nil, false
 	}
@@ -260,24 +284,24 @@ func decodeFile(ctx context.Context, path string) (image.Image, bool) {
 		// is not blocked by hasCurrentPreview's inexpensive existence test.
 		// Close first for Windows, then check for a replacement installed
 		// while the failed file was being decoded.
-		discardCorruptPreview(ctx, path, f)
+		discardCorruptPreview(ctx, access, path, f)
 		return nil, false
 	}
 	return img, true
 }
 
-func discardCorruptPreview(ctx context.Context, path string, failed *os.File) {
+func discardCorruptPreview(ctx context.Context, access *favstore.Access, path string, failed *os.File) {
 	previewCommitMu.Lock()
 	defer previewCommitMu.Unlock()
 	// Retain the open handle until this critical section so a previously
 	// unlinked inode cannot be recycled for a healthy replacement first.
 	failedInfo, statErr := failed.Stat()
 	_ = failed.Close()
-	if ctx.Err() != nil || statErr != nil {
+	if access.Current(ctx) != nil || statErr != nil {
 		return
 	}
-	if current, err := os.Stat(path); err == nil && os.SameFile(failedInfo, current) {
-		_ = os.Remove(path)
+	if current, err := access.Root.Stat(path); err == nil && os.SameFile(failedInfo, current) {
+		_ = access.Root.Remove(path)
 	}
 }
 

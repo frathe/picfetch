@@ -236,7 +236,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		if err := json.Unmarshal(data, &got); err != nil {
 			t.Fatal(err)
 		}
-		if len(got) != 1 || got[0].Facts.Version != 1 || got[0].Facts.Width != 80 || got[0].Facts.Height != 120 || got[0].Facts.Format != "cr2" || got[0].Facts.Make != "Canon" || got[0].Facts.Model != "EOS Test" || got[0].Facts.CaptureDate != "2026-09-09" {
+		if len(got) != 1 || got[0].Facts.Version != similarity.FactsVersion || got[0].Facts.Width != 80 || got[0].Facts.Height != 120 || got[0].Facts.Format != "cr2" || got[0].Facts.Make != "Canon" || got[0].Facts.Model != "EOS Test" || got[0].Facts.CaptureDate != "2026-09-09" {
 			t.Fatalf("actual local analysis omitted oriented camera/date facts: %+v", got)
 		}
 	})
@@ -518,6 +518,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		v.settings.looseAnalysisCache = false
 		v.analysisDir = t.TempDir()
 		v.favorites.SetDir(t.TempDir())
+		v.favorites.Settle()
 		files := []fyne.URI{v.FileAt(0), v.FileAt(1)}
 		v.findMoreLikeThis()
 		v.visualsearch.Settle()
@@ -531,6 +532,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		entry.SetText("Saved search")
 		entry.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		v.favorites.Settle()
 		v.visualsearch.Settle()
 		usage, err := (similarity.CacheManager{}).Inspect(context.Background(), v.analysisRoots(), nil)
 		if err != nil || usage.General.Records != 0 || usage.Favorite.Records != 2 {
@@ -551,6 +553,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		v.settings.looseAnalysisCache = true
 		v.analysisDir = t.TempDir()
 		v.favorites.SetDir(t.TempDir())
+		v.favorites.Settle()
 		paths := []string{v.FileAt(0).Path(), v.FileAt(1).Path()}
 
 		v.showExplorer()
@@ -585,6 +588,7 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		v.settings.looseAnalysisCache = true
 		root := t.TempDir()
 		v.favorites.SetDir(root)
+		v.favorites.Settle()
 		files := []fyne.URI{v.FileAt(0), v.FileAt(1)}
 		paths := []string{files[0].Path(), files[1].Path()}
 		v.findMoreLikeThis()
@@ -769,11 +773,20 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		}
 		var final similarity.Event
 		renamed := false
+		var movedEntries []os.DirEntry
 		err = client.Analyze(context.Background(), paths, nil, func(e similarity.Event) {
 			if !renamed && e.Successful >= 2 {
 				renamed = true
 				if err := os.Rename(filepath.Join(root, "Trip"), filepath.Join(root, "Moved")); err != nil {
 					t.Fatal(err)
+				}
+				var err error
+				movedEntries, err = os.ReadDir(filepath.Join(root, "Moved", "analysis"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(movedEntries) < 2 || len(movedEntries) >= len(paths) {
+					t.Fatal("fixture did not move a partially persisted Favorite")
 				}
 			}
 			if e.Complete {
@@ -793,8 +806,20 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(entries) != 8 {
-			t.Fatal("incremental persistence lost representations during favorite move")
+		if !slices.EqualFunc(entries, movedEntries, func(a, b os.DirEntry) bool { return a.Name() == b.Name() }) {
+			t.Fatal("retired analysis continued publishing after the Favorite moved")
+		}
+		err = client.Analyze(context.Background(), paths, nil, func(e similarity.Event) {
+			if e.Complete {
+				final = e
+			}
+		})
+		if err != nil || final.Reused != len(movedEntries) || final.Successful != len(paths) {
+			t.Fatalf("fresh moved owner failed to reuse and complete records: %+v, %v", final.Measurements, err)
+		}
+		entries, err = os.ReadDir(filepath.Join(root, "Moved", "analysis"))
+		if err != nil || len(entries) != len(paths) {
+			t.Fatalf("fresh owner did not fill the cache: %d, %v", len(entries), err)
 		}
 		for _, entry := range entries {
 			path := filepath.Join(root, "Moved", "analysis", entry.Name())
@@ -845,13 +870,16 @@ func TestVisualSimilarityExplorerLocal(t *testing.T) {
 			t.Fatal(err)
 		}
 		v.favorites.SetDir(root)
+		v.favorites.Settle()
 		explorerMenu(t, v).Action()
 		v.settleExplorer()
 		v.LeaveSimilarityMap()
 		// A new viewer has no prior map or in-memory analysis to fall back on.
 		v = newTestViewer(t)
 		v.favorites.SetDir(root)
+		v.favorites.Settle()
 		v.favorites.Menu().Items[2].Action()
+		v.favorites.Settle()
 		waitForScan(t, v)
 		waitForSort(t, v)
 		waitUntilLoaded(t, v)

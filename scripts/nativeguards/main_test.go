@@ -169,6 +169,54 @@ func fixtureSuite() suite {
 	return suite{name: "fixture", tags: "microsoftstore", packages: []string{"./internal/distribution"}, guards: []guard{{"github.com/frathe/picfetch/internal/distribution", "TestRequired"}}}
 }
 
+func TestFavoriteOwnershipNativeSuiteRequiresCompleteEvidence(t *testing.T) {
+	for _, host := range []string{"linux", "windows", "darwin"} {
+		t.Run(host, func(t *testing.T) {
+			s, err := suiteFor("favorite-ownership", host)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for pkg, name := range map[string]string{
+				"internal/favstore":     "TestFavoriteOwnership/active_release",
+				"internal/similarity":   "TestAnalysisCacheFileURIPathsReopen/favorite",
+				"internal/favthumbs":    "TestSyncFavoriteOwnership/publication",
+				"internal/ui/favorites": "TestFavoriteStorageLifecycle/active_native_call",
+				"internal/ui":           "TestFavoriteOwnershipIntegration/preview_queued_save",
+			} {
+				if !slices.Contains(s.guards, guard{"github.com/frathe/picfetch/" + pkg, name}) {
+					t.Fatalf("missing required Favorite guard: %s %s", pkg, name)
+				}
+			}
+			filter := regexp.MustCompile(s.runTests)
+			if filter.MatchString("TestE2E_Golden") || filter.MatchString("TestHEICNativeQualification") || s.skipTests != "" {
+				t.Fatal("Favorite suite includes unrelated tests or skip exemptions")
+			}
+			var valid strings.Builder
+			for _, g := range s.guards {
+				top, _, _ := strings.Cut(g.Test, "/")
+				if !filter.MatchString(top) || filter.MatchString(top+"Extra") {
+					t.Fatalf("required guard outside exact execution filter: %v", g)
+				}
+				valid.WriteString(eventsFor(g, "run", "pass"))
+			}
+			if err := validateEvents(strings.NewReader(valid.String()), s.guards, io.Discard); err != nil {
+				t.Fatal(err)
+			}
+			for _, g := range s.guards {
+				for _, replacement := range []string{"", eventsFor(g, "run", "skip"), eventsFor(g, "run", "fail")} {
+					invalid := strings.Replace(valid.String(), eventsFor(g, "run", "pass"), replacement, 1)
+					if err := validateEvents(strings.NewReader(invalid), s.guards, io.Discard); err == nil {
+						t.Fatalf("accepted incomplete Favorite evidence: %v", g)
+					}
+				}
+			}
+			if err := s.skipHEICCodecs(true); err == nil {
+				t.Fatal("Favorite qualification accepted a codec exemption")
+			}
+		})
+	}
+}
+
 func TestCommandAdmissionNativeSuiteRunsFocusedGuards(t *testing.T) {
 	for _, tc := range []struct {
 		host  string
@@ -464,7 +512,7 @@ func TestNativeCIExecutesAndRetainsEveryDeclaredSuite(t *testing.T) {
 	}
 }
 
-func TestCommandAdmissionCIExecutesAndRetainsFocusedGuards(t *testing.T) {
+func TestFocusedNativeCIExecutesAndRetainsGuards(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/ci.yml")
 	if err != nil {
 		t.Fatal(err)
@@ -482,17 +530,21 @@ func TestCommandAdmissionCIExecutesAndRetainsFocusedGuards(t *testing.T) {
 	if err := yaml.Unmarshal(data, &workflow); err != nil {
 		t.Fatal(err)
 	}
-	for _, jobName := range []string{"windows-test", "macos-test"} {
-		t.Run(jobName, func(t *testing.T) {
+	for _, selected := range []struct{ job, suite string }{
+		{"windows-test", "command-admission"}, {"macos-test", "command-admission"},
+		{"linux-native", "favorite-ownership"}, {"windows-test", "favorite-ownership"}, {"macos-test", "favorite-ownership"},
+	} {
+		t.Run(selected.job+"/"+selected.suite, func(t *testing.T) {
+			jobName := selected.job
 			job, ok := workflow.Jobs[jobName]
 			if !ok {
 				t.Fatal("native job missing")
 			}
 			var runs, uploads int
 			for _, step := range job.Steps {
-				if strings.Contains(step.Run, "./scripts/nativeguards -suite command-admission ") {
+				if strings.Contains(step.Run, "./scripts/nativeguards -suite "+selected.suite+" ") {
 					runs++
-					if step.If != "" || strings.Contains(step.Run, "-skip-heic-codecs") || !strings.Contains(step.Run, `-capture "${{ runner.temp }}/native-guards-command-admission.json"`) {
+					if step.If != "" || strings.Contains(step.Run, "-skip-heic-codecs") || !strings.Contains(step.Run, `-capture "${{ runner.temp }}/native-guards-`+selected.suite+`.json"`) {
 						t.Errorf("focused qualification is conditional, exempted or lacks its capture: %+v", step)
 					}
 				}

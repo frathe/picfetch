@@ -249,7 +249,7 @@ func openAnalyzerRepresentationStore(ctx context.Context, req request) (*represe
 		Roots:           CacheRoots{FavoritesDir: req.FavoritesDir, GeneralDir: req.GeneralAnalysisDir},
 		FavoriteEnabled: req.FavoritesDir != "" && !req.DisableFavoriteCache, LooseEnabled: req.GeneralAnalysisDir != "",
 		GeneralLimitBytes: req.GeneralAnalysisLimitBytes,
-	}, scope)
+	}, scope, append([]string{}, req.Paths...))
 }
 
 func publishAnalysisMap(ctx context.Context, event *Event, items []Item, complete bool, send func(Event) error) error {

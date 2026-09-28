@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 )
 
@@ -33,6 +34,7 @@ type representationStore struct {
 	accountedRevision  string
 	accountedDirectory os.FileInfo
 	writeScope         cacheWriteScope
+	sourceScope        []string
 	accounted          bool
 }
 
@@ -43,7 +45,7 @@ func (s *representationStore) refreshFavorites(ctx context.Context, items []Item
 	if s == nil || ctx.Err() != nil {
 		return ctx.Err()
 	}
-	next, inventoryErr := openRepresentationStore(ctx, s.policy, s.writeScope)
+	next, inventoryErr := openRepresentationStore(ctx, s.policy, s.writeScope, s.sourceScope)
 	if ctx.Err() != nil {
 		// Opening returns an owned partial store on every error path.
 		//goland:noinspection GoDfaErrorMayBeNotNil
@@ -70,7 +72,7 @@ func (s *representationStore) refreshFavorites(ctx context.Context, items []Item
 		}
 		var missing []*favoriteAnalysis
 		for _, favorite := range changed[filepath.Clean(item.Path)] {
-			if _, hit := favorite.read(item); !hit {
+			if _, hit := favorite.read(ctx, item); !hit {
 				missing = append(missing, favorite)
 			}
 		}
@@ -100,13 +102,13 @@ func (s *representationStore) refreshFavorites(ctx context.Context, items []Item
 	return errors.Join(failures...)
 }
 
-func openRepresentationStore(ctx context.Context, policy CachePolicy, scope cacheWriteScope) (*representationStore, error) {
-	store := &representationStore{policy: policy, writeScope: scope}
+func openRepresentationStore(ctx context.Context, policy CachePolicy, scope cacheWriteScope, sources []string) (*representationStore, error) {
+	store := &representationStore{policy: policy, writeScope: scope, sourceScope: slices.Clone(sources)}
 	if store.policy.GeneralLimitBytes == 0 {
 		store.policy.GeneralLimitBytes = DefaultAnalysisCacheBytes
 	}
 	// Membership remains available even when Favorite writes are disabled.
-	favorites, err := openAnalysisCache(ctx, policy.Roots.FavoritesDir)
+	favorites, err := openScopedAnalysisCache(ctx, policy.Roots.FavoritesDir, store.sourceScope)
 	store.favorites = favorites
 	if err != nil {
 		// Healthy Favorite records remain usable, but unknown membership must
@@ -145,7 +147,7 @@ func (s *representationStore) read(ctx context.Context, source Item) (Item, bool
 		return Item{}, false, nil
 	}
 	if s.policy.FavoriteEnabled {
-		if item, ok := s.favorites.read(source); ok {
+		if item, ok := s.favorites.read(ctx, source); ok {
 			return item, true, nil
 		}
 	}

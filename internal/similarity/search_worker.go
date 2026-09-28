@@ -106,7 +106,7 @@ func searchLocal(ctx context.Context, req request, queries <-chan SearchQuery, e
 		return err
 	}
 	_ = RegisterLocalFiles()
-	cache, cacheErr := openRepresentationStore(ctx, req.Search.Cache, writeEnabledStores)
+	cache, cacheErr := openRepresentationStore(ctx, req.Search.Cache, writeEnabledStores, append([]string{}, req.Search.Paths...))
 	if cache != nil {
 		defer cache.close()
 	}

@@ -183,6 +183,7 @@ func TestStepImage_NoopWhileFyneDialogIsUp(t *testing.T) {
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
 	dropAndWait(t, v, a, b)
 	v.showManageFavorites()
+	v.favorites.Settle()
 	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
 		t.Fatalf("setup: overlay count = %d, want Manage Favorites", n)
 	}

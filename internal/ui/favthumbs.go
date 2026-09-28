@@ -12,6 +12,7 @@ import (
 
 	"fyne.io/fyne/v2"
 
+	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/favthumbs"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
@@ -48,7 +49,7 @@ func (v *viewer) SetFavoritePreviewLimit(n int) {
 	}
 }
 
-// SyncFavoritePreviews brings the previews stored under favDir in line with
+// SyncFavoritePreviews brings the previews stored under the captured owner in line with
 // files, in the background - the favorites feature's report that a favorite
 // now holds this list, arriving both when one is saved and when one is
 // opened. This is where that report turns into thumbnail work: favorites
@@ -58,10 +59,8 @@ func (v *viewer) SetFavoritePreviewLimit(n int) {
 // Deliberately not skipped for an empty files slice: a favorite the user
 // emptied should have its previews swept, and that is exactly what a Sync
 // over no files does.
-func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
-	// favDir is empty when favstore.Dir was handed a name it rejects, which
-	// leaves nothing to write previews into or sweep.
-	if v.favThumbClosed || !v.settings.favPreviewCache || favDir == "" {
+func (v *viewer) SyncFavoritePreviews(owner *favstore.Owner, files []fyne.URI) {
+	if v.favThumbClosed || !v.settings.favPreviewCache || owner == nil {
 		return
 	}
 
@@ -80,10 +79,9 @@ func (v *viewer) SyncFavoritePreviews(favDir string, files []fyne.URI) {
 		defer done()
 		defer token.cancelContext()
 
-		if err := favthumbs.Sync(token.context(), favDir, files, limit, sink); err != nil {
-			// A superseded pass returns context.Canceled, which is this
-			// design working rather than anything failing.
-			if errors.Is(err, context.Canceled) {
+		if err := favthumbs.Sync(token.context(), owner, files, limit, sink); err != nil {
+			// Supersession and external Favorite replacement retire a pass.
+			if errors.Is(err, context.Canceled) || errors.Is(err, favstore.ErrRetired) {
 				return
 			}
 			fyne.LogError("failed to cache favorite previews", err)

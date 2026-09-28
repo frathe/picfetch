@@ -735,14 +735,17 @@ func TestCommandAdmissionRoutes(t *testing.T) {
 						t.Fatal(err)
 					}
 					v.favorites.SetDir(dir)
+					v.favorites.Settle()
 					v.requestDelete()
 					switch action {
 					case "add":
 						v.favorites.AddCurrentList()
 					case "manage":
 						v.favorites.ShowManage()
+						v.favorites.Settle()
 					case "open":
 						v.favorites.Open(0)
+						v.favorites.Settle()
 					}
 					if v.win.Canvas().Overlays().Top() != nil || !v.deletion.Visible() || v.state.Observe().DisplayFiles()[0] != a || v.favThumb.Begun() {
 						t.Fatal("Favorite entry acted below confirmation")

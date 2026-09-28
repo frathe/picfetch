@@ -116,6 +116,7 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	v.heic.ui = &uitest.UIQueue{}
 	v.display.SetUIQueue(&uitest.UIQueue{})
 	v.help.SetUIQueue(&uitest.UIQueue{})
+	v.favorites.SetUIQueue(&uitest.UIQueue{})
 	v.help.SetImageClient(&http.Client{Transport: offlineReleaseImages{}})
 	v.grid.SetUIQueue(&uitest.UIQueue{})
 	v.locationMap.SetUIQueue(&uitest.UIQueue{})
@@ -210,6 +211,8 @@ func drain(t *testing.T, v *viewer) {
 	// this test has already closed. Clearing it first also means nothing
 	// can start a fresh scan behind the waits below.
 	openwith.SetHandler(nil)
+	v.favorites.Stop()
+	v.favorites.Settle()
 	v.stopHEIC()
 	v.settleHEIC()
 	v.help.Stop()
