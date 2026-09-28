@@ -1,19 +1,21 @@
 package ui
 
 import (
+	"context"
 	"slices"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/fileidentity"
+	"github.com/frathe/picfetch/internal/requestlife"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/ui/locationmap"
 )
 
 type locationInput struct {
 	prepare    func()
-	prepareOp  requestLifecycle
+	prepareOp  requestlife.Owner
 	rebuilding bool
 }
 
@@ -59,12 +61,12 @@ func (v *viewer) showLocationMap() {
 }
 
 func (v *viewer) prepareLocationMap() {
-	v.locationInput.prepareOp.invalidate()
+	v.locationInput.prepareOp.Invalidate()
 	v.locationInput.prepare = nil
 	if v.dupes.HideDuplicates() {
-		token := v.locationInput.prepareOp.begin()
+		token := v.locationInput.prepareOp.Begin(context.Background())
 		v.locationInput.prepare = func() {
-			if token.current() && !v.stopping {
+			if token.Current() && !v.stopping {
 				v.beginLocationMap()
 			}
 		}
@@ -129,7 +131,7 @@ func (v *viewer) LeaveLocationMap() {
 func (v *viewer) closeLocationMap() {
 	visit := v.browsing.current()
 	v.browsing.leaveLocation()
-	v.locationInput.prepareOp.invalidate()
+	v.locationInput.prepareOp.Invalidate()
 	if v.locationInput.prepare != nil {
 		v.locationInput.prepare = nil
 		v.grid.Close()

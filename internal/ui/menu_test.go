@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"image/color"
 	"os"
@@ -736,7 +737,7 @@ func TestCloseFiles_NeverClosesTheWindow(t *testing.T) {
 func TestCloseFiles_CancelsScanInProgress(t *testing.T) {
 	v := newTestViewer(t)
 
-	v.scanOp.lifecycle.begin()
+	v.scanOp.lifecycle.Begin(context.Background())
 	v.scanOp.active = true
 	v.scanOp.spinner.Show()
 	v.scanOp.label.Show()

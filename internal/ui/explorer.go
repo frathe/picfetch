@@ -1,9 +1,12 @@
 package ui
 
 import (
+	"context"
+
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/preferences"
+	"github.com/frathe/picfetch/internal/requestlife"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/winpos"
@@ -12,7 +15,7 @@ import (
 // explorerInput contains only root-owned collection, launch and window policy.
 type explorerInput struct {
 	prepare                  func()
-	prepareOp                requestLifecycle
+	prepareOp                requestlife.Owner
 	pendingLaunch, maximized bool
 }
 
@@ -36,9 +39,9 @@ func (v *viewer) showExplorer() {
 	winpos.Maximize(v.win)
 	v.explorerInput.maximized = true
 	if v.dupes.HideDuplicates() {
-		token := v.explorerInput.prepareOp.begin()
+		token := v.explorerInput.prepareOp.Begin(context.Background())
 		v.explorerInput.prepare = func() {
-			if token.current() {
+			if token.Current() {
 				v.beginExplorerAnalysis()
 			}
 		}
@@ -165,7 +168,7 @@ func (v *viewer) LeaveSimilarityMap() {
 	}
 }
 func (v *viewer) cancelExplorerPreparation() {
-	v.explorerInput.prepareOp.invalidate()
+	v.explorerInput.prepareOp.Invalidate()
 	if v.explorerInput.prepare != nil {
 		v.explorerInput.prepare = nil
 		v.grid.Close()

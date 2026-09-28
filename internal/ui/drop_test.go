@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"image/color"
 	"os"
@@ -393,11 +394,11 @@ func TestSetMaxScan_FloorsAtOne(t *testing.T) {
 // not bump gen or raise a spurious "cancelled scanning" toast.
 func TestCancelScan_NoOpWhenNotScanning(t *testing.T) {
 	v := newTestViewer(t)
-	revisionBefore := v.scanOp.lifecycle.currentRevision()
+	revisionBefore := v.scanOp.lifecycle.Revision()
 
 	v.cancelScan()
 
-	if v.scanOp.lifecycle.currentRevision() != revisionBefore {
+	if v.scanOp.lifecycle.Revision() != revisionBefore {
 		t.Error("cancelScan should not invalidate the scan lifecycle when nothing is scanning")
 	}
 	if v.toast.card.Visible() {
@@ -414,7 +415,7 @@ func TestCancelScan_NoOpWhenNotScanning(t *testing.T) {
 func TestCancelScan_CancelsInFlightScanWithNoFilesYet(t *testing.T) {
 	v := newTestViewer(t)
 
-	token := v.scanOp.lifecycle.begin()
+	token := v.scanOp.lifecycle.Begin(context.Background())
 	v.scanOp.active = true
 	v.scanOp.spinner.Show()
 	v.scanOp.label.Show()
@@ -439,7 +440,7 @@ func TestCancelScan_CancelsInFlightScanWithNoFilesYet(t *testing.T) {
 	if !v.dropzone.Visible() || !v.welcomeArt.Visible() {
 		t.Error("drop zone/welcome art should be restored after cancelling a scan that had no files loaded yet")
 	}
-	if token.current() || token.context().Err() == nil {
+	if token.Current() || token.Context().Err() == nil {
 		t.Error("cancelScan should cancel and supersede the in-flight scan token")
 	}
 	if !v.toast.card.Visible() {
@@ -491,7 +492,7 @@ func TestCancelScan_PreservesExistingFilesInMergeMode(t *testing.T) {
 func TestClearToDropzone_FinishesInFlightScan(t *testing.T) {
 	v := newTestViewer(t)
 
-	token := v.scanOp.lifecycle.begin()
+	token := v.scanOp.lifecycle.Begin(context.Background())
 	v.scanOp.active = true
 	v.scanOp.show()
 	v.dropzone.Hide()
@@ -508,7 +509,7 @@ func TestClearToDropzone_FinishesInFlightScan(t *testing.T) {
 	if !v.dropzone.Visible() {
 		t.Error("dropzone should be visible after clearToDropzone")
 	}
-	if token.current() || token.context().Err() == nil {
+	if token.Current() || token.Context().Err() == nil {
 		t.Error("clearToDropzone should cancel and supersede the in-flight scan token")
 	}
 }
@@ -569,13 +570,13 @@ func TestNavigationDoesNotInvalidateScan(t *testing.T) {
 	b := uitest.TempJPEGURI(t, "b.jpg", 4, 4, color.White)
 	dropAndWait(t, v, a, b)
 
-	scanToken := v.scanOp.lifecycle.begin()
+	scanToken := v.scanOp.lifecycle.Begin(context.Background())
 	v.scanOp.active = true
 
 	v.ShowImage(1)
 	waitUntilLoaded(t, v)
 
-	if !scanToken.current() {
+	if !scanToken.Current() {
 		t.Fatal("navigation invalidated an unrelated in-flight scan")
 	}
 	if !v.scanOp.active {

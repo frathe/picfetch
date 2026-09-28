@@ -159,9 +159,10 @@ policy; or introduce shared Stop/Wait/Settle choreography.
 Implementation begins with ticket 01; ticket 02's pilot verdict gates either
 the migration batches or fallback. Final qualification depends only on the
 selected branch. Sorting and SVG use the accepted Owner/Token/FinalDelivery
-contract; scan retains its local lifetime through a temporary progress seam.
-Ticket 04 reunifies that seam after acceptance, or ticket 08 removes it on
-fallback. The recorded ticket 02 verdict accepts extraction: both real callers
+contract. Ticket 04 reunifies scan/sort progress after migrating scan and also
+migrates native chooser and root Explorer/Location Map preparation. Their
+feature-local workers and lifecycles remain independent. The recorded ticket 02
+verdict accepts extraction: both real callers
 delegate currentness and release handoff through one contract, and sorting also
 delegates its captured final-delivery finisher. SVG retains feature identities,
 debounce and raster workers. Passing real-consumer and production shutdown tests

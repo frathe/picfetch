@@ -101,8 +101,9 @@
   token migration and a contracts-and-tests fallback. Its
   [nine approved tickets](.scratch/ma-032/issues/README.md) are published as
   with [Deep SDD implementation and evidence](plans/2026-09-28-ma-032-request-lifetimes.md)
-  underway. Tickets 01-03 are complete: accepted sorting/SVG pilot and all display
-  token owners. Tickets 04-07 remain and fallback 08 is inapplicable. Each completed ticket gets its own commit;
+  underway. Tickets 01-04 are complete: accepted sorting/SVG pilot, all display
+  owners, scanning, chooser and root map preparation. Tickets 05-07 remain and
+  fallback 08 is inapplicable. Each completed ticket gets its own commit;
   final qualification and the latest-head GitHub review loop remain open.
   MA-033 remains a proposal.
   Keep feature state local and preserve explicit composition.

@@ -135,8 +135,8 @@ func TestStaleFileStateCompletionsDoNotOverwriteNewerState(t *testing.T) {
 	v.state.Replace(collectionInput{source: current, display: current, favorite: "current-favorite"})
 	before := v.state.Observe()
 
-	staleScanToken := v.scanOp.lifecycle.begin()
-	v.scanOp.lifecycle.begin()
+	staleScanToken := v.scanOp.lifecycle.Begin(context.Background())
+	v.scanOp.lifecycle.Begin(context.Background())
 	var scanSignal completion.Signal
 	for _, merging := range []bool{false, true} {
 		v.applyScanResult(staleScanToken, merging, stale, stale, false, filescan.DefaultMax, scanSignal.Begin(), "stale-favorite", nil, nil)

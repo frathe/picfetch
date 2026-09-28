@@ -14,6 +14,7 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/requestlife"
 	"github.com/frathe/picfetch/internal/ui/analysiscache"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	compareui "github.com/frathe/picfetch/internal/ui/compare"
@@ -240,7 +241,7 @@ type viewer struct {
 	// sortOp.done is finished by final delivery once that request's reorder has
 	// finished applying (or been discarded as stale), mirroring v.scanOp.done
 	// and display.LoadDone so tests can wait on it deterministically.
-	sortOp sortOpUI
+	sortOp asyncOpUI
 	// sortDo captures the UI dispatcher before each worker starts. Nil uses
 	// fyne.Do; held-delivery tests install an instance-owned queue.
 	sortDo func(func())
@@ -384,7 +385,7 @@ type viewer struct {
 	fileWork             fileMutationWork
 	chooser              completion.Signal
 	chooserUI            chooserUIQueue
-	openChooserLifecycle requestLifecycle
+	openChooserLifecycle requestlife.Owner
 	openChooserWorkers   sync.WaitGroup
 	openChooserClosed    bool
 
@@ -724,7 +725,7 @@ func (v *viewer) showFileIfPresent(target fyne.URI) bool {
 // act as "start over" instead of quitting whenever there's something to
 // clear.
 func (v *viewer) reset() {
-	v.openChooserLifecycle.invalidate()
+	v.openChooserLifecycle.Invalidate()
 	v.clearToDropzone()
 
 	v.showWelcomeState()

@@ -1,6 +1,6 @@
 # MA-032 implementation and evidence
 
-Status: tickets 01-03 complete; extraction accepted, ticket 04 is next.
+Status: tickets 01-04 complete; extraction accepted, ticket 05 is next.
 Base: `04cb74c`. Draft PR: https://github.com/frathe/picfetch/pull/71.
 Authorization: 2026-09-28 `/implement MA-032`, TDD/SDD, a commit after each
 ticket, draft PR/CI, then ready-for-review and the GitHub Codex review loop.
@@ -43,7 +43,7 @@ The authorized GitHub full suite supplies the final broad race gate; use
 | 01 | New requestlife API/tests; asyncop/sort/viewer, affected harness and tests; real sort handoff and production shutdown; local scan retained | T0; at most 1 bounded T1 implementation; focused V1-V6, no full suite | Complete |
 | 02 | display/vector.go, display contract tests, root shutdown tests; same delivery API; D2 verdict before adoption | T0; 1 T3 scout, focused V1-V5 | Complete |
 | 03 | display feature/load/preload/animation/lifecycle and affected tests; retained-load and playback protocols | T0; 0 spawns (mechanical rule S), focused V1-V4 | Complete |
-| 04 | root asyncop/drop/openfiles/explorer/locationmap and composition/tests; four basic owners | T0; optional 1 T1 task <=3 files, focused V1-V5 | Blocked by verdict |
+| 04 | root asyncop/drop/openfiles/explorer/locationmap and composition/tests; four basic owners | T0; 0 spawns (mechanical rule S), focused V1-V5 | Complete |
 | 05 | filework/save/export/search reconciliation and tests; committed callbacks stay explicit | T0; no spawn, focused V1-V4 | Blocked by verdict |
 | 06 | clipboardwork/clipboard/copyfiles/copyselection, viewer/harness and tests; retain capture and delivery completion | T0; optional 1 T1 task <=3 files, focused V1-V4 | Blocked by verdict |
 | 07 | favthumbs/autoupdate/viewer/harness and affected tests; basic tokens only | T0; optional 1 T1 task <=3 files, focused V1-V4 | Blocked by verdict |
@@ -191,6 +191,8 @@ tests are added. New behavior gaps, if found, get a vertical failing test first.
 
 ### Ticket 03 — display convergence (parent `6a3f477`)
 
+Committed as `0add587`, pushed to draft PR 71.
+
 All three display owners now use requestlife. Load/retry/preload signatures use
 immutable shared tokens; load captures HEIC before Begin. Successful loading
 keeps its token beyond LoadDone, while failed terminal loading releases it.
@@ -213,3 +215,33 @@ warnings: feature.go/load.go/preload.go/animation.go, all clean without timeout.
 Lead diff/inventory review: no new join, queue, admission rule or release protocol;
 all retired generations remain under their existing barriers. Spawns 0, one lead
 review, no broad local suite. Formatting and whitespace clean.
+
+### Ticket 04 — preparation and chooser (parent `0add587`)
+
+Scan, native chooser, root Explorer preparation and root Location Map preparation
+now use the shared Owner/Token API. Includes invalidation-only callers in source
+reconciliation and analysis-cache quiescence. Scan captures its parent HEIC context
+before Begin; the separate existing admission snapshot/check result still decides
+HEIC discovery/replay availability. Native calls keep their original worker and
+queued command-admission checks. Feature-local map/Explorer lifecycles unchanged.
+The temporary sortOpUI/asyncProgressUI split is removed: scan and sort use the
+same asyncOpUI shape, with independent instance owners and completion signals.
+
+Baseline map/chooser tests passed before migration (21.986s); the previous ticket
+supplies the unchanged scan/collection baseline. The existing stale-scan test
+failed under an omitted-currentness mutation, reporting stale.jpg replacing
+current.jpg and changed collection identity (the invalid application also induced
+race warnings); restored before migration. Final uncached race outputs: root
+V1/V3 and focused scan regressions 67.577s; V2 map preparation/lifecycle 21.872s;
+affected collection-admission, launch, menu, initial-open and Escape scan-cancel
+test adapters 13.562s. All selections enumerated; no skips or race findings.
+Logs: `.scratch/ma-032/ticket04-{ui,maps,adapters}{,-list}.log`.
+
+Root vet, formatting, whitespace, exact Qodana exclusions and canonical Docker
+shard inventory passed (743 runnables). All 19 changed Go files inspected with
+GoLand, errorsOnly=false, no timeout. Unchanged duplication suggestions in
+filestate_test.go (39/72) and openfiles_test.go (258/295) are intentional fixture
+repetition covered by existing exact test exclusions; viewer.go title/dropzone
+suggestions retain ticket 01's separate-policy disposition. All other files clean.
+Lead reviewed all four owners and inferred callers; no new background work or
+completion policy. Spawns 0, one review, no broad local suite.

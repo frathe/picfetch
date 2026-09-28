@@ -80,7 +80,7 @@ func TestOpenInitialFiles_ArgvAndADeliveryBecomeOneScanWithArgvFirst(t *testing.
 
 	openwith.Deliver([]fyne.URI{delivered})
 
-	scansBefore := v.scanOp.lifecycle.currentRevision()
+	scansBefore := v.scanOp.lifecycle.Revision()
 
 	v.pendingInitial = []fyne.URI{argv}
 	v.installOpenWithHandler()
@@ -90,7 +90,7 @@ func TestOpenInitialFiles_ArgvAndADeliveryBecomeOneScanWithArgvFirst(t *testing.
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)
 
-	if scans := v.scanOp.lifecycle.currentRevision() - scansBefore; scans != 1 {
+	if scans := v.scanOp.lifecycle.Revision() - scansBefore; scans != 1 {
 		t.Errorf("the drop started %d scans, want exactly 1 - argv and the delivery must be one batch", scans)
 	}
 	if got := namesOfURIs(v.state.Observe().SourceFiles()); !slices.Equal(got, []string{"z-argv.jpg", "a-delivered.jpg"}) {
@@ -130,12 +130,12 @@ func TestOpenInitialFiles_OpensPendingWhenNothingWasDelivered(t *testing.T) {
 func TestOpenInitialFiles_PlainLaunchStartsNoScan(t *testing.T) {
 	v := newTestViewer(t)
 
-	scansBefore := v.scanOp.lifecycle.currentRevision()
+	scansBefore := v.scanOp.lifecycle.Revision()
 
 	v.installOpenWithHandler()
 	v.openInitialFiles()
 
-	if scans := v.scanOp.lifecycle.currentRevision() - scansBefore; scans != 0 {
+	if scans := v.scanOp.lifecycle.Revision() - scansBefore; scans != 0 {
 		t.Errorf("a launch with nothing to open started %d scans, want 0", scans)
 	}
 	if v.scanOp.done.Begun() {

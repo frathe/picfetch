@@ -41,7 +41,7 @@ type analysisCacheHost struct{ v *viewer }
 
 func (h analysisCacheHost) Quiesce(reason analysiscache.QuiesceReason) []<-chan struct{} {
 	v := h.v
-	v.explorerInput.prepareOp.invalidate()
+	v.explorerInput.prepareOp.Invalidate()
 	v.explorerInput.prepare = nil
 	barriers := []<-chan struct{}{v.explorer.Suspend()}
 	if reason == analysiscache.AutomaticEviction {

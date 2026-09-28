@@ -13,9 +13,8 @@ import (
 	"github.com/frathe/picfetch/internal/requestlife"
 )
 
-// asyncOpUI combines the scan's local request owner with the progress state
-// also used by sorting. The pilot separates request mechanics from presentation
-// without changing active flags, completion generations or progress widgets.
+// asyncOpUI combines one request owner with the progress state shared by scan
+// and sorting: active flags, completion generations and progress widgets.
 //
 // Deliberately viewer-independent: what to *do* about a cancelled operation
 // - put the drop zone back, repaint, toast - differs between the two and
@@ -24,39 +23,12 @@ import (
 // A value field on viewer, never copied: it holds a lifecycle mutex and a
 // completion mutex.
 type asyncOpUI struct {
-	asyncProgressUI
-	lifecycle requestLifecycle
-}
-
-// sortOpUI is the pilot owner; scan keeps its local lifecycle until ticket 04
-// adopts the same request contract (or ticket 08 restores the local pilot).
-type sortOpUI struct {
-	asyncProgressUI
 	lifecycle requestlife.Owner
-}
-
-// asyncProgressUI owns only presentation and per-operation completion. Request
-// ownership is separate so the pilot can leave scan's lifetime unchanged.
-type asyncProgressUI struct {
-	active  bool
-	done    completion.Signal
-	art     *canvas.Image // the scan's Trane-digging art; nil for the sort
-	spinner *widget.ProgressBarInfinite
-	label   *widget.Label
-}
-
-func (o *sortOpUI) begin(parent context.Context) (requestlife.Token, func()) {
-	token := o.lifecycle.Begin(parent)
-	o.active = true
-	return token, o.done.Begin()
-}
-
-func (o *sortOpUI) invalidate() uint64 {
-	revision := o.lifecycle.Invalidate()
-	if o.active {
-		o.finish()
-	}
-	return revision
+	active    bool
+	done      completion.Signal
+	art       *canvas.Image // the scan's Trane-digging art; nil for the sort
+	spinner   *widget.ProgressBarInfinite
+	label     *widget.Label
 }
 
 // begin supersedes any request already in flight, marks the operation
@@ -64,8 +36,8 @@ func (o *sortOpUI) invalidate() uint64 {
 // returned so the caller can capture it: a superseded request must still
 // finish its own generation without touching the one a newer request now
 // owns - see internal/completion.
-func (o *asyncOpUI) begin() (requestToken, func()) {
-	token := o.lifecycle.begin()
+func (o *asyncOpUI) begin(parent context.Context) (requestlife.Token, func()) {
+	token := o.lifecycle.Begin(parent)
 	o.active = true
 
 	return token, o.done.Begin()
@@ -73,7 +45,7 @@ func (o *asyncOpUI) begin() (requestToken, func()) {
 
 // show reveals the progress widgets. Separate from begin because the scan
 // sets its label's text first. Nil-guarded: the sort instance has no art.
-func (o *asyncProgressUI) show() {
+func (o *asyncOpUI) show() {
 	if o.art != nil {
 		o.art.Show()
 	}
@@ -85,7 +57,7 @@ func (o *asyncProgressUI) show() {
 // the completion step of whichever token is still current - never by a
 // stale one, which must not report "nothing in flight" while a newer
 // request is still running.
-func (o *asyncProgressUI) finish() {
+func (o *asyncOpUI) finish() {
 	o.active = false
 	if o.art != nil {
 		o.art.Hide()
@@ -97,7 +69,7 @@ func (o *asyncProgressUI) finish() {
 // invalidate supersedes and cancels the current request, finishing the UI
 // only if this operation was actually active. Returns the new revision.
 func (o *asyncOpUI) invalidate() uint64 {
-	revision := o.lifecycle.invalidate()
+	revision := o.lifecycle.Invalidate()
 	if o.active {
 		o.finish()
 	}

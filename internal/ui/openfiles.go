@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/filepicker"
+	"github.com/frathe/picfetch/internal/requestlife"
 )
 
 // openFileDialog admits an open request on UI, then runs its native panel
@@ -19,7 +21,7 @@ func (v *viewer) openFileDialog() {
 	if _, ok := v.admitCommand(commandRequest{command: commandOpenChooser}); !ok {
 		return
 	}
-	token := v.openChooserLifecycle.begin()
+	token := v.openChooserLifecycle.Begin(context.Background())
 	choose := filepicker.Choose
 	done := v.chooser.Begin()
 	v.openChooserWorkers.Go(func() {
@@ -30,17 +32,17 @@ func (v *viewer) openFileDialog() {
 
 // runFileChooser reads no UI mode state. Its tracked lifetime ends after
 // native work and queue submission; the queue owns result application.
-func (v *viewer) runFileChooser(token requestToken, choose func() ([]fyne.URI, error)) {
-	if !token.current() {
+func (v *viewer) runFileChooser(token requestlife.Token, choose func() ([]fyne.URI, error)) {
+	if !token.Current() {
 		return
 	}
 	uris, err := choose()
-	if !token.current() || (err == nil && len(uris) == 0) {
+	if !token.Current() || (err == nil && len(uris) == 0) {
 		return
 	}
 	uris = slices.Clone(uris)
 	v.chooserUI.Do(func() {
-		if !token.current() {
+		if !token.Current() {
 			return
 		}
 		if _, ok := v.admitCommand(commandRequest{command: commandOpen, route: routeDelivery}); !ok {
@@ -59,7 +61,7 @@ func (v *viewer) runFileChooser(token requestToken, choose func() ([]fyne.URI, e
 // until it returns, so shutdown must not wait for that external interaction.
 func (v *viewer) closeOpenChooser() {
 	v.openChooserClosed = true
-	v.openChooserLifecycle.invalidate()
+	v.openChooserLifecycle.Invalidate()
 }
 
 // reportChooserError is used by other native panel workers (export). Open

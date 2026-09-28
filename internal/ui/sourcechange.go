@@ -195,7 +195,7 @@ func (v *viewer) captureBrowsingReconciliation() browsingReconciliation {
 		change.grid = &bookmark
 	}
 	if v.locationVisitActive() {
-		v.locationInput.prepareOp.invalidate()
+		v.locationInput.prepareOp.Invalidate()
 		v.locationInput.prepare = nil
 	}
 	if origin, detached := v.detachSearchOrigin(); detached {

@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/frathe/picfetch/internal/filescan"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/requestlife"
 )
 
 // cancelScan aborts a scan in progress (Escape while v.scanOp.active is true).
@@ -103,7 +105,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 
 	v.closeExplorer()
 	v.closeLocationMap()
-	v.openChooserLifecycle.invalidate()
+	v.openChooserLifecycle.Invalidate()
 	v.deletion.Cancel()
 	v.grid.Close()
 
@@ -115,7 +117,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 
 	v.invalidateSort()
 	v.invalidateLoad()
-	token, scanDone := v.scanOp.begin()
+	token, scanDone := v.scanOp.begin(v.heicContext(context.Background()))
 	v.syncMenus()
 
 	v.scanOp.label.SetText(lang.L("Scanning... 0 images"))
@@ -152,7 +154,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 	var check <-chan struct{}
 	if !state.Known {
 		v.startHEICCheck(false)
-		check = capability.Ensure(token.context())
+		check = capability.Ensure(token.Context())
 	}
 	waitForCapability := func() bool {
 		if check == nil {
@@ -163,7 +165,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 			snapshot = capability.Snapshot()
 			check = nil
 			return true
-		case <-token.context().Done():
+		case <-token.Context().Done():
 			return false
 		}
 	}
@@ -207,9 +209,9 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 			return nil, false
 		}
 		if expandSiblings {
-			images, truncated = filescan.SiblingsWithAdmission(token.context(), uris[0], maxScan, progress, accepts)
+			images, truncated = filescan.SiblingsWithAdmission(token.Context(), uris[0], maxScan, progress, accepts)
 		} else {
-			images, truncated = gather(token.context(), uris, maxScan, progress, accepts)
+			images, truncated = gather(token.Context(), uris, maxScan, progress, accepts)
 		}
 		if expandSiblings && len(sourceOrder) > 1 {
 			// Sibling discovery preserves the opened source first and sorts
@@ -232,7 +234,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 			}
 			if snapshot.Available {
 				var admissionTruncated bool
-				images, admissionTruncated = gather(token.context(), sourceOrder, maxScan, nil, func(uri fyne.URI) bool {
+				images, admissionTruncated = gather(token.Context(), sourceOrder, maxScan, nil, func(uri fyne.URI) bool {
 					return heic.IsExtension(uri.Extension()) || imaging.IsSupportedImage(uri)
 				})
 				truncated = truncated || admissionTruncated
@@ -262,7 +264,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 	}
 
 	go func() {
-		// token.context() is what lets a superseded scan (a newer drop, or
+		// token.Context() is what lets a superseded scan (a newer drop, or
 		// an explicit cancel - see cancelScan) stop walking the tree instead
 		// of racing storage.List calls to completion for a result nobody
 		// will see; the trailing fyne.Do below re-checks the token and would
@@ -270,7 +272,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 		// listing (Siblings) as a recursive Images walk.
 		images, truncated := scan(func(n int) {
 			fyne.Do(func() {
-				if !token.current() {
+				if !token.Current() {
 					return
 				}
 				v.scanOp.label.SetText(fmt.Sprintf(lang.L("Scanning... %d images"), n))
@@ -310,11 +312,11 @@ func admittedSourceOrder(order, images, unavailable []fyne.URI) []fyne.URI {
 // actually ran under (handleDrop's snapshot), so the truncation toast below
 // reports it accurately even if the settings window has since changed
 // v.settings.maxScan.
-func (v *viewer) applyScanResult(token requestToken, merging bool, uris, images []fyne.URI, truncated bool, maxScan int, scanDone func(), favoriteDir string, skipped, sourceOrder []fyne.URI) {
+func (v *viewer) applyScanResult(token requestlife.Token, merging bool, uris, images []fyne.URI, truncated bool, maxScan int, scanDone func(), favoriteDir string, skipped, sourceOrder []fyne.URI) {
 	defer scanDone()
-	defer token.cancelContext()
+	defer token.Release()
 
-	if !token.current() {
+	if !token.Current() {
 		return
 	}
 	v.scanOp.finish()
