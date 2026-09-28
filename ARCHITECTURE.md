@@ -9,7 +9,9 @@ Standing rules (data flow, concurrency, conventions, build) live in
 
 ### `github.com/frathe/picfetch` (package main)
 
-Entry point only. `main.go` parses the command line (`launchArgs`, see
+Entry point only. `main.go` supplies production operations to `main_startup.go`'s
+`runStartup`, the same ordered orchestration exercised by `main_startup_test.go`.
+It parses the command line (`launchArgs`, see
 `internal/launch`) before any side effect, dispatches the private `heic.WorkerMain` and `similarity.WorkerMain`
 subprocess modes before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor

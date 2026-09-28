@@ -110,9 +110,9 @@
   The [local specification](.scratch/ma-033/spec.md) is `ready-for-agent`, with
   60 user stories, agreed testing interfaces and 22 acceptance criteria.
   Its [nine approved implementation tickets](.scratch/ma-033/issues/README.md)
-  are published with blocking edges and verification commands; ticket 01 is the
-  initial frontier. Detailed implementation planning, implementation and
-  qualification remain open.
+  are tracked in the [active Deep SDD plan](plans/2026-09-28-ma-033-launch-policy.md).
+  Ticket 01 is complete; 02-09 remain pending. The user authorized per-ticket
+  commits, draft PR/CI and a review loop after all tickets complete.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

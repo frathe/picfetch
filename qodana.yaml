@@ -422,6 +422,7 @@ exclude:
       - "internal/winpos/tracker_test.go"
       - "internal/winpos/winpos_test.go"
       - "main_darwin_test.go"
+      - "main_startup_test.go"
       - "main_test.go"
       - "scripts/appassets/main_test.go"
       - "scripts/avifnotices/main_test.go"

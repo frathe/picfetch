@@ -1,6 +1,6 @@
 # 01: Make production startup testable
 
-Status: ready-for-agent
+Status: done
 Parent: [MA-033 specification](../spec.md)
 **Blocked by:** None (can start immediately).
 
@@ -10,15 +10,15 @@ tickets prove early refusal without substituting a test-only startup algorithm.
 
 ## Acceptance criteria
 
-- [ ] Help and malformed flags exit without desktop startup; private worker
+- [x] Help and malformed flags exit without desktop startup; private worker
   dispatch stays ahead of desktop preparation. Verify: V1, V2.
-- [ ] Native Open With installation stays before driver/app initialization;
+- [x] Native Open With installation stays before driver/app initialization;
   ordinary predecessor cleanup/wait stays before app creation and preferences.
   Existing restricted-launch artifact protection remains intact. Verify: V1, V2.
-- [ ] Production and tests use the same high-level orchestration, with per-call
+- [x] Production and tests use the same high-level orchestration, with per-call
   external operations that expose ordered observations and error injection;
   no mutable package-level test switches are introduced. Verify: V1.
-- [ ] Ordinary startup, saved preferences/session restoration and launch overrides
+- [x] Ordinary startup, saved preferences/session restoration and launch overrides
   keep their behavior. Resource ownership and the timing of trial reservation
   are not silently changed in this prefactor. Verify: V1, V3.
 
@@ -36,3 +36,20 @@ ordering and early reservation are completed by 02 and 03, not claimed here.
 Follow the [shared execution rules](README.md#execution-and-evidence-rules).
 Keep the entry point thin. Demonstrate preservation against production-facing
 observations, not source-text matching. This ticket grants no new permissions.
+
+## Completion evidence
+
+2026-09-28: completed in the ticket-01 commit. Production `main` now invokes
+`runStartup` with per-call external operations. V1/V2 passed in ordinary and
+Store-tagged builds; V3 ran all ten launch-option tests and nested cancellation
+cases. Behavioral red: absent desktop orchestration failed worker/order/error
+children. Deliberately moving native installation after identity failed the
+ordering guard in both builds; restored code passed. Uncached outputs remain in
+`.scratch/ma-033/evidence/01-{root,ui,store}-green.log`.
+
+`make fmt-check`, `make check-qodana-test-exclusions`, tagged root `go vet`, and
+`git diff --check` passed. GoLand per-file inspection (including weak warnings)
+completed on `main.go`, `main_startup.go`, `main_startup_test.go`. Its only finding
+was a build-tag constant-condition warning; a narrow justified suppression now
+passes reinspection. This is IDE fallback evidence, not Qodana CI qualification.
+Native runtime qualification and full CI remain ticket 09 gates.
