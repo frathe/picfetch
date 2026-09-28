@@ -220,8 +220,14 @@ func newTestUIWithPolicy(t *testing.T, policy launch.Policy) (v *viewer, win fyn
 func testLaunchStorage(t *testing.T) func(fyne.App) (launch.Storage, error) {
 	t.Helper()
 	root := t.TempDir()
+	roots := launch.Storage{FavoritesDir: filepath.Join(root, "favorites"), PresetsDir: filepath.Join(root, "presets"), AnalysisDir: filepath.Join(root, "image-analysis"), UpdatesDir: filepath.Join(root, "updates")}
+	for _, dir := range []string{roots.FavoritesDir, roots.PresetsDir, roots.AnalysisDir, roots.UpdatesDir} {
+		if err := os.Mkdir(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return func(_ fyne.App) (launch.Storage, error) {
-		return launch.Storage{FavoritesDir: filepath.Join(root, "favorites"), PresetsDir: filepath.Join(root, "presets"), AnalysisDir: filepath.Join(root, "image-analysis"), UpdatesDir: filepath.Join(root, "updates")}, nil
+		return roots, nil
 	}
 }
 

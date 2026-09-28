@@ -166,8 +166,8 @@ func registerFeatures(view *viewer, application fyne.App, window fyne.Window, pr
 	// Restore update prefs without SetCheckForUpdates: that setter starts a
 	// network check. Day must be in place before startViewerRuntime's
 	// maybeStartUpdateCheck so Due sees the saved calendar day.
-	view.SetLastUpdateCheckDay(prefs.LastUpdateCheckDay)
-	view.settings.checkForUpdates = prefs.CheckForUpdates && !view.storeManaged
+	view.updater.RestoreLastCheckDay(prefs.LastUpdateCheckDay)
+	view.settings.checkForUpdates = prefs.CheckForUpdates && view.launchPolicy.Updates().Allowed()
 	view.settings.staticWindowSize = prefs.StaticWindowSize
 
 	view.deletion = deletion.New(deletionHost{view})

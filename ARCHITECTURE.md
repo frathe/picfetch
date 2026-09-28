@@ -732,6 +732,13 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard` (+ its optional `ExtraRows` slot above the button row, Up/Down between them, Return offered to the focused row before it commits, and `SetSelectionActive` muting the button ring so only one mark is ever at full strength), `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. `gaze.go` extracts the compact single-row atlas and owns the 16-direction/neutral portrait presenter shared by Trane and Finis; callers own artwork preparation, hosting and face-relative coordinates. `circlegesture.go` recognizes timestamped head-relative pointer turns; hosts own independent instances, geometry normalization and lifecycle reset. | Leaf aside from `internal/winpos`. |
 | `internal/ui/assets/` | Embedded viewer artwork, including `ExplorerIntroPNG` for first use. | Leaf. |
 
+`autoupdate.New` receives the captured launch policy and selected stage root.
+The updater and viewer both gate check/staging admission on that fixed decision,
+including direct calls with configured dependencies. `RestoreLastCheckDay` only
+seeds memory; `SetLastCheckDay` records permitted check results through persistence.
+Trial feature objects no longer authorize those operations. Recovery/record/apply
+adoption is tracked separately by MA-033 ticket 06.
+
 Help's `licenses.go` displays the complete immutable release notice document
 supplied by `main.go` through `ui.Run` and `Help.SetLicenses`. Help -> Licenses
 opens a scrollable Markdown singleton, with no runtime file reads or downloads.

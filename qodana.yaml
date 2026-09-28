@@ -216,6 +216,7 @@ exclude:
       - "internal/ui/analysiscache/quiescence_test.go"
       - "internal/ui/animate_test.go"
       - "internal/ui/autoupdate/applyfailure_test.go"
+      - "internal/ui/autoupdate/launchpolicy_test.go"
       - "internal/ui/autoupdate/updater_test.go"
       - "internal/ui/autoupdate_test.go"
       - "internal/ui/batch_test.go"

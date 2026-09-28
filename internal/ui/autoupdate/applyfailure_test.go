@@ -203,7 +203,7 @@ func stagePresent(t *testing.T, dir string) bool {
 func newApplyUpdater(t *testing.T) (*Updater, fyne.App) {
 	t.Helper()
 	app := test.NewApp()
-	u := New(app, t.TempDir(), nil)
+	u := ordinaryUpdater(t, app, t.TempDir(), nil)
 	u.SetCurrentVersion("0.2.5")
 	verifiedStage(t, u, "v0.2.6")
 	return u, app

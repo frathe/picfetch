@@ -1,6 +1,6 @@
 # MA-033: captured launch policy implementation
 
-Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`) and 04 complete; 05 next.
+Status: active, tickets 01 (`ccf4702`), 02 (`5ea960f`), 03 (`de5cb5c`), 04 (`8528f7b`) and 05 complete; 06 next.
 Baseline: `9549e3b` (approved specification), runtime baseline `a5caf73`.
 Route: Deep SDD with vertical TDD slices.
 Authorization: 2026-09-28 `/implement MA-033`: implementation, per-ticket commits,
@@ -184,7 +184,7 @@ must record G1-G5 before spawning.
 | 03/04 recon | 2/2 | n/a | no | complete; acquisition/producer/storage inventory |
 | 03 | 1/1 | 1 | no | done |
 | 04 | 0/0 | 1 | no | done |
-| 05 | 1/0 | 0 | no | pending |
+| 05 | 1/1 | 1 | no | done |
 | 06 | 0/0 | 0 | no | pending |
 | 07 | 0/0 | 0 | no | pending |
 | 08 | 1/0 | 0 | no | pending |
@@ -374,3 +374,59 @@ Only nine existing duplicate fragments in autoupdate_test.go and
 favorites/favorites_test.go remain, covered by their existing exact Qodana paths;
 no source suppression or test refactor needed. Scoped vet, format, exact exclusions
 and shard check pass (740 runnable UI tests). No new dependencies or test files.
+
+### Ticket 05 updater contract and delegation gate
+
+`autoupdate.New(app, dir, policy launch.Policy, persist)` requires an explicit
+policy, retaining its immutable `UpdatePermission` privately. A zero policy
+creates a refusing updater, never ordinary permission. `EnsureClient`, `Start`,
+`StartManual`, `RemoveStaleStage` and `SetLastCheckDay` refuse before effects or
+worker/completion admission. Restricted manual requests deliver only Failed for
+a current request, synchronously without a worker. A wrapped exported
+`ErrUpdatesUnavailable` carries the existing localized trial-session message.
+`RestoreLastCheckDay` seeds memory without persistence for any policy; existing
+`SetLastCheckDay` remains the permitted check-result write/persist operation.
+Per-instance private loadStage/removeStage adapters default to existing update
+functions and let tests observe forbidden stage reads as well as mutations.
+They do not change low-level authentication or formats. Apply/record operations
+retain existing guards until ticket 06 completes their policy adoption.
+
+One bounded T1 Sol implementer owns only `internal/ui/autoupdate` for this
+check/stage slice, including migration of that package's existing New calls and
+new TestUpdaterLaunchPolicy admission/preconfigured/persistence children. Lead
+owns all root files, UI tests and bookkeeping. G1 fixed API/effects; G2 exact V1/V4;
+G3 one package, no shared root edits; G4 bounded operation contract; G5 lead has
+not implemented the updater slice. S/W: behavioral tests/admission decisions need
+comprehension, not regex; no implementation body is prescribed. Lead alone reviews
+and fixes findings. No record/apply redesign or new dependencies delegated.
+
+### Ticket 05 completion evidence
+
+Analyzed/tested tree: `8528f7b` plus this ticket's changes. T1 delivered the bounded
+updater slice and ordinary fixture migration; the lead reviewed and fixed all
+findings inline, expanded direct manual refusal to all six denied cases, and
+integrated root admission/restore behavior. Store check refusal reuses the existing
+localized Store message, with no catalogue/key changes. Apply/refailure/What's New
+guards remain unchanged until 06. The root harness now creates the temporary
+ordinary child directories before construction, retaining its old existing-dir
+fixture guarantee for tests that directly write a stage; trials keep selected paths.
+
+Red: direct EnsureClient admitted all six denied cases; configured requests leaked.
+Root Explorer/Location checks reached HTTP, removed a seeded stale binary and
+reported work/success; restored last-check days invoked persistence on every
+construction. Corrected an initial fixture assertion to compare actual archive
+bytes, not its release-notes string, and retained the subsequent behavioral red.
+Green V1-V4 cover direct/root admission, all restrictions plus absent policy,
+observable stage reads/removals, verifier/HTTP/persistence calls, no completion or
+busy state on refusal, current/stale/cancelled manual callbacks, pure restore and
+successful ordinary persistence. Existing daily/version/opt-in and serialized
+manual/automatic transaction, stage authentication/reuse, disable/cancel and queued
+callback regressions pass. Store-tagged V1/V2 and focused root/updater race guards
+pass. Raw output: local `05-*-green.log`, with updater/root red logs retained.
+
+All 11 changed Go files inspected with GoLand weak warnings and no timeouts. Fixed
+the new helper's missing Ordinary/default switch cases; final reinspection is
+clean except seven deliberate existing fixture duplicates in three exactly excluded
+test files. Scoped vet, formatting, exact Qodana test exclusions and the unchanged
+740-test shard manifest pass. Added the new updater test's exact exclusion. No new
+dependencies. Complete CI and fresh post-suppression SARIF are still final gates.

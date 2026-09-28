@@ -22,10 +22,14 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/completion"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/update"
 )
 
 var errClientNotPrepared = errors.New("update client not prepared")
+
+// ErrUpdatesUnavailable reports that this launch cannot use GitHub self-updates.
+var ErrUpdatesUnavailable = errors.New("updates unavailable in this session")
 
 var errResponseBodyIdleTimeout = errors.New("update response body idle timeout")
 
@@ -45,9 +49,12 @@ func DefaultDir() string {
 // current-version override, and the last-check calendar day plus the mutex
 // that guards it.
 type Updater struct {
-	app fyne.App
+	app     fyne.App
+	updates launch.UpdatePermission
 
-	dir string
+	dir         string
+	loadStage   func(string) (update.Stage, error)
+	removeStage func(string) error
 
 	// clientMu keeps lazy client preparation single-shot when a manual
 	// request (which prepares on its worker) meets an automatic request.
@@ -95,18 +102,21 @@ type Updater struct {
 	persist func(day string)
 }
 
-// New builds an Updater for app, staging updates under dir and persisting
-// every SetLastCheckDay call through persist - so a crash or quit during a
-// background check still records today without the caller waiting for the
-// check goroutine.
-func New(app fyne.App, dir string, persist func(day string)) *Updater {
+// New captures launch permission and the selected staging directory. Permitted
+// SetLastCheckDay calls persist check results immediately; restoring a saved
+// day uses RestoreLastCheckDay without writing it back. A missing policy refuses
+// update effects, just like a restricted launch.
+func New(app fyne.App, dir string, policy launch.Policy, persist func(day string)) *Updater {
 	workersDone := make(chan struct{})
 	close(workersDone)
 	transaction := make(chan struct{}, 1)
 	transaction <- struct{}{}
 	return &Updater{
 		app:             app,
+		updates:         policy.Updates(),
 		dir:             dir,
+		loadStage:       update.LoadStage,
+		removeStage:     update.RemoveStage,
 		verifierFactory: update.NewSigstoreVerifier,
 		persist:         persist,
 		transaction:     transaction,
@@ -114,10 +124,8 @@ func New(app fyne.App, dir string, persist func(day string)) *Updater {
 	}
 }
 
-// Dir and SetDir round-trip the staged-update directory. SetDir exists for
-// tests, and for internal/ui's startViewerRuntime, which fills in
-// DefaultDir only when nothing set one first - the seam that lets a test
-// viewer install a t.TempDir() ahead of it.
+// Dir observes the launch-selected staging directory. SetDir is a fixture seam;
+// production supplies its captured selection to New before construction.
 func (u *Updater) Dir() string       { return u.dir }
 func (u *Updater) SetDir(dir string) { u.dir = dir }
 
@@ -151,6 +159,9 @@ func (u *Updater) SetVerifierFactory(factory func() (update.Verifier, error)) {
 // preparation is idempotent; a verifier-construction failure leaves the client
 // nil so a later call can retry.
 func (u *Updater) EnsureClient() error {
+	if !u.updates.Allowed() {
+		return unavailableUpdateError()
+	}
 	u.clientMu.Lock()
 	defer u.clientMu.Unlock()
 	if u.client != nil {
@@ -352,6 +363,9 @@ func (u *Updater) LastCheckDay() string {
 }
 
 func (u *Updater) SetLastCheckDay(day string) {
+	if !u.updates.Allowed() {
+		return
+	}
 	u.dayMu.Lock()
 	defer u.dayMu.Unlock()
 	u.lastCheckDay = day
@@ -360,11 +374,21 @@ func (u *Updater) SetLastCheckDay(day string) {
 	}
 }
 
+// RestoreLastCheckDay seeds the saved day without writing it back.
+func (u *Updater) RestoreLastCheckDay(day string) {
+	u.dayMu.Lock()
+	defer u.dayMu.Unlock()
+	u.lastCheckDay = day
+}
+
 // RemoveStaleStage removes a staged update whose version is no longer
 // newer than CurrentVersion - left behind by, say, downgrading back to an
 // older build after already staging a newer one. A no-op when nothing is
 // staged.
 func (u *Updater) RemoveStaleStage() {
+	if !u.updates.Allowed() {
+		return
+	}
 	select {
 	case <-u.transaction:
 		defer func() { u.transaction <- struct{}{} }()
@@ -378,12 +402,12 @@ func (u *Updater) RemoveStaleStage() {
 }
 
 func (u *Updater) removeStaleStage(currentVersion string) {
-	st, err := update.LoadStage(u.dir)
+	st, err := u.loadStage(u.dir)
 	if err != nil {
 		return
 	}
 	if !update.Newer(currentVersion, st.Version) {
-		_ = update.RemoveStage(u.dir)
+		_ = u.removeStage(u.dir)
 	}
 }
 
@@ -411,6 +435,9 @@ type Events struct {
 // there an asset for this OS/arch) and the check itself agree on the same
 // value.
 func (u *Updater) Start(ctx context.Context, stale func() bool, currentVersion string) error {
+	if !u.updates.Allowed() {
+		return unavailableUpdateError()
+	}
 	client := u.Client()
 	if client == nil {
 		return errClientNotPrepared
@@ -424,6 +451,10 @@ func (u *Updater) Start(ctx context.Context, stale func() bool, currentVersion s
 // caller's UI thread. Opt-in and daily-due policy belong to the automatic
 // viewer entry point and are deliberately absent here.
 func (u *Updater) StartManual(ctx context.Context, stale func() bool, currentVersion string, events Events) {
+	if !u.updates.Allowed() {
+		u.emitError(ctx, stale, events.Failed, unavailableUpdateError())
+		return
+	}
 	u.start(ctx, stale, currentVersion, nil, events, true)
 }
 
@@ -527,7 +558,7 @@ func (u *Updater) run(
 }
 
 func (u *Updater) matchingUsableStage(rel update.Release) (update.Stage, bool) {
-	st, err := update.LoadStage(u.dir)
+	st, err := u.loadStage(u.dir)
 	if err != nil || !update.StageMatchesRelease(st, rel) || update.ValidateStageForPlatform(st, runtime.GOOS, runtime.GOARCH) != nil {
 		return update.Stage{}, false
 	}
@@ -552,6 +583,10 @@ type localizedUpdateError struct {
 
 func (e localizedUpdateError) Error() string { return e.message }
 func (e localizedUpdateError) Unwrap() error { return e.cause }
+
+func unavailableUpdateError() error {
+	return localizedUpdateError{message: lang.L("Updates are unavailable in this session"), cause: ErrUpdatesUnavailable}
+}
 
 func requestStopped(ctx context.Context, stale func() bool) bool {
 	return ctx == nil || ctx.Err() != nil || stale == nil || stale()

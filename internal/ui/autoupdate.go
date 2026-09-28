@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/requestlife"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
@@ -25,11 +26,11 @@ import (
 // on starts a check when due; turning it off cancels an in-flight check but
 // leaves an already-complete stage on disk for apply-on-stop.
 func (v *viewer) CheckForUpdates() bool {
-	return v.settings.checkForUpdates && !v.storeManaged && v.explorer.Trial() == nil && v.locationTrial == nil
+	return v.settings.checkForUpdates && v.launchPolicy.Updates().Allowed()
 }
 
 func (v *viewer) SetCheckForUpdates(on bool) {
-	if v.storeManaged || v.explorer.Trial() != nil || v.locationTrial != nil {
+	if !v.launchPolicy.Updates().Allowed() {
 		v.settings.checkForUpdates = false
 		v.updateOp.Invalidate()
 		return
@@ -62,7 +63,7 @@ func (v *viewer) currentUpdateVersion() string { return v.updater.CurrentVersion
 // before beginning updateOp's lifecycle token and handing Updater.Start its
 // context and a staleness func.
 func (v *viewer) maybeStartUpdateCheck() {
-	if v.storeManaged || v.explorer.Trial() != nil || v.locationTrial != nil {
+	if !v.launchPolicy.Updates().Allowed() {
 		return
 	}
 	v.updater.RemoveStaleStage()
@@ -103,15 +104,9 @@ func (v *viewer) maybeStartUpdateCheck() {
 // on Updater's tracked worker; this entry point only validates cheap local
 // prerequisites and adapts worker events onto Fyne's UI thread.
 func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
-	if v.explorer.Trial() != nil || v.locationTrial != nil {
+	if !v.launchPolicy.Updates().Allowed() {
 		if callbacks.Failed != nil {
-			callbacks.Failed(errors.New(lang.L("Updates are unavailable in this session")))
-		}
-		return
-	}
-	if v.storeManaged {
-		if callbacks.Failed != nil {
-			callbacks.Failed(errors.New("updates are managed by Microsoft Store"))
+			callbacks.Failed(v.updateRestrictionError())
 		}
 		return
 	}
@@ -175,6 +170,13 @@ func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
 		},
 		Failed: fail,
 	})
+}
+
+func (v *viewer) updateRestrictionError() error {
+	if v.launchPolicy.Valid() && v.launchPolicy.Purpose() == launch.Ordinary && v.launchPolicy.StoreManaged() {
+		return errors.New(lang.L("Updates are managed by Microsoft Store."))
+	}
+	return errors.New(lang.L("Updates are unavailable in this session"))
 }
 
 // PerformUpdate accepts the disruptive Settings action only while a newer,

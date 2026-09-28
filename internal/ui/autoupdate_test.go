@@ -29,6 +29,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
@@ -251,8 +252,7 @@ func TestUpdateCheck_SettingOffNeverCallsHTTP(t *testing.T) {
 }
 
 func TestUpdateCheck_StoreManagedBuildNeverTouchesGitHubStage(t *testing.T) {
-	v := newTestViewer(t)
-	v.storeManaged = true
+	v, _, _ := newTestUIWithPolicy(t, testLaunchPolicy(t, launch.Options{}, true))
 	v.settings.checkForUpdates = true
 	v.updater.SetCurrentVersion("0.2.6")
 	calls := 0
@@ -283,8 +283,7 @@ func TestUpdateCheck_StoreManagedBuildNeverTouchesGitHubStage(t *testing.T) {
 }
 
 func TestMicrosoftStoreUpdateActionsAreRefused(t *testing.T) {
-	v := newTestViewer(t)
-	v.storeManaged = true
+	v, _, _ := newTestUIWithPolicy(t, testLaunchPolicy(t, launch.Options{}, true))
 	v.settings.checkForUpdates = true
 
 	v.SetCheckForUpdates(true)
@@ -294,7 +293,7 @@ func TestMicrosoftStoreUpdateActionsAreRefused(t *testing.T) {
 
 	var manualErr error
 	v.CheckForUpdatesNow(settingswin.UpdateCallbacks{Failed: func(err error) { manualErr = err }})
-	if manualErr == nil || manualErr.Error() != "updates are managed by Microsoft Store" {
+	if manualErr == nil || manualErr.Error() != lang.L("Updates are managed by Microsoft Store.") {
 		t.Fatalf("manual update error = %v", manualErr)
 	}
 	if err := v.PerformUpdate(); err == nil || err.Error() != "updates are managed by Microsoft Store" {

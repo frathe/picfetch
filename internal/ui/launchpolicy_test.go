@@ -1,13 +1,16 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 
@@ -17,9 +20,12 @@ import (
 
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/locationtrial"
+	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/similarity"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
+	"github.com/frathe/picfetch/internal/ui/settingswin"
 	"github.com/frathe/picfetch/internal/uitest"
+	"github.com/frathe/picfetch/internal/update"
 )
 
 func prepareTestLocationTrial(t *testing.T, v *viewer, dir string) *launch.Prepared {
@@ -210,6 +216,99 @@ func TestLaunchPolicyIntegration(t *testing.T) {
 			}
 		})
 	})
+	t.Run("update_entrypoints", func(t *testing.T) {
+		for _, tc := range restrictedLaunchCases(t) {
+			t.Run(tc.name+"_checks_and_staging", func(t *testing.T) {
+				v, _, _ := newTestUIWithPolicy(t, tc.policy)
+				v.updater.SetCurrentVersion("0.2.6")
+				stage := saveVerifiedUpdateStage(t, v, "v0.2.5", "preserved stage")
+				before, err := os.ReadFile(stage.BinaryPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				httpCalls := &launchHTTPProbe{}
+				v.updater.SetClient(update.NewClient(update.Config{HTTP: httpCalls, Now: fixedNow("2026-09-28"), Verify: &fakeUpdateVerifier{}, StageDir: v.updater.Dir()}))
+				var verifier atomic.Int32
+				v.updater.SetVerifierFactory(func() (update.Verifier, error) {
+					verifier.Add(1)
+					return nil, errors.New("forbidden verifier construction")
+				})
+				v.settings.checkForUpdates = true
+				v.maybeStartUpdateCheck()
+				v.SetCheckForUpdates(true)
+				if v.CheckForUpdates() || v.currentPreferences().CheckForUpdates {
+					t.Error("captured restriction accepted automatic checks")
+				}
+				for _, state := range []string{"initial", "closed", "replaced"} {
+					if state != "initial" {
+						v.explorer.Close()
+						v.locationMap.Close()
+					}
+					if state == "replaced" {
+						options := v.explorer.Options()
+						options.Trial = nil
+						v.explorer.Configure(options)
+						v.locationTrial = nil
+					}
+					failures, progress, successes := 0, 0, 0
+					v.CheckForUpdatesNow(settingswin.UpdateCallbacks{
+						Failed: func(err error) {
+							if err == nil {
+								t.Error("empty refusal")
+							}
+							failures++
+						},
+						Downloading: func(_ string) { progress++ }, Progress: func(_, _ int64) { progress++ },
+						Current: func() { successes++ }, Ready: func(_ string) { successes++ },
+					})
+					if err := v.updater.Settle(context.Background()); err != nil {
+						t.Fatal(err)
+					}
+					if failures != 1 || progress != 0 || successes != 0 {
+						t.Errorf("%s callback protocol: failed=%d progress=%d success=%d", state, failures, progress, successes)
+					}
+				}
+				if verifier.Load() != 0 || httpCalls.calls.Load() != 0 || v.updater.Done().Begun() || v.updater.Busy() {
+					t.Errorf("restricted checks admitted work: verifier=%d http=%d begun=%t busy=%t", verifier.Load(), httpCalls.calls.Load(), v.updater.Done().Begun(), v.updater.Busy())
+				}
+				if data, err := os.ReadFile(stage.BinaryPath); err != nil || !bytes.Equal(data, before) {
+					t.Errorf("restricted entry point changed stale stage: %q %v", data, err)
+				}
+			})
+		}
+	})
+	t.Run("update_records", func(t *testing.T) {
+		for _, tc := range append(restrictedLaunchCases(t), namedLaunchPolicy{"ordinary", testLaunchPolicy(t, launch.Options{}, false)}) {
+			t.Run(tc.name+"_last_check_restore_and_persist", func(t *testing.T) {
+				app := fynetest.NewApp()
+				const restored = "2026-08-25"
+				app.Preferences().SetString("lastUpdateCheckDay", restored)
+				prefs := &launchPreferencesProbe{Preferences: app.Preferences()}
+				observed := launchPreferencesApp{App: app, prefs: prefs}
+				v, win, err := buildStartupViewer(observed, tc.policy, testLaunchStorage(t))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(win.Close)
+				t.Cleanup(func() { drain(t, v) })
+				if v.LastUpdateCheckDay() != restored || prefs.writes.Load() != 0 {
+					t.Errorf("restoration performed update persistence: day=%q writes=%d", v.LastUpdateCheckDay(), prefs.writes.Load())
+				}
+				v.SetLastUpdateCheckDay("2026-09-28")
+				want, writes := restored, int32(0)
+				if tc.name == "ordinary" {
+					want, writes = "2026-09-28", 1
+				}
+				if v.LastUpdateCheckDay() != want || prefs.writes.Load() != writes {
+					t.Errorf("check-result persistence: day=%q writes=%d, want %q/%d", v.LastUpdateCheckDay(), prefs.writes.Load(), want, writes)
+				}
+				preferences.Save(observed, v.currentPreferences())
+				if app.Preferences().String("lastUpdateCheckDay") != want || prefs.writes.Load() != writes {
+					t.Error("general preferences changed update-specific persistence")
+				}
+			})
+		}
+	})
 	t.Run("shutdown", func(t *testing.T) {
 		t.Run("explorer_held_producer_production_hook_postrun", func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -304,6 +403,60 @@ func TestLaunchPolicyIntegration(t *testing.T) {
 			})
 		})
 	})
+}
+
+type namedLaunchPolicy struct {
+	name   string
+	policy launch.Policy
+}
+
+type launchHTTPProbe struct{ calls atomic.Int32 }
+
+func (p *launchHTTPProbe) Do(_ *http.Request) (*http.Response, error) {
+	p.calls.Add(1)
+	return nil, errors.New("forbidden update HTTP call")
+}
+
+func restrictedLaunchCases(t *testing.T) []namedLaunchPolicy {
+	t.Helper()
+	var cases []namedLaunchPolicy
+	for _, tc := range []struct {
+		name    string
+		purpose launch.Purpose
+		store   bool
+	}{
+		{"store", launch.Ordinary, true}, {"explorer", launch.ExplorerTrial, false}, {"location_map", launch.LocationMapTrial, false},
+		{"store_explorer", launch.ExplorerTrial, true}, {"store_location_map", launch.LocationMapTrial, true},
+	} {
+		opts := launch.Options{}
+		if tc.purpose == launch.ExplorerTrial {
+			opts.ExplorerTrial = filepath.Join(t.TempDir(), "trial")
+		}
+		if tc.purpose == launch.LocationMapTrial {
+			opts.LocationMapTrial = filepath.Join(t.TempDir(), "trial")
+		}
+		cases = append(cases, namedLaunchPolicy{tc.name, testLaunchPolicy(t, opts, tc.store)})
+	}
+	return cases
+}
+
+type launchPreferencesApp struct {
+	fyne.App
+	prefs fyne.Preferences
+}
+
+func (a launchPreferencesApp) Preferences() fyne.Preferences { return a.prefs }
+
+type launchPreferencesProbe struct {
+	fyne.Preferences
+	writes atomic.Int32
+}
+
+func (p *launchPreferencesProbe) SetString(key, value string) {
+	if key == "lastUpdateCheckDay" {
+		p.writes.Add(1)
+	}
+	p.Preferences.SetString(key, value)
 }
 
 type launchCacheProbe struct {

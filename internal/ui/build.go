@@ -99,7 +99,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 			imgCacheMB: prefs.MaxImageCacheMB,
 		},
 		wallpaperDir: defaultWallpaperDir(),
-		updater: autoupdate.New(application, startup.storage.UpdatesDir, func(day string) {
+		updater: autoupdate.New(application, startup.storage.UpdatesDir, startup.policy, func(day string) {
 			preferences.SaveLastUpdateCheckDay(application, day)
 		}),
 		keyModifiers:   defaultKeyModifiers,

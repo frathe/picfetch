@@ -38,6 +38,7 @@ import (
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/locationtrial"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/locationmap"
@@ -669,8 +670,9 @@ func TestLocationMap(t *testing.T) {
 		}
 	})
 	t.Run("native_trial_update_isolation", func(t *testing.T) {
-		v := newTestViewer(t)
-		prepareTestLocationTrial(t, v, filepath.Join(t.TempDir(), "trial"))
+		dir := filepath.Join(t.TempDir(), "trial")
+		v, _, _ := newTestUIWithPolicy(t, testLaunchPolicy(t, launch.Options{LocationMapTrial: dir}, false))
+		prepareTestLocationTrial(t, v, dir)
 		v.updater.SetCurrentVersion("0.2.6")
 		stale := saveVerifiedUpdateStage(t, v, "v0.2.5", "old stage")
 		v.SetCheckForUpdates(true)

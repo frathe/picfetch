@@ -24,10 +24,21 @@ import (
 	"testing/synctest"
 	"time"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/update"
 )
+
+func ordinaryUpdater(t *testing.T, app fyne.App, dir string, persist func(string)) *Updater {
+	t.Helper()
+	policy, err := launch.NewPolicy(launch.Options{}, "io.picfetch", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return New(app, dir, policy, persist)
+}
 
 type fakeVerifier struct{}
 
@@ -188,7 +199,7 @@ func TestUpdater_Due(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			u := New(test.NewApp(), t.TempDir(), nil)
+			u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 			if tc.lastDay != "" {
 				u.SetLastCheckDay(tc.lastDay)
 			}
@@ -200,7 +211,7 @@ func TestUpdater_Due(t *testing.T) {
 }
 
 func TestUpdater_LastCheckDayZeroValueIsEmpty(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	if got := u.LastCheckDay(); got != "" {
 		t.Errorf("LastCheckDay() on a fresh Updater = %q, want empty", got)
 	}
@@ -211,7 +222,7 @@ func TestUpdater_LastCheckDayZeroValueIsEmpty(t *testing.T) {
 func TestUpdater_SetLastCheckDayCallsPersist(t *testing.T) {
 	var got []string
 	var mu sync.Mutex
-	u := New(test.NewApp(), t.TempDir(), func(day string) {
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), func(day string) {
 		mu.Lock()
 		defer mu.Unlock()
 		got = append(got, day)
@@ -235,7 +246,7 @@ func TestUpdater_SetLastCheckDayCallsPersist(t *testing.T) {
 // nil func (the zero value, and what most package-level unit tests here
 // pass) must not panic SetLastCheckDay.
 func TestUpdater_NilPersistIsSafe(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetLastCheckDay("2026-08-26")
 	if got := u.LastCheckDay(); got != "2026-08-26" {
 		t.Errorf("LastCheckDay() = %q, want 2026-08-26", got)
@@ -247,7 +258,7 @@ func TestUpdater_NilPersistIsSafe(t *testing.T) {
 // internal/ui's TestLastUpdateCheckDay_ConcurrentWithCurrentPreferences
 // pins at the viewer layer.
 func TestUpdater_LastCheckDayConcurrent(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	const n = 200
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -269,7 +280,7 @@ func TestUpdater_LastCheckDayConcurrent(t *testing.T) {
 // --- stale-stage removal -------------------------------------------------
 
 func TestUpdater_RemoveStaleStage_NoStagePresentIsNoop(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetCurrentVersion("0.2.6")
 
 	u.RemoveStaleStage() // must not panic
@@ -284,7 +295,7 @@ func TestUpdater_RemoveStaleStage_OlderStagedVersionIsRemoved(t *testing.T) {
 	if err := update.SaveStage(dir, update.Stage{Version: "v0.2.5", Notes: "stale"}); err != nil {
 		t.Fatal(err)
 	}
-	u := New(test.NewApp(), dir, nil)
+	u := ordinaryUpdater(t, test.NewApp(), dir, nil)
 	u.SetCurrentVersion("0.2.6")
 
 	u.RemoveStaleStage()
@@ -299,7 +310,7 @@ func TestUpdater_RemoveStaleStage_SameStagedVersionIsRemoved(t *testing.T) {
 	if err := update.SaveStage(dir, update.Stage{Version: "v0.2.6", Notes: "same"}); err != nil {
 		t.Fatal(err)
 	}
-	u := New(test.NewApp(), dir, nil)
+	u := ordinaryUpdater(t, test.NewApp(), dir, nil)
 	u.SetCurrentVersion("0.2.6")
 
 	u.RemoveStaleStage()
@@ -314,7 +325,7 @@ func TestUpdater_RemoveStaleStage_DoesNotBlockActiveTransaction(t *testing.T) {
 	if err := update.SaveStage(dir, update.Stage{Version: "v0.2.5", Notes: "stale"}); err != nil {
 		t.Fatal(err)
 	}
-	u := New(test.NewApp(), dir, nil)
+	u := ordinaryUpdater(t, test.NewApp(), dir, nil)
 	u.SetCurrentVersion("0.2.6")
 
 	<-u.transaction
@@ -335,7 +346,7 @@ func TestUpdater_RemoveStaleStage_NewerStagedVersionIsKept(t *testing.T) {
 	if err := update.SaveStage(dir, update.Stage{Version: "v0.2.7", Notes: "fresh"}); err != nil {
 		t.Fatal(err)
 	}
-	u := New(test.NewApp(), dir, nil)
+	u := ordinaryUpdater(t, test.NewApp(), dir, nil)
 	u.SetCurrentVersion("0.2.6")
 
 	u.RemoveStaleStage()
@@ -352,7 +363,7 @@ func TestUpdater_RemoveStaleStage_NewerStagedVersionIsKept(t *testing.T) {
 // --- version-normalisation gates -----------------------------------------
 
 func TestUpdater_CurrentVersion_OverrideWins(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetCurrentVersion("0.2.5")
 
 	if got := u.CurrentVersion(); got != "0.2.5" {
@@ -369,7 +380,7 @@ func TestUpdater_CurrentVersion_OverrideWins(t *testing.T) {
 // every caller must treat that as "no usable version, do not check".
 func TestUpdater_CurrentVersion_FallsBackToAppMetadata(t *testing.T) {
 	app := test.NewApp()
-	u := New(app, t.TempDir(), nil)
+	u := ordinaryUpdater(t, app, t.TempDir(), nil)
 
 	if got := u.CurrentVersion(); got != app.Metadata().Version {
 		t.Errorf("CurrentVersion() = %q, want app.Metadata().Version %q", got, app.Metadata().Version)
@@ -380,7 +391,7 @@ func TestUpdater_CurrentVersion_FallsBackToAppMetadata(t *testing.T) {
 }
 
 func TestUpdater_CurrentVersion_EmptyOverrideDoesNotStick(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetCurrentVersion("0.2.5")
 	u.SetCurrentVersion("") // an empty override falls back, same as never set
 
@@ -392,7 +403,7 @@ func TestUpdater_CurrentVersion_EmptyOverrideDoesNotStick(t *testing.T) {
 // --- Dir / Client / Done round trips --------------------------------------
 
 func TestUpdater_DirRoundTrip(t *testing.T) {
-	u := New(test.NewApp(), "", nil)
+	u := ordinaryUpdater(t, test.NewApp(), "", nil)
 	if got := u.Dir(); got != "" {
 		t.Fatalf("Dir() = %q, want empty before SetDir", got)
 	}
@@ -405,7 +416,7 @@ func TestUpdater_DirRoundTrip(t *testing.T) {
 }
 
 func TestUpdater_ClientRoundTrip(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	if u.Client() != nil {
 		t.Fatal("Client() on a fresh Updater must be nil")
 	}
@@ -418,7 +429,7 @@ func TestUpdater_ClientRoundTrip(t *testing.T) {
 }
 
 func TestUpdater_EnsureClient_PreSetClientBypassesVerifierFactory(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	want := update.NewClient(update.Config{StageDir: u.Dir()})
 	u.SetClient(want)
 	calls := 0
@@ -439,7 +450,7 @@ func TestUpdater_EnsureClient_PreSetClientBypassesVerifierFactory(t *testing.T) 
 }
 
 func TestUpdater_EnsureClient_SuccessIsIdempotent(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	calls := 0
 	u.SetVerifierFactory(func() (update.Verifier, error) {
 		calls++
@@ -617,7 +628,7 @@ func TestUpdater_StartManual_ResponseFailureMessages(t *testing.T) {
 		{"size limit", update.ErrGitHubResponseTooLarge, "The update server response exceeds the size limit."},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			u := New(test.NewApp(), t.TempDir(), nil)
+			u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 			u.SetVerifierFactory(func() (update.Verifier, error) {
 				return nil, fmt.Errorf("request details: %w", tc.cause)
 			})
@@ -637,7 +648,7 @@ func TestUpdater_StartManual_ResponseFailureMessages(t *testing.T) {
 }
 
 func TestUpdater_EnsureClient_FailureIsRetryable(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	wantErr := errors.New("verifier unavailable")
 	calls := 0
 	u.SetVerifierFactory(func() (update.Verifier, error) {
@@ -666,7 +677,7 @@ func TestUpdater_EnsureClient_FailureIsRetryable(t *testing.T) {
 }
 
 func TestUpdater_EnsureClient_NilVerifierFactoryRestoresDefault(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetVerifierFactory(func() (update.Verifier, error) { return fakeVerifier{}, nil })
 	u.SetVerifierFactory(nil)
 
@@ -678,7 +689,7 @@ func TestUpdater_EnsureClient_NilVerifierFactoryRestoresDefault(t *testing.T) {
 }
 
 func TestUpdater_Start_RequiresPreparedClient(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 
 	err := u.Start(context.Background(), func() bool { return false }, "v0.2.6")
 
@@ -691,7 +702,7 @@ func TestUpdater_Start_RequiresPreparedClient(t *testing.T) {
 }
 
 func TestUpdater_Now_FallsBackToRealClockWithoutClient(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 
 	before := time.Now()
 	got := u.Now()
@@ -703,7 +714,7 @@ func TestUpdater_Now_FallsBackToRealClockWithoutClient(t *testing.T) {
 }
 
 func TestUpdater_Now_UsesClientClockOnceOneExists(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	fixed := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
 	u.SetClient(update.NewClient(update.Config{
 		StageDir: u.Dir(),
@@ -716,7 +727,7 @@ func TestUpdater_Now_UsesClientClockOnceOneExists(t *testing.T) {
 }
 
 func TestUpdater_Done_StartsNotBegun(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	if u.Done().Begun() {
 		t.Error("Done() on a fresh Updater must not report Begun")
 	}
@@ -736,7 +747,7 @@ func TestUpdater_StartManual_CurrentEventAndSuccessfulCheckDay(t *testing.T) {
 	asset := updaterAssetName(t)
 	now := time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)
 	srv := updaterReleaseServer(t, "v0.2.5", asset, nil, strings.Repeat("0", 64), nil)
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetClient(updaterClient(u, srv, fakeVerifier{}, now))
 
 	var events []string
@@ -761,7 +772,7 @@ func TestUpdater_StartManual_DownloadEventOrder(t *testing.T) {
 	archive := updaterNativeArchive(t, asset)
 	sum := sha256.Sum256(archive)
 	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, hex.EncodeToString(sum[:]), nil)
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetClient(updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
 
 	var events []string
@@ -794,7 +805,7 @@ func TestUpdater_StartManual_ReusesMatchingUsableStageAfterCheck(t *testing.T) {
 	archiveCalls := 0
 	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, hex.EncodeToString(sum[:]), &archiveCalls)
 	dir := t.TempDir()
-	u := New(test.NewApp(), dir, nil)
+	u := ordinaryUpdater(t, test.NewApp(), dir, nil)
 	client := updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local))
 	rel, err := client.Check(context.Background(), "v0.2.5")
 	if err != nil {
@@ -832,7 +843,7 @@ func TestUpdater_StartManual_MissingVerifierNeverReusesVerifiedStage(t *testing.
 	archive := updaterNativeArchive(t, asset)
 	sum := sha256.Sum256(archive)
 	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, hex.EncodeToString(sum[:]), nil)
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	client := updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local))
 	rel, err := client.Check(context.Background(), "v0.2.5")
 	if err != nil {
@@ -873,7 +884,7 @@ func TestUpdater_StartManual_UnverifiedMatchingStageNeverReady(t *testing.T) {
 	if err := update.SaveStage(dir, update.Stage{Version: "v0.2.6", BinaryPath: bin}); err != nil {
 		t.Fatal(err)
 	}
-	u := New(test.NewApp(), dir, nil)
+	u := ordinaryUpdater(t, test.NewApp(), dir, nil)
 	u.SetClient(updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
 
 	var ready, failed bool
@@ -893,7 +904,7 @@ func TestUpdater_StartManual_TamperedVerifiedStageIsRedownloaded(t *testing.T) {
 	sum := sha256.Sum256(archive)
 	archiveCalls := 0
 	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, hex.EncodeToString(sum[:]), &archiveCalls)
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	client := updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local))
 	rel, err := client.Check(context.Background(), "v0.2.5")
 	if err != nil {
@@ -935,7 +946,7 @@ func TestUpdater_StartManual_CheckFailureDoesNotRecordDay(t *testing.T) {
 		http.Error(w, "nope", http.StatusBadGateway)
 	}))
 	t.Cleanup(srv.Close)
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetClient(updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
 
 	var failures int
@@ -971,7 +982,7 @@ func testManualVerificationFailure(t *testing.T, verifier update.Verifier, diges
 		digest = digestOverride
 	}
 	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, digest, nil)
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetClient(updaterClient(u, srv, verifier, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
 
 	var ready, failed bool
@@ -990,7 +1001,7 @@ func testManualVerificationFailure(t *testing.T, verifier update.Verifier, diges
 }
 
 func TestUpdater_StartManual_PreparesVerifierOnTrackedWorker(t *testing.T) {
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	started := make(chan struct{})
 	release := make(chan struct{})
 	wantErr := errors.New("preparation failed")
@@ -1022,7 +1033,7 @@ func TestUpdater_StartManual_PreparesVerifierOnTrackedWorker(t *testing.T) {
 func TestUpdater_SettleWaitsForSupersededWorker(t *testing.T) {
 	asset := updaterAssetName(t)
 	srv := updaterReleaseServer(t, "v0.2.5", asset, nil, strings.Repeat("0", 64), nil)
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetClient(updaterClient(u, srv, fakeVerifier{}, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
 
 	staleEntered := make(chan struct{})
@@ -1078,7 +1089,7 @@ func TestUpdater_AutomaticAndManualShareCompleteTransaction(t *testing.T) {
 	archiveCalls := 0
 	srv := updaterReleaseServer(t, "v0.2.6", asset, archive, hex.EncodeToString(sum[:]), &archiveCalls)
 	verifier := &blockingVerifier{entered: make(chan struct{}), release: make(chan struct{})}
-	u := New(test.NewApp(), t.TempDir(), nil)
+	u := ordinaryUpdater(t, test.NewApp(), t.TempDir(), nil)
 	u.SetClient(updaterClient(u, srv, verifier, time.Date(2026, 8, 30, 10, 0, 0, 0, time.Local)))
 
 	if err := u.Start(context.Background(), func() bool { return false }, "v0.2.5"); err != nil {

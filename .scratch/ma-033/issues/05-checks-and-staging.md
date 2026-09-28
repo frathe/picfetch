@@ -1,6 +1,6 @@
 # 05: Enforce policy for checks and staging
 
-Status: ready-for-agent
+Status: done
 Parent: [MA-033 specification](../spec.md)
 **Blocked by:** [02: Capture immutable launch decisions](02-captured-launch-decisions.md).
 
@@ -10,19 +10,19 @@ updater calls, without changing ordinary portable update behavior.
 
 ## Acceptance criteria
 
-- [ ] Missing/invalid or restricted policy refuses verifier preparation,
+- [x] Missing/invalid or restricted policy refuses verifier preparation,
   stale-stage access/removal, worker admission, requests, downloads and staging
   before covered I/O. Preconfigured clients and pre-existing stages do not
   grant permission. Verify: V1.
-- [ ] Root startup/manual actions and preference toggles consume the same fixed
+- [x] Root startup/manual actions and preference toggles consume the same fixed
   decision. Feature close/replacement and stale/direct calls cannot enable
   checks. Explicit refusal completes its established callback/error protocol
   without progress, false success or stranded busy/completion state. Verify: V2.
-- [ ] Restoring the last-check day seeds memory without update-specific
+- [x] Restoring the last-check day seeds memory without update-specific
   persistence. A successful permitted check persists its day; restricted calls
   cannot invoke that callback. General settings persistence may retain an
   unchanged restored day in the selected namespace. Verify: V1, V2.
-- [ ] Ordinary opt-in/daily/version/platform gates, manual bypass, one serialized
+- [x] Ordinary opt-in/daily/version/platform gates, manual bypass, one serialized
   transaction, lazy verifier preparation, stage authentication and reuse retain
   their behavior. Disabling automatic checks cancels work but keeps a completed
   stage; queued obsolete callbacks remain rejected. Verify: V3, V4.
@@ -45,3 +45,10 @@ do not weaken their existing guards while adding the updater policy input.
 Follow the [shared execution rules](README.md#execution-and-evidence-rules).
 Use call observations for forbidden reads and sentinels for durable outcomes.
 No caller-discipline-only authorization or implicit ordinary updater policy.
+
+Completed on 2026-09-28. V1-V4 pass uncached, with direct missing-policy/all
+restricted combinations, configured dependencies/stages, no read/write/worker
+admission, manual refusal protocol, root feature-lifetime and last-day persistence
+observations. Store-tagged and focused race variants also pass. Exact tests,
+review and changed-file GoLand evidence are in the
+[active plan](../../../plans/2026-09-28-ma-033-launch-policy.md).
