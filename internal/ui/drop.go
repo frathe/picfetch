@@ -74,10 +74,17 @@ func (v *viewer) SetMaxScan(n int) {
 // (toggled by M) the newly scanned images are merged into it instead,
 // keeping the sort order applied and jumping to the first image just added.
 func (v *viewer) handleDrop(uris []fyne.URI) {
-	v.handleCollectionDrop(uris, "")
+	v.openCollection(uris, "", discoverCollection)
 }
 
-func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
+type collectionInputKind uint8
+
+const (
+	discoverCollection collectionInputKind = iota
+	replayCollection
+)
+
+func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collectionInputKind) {
 	if len(uris) == 0 {
 		return
 	}
@@ -133,7 +140,11 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		}
 	}
 
-	expandSiblings := favoriteDir == "" && !merging && !hasDirs && len(uris) == 1 && (imaging.IsSupportedImage(uris[0]) || heic.IsExtension(uris[0].Extension()))
+	expandSiblings := kind == discoverCollection && !merging && !hasDirs && len(uris) == 1 && (imaging.IsSupportedImage(uris[0]) || heic.IsExtension(uris[0].Extension()))
+	gather := filescan.ImagesWithAdmission
+	if kind == replayCollection {
+		gather = filescan.ReplayWithAdmission
+	}
 	capability := v.heic.capability
 	snapshot := capability.Snapshot()
 	state := capability.State()
@@ -159,7 +170,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 	retentionTruncated := false
 	seenOrder := make(map[string]bool)
 	record := func(uri fyne.URI) {
-		if !seenOrder[uri.String()] {
+		if kind == replayCollection || !seenOrder[uri.String()] {
 			sourceOrder = append(sourceOrder, uri)
 			seenOrder[uri.String()] = true
 		}
@@ -173,7 +184,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 			return true
 		}
 		if !snapshot.Available {
-			if seenOrder[uri.String()] {
+			if kind == discoverCollection && seenOrder[uri.String()] {
 				return false
 			}
 			if len(skipped) >= maxScan {
@@ -197,7 +208,7 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 		if expandSiblings {
 			images, truncated = filescan.SiblingsWithAdmission(token.context(), uris[0], maxScan, progress, accepts)
 		} else {
-			images, truncated = filescan.ImagesWithAdmission(token.context(), uris, maxScan, progress, accepts)
+			images, truncated = gather(token.context(), uris, maxScan, progress, accepts)
 		}
 		if expandSiblings && len(sourceOrder) > 1 {
 			// Sibling discovery preserves the opened source first and sorts
@@ -206,17 +217,21 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 				return strings.Compare(a.Name(), b.Name())
 			})
 		}
+		// Admission is consulted before discovery's real-path deduplication.
+		// Retain only entries the scanner actually admitted, plus unavailable
+		// entries under their separate budget; aliases must not become members.
+		sourceOrder = admittedSourceOrder(sourceOrder, images, skipped)
 		if check != nil && len(skipped) > 0 {
 			// Pending HEICs use the separate retention budget while other
 			// formats keep traversal and progress moving. Resolve admission
-			// only after traversal, preserving original order and the normal
-			// deduplication/image cap if support becomes available.
+			// only after traversal, preserving the input kind's occurrence
+			// semantics and image cap if support becomes available.
 			if !waitForCapability() {
 				return nil, false
 			}
 			if snapshot.Available {
 				var admissionTruncated bool
-				images, admissionTruncated = filescan.ImagesWithAdmission(token.context(), sourceOrder, maxScan, nil, func(uri fyne.URI) bool {
+				images, admissionTruncated = gather(token.context(), sourceOrder, maxScan, nil, func(uri fyne.URI) bool {
 					return heic.IsExtension(uri.Extension()) || imaging.IsSupportedImage(uri)
 				})
 				truncated = truncated || admissionTruncated
@@ -265,6 +280,24 @@ func (v *viewer) handleCollectionDrop(uris []fyne.URI, favoriteDir string) {
 			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone, favoriteDir, skipped, sourceOrder)
 		})
 	}()
+}
+
+func admittedSourceOrder(order, images, unavailable []fyne.URI) []fyne.URI {
+	remaining := make(map[string]int, len(images)+len(unavailable))
+	for _, group := range [][]fyne.URI{images, unavailable} {
+		for _, uri := range group {
+			remaining[uri.String()]++
+		}
+	}
+	result := make([]fyne.URI, 0, len(order))
+	for _, uri := range order {
+		key := uri.String()
+		if remaining[key] > 0 {
+			remaining[key]--
+			result = append(result, uri)
+		}
+	}
+	return result
 }
 
 // applyScanResult is the shared completion step for both of handleDrop's

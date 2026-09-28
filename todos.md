@@ -72,9 +72,9 @@
   [nine implementation tickets](.scratch/ma-030/issues/README.md) are published
   with blockers and model assignments. The
   [Deep SDD implementation record](plans/2026-09-28-ma-030-collection-transitions.md)
-  records tickets 01-03 complete (coherent snapshots, live navigation, atomic
-  replacement and retained merge); tickets 04-09 and final review/CI remain open. MA-031 through
-  MA-033 remain proposals.
+  records tickets 01-04 complete (coherent snapshots, live navigation, atomic
+  replacement, retained merge and saved replay/capture); tickets 05-09 and final
+  review/CI remain open. MA-031 through MA-033 remain proposals.
   Keep feature state local and preserve explicit composition.
 
 - **Native Location Map gesture timing:** replace hash-only change detection with

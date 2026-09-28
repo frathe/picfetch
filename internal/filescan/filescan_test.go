@@ -16,6 +16,43 @@ import (
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
+func TestReplayWithAdmission(t *testing.T) {
+	photo := uitest.TempJPEGURI(t, "photo.jpg", 4, 4, color.White)
+	accepts := func(uri fyne.URI) bool { return uri.String() == photo.String() }
+	t.Run("occurrences_and_directories", func(t *testing.T) {
+		directory := uitest.DirectoryURI(uitest.FakeURI{FileName: "folder"}, func() ([]fyne.URI, error) {
+			t.Fatal("replay traversed a directory")
+			return nil, nil
+		})
+		files, truncated := ReplayWithAdmission(context.Background(), []fyne.URI{photo, directory, photo}, 3, nil, accepts)
+		if truncated || !slices.Equal(files, []fyne.URI{photo, photo}) {
+			t.Fatalf("recorded replay = %v, truncated=%v", files, truncated)
+		}
+	})
+	t.Run("occurrence_budget_and_floor", func(t *testing.T) {
+		for _, limit := range []int{-2, 0, 1, 2} {
+			var progress []int
+			files, truncated := ReplayWithAdmission(context.Background(), []fyne.URI{photo, photo, photo}, limit, func(n int) { progress = append(progress, n) }, accepts)
+			want := max(1, limit)
+			if len(files) != want || !truncated || progress[len(progress)-1] != want {
+				t.Fatalf("limit=%d replay count=%d truncated=%v progress=%v", limit, len(files), truncated, progress)
+			}
+		}
+	})
+	t.Run("cancellation_between_occurrences", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		admitted := 0
+		files, truncated := ReplayWithAdmission(ctx, []fyne.URI{photo, photo}, 3, func(_ int) { cancel() }, func(uri fyne.URI) bool {
+			admitted++
+			return accepts(uri)
+		})
+		if len(files) != 1 || truncated || admitted != 1 {
+			t.Fatalf("canceled replay count=%d admission=%d truncated=%v", len(files), admitted, truncated)
+		}
+	})
+}
+
 // This file exercises Images directly: no viewer, no Fyne window, and no
 // drain machinery - only test.NewApp() (see TestMain below), the same
 // minimum internal/filesort's own tests need. Everything that used to

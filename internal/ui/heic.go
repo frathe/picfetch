@@ -33,43 +33,7 @@ func (v *viewer) heicContext(ctx context.Context) context.Context {
 }
 
 func (v *viewer) persistedFiles(files []fyne.URI) []fyne.URI {
-	available := make(map[string]int, len(files))
-	for _, uri := range files {
-		available[uri.String()]++
-	}
-	// Attach unavailable members to the preceding surviving source. This
-	// reconstructs unsorted session order while preserving a Favorite's chosen
-	// order for its visible members, and never resurrects removed visible files.
-	// Merge mode permits repeated visible sources. Each occurrence owns its
-	// own following gaps, even when another occurrence has the same URI.
-	type position struct {
-		key        string
-		occurrence int
-	}
-	after := make(map[position][]fyne.URI)
-	occurrences := make(map[string]int)
-	anchor := position{}
-	for _, source := range v.state.unavailableOrder {
-		key := source.uri.String()
-		if source.unavailable {
-			after[anchor] = append(after[anchor], source.uri)
-		} else if available[key] > 0 {
-			occurrences[key]++
-			if occurrences[key] <= available[key] {
-				anchor = position{key, occurrences[key]}
-			}
-		}
-	}
-	clear(occurrences)
-	result := append([]fyne.URI(nil), after[position{}]...)
-	for _, uri := range files {
-		key := uri.String()
-		occurrences[key]++
-		anchor = position{key, occurrences[key]}
-		result = append(result, uri)
-		result = append(result, after[anchor]...)
-	}
-	return result
+	return v.state.Observe().captureFiles(files)
 }
 
 func (v *viewer) retainedOrder() []collectionSource {

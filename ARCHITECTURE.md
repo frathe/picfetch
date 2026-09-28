@@ -655,7 +655,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `windowmenu_notdarwin.go` | No-op twin of the Darwin native-menu merge. |
 | `testdata/` | Golden screenshots for the e2e suite. |
 | `state.go` | Unexported `appState`. Only `viewer` accesses it. |
-| `collection.go` | Immutable `collectionSnapshot`, bound path bookmarks, `Observe`, `Select`, atomic `Replace`, retained-membership `Merge` and `Clear`; source/display/retained order, chosen occurrence, Favorite association and URI-key worker adapter share one publication. |
+| `collection.go` | Immutable `collectionSnapshot`, bound path bookmarks, `Observe`, `Select`, atomic `Replace`, retained-membership `Merge` and `Clear`; source/display/retained order, chosen occurrence, Favorite association and URI-key worker adapter share one publication. `Capture` owns saved source/display ordering with occurrence-bound unavailable gaps. |
 | `sourcechange.go` | Complete source-removal, committed-write, validation-recovery and analysis-policy transitions. Detaches search before callback delivery and restores browsing after collection/cohort/Grid reconciliation; display keeps retry ownership. |
 | `lifecycle.go` | `requestLifecycle` / `requestToken` for root scan/sort/copy-selection and other root work. Display owns its load/GIF/SVG lifecycles internally. |
 | `viewer.go` | Façade: title (`baseTitle` / `gridTitle` / comparison ownership / `applyTitle`), reset/close (`clearToDropzone` releases cached and recycled-cell images through `grid.InvalidateContent`), merge, Host vocabulary (`CurrentFile`, `ShowImage`, `RemoveFiles`, …). |
@@ -664,7 +664,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `menu.go` | Explicit File/Favorites/Actions/Window/Help composition. `menuState` observes one command context and derives named availability decisions; `syncMenus` applies them with presentation facts, updates Favorites and Help, and refreshes the native bar once when rendered state changes. |
 | `commandpolicy.go`, `commandadmission.go` | Private value-only request/context/decision policy for application commands; root observes feature facts and applies refusal feedback/yield only after admission. Visible surfaces, retained visits, input ownership, capabilities and operation state stay distinct. Payload capture/workers remain with handlers. Delete/export notifications assign their card's single keyboard owner and release it on dismissal; prompt/Fyne-dialog notifications refresh availability. |
 | `actionmenu.go` | Actions-menu adapters call guarded bare handlers. Duplicate preparation rechecks admission before presenting a group and retires refused presentation instead of replaying it. Progress and accepted-group notifications remain separate. |
-| `drop.go` | `handleDrop` / `applyScanResult` / `applyScannedFiles` glue over `filescan.Images` / `filescan.Siblings`; scan lifecycle is `viewer.scanOp`. A non-empty drop is refused before any state change while comparison is active. |
+| `drop.go` | `openCollection` / `applyScanResult` / `applyScannedFiles` glue over filescan discovery and recorded replay. `handleDrop` discovers, Favorite/session replay; both retain the same scan lifecycle, captured admission and commit path. A non-empty open is refused before any state change while comparison is active. |
 | `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. The combined pending set is cleared before that shared path refuses an active comparison, so deliveries cannot queue behind it. |
 | `memlimits.go` | `settings` value, `settingsState` / `ApplySettings`, memory-limit get/set that retune caches and `imaging.SetMaxEncodedBytes`. |
 | `theme.go` | Settings-facing appearance getter/setter; applies `internal/appearance` modes live. |
@@ -730,7 +730,7 @@ Instance-owned system HEIC boundary. `Capability` coalesces representative check
 validates persisted OS/architecture/version/revision observations, captures immutable
 operation snapshots and invalidates a disappeared provider once per generation.
 `context.go` carries those snapshots through ordinary imaging and analysis calls.
-Root `internal/ui/heic.go` owns persistence, queued status delivery/rechecks,
+Root `internal/ui/heic.go` owns capability persistence, queued status delivery/rechecks,
 Settings/Help wiring, and shutdown settlement. Saved collections retain temporarily
 unavailable members by collection occurrence in `appState.unavailableOrder`,
 including repeated URIs, independently of displayed files.
@@ -1058,11 +1058,12 @@ viewer's handler and flushes in the same critical section.
 ### `internal/filescan`
 
 Recursive image gather for drop/open, plus a non-recursive sibling listing
-when the user opened a single file.
+when the user opened a single file. Recorded Favorite/session replay shares the
+bounded admission loop without discovering directories or collapsing occurrences.
 
 | File | Responsibility |
 |------|----------------|
-| `filescan.go` | `Images(ctx, uris, max, progress)` (recursive); `Siblings(ctx, file, max, progress)` (parent dir only, opened file seeded first); symlink-cycle + per-call dedupe. |
+| `filescan.go` | `Images(ctx, uris, max, progress)` (recursive); `Siblings(ctx, file, max, progress)` (parent dir only, opened file seeded first); discovery has symlink-cycle/per-call dedupe. `ReplayWithAdmission` preserves recorded occurrences while sharing format policy, limits, progress and cancellation. |
 
 ### `internal/launch`
 

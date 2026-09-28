@@ -226,7 +226,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 		// not discard it - which costs nothing, as the process is exiting.
 		openwith.SetHandler(nil)
 
-		session.Save(application, view.persistedFiles(view.state.unsortedFiles))
+		session.Save(application, view.state.Observe().Capture(collectionSourceOrder))
 		preferences.Save(application, view.currentPreferences())
 		if !view.storeManaged && view.explorer.Trial() == nil && view.locationTrial == nil {
 			view.updater.ApplyStagedUpdate()

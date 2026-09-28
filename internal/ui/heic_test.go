@@ -548,7 +548,7 @@ func TestHEICBackendLossPreservesSession(t *testing.T) {
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	v.handleCollectionDrop([]fyne.URI{storage.NewFileURI(path)}, t.TempDir())
+	v.OpenFavorite(t.TempDir(), []fyne.URI{storage.NewFileURI(path)})
 	waitForScan(t, v)
 	waitForSort(t, v)
 	waitUntilLoaded(t, v)

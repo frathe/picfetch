@@ -892,7 +892,7 @@ func (v *viewer) OpenFiles(files []fyne.URI) {
 
 // OpenFavorite keeps collection identity through the common open pipeline.
 func (v *viewer) OpenFavorite(dir string, files []fyne.URI) {
-	v.handleCollectionDrop(files, dir)
+	v.openCollection(files, dir, replayCollection)
 }
 
 // CurrentIndex is the index of the file on screen.

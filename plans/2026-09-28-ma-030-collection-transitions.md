@@ -1,6 +1,6 @@
 # MA-030: authoritative collection identity and committed transitions
 
-Status: implementation in progress; tickets 01-03 complete, ticket 04 next.
+Status: implementation in progress; tickets 01-04 complete, ticket 05 next.
 Baseline: `1f92396367acc41c663710ee4b4b981c43d1c184`.
 Branch: `feature/ma-030-collection-transitions`.
 Authority: [accepted design](../docs/collection-transitions.md),
@@ -127,6 +127,12 @@ Owner: T0 inline; bounded filescan implementation eligible after exact contract.
 Files: filescan, drop/session/favorites adapters, model capture, related tests.
 Depends: 03. Contract: explicit replay input uses recorded occurrences, no sibling
 expansion; ordinary discovery unchanged; current separate admission limits.
+`filescan.ReplayWithAdmission` shares ImagesWithAdmission's signature/policy but
+skips directories and keeps every admitted occurrence. `openCollection` receives
+an explicit discovery/replay kind; Favorite and session choose replay, including
+pending-capability re-admission. `collectionSnapshot.Capture(collectionOrder)`
+owns source/display saved order plus retained gaps; ranked captures keep their
+explicit index scope. Storage formats and their owners remain unchanged.
 Test/verify: Replay (Favorite/session repeats, singleton, chosen sort, missing,
 repeated limits, separate retention, capability available/unavailable/canceled,
 truncation), Admission/replay, Capture (source/display/ranked/selected order),
@@ -217,7 +223,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 | 01 | 2/1 | 1 | no | Complete; evidence below |
 | 02 | 1/0 | 1 | no | Complete; evidence below |
 | 03 | 1/0 | 2 | no | Complete; merge and CI race evidence below |
-| 04 | 1/1 | 0 | no | Read-only replay scout complete |
+| 04 | 1/1 | 1 | no | Complete; replay/capture evidence below |
 | 05 | 1/1 | 0 | no | Held-sort test-seam scout complete |
 | 06-08 | 1 each/0 | 0 | no | Pending |
 | 09 | 1/0 | 0 | CI | Pending |
@@ -229,7 +235,7 @@ Rule W prompt has no implementation. This is reconnaissance, not delegated revie
 - [x] 01 coherent snapshots and navigation.
 - [x] 02 atomic replacement and Favorite association.
 - [x] 03 retained merge.
-- [ ] 04 saved replay and capture.
+- [x] 04 saved replay and capture.
 - [ ] 05 latest-choice sort handoff.
 - [ ] 06 batch removals and shared survivor result.
 - [ ] 07 unavailable retention and scoped recovery.
@@ -409,3 +415,79 @@ The macOS amd64 job failed during RealAssetInstall with a model-download
 connection reset; it is unverified, not passed. The next pushed revision will run
 that external gate again. Qodana/CodeQL job success on 3582c7f is not final SARIF or
 latest-commit evidence. The PR remains draft until all nine tickets are complete.
+
+### Ticket 04 evidence
+
+Explicit discovery/replay input now selects one common bounded filescan admission
+loop. Favorite menus and session restore keep recorded occurrences, skip directory
+discovery, and use the same semantics after pending capability completion. Ordinary
+drop sibling/recursive/dedup behavior remains. Model snapshot Capture owns saved
+source/display order and unavailable gap attachment; shutdown and ordinary
+Favorite capture use it. Ranked capture observes one snapshot and retains its
+explicit scope. The old persistedFiles adapter is now test-only and forwards to
+the model; retire it in 09. No serialization/schema, association-at-session-start,
+native runtime, worker ownership, dependency or user-string changes.
+
+Final inventory: Replay/{favorite,session}/{singleton,repeated}, unavailable_only,
+discovery_deduplicates_aliases, missing_entry, trial_truncation, truncated_browsable,
+unavailable_entries_and_limits/{gaps,separate_caps,floor}, pending_capability/
+{available,available_at_cap,unavailable,unavailable_at_cap,canceled,superseded};
+Capture/{orders,saving,ranked_selected/{all,selected}}. The Favorite cases reopen
+stored numbered path maps and verify fresh bindings. Session cases save before
+newTestViewer's actual startup load, then invoke production restore and verify
+the consumed offer. Saving exercises actual Favorite serialization and shutdown
+session persistence with repeated entries/unavailable gaps.
+
+Equivalent AC mapping: proposed Admission/replay is Replay/pending_capability/
+{canceled,superseded} plus existing Explorer/favorite_identity_cancel/{sort,merge_sort}
+and CaptureSort superseded-completion tests; all remain on production admission.
+The earlier held-directory scan cases now use ordinary OpenFiles: Favorite replay
+does not traverse directories. New pending-check cases cover Favorite scan
+retirement, rather than retaining an invalid folder-as-Favorite fixture.
+FavoriteAssociation/saving is Capture/saving plus ranked_selected, asserting
+unchanged association/generation after actual saves. Existing
+FindMoreLikeThisActionsCaptureRankedSources, BrowsingActionTargets and the
+favorites package's capture-before-naming tests retain broader scope coverage.
+
+Reds: repeated Favorite/session entries collapsed; singleton session expanded
+neighbors; model capture omitted unavailable gaps. Ordinary alias discovery also
+revealed that pre-dedup admission bookkeeping retained a rejected alias. Filtering
+that bookkeeping by actual admitted occurrence counts fixes model consistency
+without changing scanner discovery policy. Each now passes.
+Negative guards: forcing replay through discovery failed directory avoidance,
+occurrence budgets, both saved-repeat entry points and capability re-admission;
+reinstating URI dedup in root recording failed unavailable-only/gap/cap cases;
+disabling selected-save filtering failed exactly the selected ranked capture.
+All mutations restored and affected inspections rerun.
+
+Two fixture errors are not counted as product red: a prior persisted HEIC
+observation prevented the controlled pending check, fixed by clearing that
+observation before installing its backend; HEIC guidance replaces the truncation
+toast in mixed replay, so feedback is pinned with browsable-only replay instead.
+Expected preview failures on deliberately unavailable/missing sources are logged
+through the existing error boundary, not ignored test failures.
+
+Uncached verbose Replay/Capture passed (internal/ui, 1.366s), all required cases
+executed. Broad affected root selection
+`Test.*(Collection|Drop|Session|HEIC|FindMoreLikeThisActionsCaptureRankedSources|BrowsingActionTargets|CaptureSort)`
+passed (9.528s). Full Explorer plus ranked/action-target regression families passed
+(15.345s). Focused race command `GORACE=halt_on_error=1 go test -race
+-tags no_emoji,nodynamic -count=1 ./internal/ui -run
+'^(TestCollection.*|TestHEICUnavailableFiles|TestFindMoreLikeThisActionsCaptureRankedSources|TestBrowsingActionTargets)$'`
+passed (56.783s). All filescan/favstore/session/favorites tests passed, as did focused
+vet, make fmt/fmt-check, shard/exclusion checks (736 runnables) and diff check.
+
+GoLand fallback: current IDE profile, errorsOnly=false, revision 7580808 plus 04
+diff; all 12 changed code files inspected with no skipped/timed-out files:
+filescan.go, filescan_test.go and UI collection.go, collection_replay_test.go,
+drop.go, explorer_test.go, heic.go, heic_test.go, run.go, session.go, viewer.go,
+visualsearch.go. No errors or ordinary warnings. Only the same four intentional
+viewer title/reset/Trash weak-duplicate fragments recorded in 01/02; no new
+suppressions. The new test file has its exact Qodana exclusion and both new
+families have sorted shard assignments.
+
+Lead review confirms source I/O stays in preparation; collection observations
+only manipulate captured values. Both pending-HEIC admission passes share the
+same kind/budget. Retained capture clones its outputs. CI on ticket 03 revision
+7580808 is now entirely green, including all race shards and both macOS native
+guards; final SARIF and fresh review gates still await the final implementation.

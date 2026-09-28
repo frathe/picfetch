@@ -294,12 +294,13 @@ type favoriteListHost struct{ *viewer }
 // CurrentFiles captures ranked indexes once before the naming dialog opens.
 func (h favoriteListHost) CurrentFiles() []fyne.URI {
 	if !h.browsingContext().ranked {
-		return h.persistedFiles(h.state.files)
+		return h.state.Observe().Capture(collectionDisplayOrder)
 	}
 	indexes := h.captureBrowsingScope().indexes
+	collection := h.state.Observe()
 	files := make([]fyne.URI, len(indexes))
 	for i, index := range indexes {
-		files[i] = h.viewer.FileAt(index)
+		files[i] = collection.FileAt(index)
 	}
 	return files
 }

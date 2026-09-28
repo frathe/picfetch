@@ -884,7 +884,11 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					})
 					files = []fyne.URI{held, current}
 				}
-				v.OpenFavorite("replacement-favorite", files)
+				if stage == "scan" {
+					v.OpenFiles(files)
+				} else {
+					v.OpenFavorite("replacement-favorite", files)
+				}
 				select {
 				case <-entered:
 				case <-time.After(testTimeout):

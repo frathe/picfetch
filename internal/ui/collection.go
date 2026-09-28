@@ -46,6 +46,58 @@ type collectionBookmark struct {
 	occurrence fileidentity.Occurrence
 }
 
+type collectionOrder uint8
+
+const (
+	collectionSourceOrder collectionOrder = iota
+	collectionDisplayOrder
+)
+
+func (s collectionSnapshot) Capture(order collectionOrder) []fyne.URI {
+	if order == collectionSourceOrder {
+		return s.captureFiles(s.SourceFiles())
+	}
+	return s.captureFiles(s.DisplayFiles())
+}
+
+// Attach unavailable members to their preceding surviving occurrence. Source
+// capture restores session order; display capture moves each gap with its anchor.
+// URI ordinals keep repeated sources' gaps distinct without resurrecting removals.
+func (s collectionSnapshot) captureFiles(files []fyne.URI) []fyne.URI {
+	available := make(map[string]int, len(files))
+	for _, uri := range files {
+		available[uri.String()]++
+	}
+	type position struct {
+		key        string
+		occurrence int
+	}
+	after := make(map[position][]fyne.URI)
+	occurrences := make(map[string]int)
+	anchor := position{}
+	for _, source := range s.Retained() {
+		key := source.uri.String()
+		if source.unavailable {
+			after[anchor] = append(after[anchor], source.uri)
+		} else if available[key] > 0 {
+			occurrences[key]++
+			if occurrences[key] <= available[key] {
+				anchor = position{key, occurrences[key]}
+			}
+		}
+	}
+	clear(occurrences)
+	result := append([]fyne.URI(nil), after[position{}]...)
+	for _, uri := range files {
+		key := uri.String()
+		occurrences[key]++
+		anchor = position{key, occurrences[key]}
+		result = append(result, uri)
+		result = append(result, after[anchor]...)
+	}
+	return result
+}
+
 func (s collectionSnapshot) FileSet() dupes.Snapshot {
 	if s.data == nil {
 		return dupes.Snapshot{}
