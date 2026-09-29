@@ -1,5 +1,9 @@
 # Native Location Map gesture timing
 
+Latest continuation: [Linux handoff](../docs/location-map-linux-handoff-2026-09-29.md)
+with transferable failed zoom screenshots and ordered next checks. Historical
+Linux/macOS evidence below retains the revision and limits of each run.
+
 Deliverable: identify requested pan/zoom transforms from captured pixels before
 accepting native latency samples. Route: Deep, because the capture adapter is
 macOS-specific. Branch: `feature/location-map-gesture-timing`.

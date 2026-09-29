@@ -135,7 +135,9 @@
   Swift semantic inspections are unavailable in the installed GoLand
   configuration and remain unverified.
   The [plan and macOS handoff](plans/2026-09-29-location-map-gesture-timing.md)
-  records verification and remaining steps. Existing maintainer performance
+  records verification and remaining steps. Continue from the
+  [Linux handoff](docs/location-map-linux-handoff-2026-09-29.md), which includes
+  the tracked failed screen pair. Existing maintainer performance
   acceptance stands separately from measured timing evidence.
 
 ## Deferred
