@@ -90,10 +90,7 @@ retirement.
 
 - **Retained decoded EXIF map tiles (MA-025):** Accepted by the user on 2026-09-09
   for occasional single-photo EXIF lookups. The upstream decoded-tile cache is
-  unbounded and its long-session impact remains unmeasured. The new Location Map
-  changes the scale assumption: bounded tile residency and sustained browsing
-  measurements belong to that feature's open work above. The original decision
-  does not qualify collection-scale map browsing.
+  unbounded and its long-session impact remains unmeasured.
 
 - There is a bug in the Windows Version: WHen in Gridview, multiselect via the space key works, but when trying it with
   mouse and Ctrl key, it does not. Holding the Ctrl key down and clicking on an image does not select it but instead
