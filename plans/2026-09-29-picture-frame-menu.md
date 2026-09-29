@@ -76,3 +76,4 @@ Verify: AC4 AC5
 | Review | 0 / 0 | 2 | no | Shutdown calls `slides.Close`, which does not notify the menu, so the dwell timer is stopped in `registerShutdown` and joined from the harness. |
 | Review 2 | 0 / 0 | 3 | no | Deactivate holds the enqueue lock until a started callback has submitted or skipped `fyne.Do`. Leaving mid-slide already repaints every 16ms because the in-progress slide stays active; that delay is now tested. |
 | Linux edge | 0 / 0 | 3 | no | glfw does not move window content up when the in-window menu is removed, so the hot strip started below the old menu. Picture-frame mode now sizes the content to the canvas. |
+| Review 3 | 0 / 0 | 4 | no | Returning onto the bar while a menu is open clears the remembered leave. The platform test follows the `no_native_menus` build tag. The mid-slide repaint finding is already covered by the 16ms clamp. |

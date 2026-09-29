@@ -118,6 +118,26 @@ func TestChrome_OpenMenuStaysShownUntilDismissed(t *testing.T) {
 	}
 }
 
+func TestChrome_ReturnToBarWhileMenuIsOpenStaysShown(t *testing.T) {
+	c, _ := newTestChrome(t)
+	start := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	clk := attachClock(c, start)
+	c.Activate(menuWithFile())
+	c.MouseIn(&desktop.MouseEvent{})
+	clk.now = start.Add(700 * time.Millisecond)
+	c.Resize(c.MinSize())
+	c.row.Objects[0].(*barItem).Tapped(nil)
+	c.MouseOut()
+	c.MouseIn(&desktop.MouseEvent{})
+
+	closed := clk.now
+	c.popup.Dismiss()
+	clk.now = closed.Add(2 * time.Second)
+	if got := c.Slide(); got != 1 {
+		t.Fatalf("slide after returning to the bar = %v, want 1", got)
+	}
+}
+
 func TestChrome_DeactivatePreventsTheDwellTimer(t *testing.T) {
 	c, _ := newTestChrome(t)
 	stops := 0

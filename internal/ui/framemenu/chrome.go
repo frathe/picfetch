@@ -141,6 +141,13 @@ func (c *Chrome) hover(inside bool) {
 	if !c.active.Load() {
 		return
 	}
+	// MouseOut while a popup is open records a leave, because the popup
+	// takes the pointer. Coming back onto the bar is a real enter and
+	// must forget that leave, or closing the popup hides the bar under
+	// a pointer that is still on it.
+	if inside {
+		c.leftDuringMenu = false
+	}
 	c.reveal.Pointer(inside, c.now())
 	c.kick()
 }

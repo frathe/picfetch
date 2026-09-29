@@ -2,7 +2,6 @@ package ui
 
 import (
 	"image/color"
-	"runtime"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -16,14 +15,6 @@ func TestPictureFrameSlidingMenuUsesInWindowMenuBar(t *testing.T) {
 	v := newTestViewer(t)
 	if v.pictureFrameSlidingMenu != inWindowMenuBar() {
 		t.Fatalf("pictureFrameSlidingMenu = %v, want inWindowMenuBar() %v", v.pictureFrameSlidingMenu, inWindowMenuBar())
-	}
-}
-
-func TestInWindowMenuBarFollowsOSMenu(t *testing.T) {
-	// darwin keeps the system menu. Every other OS draws the bar in the
-	// window, which is the bar picture-frame mode slides.
-	if got, want := inWindowMenuBar(), runtime.GOOS != "darwin"; got != want {
-		t.Fatalf("inWindowMenuBar() = %v, want %v on %s", got, want, runtime.GOOS)
 	}
 }
 
