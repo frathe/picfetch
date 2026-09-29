@@ -109,6 +109,9 @@ func Acquire(ctx context.Context, uri fyne.URI) (fyne.URI, func(), error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
+	if destination, ok := uri.(*destinationURI); ok {
+		return destination.acquire()
+	}
 	source, ok := uri.(*sourceURI)
 	if !ok {
 		return uri, func() {}, nil

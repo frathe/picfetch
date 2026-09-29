@@ -788,9 +788,17 @@ manifest against their saved membership before publishing restored sources.
 capture and exact-once release, including active cancellation and duplicate
 occurrences. The Darwin open picker captures native URL bookmarks on its tracked
 chooser worker; Open With/Dock selections use the collection worker. Folder scans
-pass captured directory authority to children. Native save/window-drop capture,
-permission reselection, writes, source versions and analysis transfer remain open
-in the active Apple Store plan.
+pass captured directory authority to children. `destination.go` retains a native
+save URL without requiring an existing file; `ReleaseDestination` closes admission
+while active `Acquire` borrowers finish. Native save workers own this URI through
+export success, failure and cancellation. Window-drop capture, permission
+reselection, source versions and analysis transfer remain in the Apple Store plan.
+
+Image mutations acquire source/destination access before path resolution and hold
+it through serialized commit and cleanup; export metadata reads acquire their
+source separately. `imaging/staging_apple.go` selects Foundation's private
+same-volume replacement directory for Apple Store writes; `staging_other.go`
+keeps ordinary sibling staging.
 
 ### `internal/macworker`
 

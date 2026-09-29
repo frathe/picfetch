@@ -15,6 +15,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/filepicker"
 	"github.com/frathe/picfetch/internal/imaging"
 )
@@ -204,6 +205,7 @@ func (req exportRequest) run(ctx context.Context) exportResult {
 	}
 
 	result.destination, result.err = req.choose(suggestedExportPath(req.source, req.ext, result.edge))
+	defer fileaccess.ReleaseDestination(result.destination)
 	if result.err != nil {
 		result.chooserFailure = true
 		return result

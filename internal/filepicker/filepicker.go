@@ -46,12 +46,14 @@ var Choose = func() ([]fyne.URI, error) {
 // ChooseSave returns exactly the destination confirmed by the native panel.
 // Nil with no error means cancellation; more than one result is a protocol error.
 // suggestedPath supplies both the initial directory and the proposed name.
+// The caller must fileaccess.ReleaseDestination the returned URI after use,
+// including cancellation or errors that occur after the panel returns.
 var ChooseSave = func(suggestedPath string) (fyne.URI, error) {
 	var out []byte
 	var err error
 	switch runtime.GOOS {
 	case "darwin":
-		out, err = chooseSaveDarwin(suggestedPath)
+		return chooseSaveDarwin(suggestedPath)
 	case "windows":
 		out, err = chooseSaveWindows(suggestedPath)
 	default:

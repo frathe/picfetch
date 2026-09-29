@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -355,5 +356,57 @@ func TestExportBusyAndQueuedFailureAllowRetry(t *testing.T) {
 	v.exportAs(".png")
 	if v.canExport() || v.chooser.Current() != handle {
 		t.Error("shutdown allowed a fresh export")
+	}
+}
+
+func TestExportRetiresNativeDestination(t *testing.T) {
+	for _, phase := range []string{"success", "write_error", "chooser_error", "cancel", "shutdown"} {
+		t.Run(phase, func(t *testing.T) {
+			v := newTestViewer(t)
+			sources := uitest.TempDirJPEGURIs(t, "one.jpg", "two.jpg")
+			dropAndWait(t, v, sources...)
+			var released atomic.Int32
+			destination := fileaccess.NewDestination(storage.NewFileURI(filepath.Join(t.TempDir(), "export.png")), func() { released.Add(1) })
+			entered, gate := make(chan struct{}), make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(gate) })
+			t.Cleanup(unblock)
+			uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
+				close(entered)
+				<-gate
+				if phase == "chooser_error" {
+					return destination, errors.New("fixture picker failure")
+				}
+				return destination, nil
+			})
+			if phase == "write_error" {
+				v.fileWork.export = func(_ context.Context, _ fyne.URI, _ image.Image, _ fyne.URI, _ imaging.ExportOptions) (imaging.WriteResult, error) {
+					return imaging.WriteResult{}, errors.New("fixture write failure")
+				}
+			}
+			v.exportAs(".png")
+			select {
+			case <-entered:
+			case <-time.After(testTimeout):
+				t.Fatal("save chooser not entered")
+			}
+			switch phase {
+			case "cancel":
+				v.ShowImage(1)
+			case "shutdown":
+				v.closeFileWork()
+			}
+			unblock()
+			settleChooser(t, v)
+			if released.Load() != 1 {
+				t.Fatalf("destination released %d times", released.Load())
+			}
+			_, err := os.Stat(destination.Path())
+			if phase == "success" && err != nil {
+				t.Fatal(err)
+			}
+			if phase != "success" && !os.IsNotExist(err) {
+				t.Fatalf("failed/cancelled export wrote file: %v", err)
+			}
+		})
 	}
 }

@@ -2,7 +2,11 @@
 
 package filepicker
 
-import "errors"
+import (
+	"errors"
+
+	"fyne.io/fyne/v2"
+)
 
 // chooseFilesDarwin's real implementation (darwin.go) is cgo/AppKit and
 // only compiles on macOS. Choose's GOOS switch makes this stub unreachable;
@@ -13,6 +17,6 @@ func chooseFilesDarwin() ([]byte, error) {
 
 // chooseSaveDarwin is the same arrangement for the save panel, unreachable
 // behind ChooseSave's own GOOS switch.
-func chooseSaveDarwin(_ string) ([]byte, error) {
+func chooseSaveDarwin(_ string) (fyne.URI, error) {
 	return nil, errors.New("the macOS save panel only exists in darwin builds")
 }

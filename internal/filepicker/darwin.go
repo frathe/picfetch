@@ -112,6 +112,29 @@ static panelResult runSavePanel(const char *message, const char *dir, const char
 	if (response != NSModalResponseOK) return (panelResult){-1, NULL};
 	return retainSelection(panel.URL ? @[panel.URL] : @[]);
 }
+// The destination may not exist; retaining the original URL preserves its
+// implicit save permission without inspecting or bookmarking a nonexistent file.
+static char *saveSelectionPath(panelResult result) {
+ @autoreleasepool {
+  NSArray<NSURL *> *urls = (__bridge NSArray<NSURL *> *)result.urls;
+  if (urls.count != 1 || !urls.firstObject.isFileURL) return NULL;
+  const char *path = urls.firstObject.path.UTF8String;
+  return path ? strdup(path) : NULL;
+ }
+}
+static void releaseSaveSelection(panelResult result) {
+ @autoreleasepool {
+  NSArray<NSURL *> *urls = (__bridge_transfer NSArray<NSURL *> *)result.urls;
+  for (NSURL *url in urls) [url stopAccessingSecurityScopedResource];
+ }
+}
+
+// A URL fixture uses the same ownership transfer as the save panel.
+static panelResult testSaveSelection(const char *path) {
+ @autoreleasepool {
+  return retainSelection(@[[NSURL fileURLWithPath:[NSString stringWithUTF8String:path]]]);
+ }
+}
 */
 import "C"
 
@@ -124,7 +147,10 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"fyne.io/fyne/v2/storage"
+
 	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // chooseFilesDarwin runs AppKit's NSOpenPanel in-process rather than
@@ -161,7 +187,7 @@ func chooseFilesDarwin() ([]byte, error) {
 // filepath is safe in this file in a way it wouldn't be in the Windows
 // builder: this only ever compiles for darwin, where filepath's separator
 // is already the right one.
-func chooseSaveDarwin(suggestedPath string) ([]byte, error) {
+func chooseSaveDarwin(suggestedPath string) (fyne.URI, error) {
 	cMsg := C.CString(lang.L("Export image"))
 	defer C.free(unsafe.Pointer(cMsg))
 	cDir := C.CString(filepath.Dir(suggestedPath))
@@ -171,7 +197,11 @@ func chooseSaveDarwin(suggestedPath string) ([]byte, error) {
 
 	var result C.panelResult
 	fyne.DoAndWait(func() { result = C.runSavePanel(cMsg, cDir, cName) })
-	return decodeNativePanel(result, false)
+	if distribution.AppleAppStore {
+		return decodeNativeSavePanel(result)
+	}
+	out, err := decodeNativePanel(result, false)
+	return decodePickedDestination(out, err)
 }
 
 // darwinPathTransport exercises the panel's actual Objective-C NSURL serializer
@@ -213,3 +243,27 @@ func decodeNativePanel(result C.panelResult, scoped bool) ([]byte, error) {
 	}
 	return []byte(C.GoString(data)), nil
 }
+
+func decodeNativeSavePanel(result C.panelResult) (fyne.URI, error) {
+	if result.state == 0 {
+		return nil, nil
+	}
+	if result.state != 1 {
+		return nil, errors.New("native save panel failed")
+	}
+	path := C.saveSelectionPath(result)
+	defer C.free(unsafe.Pointer(path))
+	if path == nil {
+		C.releaseSaveSelection(result)
+		return nil, errors.New("native save panel returned an invalid destination")
+	}
+	return fileaccess.NewDestination(storage.NewFileURI(C.GoString(path)), func() { C.releaseSaveSelection(result) }), nil
+}
+
+func darwinSaveTransport(path string) (fyne.URI, error) {
+	name := C.CString(path)
+	defer C.free(unsafe.Pointer(name))
+	return decodeNativeSavePanel(C.testSaveSelection(name))
+}
+
+var _ = darwinSaveTransport

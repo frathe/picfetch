@@ -18,6 +18,8 @@ import (
 	"golang.org/x/image/tiff"
 
 	"github.com/gen2brain/avif"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // jpegSaveQuality is used instead of image/jpeg's own default (75, quite
@@ -96,7 +98,7 @@ func SaveRotated(u fyne.URI, img image.Image) error {
 
 // SaveRotatedContext holds the selected file's transaction through replacement.
 func SaveRotatedContext(ctx context.Context, u fyne.URI, img image.Image) (WriteResult, error) {
-	return fileTransactions.write(ctx, u.Path(), true, func(path string) (bool, error) {
+	return writeWithAccess(ctx, u, true, func(path string) (bool, error) {
 		err := saveRotated(ctx, path, img)
 		return err == nil, err
 	})
@@ -184,7 +186,7 @@ func Export(dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) er
 // ExportContext participates in the same resolved-destination transaction as
 // Save Changes and metadata removal, including aliases through parent directories.
 func ExportContext(ctx context.Context, dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) (WriteResult, error) {
-	return fileTransactions.write(ctx, dest.Path(), true, func(path string) (bool, error) {
+	return writeWithAccess(ctx, dest, true, func(path string) (bool, error) {
 		err := exportImage(ctx, path, dest.Extension(), img, src, opts)
 		return err == nil, err
 	})
@@ -215,7 +217,7 @@ func exportImage(ctx context.Context, path, ext string, img image.Image, src fyn
 	}
 
 	if isJPEGExt(ext) && src != nil && src.Path() != "" {
-		if orig, err := jpegFileBytesContext(ctx, src.Path()); err == nil && orig != nil {
+		if orig, err := jpegSourceBytesContext(ctx, src); err == nil && orig != nil {
 			// Answered here, once, while both frames are still in scope
 			// under their own names: out is what will be written, img is
 			// what arrived. Inside the closure below only one of them has a
@@ -312,10 +314,10 @@ func jpegFileBytesContext(ctx context.Context, path string) ([]byte, error) {
 	return io.ReadAll(contextRead{ctx: ctx, in: f})
 }
 
-// writeEncodedContext encodes img into a temp file in path's own directory and
+// writeEncodedContext encodes img into a same-volume staging file and
 // renames it over path only once the encode has fully succeeded, so a
 // failed or interrupted encode can never leave the destination truncated or
-// corrupted - and, since the rename is within one directory, never leaves a
+// corrupted - and, since the rename stays on one volume, never leaves a
 // half-written file where the caller asked for a whole one either. Shared
 // by SaveRotated (overwriting the file on screen) and Export (writing a
 // copy elsewhere), which differ only in how they arrive at path, perm, and
@@ -324,18 +326,21 @@ func writeEncodedContext(ctx context.Context, path string, perm os.FileMode, enc
 	return writeFileContext(ctx, path, perm, func(w io.Writer) error { return encode(w, img) })
 }
 
-// writeFileContext is writeEncodedContext's underlying atomic write, generalized to any
-// write func rather than an (encode, img) pair: temp file in path's own
-// directory, Chmod(perm), write, Sync, Close, Rename - so a failed or
-// interrupted write can never leave the destination truncated or
-// corrupted, and never leaves a half-written file behind either, since the
-// rename stays within one directory. StripJPEGMetadata uses this directly
-// (writing already-encoded bytes rather than encoding an image.Image).
+// writeFileContext performs the atomic write shared by image encoding and
+// metadata stripping: stage, chmod, write, sync, close, cancellation check, rename.
+// Apple Store builds use Foundation's private replacement directory because a
+// file-only grant cannot create siblings. Other builds stage beside the target.
+// Both routes preserve atomic same-volume replacement and cleanup on failure.
 func writeFileContext(ctx context.Context, path string, perm os.FileMode, write func(io.Writer) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".picfetch-save-*"+filepath.Ext(path))
+	directory, cleanup, err := writeStagingDirectory(path)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	tmp, err := os.CreateTemp(directory, ".picfetch-save-*"+filepath.Ext(path))
 	if err != nil {
 		return err
 	}
@@ -380,7 +385,7 @@ func StripJPEGMetadata(u fyne.URI) error {
 
 // StripJPEGMetadataContext serializes the source read as well as its rewrite.
 func StripJPEGMetadataContext(ctx context.Context, u fyne.URI) (WriteResult, error) {
-	return fileTransactions.write(ctx, u.Path(), false, func(path string) (bool, error) {
+	return writeWithAccess(ctx, u, false, func(path string) (bool, error) {
 		return stripJPEGMetadata(ctx, path)
 	})
 }
@@ -456,4 +461,13 @@ type UnsupportedSaveFormatError struct {
 
 func (e *UnsupportedSaveFormatError) Error() string {
 	return "saving " + e.ext + " images isn't supported"
+}
+
+func jpegSourceBytesContext(ctx context.Context, source fyne.URI) ([]byte, error) {
+	resolved, release, err := fileaccess.Acquire(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return jpegFileBytesContext(ctx, resolved.Path())
 }

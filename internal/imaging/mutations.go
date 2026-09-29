@@ -8,6 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // WriteResult distinguishes an accomplished replacement from cancelled work.
@@ -199,4 +203,15 @@ func (w contextWrite) Write(p []byte) (int, error) {
 		return n, cancelled
 	}
 	return n, err
+}
+
+// writeWithAccess holds authority across path resolution, serialized admission,
+// source reads, atomic replacement and staging cleanup.
+func writeWithAccess(ctx context.Context, uri fyne.URI, create bool, write func(string) (bool, error)) (WriteResult, error) {
+	resolved, release, err := fileaccess.Acquire(ctx, uri)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	defer release()
+	return fileTransactions.write(ctx, resolved.Path(), create, write)
 }

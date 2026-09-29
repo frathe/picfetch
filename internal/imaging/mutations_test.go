@@ -17,6 +17,8 @@ import (
 
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
+
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -475,4 +477,87 @@ func TestFileMutationsAllowIndependentDestinations(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestImageMutationsRequireLiveAuthority(t *testing.T) {
+	for _, operation := range []string{"export", "save", "strip"} {
+		t.Run(operation, func(t *testing.T) {
+			uri := uitest.TempGPSJPEGURI(t, "source.jpg", 8, 4, 48.858222, 2.2945)
+			before, err := os.ReadFile(uri.Path())
+			if err != nil {
+				t.Fatal(err)
+			}
+			source := fileaccess.NewDestination(uri, func() {})
+			fileaccess.ReleaseDestination(source)
+			pixels := image.NewRGBA(image.Rect(0, 0, 4, 8))
+			var result WriteResult
+			switch operation {
+			case "export":
+				result, err = ExportContext(context.Background(), source, pixels, nil, ExportOptions{})
+			case "save":
+				result, err = SaveRotatedContext(context.Background(), source, pixels)
+			case "strip":
+				result, err = StripJPEGMetadataContext(context.Background(), source)
+			}
+			after, readErr := os.ReadFile(uri.Path())
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if err == nil || result.Committed || !bytes.Equal(before, after) {
+				t.Fatalf("closed authority wrote: %+v, %v", result, err)
+			}
+		})
+	}
+}
+
+func TestExportKeepsDestinationAccessThroughEncoding(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "selected.png")
+	released := make(chan struct{})
+	destination := fileaccess.NewDestination(storage.NewFileURI(path), func() { close(released) })
+	defer fileaccess.ReleaseDestination(destination)
+	pixels := &heldMutationPixels{Image: image.NewRGBA(image.Rect(0, 0, 8, 4)), entered: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan error, 1)
+	go func() {
+		_, err := ExportContext(context.Background(), destination, pixels, nil, ExportOptions{})
+		done <- err
+	}()
+	<-pixels.entered
+	fileaccess.ReleaseDestination(destination)
+	premature := false
+	select {
+	case <-released:
+		premature = true
+	default:
+	}
+	close(pixels.release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if premature {
+		t.Fatal("native destination retired during encode")
+	}
+	select {
+	case <-released:
+	default:
+		t.Fatal("destination retained after commit")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExportDoesNotReadMetadataThroughClosedSourceAuthority(t *testing.T) {
+	source := fileaccess.NewDestination(uitest.TempGPSJPEGURI(t, "source.jpg", 8, 4, 48.858222, 2.2945), func() {})
+	fileaccess.ReleaseDestination(source)
+	destination := storage.NewFileURI(filepath.Join(t.TempDir(), "copy.jpg"))
+	if _, err := ExportContext(context.Background(), destination, image.NewRGBA(image.Rect(0, 0, 8, 4)), source, ExportOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(destination.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte("Exif")) {
+		t.Fatal("export read metadata outside source access")
+	}
 }

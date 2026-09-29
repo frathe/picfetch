@@ -19,6 +19,7 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Add an immutable Apple Store channel, localized update/repair messages, verified pre-sign runtime staging and a read-only developer-input preflight.
 - [x] Preserve captured permissions through image reads, directory scans, and complete session/Favorite serialization; shared folder bookmarks are stored once.
 - [x] Carry native Open With/Dock selections through worker-side bookmark capture, cancellation and shutdown; decode native URL escapes once. Signed production opening qualification remains pending.
+- [x] Own native save destinations through export/mosaic cancellation, scope image mutations and metadata reads, and stage Apple Store atomic writes in a same-volume replacement directory.
 - [ ] Qualify persistent security-scoped permissions for opening, saved sessions, Favorites, writes and workers.
 - [x] Implement the Apple Store XPC worker boundary and qualify native fixture TCP/UDP denial, cancellation and broker crash on Apple Silicon.
 - [ ] Qualify real HEIC/ONNX execution and granted source/cache access through that worker boundary on both Mac architectures.

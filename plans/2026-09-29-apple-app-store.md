@@ -172,8 +172,10 @@ Record the complete shipped closure and notice delivery before release readiness
 ## Honest limit
 
 A build tag is preparation, not evidence of sandbox compliance. Until T2–T5
-are complete, Apple builds are experimental and must not be submitted. No
-signed sandbox test, Apple validation or App Review result exists yet.
+are complete, Apple builds are experimental and must not be submitted. Ad-hoc
+signed native fixtures qualify selected boundaries on arm64; complete production
+sandbox qualification, Apple Distribution signing, validation and App Review
+remain outstanding.
 
 ## Evidence and cost ledger
 
@@ -548,3 +550,120 @@ open; this is a completed opening-ownership slice, not App Store readiness.
 Cost ledger: 0 spawns (budget 0); 2 inline review rounds (budget 2), with guard
 strengthening inside final review; one full gate attempted and blocked before
 suite execution. Build-only checks and focused native/race checks recorded above.
+
+### Next slice — native save ownership and scoped image writes
+
+Base `93c3040`; Deep route, T0 inline, zero delegates. Continue the agreed T2
+fileaccess/picker/imaging/export boundaries with regression tests at those seams.
+Task graph: destination lifetime -> native picker/export owners -> scoped writes
+and native staging -> integrated verification. No dependency or payload change.
+
+Contract: `NewDestination(uri, release)` owns the original selected save URL,
+including a destination that does not exist. `ReleaseDestination(uri)` closes
+admission, retires unborrowed access exactly once, and leaves active `Acquire`
+borrows alive until their synchronous operation returns. Native save and mosaic
+export workers retire the destination on every exit; imaging holds a bounded
+borrow across serialization, encoding, commit and cleanup. Source metadata reads
+hold independent access. Save Changes and metadata stripping acquire restored
+source authority before path resolution and serialization.
+
+Apple Store atomic writes use NSItemReplacementDirectory on the destination's
+volume; ordinary builds retain sibling staging. Preserve cancellation before
+commit, exact destination naming, symlink policy, permissions and Committed facts.
+No direct truncate/write fallback. Missing destination bookmarks must not be
+manufactured by expanding permission to the parent directory.
+
+Native recon: ad-hoc signed WriteProbe.app with a genuine implicit grant for a
+generated existing file denied a sibling write, allowed item-replacement staging
+and succeeded in POSIX atomic rename (sibling=0, staged=1, rename=0). Foundation
+bookmark creation for a nonexistent destination failed with Cocoa code 260.
+The initial unbundled sandbox helper could not launch (-5); bundle identity fixed
+that fixture setup. Evidence: `.scratch/apple-store-write-probe/result.txt`.
+This is arm64 fixture qualification, not signed NSSavePanel production validation.
+Sources: Apple's Accessing files from the macOS App Sandbox and FileManager
+SearchPathDirectory.itemReplacementDirectory documentation.
+
+Tests/commands: fileaccess destination active close/idempotence/cancellation;
+native picker transport for missing and escaped names; imaging write refusal
+with closed authority, cancellation/atomicity and source metadata scope;
+root/mosaic export success/error/cancel ownership through existing OS stubs.
+`go test -tags no_emoji,nodynamic[,appleappstore]` on those focused packages/tests,
+focused race checks, negative guard overlays, shard/exclusion checks, GoLand,
+`make verify-build`, Apple build/vet and Windows shared-package vet.
+Final `make verify` retains the native amd64 prerequisite. Budget: 0 spawns,
+2 inline review rounds; full suite once at final gate. Remaining scope excludes
+window drops, stale-grant recovery, post-write source-version reconciliation,
+OS handoffs, worker transfer and signed Store packaging/Intel qualification.
+
+
+#### Autonomous continuation instruction
+
+Ronin requested continued implementation and testing across all independently
+completable App Store work, with a running protocol of results and human-only
+steps collected last. Finish and checkpoint coherent slices; do not stop after a
+slice merely because other implementation/testing remains. Preserve the full
+feature set and existing commit authorization. No upload/submission/release is
+implied. Continue T2/T3/T4 tooling and qualification before asking for credentials,
+account setup, external hardware or product decisions that actually block work.
+
+#### Save/export implementation evidence
+
+The save-panel destination now retains its original NSURL through export worker
+exit, without trying to create a bookmark for a file that does not yet exist.
+`ReleaseDestination` is idempotent and nonblocking; active Acquire borrows keep
+native access until the complete synchronous write has returned. Root and mosaic
+exports discard destinations after chooser errors, cancellation, close, write
+failure and success. Source metadata reads acquire their own scope. Save Changes,
+Export and metadata stripping acquire authority before resolving/serializing the
+write and retain it through staging cleanup and atomic commit.
+
+Apple builds stage in Foundation's private same-volume replacement directory,
+then use the existing sync/close/cancellation/rename transaction. Ordinary builds
+retain sibling staging. Original symlink, mode and committed-result behavior is
+covered by existing mutation regressions. No direct-write fallback was added.
+
+Evidence, base `93c3040` plus this slice's working tree:
+
+- Destination ownership tests failed before implementation (closed admission and
+  omitted retirement), then passed. Mutation tests demonstrated unauthorized
+  writes and premature encoding release before the wrapper was added. Both UI
+  export flows failed all retirement cases before worker defers were added.
+- Native save transport tests cover a nonexistent filename with percent/hash
+  characters and decomposed accents, matching Foundation's filesystem spelling.
+  The initial fixture used a precomposed accent and failed on normalization;
+  after correcting that fixture, a deliberate plain-URI overlay fails the actual
+  ownership assertion. No filesystem object is created by save transport.
+- Focused ordinary tests pass in fileaccess, filepicker, imaging, root UI and
+  mosaicwin. Apple-tagged race checks pass in all five (imaging 12.380s, root UI
+  36.052s, mosaic 4.035s), including existing atomicity/cancel/symlink/metadata tests.
+- Native ad-hoc signed Go fixture executes the actual imaging.ExportContext and
+  fileaccess destination code under a file-only implicit sandbox grant. Results:
+  sibling denied; existing-file replacement committed; newly absent destination
+  created; cancelled export did not commit and preserved bytes. This is local
+  arm64 filesystem qualification, not NSSavePanel UI or Intel qualification.
+  A separately signed ordinary-staging build fails with EPERM on its temporary
+  sibling and leaves the original fixture bytes unchanged.
+- Negative overlays fail for early active-destination release, skipped mutation
+  acquisition, metadata reads outside source authority, both export retirements,
+  and flattened native save destinations. Actual sources remain unchanged by
+  the overlays. Restored ordinary and Apple race tests pass.
+- GoLand inspected all 16 changed Go files, including both platform staging files
+  and tests. Its mutations_test WriteResult/error warning is the existing
+  intentional Committed-on-error contract already covered by the exact
+  GoDfaErrorMayBeNotNil exclusion. Existing mosaic test duplicate fragments are
+  covered by that file's exact DuplicatedCode exclusion. No new suppression.
+  IDE fallback is not a fresh Qodana SARIF result.
+- `make verify-build` and full Apple-tagged application build passed.
+  Apple-tagged and Windows/amd64 no-cgo vet passed.
+  A native macOS shard inventory invocation included Darwin-only tests; the
+  manifest is Linux-specific; the prescribed Docker target passed with 749
+  runnable tests across three shards.
+  Full native Linux/amd64 race verification remains subject to the recorded
+  ARM-daemon blocker; no isolation policy is bypassed.
+
+Logs and native fixture evidence are retained in `.scratch/apple-store-write-probe`
+and `.scratch/apple-app-store-save/`. No third-party payload or dependency changed.
+Remaining: stale grant renewal/reselection, post-write authority/source-version
+reconciliation, window drop and OS handoffs, worker source transport, signed
+runtime validation and packaging, full artifact/platform qualification. T2 remains
+open. Budget: 0 spawns, 2 inline review rounds; focused tests only for this slice.

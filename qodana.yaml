@@ -150,6 +150,7 @@ exclude:
       - "internal/fileaccess/manifest_test.go"
       - "internal/fileaccess/source_test.go"
       - "internal/fileaccess/selection_test.go"
+      - "internal/fileaccess/destination_test.go"
       - "internal/macworker/command_test.go"
       - "internal/heic/process_linux_test.go"
       - "internal/heic/process_unix_test.go"
