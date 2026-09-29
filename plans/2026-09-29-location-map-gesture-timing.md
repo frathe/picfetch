@@ -433,6 +433,46 @@ The remaining native gate needs an uninterrupted foreground session; Ronin was
 asked to avoid switching applications during the trial. Fresh full Linux/amd64
 verification is still required for the changed Go code.
 
+### Complete local native attempt — 2026-09-29
+
+Ronin requested the complete local run after commit `33cd7af`. The existing
+application/helper binaries above were run with process-scoped idle-sleep
+prevention; no permanent power or security setting changed:
+
+```sh
+/usr/bin/caffeinate -di ./bin/location-map-qualify run \
+  -images .scratch/location-map-smoke-20260929/images \
+  -evidence .scratch/location-map-native-20260929-complete-local \
+  -binary ./bin/picfetch -helper ./bin/location-map-capture -timeout 5m
+```
+
+Result: exit 1, `gesture 1: no identified native response within 3s`.
+Cold/warm scans, initial pixel-verified close and gesture 0 passed. The pan
+witness is scale 1, dx 58, dy 0, 106/122 matches, 74.764 ms. The retained
+`gesture-001-before.png` and `gesture-001-after.png` visibly show the map zooming
+in, establishing that the synthetic keypad input reaches the native app without
+a physical keypad. The observer did not identify a qualifying transform, so its
+zoom timestamp correctly remains zero and the run is incomplete. This failure
+is neither missing permission nor foreground refusal. The failed sample and
+whole-window PNG pair remain intact; no timing or acceptance rule was relaxed.
+
+The diagnosis workflow's bounded evidence comparison distinguishes successful
+visible input from failed measurement identification. It does not yet establish
+why registration rejected the real scene; that requires replay/instrumentation
+against the retained frame pair before any matcher change. No source changes
+were made in this verification continuation.
+
+`location-map-qualify check` with the actual count of 24 returned exit 1,
+`incomplete or non-native screen capture report`, as required. The complete
+40-gesture/cancellation gate has not passed. The runner finished and its
+temporary idle-sleep assertion ended.
+
+Fresh `make check-test-platform` also failed: the local daemon reports
+`linux/aarch64`, while the complete suite requires native Linux/amd64. No
+emulated full suite was run, no isolation test was skipped, and no new full-suite
+pass is claimed. Unchanged-source focused/compiler/IDE evidence above carries
+forward from `33cd7af`; full native Linux/amd64 verification remains open.
+
 ### Remaining live qualification
 
 1. Stay on this branch. Native compilation and focused tests are complete at the
@@ -440,7 +480,10 @@ verification is still required for the changed Go code.
    inspection is unavailable in the installed GoLand configuration. Complete it
    with a suitable native tool if available, preserving the distinction between
    that gate and the passed compiler checks.
-2. CGEvent-helper approval and both native permissions are verified. Resume
+2. Resolve the real-frame zoom registration rejection recorded above before
+   expecting a complete run; preserve the failed pair as its reproduction.
+   CGEvent-helper approval, both native permissions and visible keypad zoom
+   delivery are verified. Resume
    with an unlocked desktop and keep PicFetch foreground. Use the prepared synthetic
    corpus for a smoke check or Ronin's chosen real collection, always with a
    fresh evidence directory. The helper preflights existing Screen Recording

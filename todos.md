@@ -125,10 +125,13 @@
   focused race regressions, non-test verification and changed-file GoLand
   inspections pass. Native cold/warm entry and pixel-verified return worked on 24 synthetic
   GPS images. An unlocked retry identified one pan, then exposed layout-dependent
-  zoom keys; keypad plus/minus now pass protocol/Swift regressions. The corrected
-  live retry lost foreground before measurement. Resume with uninterrupted
-  foreground focus, then complete fresh native Linux/amd64 verification for the
-  Go fixes. Real-collection qualification remains separate from this smoke test.
+  zoom keys; keypad plus/minus now pass protocol/Swift regressions and visibly
+  zoom the native app. The uninterrupted local attempt passed one pan, then
+  failed to identify the zoom transform despite visible motion. Replay the
+  retained frame pair to resolve registration before repeating all 40 gestures.
+  Fresh native Linux/amd64 verification is also required for the Go fixes; the
+  local ARM daemon fails the prerequisite check. Real-collection qualification
+  remains separate from this smoke test.
   Swift semantic inspections are unavailable in the installed GoLand
   configuration and remain unverified.
   The [plan and macOS handoff](plans/2026-09-29-location-map-gesture-timing.md)
