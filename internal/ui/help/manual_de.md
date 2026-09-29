@@ -986,6 +986,11 @@ Ordner voller Fotos wie einen digitalen Bilderrahmen laufen zu lassen.
   bildschirmfüllend skaliert, das Seitenverhältnis bleibt erhalten — nie
   gestreckt oder beschnitten, dasselbe Einpassverhalten wie im normalen
   Fenster.
+- Unter Linux und Windows ist die Menüleiste anfangs ausgeblendet, damit das
+  Bild den ganzen Bildschirm nutzen kann. Sie gleitet herein, wenn der Zeiger
+  500 ms am oberen Rand bleibt, und gleitet wieder hinaus, wenn er ihn
+  verlässt. Ein geöffnetes Menü hält die Leiste fest. macOS behält die
+  System-Menüleiste.
 - Alle **10 Sekunden** (standardmäßig) wechselt die Ansicht **automatisch**
   zum nächsten Bild, am Ende beginnt es wieder von vorne, genau wie bei
   manueller Navigation. Jeder Wechsel wird **überblendet** — das

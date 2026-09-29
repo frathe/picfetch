@@ -57,7 +57,7 @@ func buildMainMenu(view *viewer) *fyne.MainMenu {
 	view.grid.SetOnVisibilityChanged(view.explorerGridChanged)
 	view.grid.SetOnSelectionChanged(view.syncMenus)
 	view.grid.SetOnResultChanged(view.syncMenus)
-	view.slides.SetOnActiveChanged(view.syncMenus)
+	view.slides.SetOnActiveChanged(view.onPictureFrameActive)
 	view.grid.SetOnDupeStateChanged(view.syncDuplicateState)
 	view.grid.SetOnDuplicateProgress(view.syncDuplicatePreparationProgress)
 	view.syncMenus()

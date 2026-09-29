@@ -25,6 +25,7 @@ import (
 	"github.com/frathe/picfetch/internal/ui/exifwin"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/ui/favorites"
+	"github.com/frathe/picfetch/internal/ui/framemenu"
 	"github.com/frathe/picfetch/internal/ui/grid"
 	"github.com/frathe/picfetch/internal/ui/help"
 	"github.com/frathe/picfetch/internal/ui/infoview"
@@ -373,6 +374,14 @@ type viewer struct {
 	// so keeping them from overlapping is this package's job - see
 	// handleKeyEvent's G case and togglePictureFrameMode.
 	slides *slideshow.Controller
+
+	// mainMenu is the bar buildMainMenu assembled. On Linux and Windows,
+	// picture-frame mode detaches it and slides frameChrome over the
+	// picture; leaving the mode puts this same menu back. pictureFrameSlidingMenu
+	// is false on macOS, where the system menu bar is outside the window.
+	mainMenu                *fyne.MainMenu
+	pictureFrameSlidingMenu bool
+	frameChrome             *framemenu.Chrome
 
 	// clipboard tracks the active clipboard operation through result delivery;
 	// clipboardWork owns admission, cancellation, all workers and their queue.

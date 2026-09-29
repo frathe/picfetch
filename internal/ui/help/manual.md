@@ -857,6 +857,10 @@ photos like a digital picture frame.
 - The window goes **full-screen**. The image is scaled to fit the screen,
   keeping its aspect ratio — never stretched or cropped, the same
   scale-to-fit behavior as the normal window.
+- On Linux and Windows the menu bar starts hidden, so the picture can use
+  the whole screen. It slides in when the pointer has stayed along the top
+  edge for 500 ms, and slides back out when the pointer leaves. An open
+  menu keeps the bar on screen. macOS keeps the system menu bar.
 - Every **10 seconds** (by default) the view **automatically advances** to
   the next image, wrapping around at the end just like manual navigation.
   Each transition **crossfades** — the outgoing image fades to nothing, the
