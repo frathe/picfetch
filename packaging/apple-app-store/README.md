@@ -39,7 +39,9 @@ embedded XPC service without it. The service launches its own signed inherited
 fixture executable from `Contents/MacOS/picfetch-image-worker`. Native sources
 compile with warnings treated as errors. The checks exercise both modes,
 transferred pipes, TCP/UDP denial, cancellation, leader exit with descendants,
-and broker crash. No image/model/user files are used. Fixture container IDs are
+and broker crash. A generated file in the fixture app container is unreadable
+from the worker before bookmark resolution, readable afterward, while an
+ungranted sibling remains denied. No image/model/user files are used. Fixture container IDs are
 separate from PicFetch's production identifier.
 
 Apple-tagged Go launchers use this broker. The production layout is:

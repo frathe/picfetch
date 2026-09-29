@@ -10,7 +10,7 @@ mkdir -p "$app/Contents/MacOS" "$service/Contents/MacOS"
 cat > "$app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0"?><plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>io.github.frathe.picfetch.workerqualification</string>
-<key>CFBundleExecutable</key><string>picfetch-worker-client</string>
+<key>CFBundleExecutable</key><string>qualification</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 </dict></plist>
 PLIST
@@ -35,8 +35,11 @@ PLIST
 done
 xcrun clang -fobjc-arc -Wall -Wextra -Werror -framework Foundation "$repo/internal/macworker/native/client.m" -o "$app/Contents/MacOS/picfetch-worker-client"
 xcrun clang -fobjc-arc -Wall -Wextra -Werror -framework Foundation "$repo/internal/macworker/native/service.m" -o "$service/Contents/MacOS/worker"
-xcrun clang -Wall -Wextra -Werror "$repo/scripts/macworkerqualify/fixture.c" -o "$service/Contents/MacOS/picfetch-image-worker"
+xcrun clang -fobjc-arc -Wall -Wextra -Werror -framework Foundation "$repo/scripts/macworkerqualify/driver.m" -o "$app/Contents/MacOS/qualification"
+xcrun clang -fobjc-arc -Wall -Wextra -Werror -framework Foundation "$repo/scripts/macworkerqualify/fixture.m" -o "$service/Contents/MacOS/picfetch-image-worker"
+codesign --force --sign - --entitlements "$stage/helper.plist" "$app/Contents/MacOS/picfetch-worker-client"
 codesign --force --sign - --entitlements "$stage/helper.plist" "$service/Contents/MacOS/picfetch-image-worker"
 codesign --force --sign - --entitlements "$stage/service.plist" "$service"
 codesign --force --sign - --entitlements "$stage/app.plist" "$app"
-python3 "$repo/scripts/macworkerqualify/check.py" "$app/Contents/MacOS/picfetch-worker-client"
+codesign --verify --strict "$app"
+python3 "$repo/scripts/macworkerqualify/check.py" "$app/Contents/MacOS/qualification"

@@ -782,7 +782,8 @@ stdin/stdout/stderr handles and a fixed HEIC/similarity mode; `client.m` forward
 cancellation; `service.m` owns a process group and reaps its leader after killing
 descendants. The image worker lives inside the XPC service's `Contents/MacOS`.
 `scripts/macworkerqualify` builds an ad-hoc signed native fixture to exercise
-actual TCP/UDP denial, pipe transfer, cancellation, broker crash and group exit.
+actual TCP/UDP denial, pipe transfer, cancellation, broker crash, group exit
+and implicit bookmark transfer from a separate app container.
 Source grant transport and final Store signing remain qualification work.
 
 ### `internal/heic`

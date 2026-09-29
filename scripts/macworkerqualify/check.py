@@ -77,3 +77,14 @@ record = json.loads(result.stdout)
 verify_worker(record, "similarity")
 assert_reaped(record["pid"])
 print("PASS normal leader exit retires descendants before broker completion")
+
+result = subprocess.run(command("grant"), input="", capture_output=True,
+                        text=True, timeout=15)
+assert result.returncode == 0, (result.returncode, result.stdout, result.stderr)
+record = json.loads(result.stdout)
+verify_worker(record, "similarity")
+assert record["before"] in (errno.EPERM, errno.EACCES), record
+assert record["granted"] == 1, record
+assert record["sibling"] in (errno.EPERM, errno.EACCES), record
+assert_reaped(record["pid"])
+print("PASS bookmark transfer: private source denied before resolution, allowed after; sibling denied")

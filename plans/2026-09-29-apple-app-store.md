@@ -277,3 +277,56 @@ runtime validation, production packaging, Intel and final Store qualification
 remain required. No upload or release has been performed.
 
 T3 budget so far: 0 spawns; 2 inline review rounds; no complete suite rerun.
+
+### Next authority design and native feasibility evidence
+
+Base revision: `2ec93e7`. T2/T3 source authority remains open.
+
+Apple's current [file-access guidance](https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox)
+distinguishes app-scoped bookmarks stored for relaunch from bookmarks created
+with options 0 for interprocess access. Resolve temporary bookmarks in the
+process doing the actual file I/O and balance its implicit access with Stop.
+Persistent bookmarks cannot simply be sent to a differently signed XPC helper.
+
+The native qualification now includes the production layout's inherited broker.
+A fixture app creates one file and an unrelated sibling in its own container,
+then sends an options-0 bookmark through the existing input pipe. The separately
+sandboxed image worker is denied the file before resolving the bookmark,
+reads its exact content after resolution, and remains denied the sibling.
+Both TCP/UDP checks and retirement checks still pass. Native sources compile
+with -Wall -Wextra -Werror; strict ad-hoc bundle signature verification passes.
+GoLand inspections of driver.m, fixture.m, check.py and run.sh return no findings.
+Negative verification replaced the transferred bookmark with invalid bytes;
+only the source-access guard failed (granted=0); the fixture was restored.
+
+Planned contract before source implementation:
+
+- An immutable source URI carries persistent bookmark data and the relative
+  child identity when its authority is a selected directory. Paths never
+  manufacture authority. Folder scanning propagates only that captured grant.
+- Each file I/O operation resolves/acquires its source scope, retains it through
+  actual read/write/native completion, and releases it exactly once. The URI
+  carries no indefinitely retained native scope, and features share no global
+  mutable permission registry. Capture/resolution must happen on tracked workers.
+- Session and Favorite records retain grants aligned with the complete recorded
+  membership and occurrences. Missing, stale or inaccessible authority needs
+  reselection; it must not be interpreted as an empty successful collection.
+- Analysis holds its parent source/cache leases for the whole existing Analyze/
+  Search call. Add bounded temporary bookmark bytes to the existing request
+  protocol; the image worker resolves and holds them through all worker exit
+  and nested decoder retirement. No new broker/XPC side channel is needed.
+- File-only grants do not imply parent-directory rights. Sibling browsing and
+  atomic source replacement need verified folder authority or a deliberate
+  native authorization flow; do not silently broaden the selected scope.
+
+Focused lifetime tests must cover acquisition failure rollback, cancelled reads,
+exact-once release, directory-child inheritance/traversal rejection, restored
+membership/occurrences, and delayed native completion. Their package-specific
+commands and source boundary map will be pinned before those edits.
+
+A scratch native picker probe is open for user-assisted qualification because
+both computer-use accessibility requests timed out. It uses separate identifier
+io.github.frathe.picfetch.grantqualification and only the generated
+.scratch/apple-store-grant-probe/selected folder. User selection/relaunch/moved
+folder evidence is pending. No production bookmark readiness is inferred from
+the successful temporary interprocess grant fixture.
