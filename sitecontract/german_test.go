@@ -44,7 +44,7 @@ func TestMakeBuildGeneratesGermanRegularFromCurrentCache(t *testing.T) {
 		`Deutsch: This page was translated with DeepL and has not been edited.`,
 		`🇬🇧`,
 		`🇩🇪`,
-		`https://player.vimeo.com/video/1220283616?badge=0&amp;autopause=0`,
+		`https://player.vimeo.com/video/1231254824?badge=0&amp;autopause=0`,
 		`picfetch-windows-arm64.zip`,
 		`xattr -cr &quot;/path/to/PicFetch.app&quot;`,
 	} {

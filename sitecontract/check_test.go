@@ -524,6 +524,61 @@ func TestCheckGeneratedRejectsMalformedExternalURL(t *testing.T) {
 	}
 }
 
+func TestWebsiteScreenshotsResolveAcrossRoutesAndAreChecked(t *testing.T) {
+	repo := repositoryRoot(t)
+	cachePath := createControlledGermanCache(t, repo)
+	output := t.TempDir()
+	build := exec.Command("make", "build", "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	build.Dir = repo
+	if combined, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build website with local screenshots: %v\n%s", err, combined)
+	}
+	writeStaticSiteFiles(t, output)
+
+	for _, route := range []struct {
+		path   string
+		prefix string
+	}{
+		{path: "index.html", prefix: "./"},
+		{path: "amp/index.html", prefix: "../"},
+		{path: "de/index.html", prefix: "../"},
+		{path: "de/amp/index.html", prefix: "../../"},
+	} {
+		page, err := os.ReadFile(filepath.Join(output, filepath.FromSlash(route.path)))
+		if err != nil {
+			t.Fatalf("read %s: %v", route.path, err)
+		}
+		for _, name := range []string{"location-map.webp", "similarity-explorer.webp"} {
+			want := `src="` + route.prefix + `screenshots/` + name + `"`
+			if !strings.Contains(string(page), want) {
+				t.Errorf("%s does not resolve website screenshot locally: want %s", route.path, want)
+			}
+		}
+		if !strings.Contains(string(page), `src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/main_screen.png"`) {
+			t.Errorf("%s changed an external screenshot URL", route.path)
+		}
+	}
+
+	check := func() ([]byte, error) {
+		cmd := exec.Command("make", "check-generated", "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+		cmd.Dir = repo
+		return cmd.CombinedOutput()
+	}
+	if combined, err := check(); err != nil {
+		t.Fatalf("local screenshot links failed validation: %v\n%s", err, combined)
+	}
+	if err := os.Remove(filepath.Join(output, "screenshots", "location-map.webp")); err != nil {
+		t.Fatalf("remove screenshot fixture: %v", err)
+	}
+	combined, err := check()
+	if err == nil {
+		t.Fatal("check-generated accepted a missing local screenshot")
+	}
+	if !strings.Contains(string(combined), "screenshots/location-map.webp does not exist") {
+		t.Fatalf("missing-screenshot diagnostic is not actionable:\n%s", combined)
+	}
+}
+
 func copyTemplateDirectory(t *testing.T, repo string) string {
 	t.Helper()
 	destination := t.TempDir()
@@ -542,9 +597,14 @@ func copyTemplateDirectory(t *testing.T, repo string) string {
 func writeStaticSiteFiles(t *testing.T, root string) {
 	t.Helper()
 	for name, data := range map[string]string{
-		"favicon.ico":   "test icon",
-		"manifest.json": "{}\n",
+		"favicon.ico":                          "test icon",
+		"manifest.json":                        "{}\n",
+		"screenshots/location-map.webp":        "test screenshot",
+		"screenshots/similarity-explorer.webp": "test screenshot",
 	} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755); err != nil {
+			t.Fatalf("create static test directory for %s: %v", name, err)
+		}
 		if err := os.WriteFile(filepath.Join(root, name), []byte(data), 0o600); err != nil {
 			t.Fatalf("write static test file %s: %v", name, err)
 		}

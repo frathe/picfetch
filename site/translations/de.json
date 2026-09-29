@@ -86,11 +86,35 @@
       "format": "text",
       "text": "Animiertes „GIFs“"
     },
-    "features.drop-anything.body": {
-      "source_hash": "7b83a68cc1a39f6ed6ab858b1baf77e7eec96fac57525d359f8b954ccf272458",
-      "request_hash": "c45a1be2ec9065d308d854683f620f8fab3238bbf25e442e195d2dd7c9ac2599",
+    "features.comparison.body": {
+      "source_hash": "ff112eaf9dfff6733e938bfe256fc2395f6c934bbff5c4d56d4a85e3424d87f1",
+      "request_hash": "7d1e66c51dd70e12ae927b35eff7c77071c5f4f2911d61faab8d801b31f0c1be",
       "format": "html",
-      "text": "\u003cp\u003eJPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, SVG, HEIC, AVIF und camera RAW (integrierte Vorschau unter JPEG). HEIC und AVIF decodieren über das integrierte WASM und benötigen daher keine Systembibliotheken.\u003c/p\u003e"
+      "text": "\u003cp\u003eVergleichen Sie zwei Bilder nebeneinander oder überlagern Sie sie mit einem verschiebbaren Trennbalken. Verknüpfen Sie Zoom und Verschiebung, um dasselbe Detail in beiden Bildern zu betrachten, passen Sie jedes Bild unabhängig voneinander an und tauschen Sie die Seiten aus.\u003c/p\u003e"
+    },
+    "features.comparison.title": {
+      "source_hash": "a6482cc618a07a09c81f1e91f8450677f39b0b31171e65a9f8e1941b946f479a",
+      "request_hash": "a6482cc618a07a09c81f1e91f8450677f39b0b31171e65a9f8e1941b946f479a",
+      "format": "text",
+      "text": "Vergleichen Sie jedes Detail"
+    },
+    "features.copy-selection.body": {
+      "source_hash": "519ba5ca1bb90560c9d3ba5266ee4d2dcd30841f2ac80a537edee97cad2c23ee",
+      "request_hash": "4d28a959972b74baa26569d3377925dc0602297bd6937af9b00bb7f603c1b18f",
+      "format": "html",
+      "text": "\u003cp\u003e\u003ckbd\u003eOpt/Alt\u003c/kbd\u003e+\u003ckbd\u003eShift\u003c/kbd\u003e+\u003ckbd\u003eC\u003c/kbd\u003e startet die Funktion „Auswahl kopieren“. Zeichnen Sie ein Rechteck, verschieben oder ändern Sie dessen Größe und kopieren Sie diesen Bildbereich dann als „PNG“ Pixel in seiner eigenen Auflösung. Fügen Sie ihn in eine andere App ein, ohne das Originalbild zu verändern.\u003c/p\u003e"
+    },
+    "features.copy-selection.title": {
+      "source_hash": "8280aa23672fc8782ab801824a0500a56872c20a46355604a46ebe263e86772a",
+      "request_hash": "8280aa23672fc8782ab801824a0500a56872c20a46355604a46ebe263e86772a",
+      "format": "text",
+      "text": "Kopiere nur den Teil, den du brauchst"
+    },
+    "features.drop-anything.body": {
+      "source_hash": "62ab38cca75f6f4e49a4108fa5891c7b5315d8db1a862dbb5253a876c400309e",
+      "request_hash": "79ce0aee44f6bc4b97610bfe1577c5d92ad39b34636630fff4e47b4eeac3aa77",
+      "format": "html",
+      "text": "\u003cp\u003eJPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, SVG, AVIF und camera RAW (eingebettete Vorschau unter JPEG). HEIC/HEIF wird mit einem kompatiblen System-Decoder geöffnet; unter „Einstellungen“ finden Sie eine Kompatibilitätsprüfung und Installationsanweisungen. AVIF-Unterstützung ist integriert.\u003c/p\u003e"
     },
     "features.drop-anything.title": {
       "source_hash": "0559fbc4aa64be8a000f6718baf9ac40f2b0adeb8100ea09eac4f014268c844a",
@@ -109,6 +133,30 @@
       "request_hash": "a1abdd4dc164bdc2a813ae4f86bcdaad6e7ccc113d27c066ad7b3caf3fc18b33",
       "format": "text",
       "text": "EXIF sich dessen bewusst"
+    },
+    "features.export.body": {
+      "source_hash": "6c5821e8bae4c972f2ccd35cde6b321370a871e3d24b349a99cee2430e6c77ab",
+      "request_hash": "14d17401c8b7f8bde664faa1b7867fe3adbb339f219cde6e92680b99bf3e93ed",
+      "format": "html",
+      "text": "\u003cp\u003eExportieren Sie Kopien im Format „PNG“ oder „JPEG“ mit einer optionalen Begrenzung der längsten Kante auf 2400, 1600 oder 1000 Pixel. Lassen Sie die Metadaten zu Kamera, Aufnahmedatum und „GPS“ in den Kopien im Format „JPEG“ weg, während das Original unverändert bleibt.\u003c/p\u003e"
+    },
+    "features.export.title": {
+      "source_hash": "63fe639e9239e9f12838f58bfbd3615ff6c65f4d3f0a87e2666387ca3c66de43",
+      "request_hash": "63fe639e9239e9f12838f58bfbd3615ff6c65f4d3f0a87e2666387ca3c66de43",
+      "format": "text",
+      "text": "Eine Kopie exportieren, um sie weiterzugeben"
+    },
+    "features.find-similar.body": {
+      "source_hash": "b7a11ded2449626a2e981361c17d09de48fd73173561b2e59835bef4b9d1c719",
+      "request_hash": "dfc2980dc79911b49e13ce7450f591e72bb9246cfed04062eebf76666f2207f6",
+      "format": "html",
+      "text": "\u003cp\u003eWählen Sie ein Referenzbild aus und drücken Sie \u003ckbd\u003eCmd/Ctrl\u003c/kbd\u003e+\u003ckbd\u003eShift\u003c/kbd\u003e+\u003ckbd\u003eL\u003c/kbd\u003e, um bis zu 30 ähnliche Bilder in Ihrer geladenen Sammlung zu finden. Durchsuchen Sie die Treffer, vergleichen Sie Ihre Auswahl und speichern Sie ausgewählte Ergebnisse in den Favoriten. Verwendet dieselbe lokale Analyse wie der Similarity Explorer.\u003c/p\u003e"
+    },
+    "features.find-similar.title": {
+      "source_hash": "25ed61ac11793982ccc861e073252ac59a417f67bce026b7dc6a78e9ae63967e",
+      "request_hash": "25ed61ac11793982ccc861e073252ac59a417f67bce026b7dc6a78e9ae63967e",
+      "format": "text",
+      "text": "Weitere Fotos wie dieses finden"
     },
     "features.folders-merging.body": {
       "source_hash": "35265358ebbb3f05a32953070213bf387c886ba2309122b54e9011a9af2be8bd",
@@ -146,11 +194,23 @@
       "format": "text",
       "text": "Navigation mit der Tastatur"
     },
-    "features.mosaic-generator.body": {
-      "source_hash": "d9bbe4d1f465d410ea660f3a73859d879e5b6c8393a3eab329229cf4c455c89e",
-      "request_hash": "bfbf611bbceeb9ceca03f2250e59bfe03bcedb7128471ade8e484ae3cad7b4ca",
+    "features.location-map.body": {
+      "source_hash": "5e45fcd540b093c5cbe47eaea8c2dce75ebf6b95122f77e52068b70d040abe4c",
+      "request_hash": "73aba28cf72c1b465176d79edb9e037e2509f803d801e474b6dae7dd830fc7c1",
       "format": "html",
-      "text": "\u003cp\u003eWandeln Sie Ihre Auswahl in der Rasteransicht – oder das aktuell gefilterte Raster, wenn nichts ausgewählt ist – in ein Bildmosaik in Displaygröße um. Wählen Sie das Ziel-Display aus, passen Sie das Layout an, generieren Sie es anschließend neu, speichern Sie es als „PNG“ oder „JPEG“ oder legen Sie es als Hintergrundbild fest.\u003c/p\u003e"
+      "text": "\u003cp\u003e\u003ckbd\u003eShift\u003c/kbd\u003e+ „\u003ckbd\u003eL\u003c/kbd\u003e“ öffnet die Standortkarte für Ihre geladene Sammlung. Entdecken Sie aufgezeichnete „GPS“-Standorte, öffnen Sie Fotogruppen in der Nähe und kehren Sie zur gleichen Kartenposition zurück. Mit der Tastatur können Sie die Karte verschieben, zoomen und navigieren – wahlweise im hellen oder dunklen Kartenstil. Für „OpenStreetMap“-Kartenkacheln ist eine Internetverbindung erforderlich.\u003c/p\u003e"
+    },
+    "features.location-map.title": {
+      "source_hash": "87c6062ac684f44801d231dc4d65e5d77f4db3bfb85412a7e6bff0b0f5adae36",
+      "request_hash": "87c6062ac684f44801d231dc4d65e5d77f4db3bfb85412a7e6bff0b0f5adae36",
+      "format": "text",
+      "text": "Fotos nach Ort durchsuchen"
+    },
+    "features.mosaic-generator.body": {
+      "source_hash": "a836c3a9be21e2b214bd7cac066a4ab048b48d9b1517c5f39302af6c78581da0",
+      "request_hash": "1f0988b4f893055b92c9e6ecd90a827c84e36163144eb2f679be41633154a569",
+      "format": "html",
+      "text": "\u003cp\u003eVerwandeln Sie Ihre Auswahl in der Rasteransicht – oder das aktuell gefilterte Raster, wenn nichts ausgewählt ist – in ein Bildmosaik in Displaygröße. Wählen Sie das Layout „Zufällig“ oder „Regal“, passen Sie Rahmen, Überlappungen und Schatten an, generieren Sie das Mosaik anschließend neu, speichern Sie es als „PNG“ oder „JPEG“ oder legen Sie es als Hintergrundbild fest.\u003c/p\u003e"
     },
     "features.mosaic-generator.title": {
       "source_hash": "eeb8766a970492b486381dca197a3495c24a0d026562b67f5fb5d4c4defdb282",
@@ -169,6 +229,30 @@
       "request_hash": "b8582443cfd44348bdd051a991c7a633d73eee3c6a69ad7a9a0f6f0272f07b7f",
       "format": "text",
       "text": "Namentlich genannte Favoriten"
+    },
+    "features.picture-frame.body": {
+      "source_hash": "862a73eb9cb6ca2efd9bfe8d5838832b4e8ef66187b931904c95fdd16b8859e2",
+      "request_hash": "449e52045e3a88dc940758c8ffa555a77a9defae410e945a929a41548d1a06ea",
+      "format": "html",
+      "text": "\u003cp\u003e\u003ckbd\u003eP\u003c/kbd\u003e Verwandelt Ihre Sammlung in eine Vollbild-Diashow mit Überblendungen. Passen Sie die Dauer mit den Auf- und Ab-Pfeilen an oder verwenden Sie „\u003ckbd\u003eShift\u003c/kbd\u003e“ + „\u003ckbd\u003eP\u003c/kbd\u003e“, um die Reihenfolge zu mischen.\u003c/p\u003e"
+    },
+    "features.picture-frame.title": {
+      "source_hash": "dd21a1b5bf5a620c22b4770f18b2b792eceba6275893095782f6a4f957674217",
+      "request_hash": "dd21a1b5bf5a620c22b4770f18b2b792eceba6275893095782f6a4f957674217",
+      "format": "text",
+      "text": "Bilderrahmen-Modus"
+    },
+    "features.similarity-explorer.body": {
+      "source_hash": "f13af3fc3ca4e235b4779f0f8da93cbecbaeeeff70660c9157a2bfe74d7ba9c7",
+      "request_hash": "9032f228341da54ebda58a99d5dca36a86038efc4606ca2dd05726487e6e6530",
+      "format": "html",
+      "text": "\u003cp\u003e\u003ckbd\u003eShift\u003c/kbd\u003e+ „\u003ckbd\u003eS\u003c/kbd\u003e“ gruppiert optisch zusammengehörige Fotos in Stapeln. Filtern Sie nach 75 Motiven und Szenen, passen Sie die Gruppierung an und speichern Sie wiederverwendbare Voreinstellungen. Verfügbar auf unterstützten Systemen mit macOS, Linux und Windows 11. Nach einem optionalen Modell-Download bei der ersten Nutzung läuft die Bildanalyse lokal und funktioniert offline – Ihre Bilder werden niemals hochgeladen.\u003c/p\u003e"
+    },
+    "features.similarity-explorer.title": {
+      "source_hash": "bd937587b8f45a6ac57857d8c7214f8f4e6def5b072f3b5026d597bcc2a86816",
+      "request_hash": "bd937587b8f45a6ac57857d8c7214f8f4e6def5b072f3b5026d597bcc2a86816",
+      "format": "text",
+      "text": "Ähnlichkeits-Explorer"
     },
     "features.sorting.body": {
       "source_hash": "a852d270b2e219e500cf18b327b421ca1c4ecb8fc1458e2a3992c7ab7e62d7c8",
@@ -327,16 +411,16 @@
       "text": "Schließen"
     },
     "metadata.description": {
-      "source_hash": "fe597bc1b5d7162f4583ca5d5bc1aa22dec0d910a59edba3f4aa6bee9794759a",
-      "request_hash": "98319cc4bc63809923a4ffba74ff7d4cf326df7c77ad2899adee8fea7bd6c25c",
+      "source_hash": "60aff229614699ffd4ace48a875936c656b9ec84cda613ce64cb858089efc067",
+      "request_hash": "cac2baeeb223e3b0f03ce6bd860cac57b03d76bfc330f333e036ab8c96b6fe8a",
       "format": "text",
-      "text": "PicFetch ist eine kleine, plattformübergreifende Desktop-Anwendung zum schnellen Anzeigen und Durchsuchen von Bildern. Ziehen Sie ein oder mehrere Bilder in das Fenster und blättern Sie mit der Tastatur durch sie hindurch."
+      "text": "Durchsuchen, vergleichen und entdecken Sie Ihre Fotos neu mit „PicFetch“. Entdecken Sie Orte auf „GPS“, finden Sie ähnliche Bilder in Ihrer Umgebung und erstellen Sie Fotomosaike. Kostenlos und als Open Source verfügbar unter macOS, Windows und Linux."
     },
     "metadata.open-graph-description": {
-      "source_hash": "b492cdcab51b43850e43d389daea58ca65a0ab27db04c6dfdfc2fa9c6b566255",
-      "request_hash": "51bb3a48b0c07246a360f0ac8c746fac01a446abc668f6cb49c9a1b44e9f975c",
+      "source_hash": "0310a8bc2dd0d98140ee167e65aae9da1aa2b24b967efbb217c490edcda23ecf",
+      "request_hash": "165670fb528175a788e0e3db907fd738971c23dc8deeaf6065fd1791128c4a5c",
       "format": "text",
-      "text": "Ziehen Sie ein oder mehrere Bilder in das Fenster und blättern Sie mit der Tastatur durch sie hindurch. Kostenlos und Open Source, für macOS, Windows und Linux."
+      "text": "Entdecken Sie Ihre Fotos nach Ort oder visueller Ähnlichkeit, vergleichen Sie Bilder und erstellen Sie Mosaike. Kostenlos und Open Source, für macOS, Windows und Linux."
     },
     "metadata.open-graph-title": {
       "source_hash": "da26b80749f014eb7a84d377a81416f685a78addc5d8d01623eb7e3f53011ab5",
@@ -361,6 +445,18 @@
       "request_hash": "9f33d84ac53d2216182ae4330c08ae3528b7ac0010367d30f34772f00f1a6dff",
       "format": "text",
       "text": "Das Miniaturbild-Raster zum Auffinden eines Bildes anhand des Aussehens"
+    },
+    "screenshots.location-map.alt": {
+      "source_hash": "d09524dde0cb49f10413413b784a751831d6bd48d5236d8b1f7cc0aa315934d1",
+      "request_hash": "c2f9dad63a8ef2817245d097a1d94f2f2fc672eb90fbe362d8c08d200801bfcf",
+      "format": "text",
+      "text": "Standortkarte von PicFetch mit Foto-Miniaturansichten und nummerierten Gruppen in ganz Europa, mit den Steuerelementen „Alles anpassen“ und „Zurück zum Viewer“"
+    },
+    "screenshots.location-map.caption": {
+      "source_hash": "0016825be579696498ee1cd2f894b2a8a89e435c56f5835e2e8d1c125dea7ac2",
+      "request_hash": "d73079640f26f114fe3b1c696b73da4291443b9af0d2b51090a29daef10c03ed",
+      "format": "text",
+      "text": "Fotos mit dem Tag „GPS“ nach Ort durchsuchen – mit Ortskarte"
     },
     "screenshots.main.alt": {
       "source_hash": "473f375ae7d362f4528e3728609a012be026b0e3a11dd7b1ed6b8b4a3b008c1b",
@@ -398,17 +494,59 @@
       "format": "text",
       "text": "Wählen Sie eine Anzeige aus und passen Sie das Erscheinungsbild des Mosaiks an"
     },
-    "screenshots.viewer.alt": {
-      "source_hash": "46c5af32c5e6bb138b86fef8017842badf128705e861dfc5e96b111d4f7906d1",
-      "request_hash": "180a58bf9e4d4441a270fdc77a0bf91b9a2cecd9951643abd8574675ff6ac97b",
+    "screenshots.side-by-side.alt": {
+      "source_hash": "98ea75e3b555fbce739d759d315ecabfd10225e2d0c4c52daf159dd118980c90",
+      "request_hash": "d022d65a3815256be510563aca4a0fa7d3a821c01baebda15a899ef8b8bab0b9",
       "format": "text",
-      "text": "Ein vergrößertes Foto mit eingeblendeten Dateiinformationen und dem geöffneten Datenfenster „EXIF“, das Kamera, Blende, Brennweite und Aufnahmedatum anzeigt"
+      "text": "Zwei nebeneinander angezeigte Fotos in „PicFetch“, um Details zu vergleichen"
+    },
+    "screenshots.side-by-side.caption": {
+      "source_hash": "b7bedcd35f1a8e3d4e17f232392b57fdfa7b3451b7f267bff89efed7a36a2356",
+      "request_hash": "b7bedcd35f1a8e3d4e17f232392b57fdfa7b3451b7f267bff89efed7a36a2356",
+      "format": "text",
+      "text": "Zwei Fotos nebeneinander vergleichen – mit verknüpftem Zoomen und Verschieben"
+    },
+    "screenshots.similarity-explorer.alt": {
+      "source_hash": "a29db90bbe619642d296f3f8500b932de8f5d873604c991715dd29540e9bba65",
+      "request_hash": "a29db90bbe619642d296f3f8500b932de8f5d873604c991715dd29540e9bba65",
+      "format": "text",
+      "text": "Der „Similarity Explorer“ zeigt Stapel verwandter Fotos, Themenfilter und eine Detailstufensteuerung zur Anpassung der Gruppierung an"
+    },
+    "screenshots.similarity-explorer.caption": {
+      "source_hash": "dd71ba545792282453dfa592806c24161a3d8e97f389e012066f7429c8e81f36",
+      "request_hash": "dd71ba545792282453dfa592806c24161a3d8e97f389e012066f7429c8e81f36",
+      "format": "text",
+      "text": "Entdecken Sie ähnliche Fotos im Similarity Explorer"
+    },
+    "screenshots.swipe-compare.alt": {
+      "source_hash": "a3e49d9a7a73fca6cf22c122d83222e5b56bfa0a96ece2eec65c6845cbdda759",
+      "request_hash": "6dd898acdb912b173ca3fd10d1483e0e29f5f58b2baa24c63549b33ada4f39ba",
+      "format": "text",
+      "text": "Zwei Fotos, die in „PicFetch“ übereinandergelegt wurden, mit einem verschiebbaren Trennbalken, der die Unterschiede sichtbar macht"
+    },
+    "screenshots.swipe-compare.caption": {
+      "source_hash": "36ff90db9316863a5c61d684045bd41cc1d3c6f3485ca6c032f2afd4a20ad631",
+      "request_hash": "36ff90db9316863a5c61d684045bd41cc1d3c6f3485ca6c032f2afd4a20ad631",
+      "format": "text",
+      "text": "Schieben Sie den Teiler, um die Unterschiede zwischen den Bildern zu erkennen"
+    },
+    "screenshots.viewer.alt": {
+      "source_hash": "4b7a91c0c3b2b79fe3567f09ff47b3df4173b4c465ab1ce9bda77f8a6a4726e1",
+      "request_hash": "fae055ea2b04f7fdc18f00580d524df70177b1ecba2ed67c6546c59790423387",
+      "format": "text",
+      "text": "Ein Foto mit geöffnetem Datenfenster von „EXIF“, das die Kameraeinstellungen, das Aufnahmedatum und eine Ansicht des aufgezeichneten Standorts unter OpenStreetMap GPS zeigt"
     },
     "screenshots.viewer.caption": {
-      "source_hash": "553d74b600607d0700e226f577469a7f63f8bbd471b1523b1b861430a83af989",
-      "request_hash": "a7d7a2a5b2390d465d43c09ff639b8b3ef19aa56e894e050465b2617eaa0da93",
+      "source_hash": "96ac0dc4801a6b63a106ddf82c76d2b94ad00987c5c364ec0c626b8ec72b08b0",
+      "request_hash": "4786f4861f261c5ad7dd71570887096754020f89277090cfec0b0cdb01c4e725",
       "format": "text",
-      "text": "Vergrößerte Ansicht mit angezeigten Dateiinformationen und „EXIF“-Daten"
+      "text": "Überprüfen Sie die Kameraeinstellungen und den Aufnahmestandort des Fotos"
+    },
+    "sections.demo-basic-usage.heading": {
+      "source_hash": "62d404f898b9bca6543bcc19884d8ffda59bcf72ab239cc013f50c51702de078",
+      "request_hash": "62d404f898b9bca6543bcc19884d8ffda59bcf72ab239cc013f50c51702de078",
+      "format": "text",
+      "text": "Grundlegende Bedienung und Bildansicht"
     },
     "sections.demo-compare.heading": {
       "source_hash": "763f4ec329f8bd1f6c575f09b34adc2051fde8db88e25fd7c70cd73957c791c6",
@@ -439,6 +577,12 @@
       "request_hash": "067348ce68943b630359fea7b8b9aa2f7e00bda7532fa406f0286c943261f823",
       "format": "text",
       "text": "Screenshots"
+    },
+    "videos.demo-basic-usage.title": {
+      "source_hash": "0731067881c157d8b34cbe2c280a49fb39a8567dd9c1ee140179212880e8a9b3",
+      "request_hash": "b487909f3be0e64f9eba1b5720c4b645b2616d4e8362f0d2bad3fa4325d94695",
+      "format": "text",
+      "text": "PicFetch — Grundlegende Bedienung und Bildansicht"
     },
     "videos.demo-compare.title": {
       "source_hash": "d02102bf136e4d103e963ec98db8f52ee50c4e4c82ccb6b0b028a4a18d4bc225",

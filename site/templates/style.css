@@ -64,6 +64,7 @@ img { max-width: 100%; height: auto; display: block; }
 .shot img, .shot amp-img { width: 100%; cursor: pointer; }
 .shot p { margin: 0; padding: .65rem .9rem; color: var(--fg-muted); font-size: .88rem; }
 .video { overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-soft); box-shadow: var(--shadow); }
+.video-promo { margin-top: 2rem; }
 .lightbox { display: none; position: fixed; inset: 0; align-items: center; justify-content: center; padding: 3rem 1.5rem; background: var(--overlay); z-index: 100; }
 .lightbox.open { display: flex; }
 .lightbox-frame { position: relative; max-width: min(90vw, 960px); max-height: 90vh; }

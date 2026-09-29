@@ -36,10 +36,10 @@
     </header>
     <main>
         {{range .Content.Sections}}
-        {{if eq .Kind "video"}}<h2>{{text .Heading}}</h2>
-        <div class="video"><amp-vimeo data-videoid="{{.Video.VideoID}}" width="{{.Video.Width}}" height="{{.Video.Height}}" layout="responsive" aria-label="{{text .Video.Title}}"{{if .Video.Autoplay}} autoplay{{end}}></amp-vimeo></div>
+        {{if eq .Kind "video"}}{{if not .Video.Autoplay}}<h2>{{text .Heading}}</h2>{{end}}
+        <div class="video{{if .Video.Autoplay}} video-promo{{end}}"><amp-vimeo data-videoid="{{.Video.VideoID}}" width="{{.Video.Width}}" height="{{.Video.Height}}" layout="responsive" aria-label="{{text .Video.Title}}"{{if .Video.Autoplay}} autoplay{{end}}></amp-vimeo></div>
         {{else if eq .Kind "screenshots"}}<h2>{{text .Heading}}</h2>
-        <ul class="grid screens">{{range .Screenshots}}<li class="shot"><amp-img src="{{.Image.URL}}" width="{{.Image.Width}}" height="{{.Image.Height}}" layout="responsive" lightbox="screenshots" alt="{{text .Alt}}"></amp-img><p>{{text .Caption}}</p></li>{{end}}</ul>
+        <ul class="grid screens">{{range .Screenshots}}<li class="shot"><amp-img src="{{screenshotURL .Image.URL}}" width="{{.Image.Width}}" height="{{.Image.Height}}" layout="responsive" lightbox="screenshots" alt="{{text .Alt}}"></amp-img><p>{{text .Caption}}</p></li>{{end}}</ul>
         {{else if eq .Kind "features"}}<h2>{{text .Heading}}</h2>
         <ul class="grid">{{range .Features}}<li class="card"><h3>{{text .Title}}</h3>{{markdown .Body}}</li>{{end}}</ul>
         {{else if eq .Kind "downloads"}}<h2 id="{{.Anchor}}">{{text .Heading}}</h2>

@@ -25,6 +25,9 @@ func TestRegularPageKeepsInteractionsWhenStorageIsUnavailable(t *testing.T) {
 	if combined, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build storage-test site: %v\n%s", err, combined)
 	}
+	if err := os.CopyFS(filepath.Join(output, "screenshots"), os.DirFS(filepath.Join(repo, "docs", "screenshots"))); err != nil {
+		t.Fatalf("copy browser-test screenshots: %v", err)
+	}
 
 	script := filepath.Join(t.TempDir(), "storage-lightbox.cjs")
 	if err := os.WriteFile(script, []byte(storageLightboxScript), 0o600); err != nil {
@@ -56,7 +59,9 @@ const server = http.createServer((request, response) => {
     return;
   }
   try {
-    response.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'}).end(fs.readFileSync(filename));
+    const body = fs.readFileSync(filename);
+    const contentType = path.extname(filename) === '.webp' ? 'image/webp' : 'text/html; charset=utf-8';
+    response.writeHead(200, {'Content-Type': contentType}).end(body);
   } catch (error) {
     response.writeHead(error.code === 'ENOENT' ? 404 : 500).end('not found');
   }

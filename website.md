@@ -49,17 +49,17 @@ metadata:
   description:
     id: metadata.description
     text: >-
-      PicFetch is a small multi-platform desktop app for quickly viewing and
-      browsing images. Drop one or more images onto the window and step through
-      them with the keyboard.
+      Browse, compare and rediscover your photos with PicFetch. Explore GPS
+      locations, find similar images locally and create photo mosaics.
+      Free and open source for macOS, Windows and Linux.
   open_graph_title:
     id: metadata.open-graph-title
     text: PicFetch — a small, fast image viewer
   open_graph_description:
     id: metadata.open-graph-description
     text: >-
-      Drop one or more images onto the window and step through them with the
-      keyboard. Free and open source, for macOS, Windows and Linux.
+      Explore your photos by location or visual similarity, compare images and
+      create mosaics. Free and open source, for macOS, Windows and Linux.
   open_graph_image: https://raw.githubusercontent.com/frathe/picfetch/main/assets/social_logo.jpg
 icons:
   - rel: icon
@@ -141,9 +141,9 @@ sections:
       text: See it in action
     video:
       id: vimeo-main
-      video_id: '1220283616'
-      width: 1000
-      height: 660
+      video_id: '1231254824'
+      width: 1920
+      height: 1080
       autoplay: true
       title:
         id: videos.demo-main.title
@@ -179,14 +179,58 @@ sections:
       - id: viewer
         image:
           url: https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/viewer.png
-          width: 2088
-          height: 1160
+          width: 1904
+          height: 1462
         alt:
           id: screenshots.viewer.alt
-          text: A zoomed-in photo with the file info overlay and the EXIF data window open, showing camera, aperture, focal length and capture date
+          text: A photo with the EXIF data window open, showing camera settings, capture date and an OpenStreetMap view of its recorded GPS location
         caption:
           id: screenshots.viewer.caption
-          text: Zoomed in, with file info and EXIF data on show
+          text: Inspect camera settings and the photo's recorded location
+      - id: shot-location-map
+        image:
+          url: https://frathe.github.io/picfetch/screenshots/location-map.webp
+          width: 1726
+          height: 1083
+        alt:
+          id: screenshots.location-map.alt
+          text: PicFetch's Location Map showing photo thumbnails and numbered clusters across Europe, with Fit All and Back to Viewer controls
+        caption:
+          id: screenshots.location-map.caption
+          text: Browse GPS-tagged photos by place with Location Map
+      - id: shot-similarity-explorer
+        image:
+          url: https://frathe.github.io/picfetch/screenshots/similarity-explorer.webp
+          width: 1728
+          height: 1083
+        alt:
+          id: screenshots.similarity-explorer.alt
+          text: Similarity Explorer showing stacks of related photos, subject filters and a granularity control for adjusting the grouping
+        caption:
+          id: screenshots.similarity-explorer.caption
+          text: Discover related photos in Similarity Explorer
+      - id: side-by-side
+        image:
+          url: https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/side-by-side-compare.png
+          width: 1208
+          height: 645
+        alt:
+          id: screenshots.side-by-side.alt
+          text: Two photos displayed side by side in PicFetch for comparing details
+        caption:
+          id: screenshots.side-by-side.caption
+          text: Compare two photos side by side with linked zoom and pan
+      - id: swipe-compare
+        image:
+          url: https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/swipe-compare.png
+          width: 1208
+          height: 645
+        alt:
+          id: screenshots.swipe-compare.alt
+          text: Two photos overlaid in PicFetch with a movable swipe divider revealing the differences
+        caption:
+          id: screenshots.swipe-compare.caption
+          text: Slide the divider to reveal differences between images
       - id: mosaic-settings
         image:
           url: https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/mosaic_setting.png
@@ -215,6 +259,41 @@ sections:
       id: sections.features.heading
       text: Features
     features:
+      - id: location-map
+        title:
+          id: features.location-map.title
+          text: Browse photos by location
+        body: features.location-map.body
+      - id: similarity-explorer
+        title:
+          id: features.similarity-explorer.title
+          text: Similarity Explorer
+        body: features.similarity-explorer.body
+      - id: find-similar
+        title:
+          id: features.find-similar.title
+          text: Find more photos like this
+        body: features.find-similar.body
+      - id: comparison
+        title:
+          id: features.comparison.title
+          text: Compare every detail
+        body: features.comparison.body
+      - id: copy-selection
+        title:
+          id: features.copy-selection.title
+          text: Copy just the part you need
+        body: features.copy-selection.body
+      - id: export
+        title:
+          id: features.export.title
+          text: Export a copy to share
+        body: features.export.body
+      - id: picture-frame
+        title:
+          id: features.picture-frame.title
+          text: Picture-frame mode
+        body: features.picture-frame.body
       - id: drop-anything
         title:
           id: features.drop-anything.title
@@ -270,6 +349,20 @@ sections:
           id: features.hide-duplicates.title
           text: Hide duplicate images
         body: features.hide-duplicates.body
+  - id: demo-basic-usage
+    kind: video
+    heading:
+      id: sections.demo-basic-usage.heading
+      text: Basic usage and image browsing
+    video:
+      id: vimeo-basic-usage
+      video_id: '1220283616'
+      width: 1000
+      height: 660
+      autoplay: false
+      title:
+        id: videos.demo-basic-usage.title
+        text: PicFetch — basic usage and image browsing
   - id: demo-compare
     kind: video
     heading:
@@ -398,7 +491,35 @@ A small desktop app for quickly viewing and browsing images. Drop one or more on
 
 ## Drop almost anything {#features.drop-anything.body}
 
-JPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, SVG, HEIC, AVIF and camera RAW (embedded JPEG preview). HEIC and AVIF decode through embedded WASM, so they need no system libraries.
+JPEG, PNG, GIF, WebP, BMP, TIFF, ICO, XPM, SVG, AVIF and camera RAW (embedded JPEG preview). HEIC/HEIF opens with a compatible system decoder; Settings includes a support check and installation instructions. AVIF support is built in.
+
+## Browse photos by location {#features.location-map.body}
+
+<kbd>Shift</kbd>+<kbd>L</kbd> opens Location Map for your loaded collection. Explore recorded GPS locations, open nearby photo groups and return to the same map position. Pan, zoom and navigate by keyboard, with light and dark map styles. OpenStreetMap tiles need an internet connection.
+
+## Similarity Explorer {#features.similarity-explorer.body}
+
+<kbd>Shift</kbd>+<kbd>S</kbd> groups visually related photos into stacks. Filter by 75 subjects and scenes, adjust the grouping and save reusable presets. Available on supported macOS, Linux and Windows 11 systems. After an optional first-use model download, image analysis runs locally and works offline — your images are never uploaded.
+
+## Find more like this {#features.find-similar.body}
+
+Choose a reference image and press <kbd>Cmd/Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> to find up to 30 similar pictures in your loaded collection. Browse the matches, compare your picks and save selected results to Favorites. Uses the same local analysis as Similarity Explorer.
+
+## Compare every detail {#features.comparison.body}
+
+Compare two images side by side or overlay them with a movable swipe divider. Link zoom and pan to inspect the same detail in both, adjust each image independently and swap sides.
+
+## Copy just the part you need {#features.copy-selection.body}
+
+<kbd>Opt/Alt</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> starts Copy Selection. Draw a rectangle, move or resize it, then copy that image region as PNG pixels at its own resolution. Paste it into another app without changing the original image.
+
+## Export a copy to share {#features.export.body}
+
+Export PNG or JPEG copies with an optional longest-edge limit of 2400, 1600 or 1000 pixels. Leave camera, capture-date and GPS metadata out of JPEG copies while keeping the original untouched.
+
+## Picture-frame mode {#features.picture-frame.body}
+
+<kbd>P</kbd> turns your collection into a full-screen slideshow with crossfades. Adjust the timing with the up and down arrows, or use <kbd>Shift</kbd>+<kbd>P</kbd> to shuffle the order.
 
 ## Keyboard browsing {#features.keyboard-browsing.body}
 
@@ -410,7 +531,7 @@ Step through a set with the arrow keys (wrapping at both ends), or jump straight
 
 ## Mosaic generator {#features.mosaic-generator.body}
 
-Turn your Grid View selection — or the current filtered grid when nothing is selected — into a display-sized image mosaic. Choose the target display, tune the layout, then regenerate, save it as PNG or JPEG, or set it as wallpaper.
+Turn your Grid View selection — or the current filtered grid when nothing is selected — into a display-sized image mosaic. Choose Random or Shelf layout, tune frames, overlap and shadows, then regenerate, save it as PNG or JPEG, or set it as wallpaper.
 
 ## Zoom and pan {#features.zoom-pan.body}
 

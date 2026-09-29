@@ -237,6 +237,13 @@ func contains(values []string, want string) bool {
 
 func renderPage(templatesPath, format string, data *page) ([]byte, error) {
 	functions := template.FuncMap{
+		"screenshotURL": func(imageURL string) string {
+			base := strings.TrimRight(data.Content.Site.BaseURL, "/") + "/"
+			if relative, ok := strings.CutPrefix(imageURL, base); ok {
+				return data.LocalPrefix + relative
+			}
+			return imageURL
+		},
 		"text": func(value LocalizedText) (string, error) {
 			if translated, ok := data.translations[value.ID]; ok {
 				return translated, nil

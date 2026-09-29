@@ -29,7 +29,8 @@ func TestMakeBuildGeneratesEnglishRegularPage(t *testing.T) {
 	for _, want := range []string{
 		`<html lang="en">`,
 		`<title>PicFetch — a small, fast image viewer for macOS, Windows and Linux</title>`,
-		`1220283616`,
+		`src="https://player.vimeo.com/video/1231254824?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479&amp;autoplay=1&amp;muted=1&amp;loop=1"`,
+		`src="https://player.vimeo.com/video/1220283616?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479"`,
 		`href="#downloads"`,
 		`picfetch-linux-arm64.tar.gz`,
 		`class="lightbox"`,
@@ -38,6 +39,15 @@ func TestMakeBuildGeneratesEnglishRegularPage(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("generated English regular page does not contain %q", want)
 		}
+	}
+	basicUsage := strings.Index(html, "<h2>Basic usage and image browsing</h2>")
+	compare := strings.Index(html, "<h2>Compare images with ease</h2>")
+	oldVideo := strings.Index(html, "https://player.vimeo.com/video/1220283616?")
+	if basicUsage < 0 || oldVideo < basicUsage || compare < oldVideo {
+		t.Error("basic usage video does not appear between its heading and the comparison section")
+	}
+	if strings.Index(html, "<h2>") < strings.Index(html, "https://player.vimeo.com/video/1231254824?") {
+		t.Error("autoplay video has a heading above it")
 	}
 }
 
@@ -91,13 +101,13 @@ func TestRegularVideoAspectRatioComesFromAuthoredDimensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read website source: %v", err)
 	}
-	changed := strings.Replace(string(source), "      width: 1000\n      height: 660", "      width: 1600\n      height: 900", 1)
+	changed := strings.Replace(string(source), "      width: 1920\n      height: 1080", "      width: 1600\n      height: 1200", 1)
 	if changed == string(source) {
 		t.Fatal("test setup did not change the first video dimensions")
 	}
 	sourcePath := filepath.Join(t.TempDir(), "website.md")
 	if err := os.WriteFile(sourcePath, []byte(changed), 0o600); err != nil {
-		t.Fatalf("write website source with a 16:9 video: %v", err)
+		t.Fatalf("write website source with a 4:3 video: %v", err)
 	}
 	output := t.TempDir()
 
@@ -110,8 +120,8 @@ func TestRegularVideoAspectRatioComesFromAuthoredDimensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated English regular page: %v", err)
 	}
-	if !strings.Contains(string(page), `style="padding:56.25% 0 0 0;position:relative;"`) {
-		t.Fatal("regular video wrapper does not use the authored 16:9 aspect ratio")
+	if !strings.Contains(string(page), `style="padding:75% 0 0 0;position:relative;"><iframe src="https://player.vimeo.com/video/1231254824?`) {
+		t.Fatal("modified video wrapper does not use the authored 4:3 aspect ratio")
 	}
 }
 
@@ -121,9 +131,9 @@ func TestVideoIdentityAndAutoplayDriveBothFormats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read website source: %v", err)
 	}
-	changed := strings.Replace(string(source), "      video_id: '1220283616'", "      video_id: '987654321'", 1)
+	changed := strings.Replace(string(source), "      video_id: '1231254824'", "      video_id: '987654321'", 1)
 	changed = strings.Replace(changed, "      autoplay: true", "      autoplay: false", 1)
-	if changed == string(source) || strings.Contains(changed, "      video_id: '1220283616'") {
+	if changed == string(source) || strings.Contains(changed, "      video_id: '1231254824'") {
 		t.Fatal("test setup did not change the first video identity and autoplay behavior")
 	}
 	sourcePath := filepath.Join(t.TempDir(), "website.md")
@@ -148,7 +158,7 @@ func TestVideoIdentityAndAutoplayDriveBothFormats(t *testing.T) {
 	if !strings.Contains(string(regular), `src="https://player.vimeo.com/video/987654321?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479"`) {
 		t.Fatal("regular page did not derive its URL from the authored video identity and disabled autoplay")
 	}
-	if !strings.Contains(string(amp), `<amp-vimeo data-videoid="987654321" width="1000" height="660" layout="responsive" aria-label="PicFetch"></amp-vimeo>`) {
+	if !strings.Contains(string(amp), `<amp-vimeo data-videoid="987654321" width="1920" height="1080" layout="responsive" aria-label="PicFetch"></amp-vimeo>`) {
 		t.Fatal("AMP page did not use the same authored video identity and disabled autoplay")
 	}
 }
@@ -424,7 +434,7 @@ func TestInvalidSourceRejectsDownloadGroupWithoutLinks(t *testing.T) {
 	if err == nil {
 		t.Fatal("make build accepted a download group without links")
 	}
-	if !strings.Contains(string(combined), "sections[4].download_groups[0].links: at least one link is required") {
+	if !strings.Contains(string(combined), "sections[5].download_groups[0].links: at least one link is required") {
 		t.Fatalf("empty-download-group diagnostic is not actionable:\n%s", combined)
 	}
 }
@@ -445,7 +455,7 @@ func TestInvalidSourceRejectsFieldsOwnedByAnotherSectionKind(t *testing.T) {
 		{kind: "video", id: "demo-main", index: 0},
 		{kind: "screenshots", id: "screenshots", index: 1},
 		{kind: "features", id: "features", index: 2},
-		{kind: "downloads", id: "downloads", index: 4},
+		{kind: "downloads", id: "downloads", index: 5},
 	}
 	sectionFields := []struct {
 		name  string
@@ -520,7 +530,9 @@ func TestMakeBuildGeneratesEnglishAMPFromSharedSource(t *testing.T) {
 		`https://cdn.ampproject.org/v0.js`,
 		`custom-element="amp-vimeo"`,
 		`custom-element="amp-lightbox-gallery"`,
-		`<amp-vimeo data-videoid="1220283616"`,
+		`<amp-vimeo data-videoid="1231254824" width="1920" height="1080" layout="responsive" aria-label="PicFetch" autoplay>`,
+		`<amp-vimeo data-videoid="1220283616" width="1000" height="660" layout="responsive" aria-label="PicFetch — basic usage and image browsing"></amp-vimeo>`,
+		`<h2>Basic usage and image browsing</h2>`,
 		`<amp-img src="https://raw.githubusercontent.com/frathe/picfetch/main/assets/screens/main_screen.png" width="520" height="372" layout="responsive" lightbox="screenshots"`,
 		`picfetch-linux-arm64.tar.gz`,
 	} {
@@ -530,6 +542,9 @@ func TestMakeBuildGeneratesEnglishAMPFromSharedSource(t *testing.T) {
 	}
 	if strings.Contains(html, "<iframe") {
 		t.Error("generated English AMP page contains a regular iframe")
+	}
+	if strings.Index(html, "<h2>") < strings.Index(html, `<amp-vimeo data-videoid="1231254824"`) {
+		t.Error("AMP autoplay video has a heading above it")
 	}
 }
 
