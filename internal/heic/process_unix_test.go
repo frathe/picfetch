@@ -24,6 +24,8 @@ func TestHEICWorkerRetiresDescendants(t *testing.T) {
 	command := client.command
 	client.command = func(ctx context.Context, executable string) *exec.Cmd {
 		cmd := command(ctx, executable)
+		// This fixture owns its process group, as the Store XPC service does.
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		cmd.ExtraFiles = []*os.File{writer}
 		return cmd
 	}

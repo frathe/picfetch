@@ -146,6 +146,7 @@ exclude:
       - "internal/heic/metadata_test.go"
       - "internal/heic/native_darwin_test.go"
       - "internal/heic/primaryfixture_test.go"
+      - "internal/macworker/command_test.go"
       - "internal/heic/process_linux_test.go"
       - "internal/heic/process_unix_test.go"
       - "internal/heic/restrict_linux_test.go"

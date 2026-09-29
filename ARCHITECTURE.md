@@ -78,7 +78,9 @@ rule compatibility.
 and publication counts as immutable values; grouping includes its named sub-stages.
 `control_unix.go`/`control_other.go` own the pollable worker input descriptor.
 `worker_linux.go` installs worker-only seccomp denial on x64/ARM64 synchronized across all
-threads before reading requests; `worker_other.go` retains the macOS sandbox launcher.
+threads before reading requests; `worker_other.go` retains the ordinary macOS sandbox launcher.
+`worker_darwin_store.go` launches the bundled `internal/macworker` broker;
+`worker_stop_other.go` preserves immediate retirement outside the Apple channel.
 `worker_windows.go` launches a hidden ordinary subprocess with closeable control
 pipes; Windows does not install OS network denial and events keep `OfflineVerified`
 false. `offline.go` exposes that distinction through `EnforcesNetworkIsolation`
@@ -771,6 +773,18 @@ Help's `privacy.go` uses the same document-injection pattern through
 policy opens a separate, word-wrapped Markdown singleton with vertical scrolling,
 Escape-to-close, and the same command-admission and shutdown guards.
 
+### `internal/macworker`
+
+Mac App Store worker broker factory and native XPC service. `command.go` selects
+only the broker beside the main executable and cancels with SIGTERM so process
+Wait includes the service's child retirement. `native/protocol.h` transfers
+stdin/stdout/stderr handles and a fixed HEIC/similarity mode; `client.m` forwards
+cancellation; `service.m` owns a process group and reaps its leader after killing
+descendants. The image worker lives inside the XPC service's `Contents/MacOS`.
+`scripts/macworkerqualify` builds an ad-hoc signed native fixture to exercise
+actual TCP/UDP denial, pipe transfer, cancellation, broker crash and group exit.
+Source grant transport and final Store signing remain qualification work.
+
 ### `internal/heic`
 
 Instance-owned system HEIC boundary. `Capability` coalesces representative checks,
@@ -785,8 +799,9 @@ including repeated URIs, independently of displayed files.
 `Client` bounds native children (two slots, deadlines, framed output, Stop/Wait).
 Analysis producers use `NewInheritedSandboxClient` after establishing their
 own sandbox and verify OS network denial before reading images. macOS children
-inherit that policy without a second `sandbox-exec`; desktop children still
-install their own sandbox, and all client cancellation/resource bounds remain.
+inherit that policy without a second `sandbox-exec`; ordinary desktop children
+still install their own sandbox. Apple Store desktop children use the XPC
+service and nested decoders retain its process group, and all client cancellation/resource bounds remain.
 `WorkerMain` dispatches before desktop startup. `container.go` performs checked
 primary-item/property and EXIF-transform interpretation inside that child;
 `native_linux.go/.c` dynamically loads system libheif with an HEVC provider.

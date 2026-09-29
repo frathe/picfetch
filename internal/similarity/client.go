@@ -83,6 +83,7 @@ func (d *workerDecoder) Decode(value any) error {
 // Client runs native inference and batch algorithms outside the viewer process.
 // Assets may override the installed assets directory for a local trial.
 type Client struct {
+	command        func(context.Context, string) *exec.Cmd
 	Assets         string
 	AnalysisLimits AnalysisLimits
 	// HTTPClient configures asset downloads; analysis never uses it.
@@ -136,7 +137,7 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 	}
 	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, GeneralAnalysisLimitBytes: c.GeneralAnalysisLimitBytes, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes(), AnalysisLimits: limits}
 	req.captureHEIC(heic.FromContext(ctx))
-	cmd := workerCommand(ctx, executable)
+	cmd := c.workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
 	return analyzeCommand(ctx, cmd, req, controls, emit)
 }
@@ -187,7 +188,7 @@ func analyzeCommand(ctx context.Context, cmd *exec.Cmd, req request, controls <-
 		_ = input.Close()
 		<-writerDone
 		if cmd.ProcessState == nil {
-			_ = cmd.Process.Kill()
+			_ = stopWorkerProcess(cmd)
 			_ = cmd.Wait()
 		}
 	}()
@@ -213,7 +214,7 @@ func analyzeCommand(ctx context.Context, cmd *exec.Cmd, req request, controls <-
 		emit(event)
 	}
 	if err != nil && !errors.Is(err, io.EOF) {
-		_ = cmd.Process.Kill()
+		_ = stopWorkerProcess(cmd)
 	}
 	waitErr := cmd.Wait()
 	if ctx.Err() != nil {
@@ -331,4 +332,13 @@ func runWorker() error {
 		<-readDone
 	}
 	return err
+}
+
+// workerCommand keeps launch configuration on the client instance. Protocol
+// tests can supply a process fixture without requiring a packaged application.
+func (c Client) workerCommand(ctx context.Context, executable string) *exec.Cmd {
+	if c.command != nil {
+		return c.command(ctx, executable)
+	}
+	return workerCommand(ctx, executable)
 }

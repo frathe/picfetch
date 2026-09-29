@@ -1,7 +1,8 @@
 # Mac App Store preparation
 
 The Apple channel is experimental. No submission package or signed sandbox
-qualification has been completed. Retain all PicFetch features; do not use
+qualification of the complete app has been completed. The native worker
+fixture is qualified on this Apple Silicon host. Retain all PicFetch features; do not use
 temporary filesystem exceptions or weaken the analysis worker's network denial
 to pass a packaging check.
 
@@ -26,6 +27,36 @@ temporary directory before any payload enters the package. It is a pre-sign
 step; signed Mach-O validation is separate work. The same library's SHA-256
 changes when signed, so checking it against the original upstream digest after
 signing is incorrect.
+
+## Native worker qualification
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer make apple-worker-test
+```
+
+This creates a temporary ad-hoc signed app with network permission and an
+embedded XPC service without it. The service launches its own signed inherited
+fixture executable from `Contents/MacOS/picfetch-image-worker`. Native sources
+compile with warnings treated as errors. The checks exercise both modes,
+transferred pipes, TCP/UDP denial, cancellation, leader exit with descendants,
+and broker crash. No image/model/user files are used. Fixture container IDs are
+separate from PicFetch's production identifier.
+
+Apple-tagged Go launchers use this broker. The production layout is:
+
+- App `Contents/MacOS/picfetch-worker-client`: inherited app sandbox helper.
+- App `Contents/XPCServices/io.github.frathe.picfetch.worker.xpc`: independently
+  sandboxed service with no network entitlements.
+- Service `Contents/MacOS/picfetch-image-worker`: signed sandbox/inherit helper.
+
+The service owns the process group; nested HEIC decoders must not create a new
+one. Cancellation terminates the broker with SIGTERM so it can wait for child
+retirement. The service kills remaining descendants before reaping the leader,
+and connection invalidation independently cancels its child.
+
+This fixture establishes the process boundary on arm64. It does not establish
+real ONNX/HEIC execution, security-scoped source grants, cache access, Intel
+behavior, provisioning compatibility or acceptance by Apple.
 
 ## Developer inputs
 

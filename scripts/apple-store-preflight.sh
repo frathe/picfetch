@@ -21,6 +21,10 @@ else
     fail 'Install full Xcode, complete its first launch, or set APPLE_STORE_DEVELOPER_DIR.'
 fi
 
+if ! /usr/bin/xcrun clang --version >/dev/null; then
+    fail 'Complete full Xcode first launch and review/accept its license locally with xcodebuild -license.'
+fi
+
 for tool in /usr/bin/codesign /usr/bin/productbuild /usr/sbin/pkgutil /usr/bin/security; do
     if [ ! -x "$tool" ]; then
         fail "Apple tool $tool is unavailable."

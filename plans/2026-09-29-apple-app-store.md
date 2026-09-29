@@ -58,8 +58,8 @@ The test runner and commands must be pinned before implementation starts.
 
 AC4: Public sandboxed workers preserve actual TCP/UDP denial and tracked exit.
 Verification: signed native helper qualification, including real HEIC and ONNX
-analysis, cancelled runs, worker shutdown, and parent crash. Exact executable
-layout and IPC grant transport remain design work.
+analysis, cancelled runs, worker shutdown, and parent crash. The native fixture command is `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer make apple-worker-test`.
+Real image/model execution, IPC grant transport and Intel qualification remain open.
 
 AC5: Native dependencies are pinned before signing, bundled with notices,
 validated by signature after signing, and cannot be replaced by model-cache
@@ -107,7 +107,7 @@ Budget: 0 spawns; 2 review rounds; no extra complete suite.
 Owner: T0 inline.
 Files: main private dispatch, HEIC and similarity Darwin launchers/protocols,
 packaged helper entitlements and native qualification tooling.
-Depends: T2.
+Depends: T2 for source authority; the process-boundary fixture is independent.
 Contract: a signed worker with no networking, documented grant transfer, and
 existing stop/done and offline-verification contracts.
 Test: worker cannot network, accepts only current source grants, and exits after
@@ -232,3 +232,48 @@ Changed code scope digest (sorted path/NUL/content/NUL): SHA-256 `379807100409ec
 Remaining implementation is T2/T3 and the signed portion of T4/T5. Signing
 identity/profile/account inputs have been requested from Ronin. The foundation
 is reviewable; it does not establish a full-feature Store app's readiness.
+
+## Continuation evidence — XPC worker boundary
+
+Base revision: `3883bf5`; work below is the next implementation slice.
+T3 process boundary is implemented; full AC3/AC4/AC5 are still open.
+
+- Full Xcode compiler now works after Ronin accepted its license locally.
+  Preflight checks `xcrun clang --version` as well as `xcodebuild -version`.
+- A separately sandboxed XPC service owns the image-worker process group.
+  The inherited image helper must be inside the service bundle: the first
+  fixture failed `posix_spawn` with EPERM from the parent app's MacOS directory;
+  moving it into service Contents/MacOS passed without extra entitlements.
+- `make apple-worker-test` on macOS arm64 passes both modes, pipe transfer,
+  TCP/UDP EPERM, invalid mode refusal, SIGTERM cancellation, SIGKILL broker
+  crash, and normal leader exit retiring descendants. Leader reaping is checked
+  after broker completion; descendant pipe EOF is observed with bounded waits.
+- Negative verification added network.client to the temporary service and saw
+  the guard fail on TCP EINPROGRESS/UDP success; restored entitlements pass.
+  The first negative run timed out on blocking TCP, so the fixture now uses
+  nonblocking sockets to discriminate policy denial without external responses.
+- Apple-tagged HEIC/similarity launchers select the fixed bundled broker.
+  Native completion is synchronized; descriptor duplication prevents dup2
+  collisions; unreaped leaders prevent PID reuse during group retirement.
+  Nested HEIC retains the XPC-owned group. Existing process-group fixtures
+  explicitly own their group and retain descendant-retirement coverage.
+- Protocol tests use an instance-owned command factory so ordinary Go test
+  executables need no signed app bundle. No isolation test is skipped.
+- `go test -tags no_emoji,nodynamic,appleappstore ./internal/macworker
+  ./internal/heic ./internal/similarity` passes. The same ordinary-tag command
+  passes. Apple-tagged focused `go vet` passes.
+- GoLand get_file_problems, errorsOnly=false, reviewed all 20 changed code files
+  in this slice. One shell warning about empty CDPATH assignment was corrected
+  and re-inspected clean. Objective-C/C also compile with -Wall -Wextra -Werror;
+  GoLand native-language inspection depth is limited by installed language support.
+  IDE build reports success with limited diagnostics, so CLI tests/vet remain
+  the build evidence. Qodana CI/profile scan is not established by these checks.
+- New command_test.go is exactly excluded from Qodana duplicate inspection.
+  No top-level root UI test or new dependency was added.
+
+Honest limit: the fixture establishes native containment and lifecycle, not a
+complete sandboxed PicFetch app. Security-scoped source/cache authority, signed
+runtime validation, production packaging, Intel and final Store qualification
+remain required. No upload or release has been performed.
+
+T3 budget so far: 0 spawns; 2 inline review rounds; no complete suite rerun.
