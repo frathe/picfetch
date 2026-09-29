@@ -1,45 +1,53 @@
-# PicFetch — Open Refactoring Backlog
+# PicFetch — Completed Refactoring Backlog
 
-Updated 2026-09-29 after implementation and qualification of MA-031 through MA-033.
+Archived 2026-09-29 at Ronin's request. All numbered work is resolved;
+PRs 69–72 for MA-030 through MA-033 are merged. The original assessment and
+accepted decisions remain below as history. Optional opportunities and deliberate
+deferrals are retained for reference, not relabeled as implemented work.
+
+Original local records that are no longer present in this checkout are named as
+historical paths below, rather than presented as working links.
+
+Final implementation-status update: 2026-09-29.
 The cross-feature architecture assessment of PR review history and
 implementation is dated 2026-09-26.
 
-This file contains open refactorings, accepted designs and dependency watches.
+This archive preserves the former backlog, accepted designs and dependency watches.
 Completed findings have been removed; their history remains in Git and the
-[maintainability implementation plan](finished_refactorings/2026-09-06-maintainability-plan.md).
+[maintainability implementation plan](2026-09-06-maintainability-plan.md).
 Existing MA identifiers and accepted decisions are preserved: MA-024 verifier
 size refactoring remains declined, and MA-025 records acceptance of the decoded
-map-cache limitation previously recorded under MA-015 and in [todos.md](todos.md).
+map-cache limitation previously recorded under MA-015 and in [todos.md](../todos.md).
 MA-026 is complete in `28d65ef`, with full CI qualification recorded in its
-[archived plan](finished_refactorings/2026-09-14-explorer-feature.md).
+[archived plan](2026-09-14-explorer-feature.md).
 MA-027 is complete in `e6024dc`, with native CI and clean code/security reviews
-recorded in its [archived plan](finished_refactorings/2026-09-14-ma-027-presentation.md).
+recorded in its [archived plan](2026-09-14-ma-027-presentation.md).
 MA-028 is complete, with all-platform qualification and a clean PR 66 review
-round recorded in its [archived plan](finished_refactorings/2026-09-27-ma-028-command-admission.md).
+round recorded in its [archived plan](2026-09-27-ma-028-command-admission.md).
 MA-029's nine tickets are complete and CI-qualified; the
-[archived plan](finished_refactorings/2026-09-27-ma-029-browsing-visits.md) records
+[archived plan](2026-09-27-ma-029-browsing-visits.md) records
 implementation evidence and [PR 68](https://github.com/frathe/picfetch/pull/68)
 tracks final review dispositions and latest-head checks.
-MA-030 has an [accepted design](docs/collection-transitions.md) and
-[resolved specification](.scratch/ma-030/spec.md); all nine tickets are complete
-and CI-qualified in the [archived record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md).
+MA-030 has an [accepted design](../docs/collection-transitions.md) and
+resolved specification (historical path: `../.scratch/ma-030/spec.md`); all nine tickets are complete
+and CI-qualified in the [archived record](2026-09-28-ma-030-collection-transitions.md).
 [PR 69](https://github.com/frathe/picfetch/pull/69) records latest-head reviews and checks.
-MA-031's [accepted design](docs/favorite-ownership.md) resolves all twelve
-interview decisions. Its [local specification](.scratch/ma-031/spec.md) is resolved;
+MA-031's [accepted design](../docs/favorite-ownership.md) resolves all twelve
+interview decisions. Its local specification (historical path: `../.scratch/ma-031/spec.md`) is resolved;
 all nine tickets are complete and CI-qualified in the
-[archived record](finished_refactorings/2026-09-28-ma-031-favorite-ownership.md).
+[archived record](2026-09-28-ma-031-favorite-ownership.md).
 [PR 70](https://github.com/frathe/picfetch/pull/70) records latest-head reviews and checks.
-MA-032's [accepted design](docs/worker-lifetimes.md) and
-[resolved specification](.scratch/ma-032/spec.md) are implemented: all eight
-applicable [tickets](.scratch/ma-032/issues/README.md) are complete and CI-qualified,
+MA-032's [accepted design](../docs/worker-lifetimes.md) and
+resolved specification (historical path: `../.scratch/ma-032/spec.md`) are implemented: all eight
+applicable tickets (historical path: `../.scratch/ma-032/issues/README.md`) are complete and CI-qualified,
 all 15 root/display request owners are migrated, and fallback 08 is inapplicable.
-The [archived record](finished_refactorings/2026-09-28-ma-032-request-lifetimes.md)
+The [archived record](2026-09-28-ma-032-request-lifetimes.md)
 holds implementation evidence; [PR 71](https://github.com/frathe/picfetch/pull/71)
 tracks latest-head review dispositions and checks. MA-033's
-[accepted launch-policy design](docs/launch-policy.md) resolves all ten interview
-decisions; its [resolved specification](.scratch/ma-033/spec.md) has 60 stories
+[accepted launch-policy design](../docs/launch-policy.md) resolves all ten interview
+decisions; its [resolved specification](../.scratch/ma-033/spec.md) has 60 stories
 and 22 qualified acceptance criteria. All nine tickets are complete in the
-[archived record](finished_refactorings/2026-09-28-ma-033-launch-policy.md).
+[archived record](2026-09-28-ma-033-launch-policy.md).
 [PR 72](https://github.com/frathe/picfetch/pull/72) tracks latest-head review
 dispositions and checks.
 
@@ -49,7 +57,7 @@ lines including comments, and 275 methods on `viewer`. The refactoring goal is t
 background-work ownership behind small module interfaces while retaining
 explicit cross-feature composition in `internal/ui`.
 
-| ID | Priority | Remaining work | Status |
+| ID | Priority | Completed work | Status |
 | --- | --- | --- | --- |
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | All nine tickets complete and CI-qualified; latest review/checks in PR 69 |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | All nine tickets complete and CI-qualified; latest review/checks in PR 70 |
@@ -132,13 +140,13 @@ PR 25. These are foundations for the proposals, not unfinished extractions.
   features independent of `viewer` and `appState`.
 - `fileidentity`, `dupes`, `imaging`, `favstore` and the OS adapters already
   provide useful seams. Prefer deepening them to adding parallel infrastructure.
-- [sourcechange.go](internal/ui/sourcechange.go), `reconcileSources`, explicitly
+- [sourcechange.go](../internal/ui/sourcechange.go), `reconcileSources`, explicitly
   orders search detachment, collection changes, feature retirement, Grid
   reconciliation and origin restoration. Preserve that central ordering.
-- [analysiscache/operation.go](internal/ui/analysiscache/operation.go) distinguishes
+- [analysiscache/operation.go](../internal/ui/analysiscache/operation.go) distinguishes
   view-bound inspection from committed policy/eviction work;
-  [quiescence.go](internal/ui/analysiscache/quiescence.go) joins claimed handoffs.
-  [ByteCache](internal/imaging/bytecache.go) deliberately distinguishes foreground,
+  [quiescence.go](../internal/ui/analysiscache/quiescence.go) joins claimed handoffs.
+  [ByteCache](../internal/imaging/bytecache.go) deliberately distinguishes foreground,
   speculative and warming admission. Those differences should remain explicit.
 
 ### Target ownership
@@ -158,7 +166,7 @@ into a differently named struct would not reduce coupling.
 
 ### Registry decision
 
-Keep [features.go](internal/ui/features.go) and [build.go](internal/ui/build.go)
+Keep [features.go](../internal/ui/features.go) and [build.go](../internal/ui/build.go)
 explicit. Construction order, overlay order and lifecycle order are different:
 Grid must precede its consumers, comparison covers an existing Grid, and cache
 maintenance may need UI delivery while joining producers. One registration order
@@ -179,7 +187,7 @@ captured in `reconcileSources`.
 cancellation and workers; root retains source preparation and navigation.
 [Native CI](https://github.com/frathe/picfetch/actions/runs/34829485376) passed
 all four Linux/amd64 race partitions and every platform job. Qodana and CodeQL
-are clear. The [archived plan](finished_refactorings/2026-09-14-explorer-feature.md)
+are clear. The [archived plan](2026-09-14-explorer-feature.md)
 holds the implementation and verification evidence. This anchor remains for
 existing dependency links; MA-026 is no longer open refactoring work.
 
@@ -188,14 +196,14 @@ existing dependency links; MA-026 is no longer open refactoring work.
 ## MA-027 — Give single-image presentation ownership of its lifecycle
 
 **Complete (`e6024dc`), 2026-09-14.** The
-[archived Deep SDD plan](finished_refactorings/2026-09-14-ma-027-presentation.md)
+[archived Deep SDD plan](2026-09-14-ma-027-presentation.md)
 records the accepted contract, seven slices, red/green evidence and qualification.
 
-[display.Feature](internal/ui/display/feature.go) now owns the surface, source
+[display.Feature](../internal/ui/display/feature.go) now owns the surface, source
 identities, captures, rotation/fades and load/GIF/SVG/preload workers. Root
-[load.go](internal/ui/load.go) chooses requested/retry/neighbor sources and
+[load.go](../internal/ui/load.go) chooses requested/retry/neighbor sources and
 composes display's synchronous handoff with zoom, window policy, title and EXIF.
-[vector.go](internal/ui/vector.go) only forwards layout density. Root no longer
+[vector.go](../internal/ui/vector.go) only forwards layout density. Root no longer
 owns mutable frames, animation pauses, timers or SVG raster workers.
 
 The public display contract covers stale delivery, coherent handoff, same-source
@@ -211,9 +219,9 @@ Qodana and CodeQL have zero findings; fresh Codex code/security reviews are
 clean. The unchanged golden masters pass. All seven tickets are resolved;
 this anchor remains for existing dependency links.
 
-See the [accepted specification](.scratch/ma-027/spec.md),
-[verification map](.scratch/ma-027/verification.md), and
-[surface-ownership ADR](docs/adr/0001-single-image-presentation-ownership.md).
+See the [accepted specification](../.scratch/ma-027/spec.md),
+[verification map](../.scratch/ma-027/verification.md), and
+surface-ownership ADR (historical path: `../docs/adr/0001-single-image-presentation-ownership.md`).
 
 <a id="ma-028"></a>
 
@@ -221,23 +229,23 @@ See the [accepted specification](.scratch/ma-027/spec.md),
 
 **Completed, 2026-09-27.** All ten tickets are resolved after Linux, Windows and
 macOS qualification and the clean `e2d3b30` review/CI round. The
-[archived plan](finished_refactorings/2026-09-27-ma-028-command-admission.md)
-and [PR evidence](docs/command-admission-pr-66-review-2026-09-27.md) retain the
+[archived plan](2026-09-27-ma-028-command-admission.md)
+and [PR evidence](../docs/command-admission-pr-66-review-2026-09-27.md) retain the
 implementation, acceptance and final-head gates. This anchor remains for
 existing dependency links; the following rationale records the original design.
 
 **Design accepted, 2026-09-27.** The
-[design record](docs/command-admission.md) and
-[ownership ADR](docs/adr/0003-shared-command-admission.md) capture the seven
+[design record](../docs/command-admission.md) and
+[ownership ADR](../docs/adr/0003-shared-command-admission.md) capture the seven
 accepted interview decisions. Migrate every application-wide command family;
 preserve intended route differences and explicitly correct modal ownership,
 focused-text editing, busy-region-copy menu availability and checking
-availability before yielding. The [specification](docs/ma-028/spec.md) records
+availability before yielding. The [specification](../docs/ma-028/spec.md) records
 the completed implementation and local verification. Tickets 01-09 are resolved;
-[ticket 10](docs/ma-028/issues/10-native-qualification.md) is resolved with
+[ticket 10](../docs/ma-028/issues/10-native-qualification.md) is resolved with
 all three native platforms qualified. Fresh remote gates remain required on
 the documentation-only closure head. The tracked
-[handoff index](docs/ma-028/README.md) preserves the cross-desktop test procedure.
+[handoff index](../docs/ma-028/README.md) preserves the cross-desktop test procedure.
 
 **Recurring evidence:** Explorer's
 [enabled menu but blocked Favorites shortcuts](https://github.com/frathe/picfetch/pull/18#discussion_r3983220054),
@@ -246,10 +254,10 @@ and Location Map's [clipboard bypass](https://github.com/frathe/picfetch/pull/58
 and [duplicate-key bypass](https://github.com/frathe/picfetch/pull/58#discussion_r4107351569)
 are the same class of coordination failure across different features.
 
-**Pre-implementation seam (historical):** `handleKeyEvent` in [keys.go](internal/ui/keys.go),
-`yieldingShortcuts.AddShortcut` in [shortcuts.go](internal/ui/shortcuts.go),
-`yieldingMenuCallbacks`/`menuState` in [menu.go](internal/ui/menu.go),
-[menus.State and Apply](internal/ui/menus/menus.go), and direct entries such as
+**Pre-implementation seam (historical):** `handleKeyEvent` in [keys.go](../internal/ui/keys.go),
+`yieldingShortcuts.AddShortcut` in [shortcuts.go](../internal/ui/shortcuts.go),
+`yieldingMenuCallbacks`/`menuState` in [menu.go](../internal/ui/menu.go),
+[menus.State and Apply](../internal/ui/menus/menus.go), and direct entries such as
 `searchReference`, clipboard and Copy Selection each encode policy. Clipboard
 intentionally bypasses the ordinary shortcut wrapper because it has its own
 target priority. `menuState.LocationMapActive` means visible surface, while
@@ -283,18 +291,18 @@ require hand-editing independent admission predicates in all input adapters.
 
 ## MA-029 — Give browsing visits one explicit state owner
 
-**Design accepted, 2026-09-27.** The [design record](docs/browsing-visits.md)
-and [ownership ADR](docs/adr/0004-browsing-visit-ownership.md) capture all ten
+**Design accepted, 2026-09-27.** The [design record](../docs/browsing-visits.md)
+and [ownership ADR](../docs/adr/0004-browsing-visit-ownership.md) capture all ten
 accepted interview decisions. The incremental Explorer, ranked search and
 Location Map migration keeps feature-owned data and MA-028 command admission.
 Empty migrated scopes have explicit return behavior; failed-load recovery and
 older duplicate-inspection navigation retain their accepted distinctions.
 Reuse the existing collection identity/reconciliation seam independently of
-MA-030. The [local specification](.scratch/ma-029/spec.md) is resolved,
+MA-030. The local specification (historical path: `../.scratch/ma-029/spec.md`) is resolved,
 with user stories, testing seams and acceptance commands retained.
 
 **Implementation complete and CI-qualified, 2026-09-28.** The
-[archived Deep SDD plan](finished_refactorings/2026-09-27-ma-029-browsing-visits.md)
+[archived Deep SDD plan](2026-09-27-ma-029-browsing-visits.md)
 records all nine completed tickets and full CI qualification on `219cf26`.
 The implementation has one foreground owner and no legacy scope-precedence
 chain. [PR 68](https://github.com/frathe/picfetch/pull/68) records final review
@@ -313,12 +321,12 @@ Preload order diverged from navigation in
 [search](https://github.com/frathe/picfetch/pull/25#discussion_r4007684445) and
 [Location Map](https://github.com/frathe/picfetch/pull/58#discussion_r4105976290).
 
-**Original seam:** [browsing.go](internal/ui/browsing.go) already shares a
+**Original seam:** [browsing.go](../internal/ui/browsing.go) already shares a
 restriction snapshot and ranked order. However, `cohortIndexes` in
-[explorer.go](internal/ui/explorer.go) also selects Location Map and search order;
-`searchPresentation` in [visualsearch.go](internal/ui/visualsearch.go),
-`locationInput` in [locationmap.go](internal/ui/locationmap.go), feature state and
-[grid.Visit](internal/ui/grid/ranked.go) collectively determine foreground,
+[explorer.go](../internal/ui/explorer.go) also selects Location Map and search order;
+`searchPresentation` in [visualsearch.go](../internal/ui/visualsearch.go),
+`locationInput` in [locationmap.go](../internal/ui/locationmap.go), feature state and
+[grid.Visit](../internal/ui/grid/ranked.go) collectively determine foreground,
 history and return behavior. `grid.Visit` mixes a presentation bookmark with
 subset callbacks; ranked restoration requires a preceding `OpenRanked` call.
 `explorerGridChanged` also dispatches Location Map changes.
@@ -326,7 +334,7 @@ subset callbacks; ranked restoration requires a preceding `OpenRanked` call.
 Navigation and preloads **already share** `cohortIndexes` after the PR 58 fix.
 The remaining opportunity is to make the owning visit explicit, rather than
 discover it through a precedence chain. Failure recovery in
-[load.go](internal/ui/load.go), `imageLoadFailed`, has its own successor policy;
+[load.go](../internal/ui/load.go), `imageLoadFailed`, has its own successor policy;
 it needs an explicit relationship to the visit, not a blind replacement with
 ordinary Next behavior.
 
@@ -371,12 +379,12 @@ and transitions without adding itself to unrelated features' navigation helpers.
 **P1; high confidence.** Strengthen the existing collection model and root
 reconciliation seam; a new generic state store is unnecessary.
 
-**Design accepted 2026-09-28.** The [design record](docs/collection-transitions.md)
+**Design accepted 2026-09-28.** The [design record](../docs/collection-transitions.md)
 resolves all eleven `/grill-with-docs MA-030` decisions; the
-[ownership ADR](docs/adr/0005-collection-transition-ownership.md) records the
+[ownership ADR](../docs/adr/0005-collection-transition-ownership.md) records the
 collection-model/root-reconciliation division. Both slices below are required.
-The [local specification](.scratch/ma-030/spec.md) is resolved. The
-[archived implementation record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md)
+The local specification (historical path: `../.scratch/ma-030/spec.md`) is resolved. The
+[archived implementation record](2026-09-28-ma-030-collection-transitions.md)
 records both migrations, all nine completed tickets, AC1-18 evidence and full
 CI/SARIF qualification on 2722b1d. Latest-head reviews/checks are recorded on PR 69.
 
@@ -390,15 +398,15 @@ PR 25 also exposed
 [restoration during a partial batch](https://github.com/frathe/picfetch/pull/25#discussion_r4010968614)
 and [restoration before Grid reconciliation](https://github.com/frathe/picfetch/pull/25#discussion_r4011126519).
 
-**Current seam:** [state.go](internal/ui/state.go) correctly publishes keys and
-generation atomically. [fileidentity](internal/fileidentity/occurrence.go)
+**Current seam:** [state.go](../internal/ui/state.go) correctly publishes keys and
+generation atomically. [fileidentity](../internal/fileidentity/occurrence.go)
 correctly separates occurrences from filesystem versions. Yet selected/display
 order, unavailable-member order and Favorite association are coordinated across
-`appState`, [heic.go](internal/ui/heic.go), `explorerInput.favoriteDir` and
-`applyScannedCollection` in [drop.go](internal/ui/drop.go). MA-029 already moved
+`appState`, [heic.go](../internal/ui/heic.go), `explorerInput.favoriteDir` and
+`applyScannedCollection` in [drop.go](../internal/ui/drop.go). MA-029 already moved
 the occurrence-survivor map to `captureBrowsingReconciliation` in
-[sourcechange.go](internal/ui/sourcechange.go), shared by retained visits and
-the detached search origin. Sort commits in [sort.go](internal/ui/sort.go)
+[sourcechange.go](../internal/ui/sourcechange.go), shared by retained visits and
+the detached search origin. Sort commits in [sort.go](../internal/ui/sort.go)
 use those capture/finish helpers, but their remaining commit sequence and
 collection facts still need the authoritative model and root phases below.
 
@@ -422,7 +430,7 @@ The collection module does not know feature pointers or Fyne widgets. The
 reconciler knows the concrete participants because their ordering matters.
 Keep `imaging.WriteResult.Committed` authoritative even after a request becomes
 stale, and retain display's existing retry chain. Preserve alias resolution on
-workers in [filework.go](internal/ui/filework.go), `writtenFileSources`.
+workers in [filework.go](../internal/ui/filework.go), `writtenFileSources`.
 The PR 26 transaction is already useful; migrate the remaining paths into its
 contract instead of layering an event dispatcher over it.
 
@@ -452,7 +460,7 @@ integration anchors. New collection tests should not need a desktop harness.
 **P2; high confidence in duplicated responsibility.** This is storage ownership
 shared by several features, not a request to merge their caches.
 
-The [accepted MA-031 design](docs/favorite-ownership.md) requires incremental
+The [accepted MA-031 design](../docs/favorite-ownership.md) requires incremental
 migration starting with similarity and Location Map, followed by assessment and
 migration of remaining duplicated checks in Favorite opening/counting, cohorts
 and previews. Shared operations include ownership and release as well as bounded
@@ -462,10 +470,10 @@ healthy partial inventories without treating unknown membership as empty.
 It also requires scoped retention and bounded handle lifetimes, tracked Favorite
 UI storage workers, preservation of committed effects after cancellation and
 identity revalidation for overwrite/removal confirmation. All twelve interview
-decisions are resolved. The [local specification](.scratch/ma-031/spec.md) is
+decisions are resolved. The local specification (historical path: `../.scratch/ma-031/spec.md`) is
 resolved, with 70 stories and 22 acceptance criteria. All nine implementation
 tickets are complete in the
-[archived record](finished_refactorings/2026-09-28-ma-031-favorite-ownership.md),
+[archived record](2026-09-28-ma-031-favorite-ownership.md),
 including full CI, four-platform native qualification and changed-code inspections
 at c1f47b4. [PR 70](https://github.com/frathe/picfetch/pull/70) tracks final reviews.
 
@@ -516,14 +524,14 @@ ownership. No disk-format migration is part of this design.
 ## MA-032 — Consolidate proven worker-lifetime mechanics
 
 **Implementation status:** the sorting/SVG pilot accepted extraction under all
-nine decisions in the [design](docs/worker-lifetimes.md). All 15 root/display
+nine decisions in the [design](../docs/worker-lifetimes.md). All 15 root/display
 owners use `internal/requestlife`; only sorting/SVG use disposable final delivery.
 Duplicated root/display request implementations are removed; independent
 revisions, feature completion, workers and shutdown policy remain local.
-The [specification](.scratch/ma-032/spec.md) and
-[tickets](.scratch/ma-032/issues/README.md) retain their command-backed acceptance
+The specification (historical path: `../.scratch/ma-032/spec.md`) and
+tickets (historical path: `../.scratch/ma-032/issues/README.md`) retain their command-backed acceptance
 criteria; fallback ticket 08 is inapplicable. All applicable tickets passed full
-qualification in [the archived evidence](finished_refactorings/2026-09-28-ma-032-request-lifetimes.md).
+qualification in [the archived evidence](2026-09-28-ma-032-request-lifetimes.md).
 Latest-head review-loop acceptance is recorded in [PR 71](https://github.com/frathe/picfetch/pull/71).
 
 **Original priority: P2; medium confidence.** The pilot established the value of
@@ -537,12 +545,12 @@ and [persistence despite discarded UI delivery](https://github.com/frathe/picfet
 Location Map's [committed cleanup lifetime](https://github.com/frathe/picfetch/pull/58#discussion_r4111247911)
 required surviving ordinary close while still responding to terminal Stop.
 
-**Resulting seam:** [requestlife](internal/requestlife/request.go) owns common
-root/display request mechanics; [Explorer](internal/ui/explorer/lifecycle.go)
+**Resulting seam:** [requestlife](../internal/requestlife/request.go) owns common
+root/display request mechanics; [Explorer](../internal/ui/explorer/lifecycle.go)
 and other feature-local lifecycles remain outside this change.
 Worker admission, retired work and queues are independently composed across
-features. [run.go](internal/ui/run.go) and
-[harness_test.go](internal/ui/harness_test.go) enumerate different shutdown
+features. [run.go](../internal/ui/run.go) and
+[harness_test.go](../internal/ui/harness_test.go) enumerate different shutdown
 obligations. Some differences are required, not omissions.
 
 **Refactor result:** instance-owned request cancellation/revision, captured parent
@@ -575,14 +583,14 @@ passed on `fc7aa32`; the archived record maps all applicable acceptance criteria
 ## MA-033 — Capture launch side-effect policy once
 
 **P2; complete and qualified.** The
-[accepted design](docs/launch-policy.md),
-[ADR](docs/adr/0007-captured-launch-policy.md) and
-[completed interview](.scratch/ma-033/interview.md) resolve all ten decisions.
+[accepted design](../docs/launch-policy.md),
+[ADR](../docs/adr/0007-captured-launch-policy.md) and
+[completed interview](../.scratch/ma-033/interview.md) resolve all ten decisions.
 Runtime policy is distinct from interactive command policy and must exist before
-feature construction. The [resolved specification](.scratch/ma-033/spec.md) has
+feature construction. The [resolved specification](../.scratch/ma-033/spec.md) has
 60 user stories, agreed testing interfaces and 22 qualified acceptance criteria.
 All nine tickets are complete; the
-[archived record](finished_refactorings/2026-09-28-ma-033-launch-policy.md) retains
+[archived record](2026-09-28-ma-033-launch-policy.md) retains
 TDD, caller assessment, all native host/build captures, full CI and inspections.
 [PR 72](https://github.com/frathe/picfetch/pull/72) tracks latest-head reviews.
 
@@ -592,14 +600,14 @@ The following rationale describes the historical pre-implementation state.
 [manual update/apply paths](https://github.com/frathe/picfetch/pull/58#discussion_r4105976269),
 then [pre-app predecessor cleanup](https://github.com/frathe/picfetch/pull/58#discussion_r4106350305).
 The former guards repeated Store-managed/Explorer-trial/Location-Map-trial decisions
-in [main.go](main.go), [run.go](internal/ui/run.go) and
-[autoupdate.go](internal/ui/autoupdate.go). The UI guards also derive launch
+in [main.go](../main.go), [run.go](../internal/ui/run.go) and
+[autoupdate.go](../internal/ui/autoupdate.go). The UI guards also derive launch
 policy from live feature objects (`explorer.Trial`, `locationTrial`). These covered
 routes now consume captured policy; the obsolete Options.ApplicationID adapter
 has been removed in favor of separate passive policy and effectful preparation.
 
 **Accepted refactor:** derive one immutable runtime policy from validated
-[launch.Options](internal/launch/launch.go) and distribution mode before normal
+[launch.Options](../internal/launch/launch.go) and distribution mode before normal
 startup side effects. Pass the relevant value to root composition and updater
 admission. It decides normal-install cleanup, update check/download/apply and
 storage isolation; it does not hold feature objects or perform those effects.
@@ -655,7 +663,7 @@ archived implementation record.
   unrelated entries. Preserve these policies and existing accepted limitations.
   A single cache manager would hide meaningful differences.
 
-## Suggested sequence and verification approach
+## Historical suggested sequence and verification approach
 
 1. MA-028 is complete. Use its shared command policy as the baseline for
    subsequent refactors.
@@ -704,5 +712,5 @@ The production test suite was not run for this documentation-only change.
 **Closed by removal, 2026-09-14.** Ronin requested that HEIC support and the
 decoder dependency be removed pending distribution qualification. The fork
 upgrade watch and native leak-test helpers are retired. See the
-[removal record](finished_refactorings/2026-09-14-remove-heic-decoder.md); reconsidering HEIC
-support is separate work tracked in [todos.md](todos.md).
+[removal record](2026-09-14-remove-heic-decoder.md); reconsidering HEIC
+support is separate work tracked in [todos.md](../todos.md).

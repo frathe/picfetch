@@ -12,6 +12,9 @@
 
 #### Bugfix
 
+- Location Map now redraws immediately when opened with Shift+L and maximizes
+  the window when you enter or return to it.
+
 - Menus and keyboard shortcuts now respect what you’re doing. When a dialog is
   open, commands won’t change the photo behind it, and Copy and Select All work
   on the text you’re editing. Actions that could interrupt copying a selected
@@ -32,26 +35,9 @@
 
 #### Internal
 
-- MA-029 browsing ownership is complete: all nine tickets and acceptance points
-  are resolved. Focused TDD, all 31 changed-file IDE inspections, full Linux
-  race/native, Windows/macOS CI, CodeQL and fresh post-suppression Qodana
-  evidence are in the [archived plan](finished_refactorings/2026-09-27-ma-029-browsing-visits.md).
-  CI also verified the shutdown-test isolation and HEIC queued-stop fixes.
-  PR round 1's nested-search and stale cohort-Grid retirement findings are
-  repaired with real-transition regressions; fresh review remains a PR gate.
-  [PR 68](https://github.com/frathe/picfetch/pull/68) maintains final review
-  dispositions and latest-head checks; merge/release is not authorized.
-
-- MA-028 shared command admission is complete across menus, shortcuts, keys,
-  direct actions and open delivery. All ten tickets are resolved. Linux,
-  Windows and macOS native qualification passed, with physical editor-input
-  provenance retained in the platform records. The clean PR 66 acceptance
-  round at `e2d3b30` passed all 17 checks, fresh code/security reviews and
-  inspected Qodana SARIF; source tests and GoLand evidence are retained at
-  their recorded revisions. See the [completed ticket](docs/ma-028/issues/10-native-qualification.md),
-  [archived plan](finished_refactorings/2026-09-27-ma-028-command-admission.md)
-  and [review evidence](docs/command-admission-pr-66-review-2026-09-27.md).
-  PR 66 records fresh gates for the final documentation-only closure head.
+- Improve consistency when switching collections, opening Favorites, saving,
+  cancelling background work, and closing PicFetch. The completed architecture
+  cleanup also makes future changes easier to maintain.
 
 - Stabilize the similarity protocol race test by dispatching its helper before
   the test runner starts and bounding its lifetime from the parent. Preserve
@@ -60,67 +46,7 @@
 
 ## Open
 
-- **Application architecture:** MA-028's shared command policy and MA-029's
-  browsing ownership implementation are complete.
-  The [remaining refactoring backlog](needs_refactoring.md) covers collection
-  transitions, Favorite ownership, a bounded worker-lifetime pilot and launch
-  policy (MA-030 through MA-033).
-  [MA-030's accepted design](docs/collection-transitions.md) resolves all eleven
-  interview decisions and requires both collection-model and reconciliation
-  slices. Its [local specification](.scratch/ma-030/spec.md) is resolved:
-  56 user stories and 18 acceptance criteria cover both slices. The approved
-  [nine implementation tickets](.scratch/ma-030/issues/README.md) are published
-  with blockers and model assignments. The
-  [archived Deep SDD record](finished_refactorings/2026-09-28-ma-030-collection-transitions.md)
-  records all nine completed tickets: sole collection ownership and ordered
-  reconciliation, replay/capture, latest-choice sort, batch removal, unavailable
-  recovery, committed write/policy effects and lifecycle convergence. Full CI and
-  inspected Qodana SARIF passed on 2722b1d;
-  [PR 69](https://github.com/frathe/picfetch/pull/69) records the continuing
-  latest-head code/security reviews, dispositions and final checks.
-  [MA-031's accepted design](docs/favorite-ownership.md) resolves all twelve
-  interview decisions: incremental migration, ownership/retirement, the common
-  64 MiB definition limit, validation, partial inventories, freshness, scoped
-  retention, bounded handles, UI storage workers, cancellation and confirmation
-  conflicts. The [local specification](.scratch/ma-031/spec.md) is resolved,
-  with 70 stories, test boundaries and 22 acceptance criteria
-  covering both migration stages. The approved
-  [nine implementation tickets](.scratch/ma-031/issues/README.md) are published
-  with blockers and verification commands. All nine tickets are complete (shared
-  bounded ownership, Location Map, scoped similarity/search, maintenance and
-  cohorts, asynchronous UI reads/lifecycle, validated saves and identity-bound
-  removal, owner-bound previews and convergence/native qualification).
-  The [archived Deep SDD record](finished_refactorings/2026-09-28-ma-031-favorite-ownership.md)
-  records all ACs, full CI, four-platform native evidence and inspected Qodana
-  SARIF on c1f47b4. [PR 70](https://github.com/frathe/picfetch/pull/70) records
-  latest-head code/security reviews, dispositions and final checks.
-  [MA-032's design record](docs/worker-lifetimes.md) resolves all nine interview
-  decisions. Its [local specification](.scratch/ma-032/spec.md) is published as
-  accepted, with 60 user stories, test boundaries and 20 acceptance
-  criteria. It defines a root sort/display SVG pilot, a conditional root/display
-  token migration and a contracts-and-tests fallback. Its
-  [nine approved tickets](.scratch/ma-032/issues/README.md) have
-  [archived Deep SDD implementation and evidence](finished_refactorings/2026-09-28-ma-032-request-lifetimes.md).
-  All eight applicable tickets are complete: the accepted sorting/SVG pilot,
-  all 15 root/display request owners and full qualification on `fc7aa32`.
-  Fallback 08 is inapplicable. Per-ticket commits and latest-head GitHub
-  review-loop acceptance are tracked in [PR 71](https://github.com/frathe/picfetch/pull/71).
-  MA-033's [accepted launch-policy design](docs/launch-policy.md) resolves all ten
-  decisions in its [completed interview](.scratch/ma-033/interview.md).
-  The [resolved specification](.scratch/ma-033/spec.md) has
-  60 user stories, agreed testing interfaces and 22 acceptance criteria.
-  Its [nine approved implementation tickets](.scratch/ma-033/issues/README.md)
-  are complete in the [archived Deep SDD record](finished_refactorings/2026-09-28-ma-033-launch-policy.md).
-  All 22 criteria are qualified on d8417ad, including all native host/builds,
-  full CI and complete inspections. Per-ticket commits and subsequent latest-head
-  review-loop acceptance are tracked in [PR 72](https://github.com/frathe/picfetch/pull/72).
-  Keep feature state local and preserve explicit composition.
-
-- **Native Location Map gesture timing:** replace hash-only change detection with
-  independently verified pan/zoom transforms before enabling formal latency
-  qualification again. The current helper rejects these measurements; manual
-  trials and stage/RSS observation remain usable. Existing maintainer performance
-  acceptance stands separately from measured timing evidence.
+No open items.
 
 ## Deferred
 

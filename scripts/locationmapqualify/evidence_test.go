@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,15 +17,16 @@ const fixtureBuild = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789
 
 func validReport(images int) Report {
 	gestures := make([]Gesture, 40)
+	keys := [...]uint16{mapKeyLeft, mapKeyPlus, mapKeyRight, mapKeyMinus}
 	for i := range gestures {
 		kind := "pan"
 		if i%2 == 1 {
 			kind = "zoom"
 		}
-		gestures[i] = Gesture{Kind: kind, InputNS: int64(i+1) * 1_000_000_000, VisibleNS: int64(i+1)*1_000_000_000 + 100_000_000, Before: "before.png", After: "after.png", Identified: true}
+		gestures[i] = Gesture{Kind: kind, InputNS: int64(i+1) * 1_000_000_000, VisibleNS: int64(i+1)*1_000_000_000 + 100_000_000, Before: "before.png", After: "after.png", Identified: true, Transform: fixtureTransform(kind, keys[i%len(keys)])}
 	}
 	return Report{
-		Schema: 1, BuildID: fixtureBuild, Native: true, Observation: "macos-screen-capture",
+		Schema: 2, BuildID: fixtureBuild, Native: true, Observation: "macos-screen-capture",
 		Protocol: "synthetic checker fixture only; not native qualification",
 		Images:   images, Formats: map[string]int{"jpeg": images}, Hardware: "test Mac", Storage: "test SSD", Complete: true,
 		Stages:   []Stage{{Kind: "cold", StartNS: 1, EndNS: 1_000_000_001, PreparationNS: 500_000_000, ScanNS: 500_000_000, Complete: true}, {Kind: "warm", StartNS: 2_000_000_000, EndNS: 3_000_000_000, PreparationNS: 500_000_000, ScanNS: 500_000_000, Complete: true}},
@@ -32,11 +35,127 @@ func validReport(images int) Report {
 	}
 }
 
+func fixtureTransform(kind string, key uint16) *VisualTransform {
+	transform := &VisualTransform{Method: "patch-grid-v1", Scale: 1, DX: 60, Matches: 16, Tested: 20}
+	if kind == "zoom" {
+		transform.Scale, transform.DX, transform.DY = 2, -600, -416
+		if key == mapKeyMinus {
+			transform.Scale, transform.DX, transform.DY = 0.5, 300, 208
+		}
+	} else if key == mapKeyRight {
+		transform.DX = -60
+	}
+	return transform
+}
+
+func TestCheckReportRejectsInvalidTransformEvidence(t *testing.T) {
+	for name, mutate := range map[string]func(*Gesture){
+		"boolean alone":         func(g *Gesture) { g.Transform = nil },
+		"unknown method":        func(g *Gesture) { g.Transform.Method = "hash" },
+		"stationary":            func(g *Gesture) { g.Transform.DX = 0 },
+		"wrong scale":           func(g *Gesture) { g.Transform.Scale = 1.2 },
+		"vertical pan":          func(g *Gesture) { g.Transform.DY = 60 },
+		"too little texture":    func(g *Gesture) { g.Transform.Matches = 7 },
+		"unrelated repaint":     func(g *Gesture) { g.Transform.Tested = 100 },
+		"impossible accounting": func(g *Gesture) { g.Transform.Tested = 1 },
+		"nonfinite":             func(g *Gesture) { g.Transform.DX = math.NaN() },
+	} {
+		t.Run(name, func(t *testing.T) {
+			report := validReport(10_000)
+			mutate(&report.Gestures[0])
+			if err := CheckReport(report, 10_000, fixtureBuild); err == nil {
+				t.Fatal("invalid transform qualified gesture timing")
+			}
+		})
+	}
+}
+
 func TestCheckReportRejectsUnidentifiedGestures(t *testing.T) {
 	report := validReport(10_000)
 	report.Gestures[0].Identified = false
 	if err := CheckReport(report, 10_000, fixtureBuild); err == nil {
 		t.Fatal("an unrelated changed frame qualified as gesture timing")
+	}
+}
+
+func TestCheckReportBoundsZoomWitnesses(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		scale, dx, dy float64
+		valid         bool
+	}{
+		{"in lower limits", 2, -654, -486, true},
+		{"in upper limits", 2, -546, -314, true},
+		{"out lower limits", 0.5, 246, 114, true},
+		{"out upper limits", 0.5, 354, 286, true},
+		{"in wrong center", 2, -1, -1, false},
+		{"out wrong center", 0.5, 1, 1, false},
+		{"in beyond left", 2, -654.01, -400, false},
+		{"in beyond right", 2, -545.99, -400, false},
+		{"in beyond top", 2, -600, -486.01, false},
+		{"in beyond bottom", 2, -600, -313.99, false},
+		{"out beyond left", 0.5, 245.99, 200, false},
+		{"out beyond right", 0.5, 354.01, 200, false},
+		{"out beyond top", 0.5, 300, 113.99, false},
+		{"out beyond bottom", 0.5, 300, 286.01, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			report := validReport(10_000)
+			witness := report.Gestures[1].Transform
+			if test.scale == 0.5 {
+				witness = report.Gestures[3].Transform
+			}
+			witness.Scale, witness.DX, witness.DY = test.scale, test.dx, test.dy
+			if err := CheckReport(report, 10_000, fixtureBuild); (err == nil) != test.valid {
+				t.Fatalf("zoom witness acceptance = %v, want valid=%v", err, test.valid)
+			}
+		})
+	}
+}
+
+func TestCheckReportEnforcesResponseDeadline(t *testing.T) {
+	for _, images := range []int{10_000, 30_000} {
+		for _, kind := range []string{"gesture", "cancellation"} {
+			for _, delay := range []int64{2_999_999_999, 3_000_000_000, 3_000_000_001} {
+				t.Run(fmt.Sprintf("%d/%s/%d", images, kind, delay), func(t *testing.T) {
+					report := validReport(images)
+					report.OpenCloseCycles, report.VerdictBy, report.Verdict = 3, "Ronin", "pass"
+					if kind == "gesture" {
+						report.Gestures[0].VisibleNS = report.Gestures[0].InputNS + delay
+					} else {
+						report.Cancellations[0].VisibleNS = report.Cancellations[0].InputNS + delay
+					}
+					want := delay < 3_000_000_000 && (kind == "gesture" || images != 10_000)
+					if err := CheckReport(report, images, fixtureBuild); (err == nil) != want {
+						t.Fatalf("response delay acceptance = %v, want valid=%v", err, want)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestCheckReportEnforcesGestureSequence(t *testing.T) {
+	for name, mutate := range map[string]func([]Gesture){
+		"wrong pan direction":  func(g []Gesture) { g[2].Transform = fixtureTransform("pan", mapKeyLeft) },
+		"wrong zoom direction": func(g []Gesture) { g[3].Transform = fixtureTransform("zoom", mapKeyPlus) },
+		"wrong kind": func(g []Gesture) {
+			g[1].Kind, g[1].Transform = "pan", fixtureTransform("pan", mapKeyLeft)
+		},
+		"reassembled pan-only tail": func(g []Gesture) {
+			for i := 2; i < len(g); i++ {
+				g[i].Kind, g[i].Transform = "pan", fixtureTransform("pan", mapKeyLeft)
+			}
+		},
+		"swapped witnesses": func(g []Gesture) { g[0], g[2] = g[2], g[0] },
+	} {
+		t.Run(name, func(t *testing.T) {
+			report := validReport(10_000)
+			mutate(report.Gestures)
+			if err := CheckReport(report, 10_000, fixtureBuild); err == nil {
+				t.Fatal("out-of-sequence gesture evidence qualified")
+			}
+		})
 	}
 }
 

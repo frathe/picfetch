@@ -6,7 +6,7 @@ Source: `/grill-with-docs ma-033`
 Code inspected at: `5070d6d`; rechecked at `a5caf73` with an identical tracked tree.
 
 This records the accepted decisions for
-[MA-033](../needs_refactoring.md#ma-033). The
+[MA-033](../finished_refactorings/2026-09-29-needs-refactoring.md#ma-033). The
 [local interview](../.scratch/ma-033/interview.md) retains questions and code
 evidence. The user accepted all three rounds with "go with defaults", including
 the final round's shared-understanding confirmation. The design interview is

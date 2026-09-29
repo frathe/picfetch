@@ -64,7 +64,74 @@ func locationMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 	return nil
 }
 
+type locationRefreshProbe struct {
+	fyne.CanvasObject
+	refreshes int
+}
+
+func (p *locationRefreshProbe) Refresh() {
+	p.refreshes++
+	p.CanvasObject.Refresh()
+}
+
 func TestLocationMap(t *testing.T) {
+	t.Run("maximizes_window", func(t *testing.T) {
+		for _, staticSize := range []bool{false, true} {
+			t.Run(fmt.Sprintf("static=%t", staticSize), func(t *testing.T) {
+				v := newTestViewer(t)
+				source := uitest.TempGPSJPEGURI(t, "window.jpg", 24, 16, 52.52, 13.405)
+				dropAndWait(t, v, source)
+				v.SetStaticWindowSize(staticSize)
+				restoredSize := v.win.Canvas().Size()
+				maximizedSize := fyne.NewSize(1600, 1000)
+				native := &nativeResetWindow{Window: v.win, nativeSize: restoredSize}
+				v.win = native
+				v.maximizeWindow = func(window fyne.Window) {
+					if window != native {
+						t.Fatal("map maximized a different window")
+					}
+					native.maximized = true
+					native.nativeSize = maximizedSize
+					native.Window.Resize(maximizedSize)
+				}
+				v.unmaximizeWindow = func(_ fyne.Window) {
+					native.maximized = false
+					native.nativeSize = restoredSize
+					native.Window.Resize(restoredSize)
+				}
+				checkMaximized := func() {
+					t.Helper()
+					if !native.maximized || native.nativeSize != maximizedSize || native.FullScreen() {
+						t.Fatalf("map window: maximized=%v size=%v full-screen=%v", native.maximized, native.nativeSize, native.FullScreen())
+					}
+				}
+				locationMenu(t, v).Action()
+				v.locationMap.Settle()
+				checkMaximized()
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				checkMaximized()
+				v.keyModifiers = func() fyne.KeyModifier { return fyne.KeyModifierShift }
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyL})
+				v.locationMap.Settle()
+				checkMaximized()
+				fynetest.Tap(locationPhoto(t, v, source.Name()))
+				waitUntilLoaded(t, v)
+				checkMaximized()
+				// A user can restore the image window manually. Returning to
+				// the map must maximize again, not just remember the first entry.
+				v.unmaximizeWindow(v.win)
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				v.locationMap.Settle()
+				checkMaximized()
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+				v.ShowImage(0)
+				waitUntilLoaded(t, v)
+				if native.maximized {
+					t.Fatal("ordinary image sizing retained the map's native maximized state")
+				}
+			})
+		}
+	})
 	t.Run("copy_selection_navigation", func(t *testing.T) {
 		for _, route := range []string{"direct", "cluster"} {
 			for _, key := range []fyne.KeyName{fyne.KeyEscape, fyne.KeyG} {
@@ -719,16 +786,40 @@ func TestLocationMap(t *testing.T) {
 	t.Run("native_trial_observations", func(t *testing.T) {
 		v := newTestViewer(t)
 		dir := filepath.Join(t.TempDir(), "native")
+		staticSize := v.currentPreferences().StaticWindowSize
 		prepareTestLocationTrial(t, v, dir)
+		v.maximizeWindow = func(_ fyne.Window) {
+			t.Fatal("native qualification must not maximize its fixed-size window")
+		}
+		if v.currentPreferences().StaticWindowSize != staticSize {
+			t.Fatal("native trial geometry changed the saved static-size preference")
+		}
 		extensionless := uitest.TempGPSJPEGURI(t, "extensionless", 24, 16, 48.85, 2.35)
 		// A URI provider may know the MIME type even without a file extension.
 		dropAndWait(t, v,
 			uitest.TempGPSJPEGURI(t, "trial.jpg", 24, 16, 52.52, 13.405),
 			uitest.FakeURI{FileName: strings.TrimPrefix(extensionless.Path(), "/"), Mime: "image/jpeg"})
+		checkGeometry := func() {
+			t.Helper()
+			if got := v.win.Canvas().Size(); got != fyne.NewSize(1200, 800) {
+				t.Fatalf("native trial window = %v, want fixed 1200x800 before and after map entry", got)
+			}
+		}
+		checkGeometry()
+		// Observe repaint requests at the already-mounted window root. Capturing
+		// the test canvas alone would paint even without a native invalidation.
+		probe := &locationRefreshProbe{CanvasObject: canvas.NewRectangle(color.Transparent)}
+		v.win.Content().(*fyne.Container).Add(probe)
 		for range 2 {
+			probe.refreshes = 0
 			locationMenu(t, v).Action()
+			if probe.refreshes == 0 {
+				t.Fatal("map entry did not request a repaint through the mounted window root")
+			}
 			v.locationMap.Settle()
+			checkGeometry()
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			checkGeometry()
 		}
 		v.stopLocationTrial()
 		if err := v.waitLocationTrial(); err != nil {

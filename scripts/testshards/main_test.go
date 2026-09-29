@@ -966,12 +966,18 @@ func TestMakeTestRemainsCompleteAndUnsharded(t *testing.T) {
 	}
 }
 
-func TestDockerFullTestRunnersInstallGio(t *testing.T) {
+func TestDockerFullTestRunnersInstallPrerequisites(t *testing.T) {
 	for _, target := range []string{"test", "coverage"} {
 		t.Run(target, func(t *testing.T) {
 			output := makeDryRun(t, target)
 			if !regexp.MustCompile(`apt-get install -y -qq [^;\n]*\blibglib2\.0-bin\b`).MatchString(output) {
 				t.Fatalf("make %s does not install gio in its test container:\n%s", target, output)
+			}
+			if !regexp.MustCompile(`apt-get install -y -qq [^;\n]*\bgit\b`).MatchString(output) {
+				t.Fatalf("make %s does not install git for native evidence provenance:\n%s", target, output)
+			}
+			if !strings.Contains(output, "export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=/work") {
+				t.Fatalf("make %s does not trust its exact mounted checkout for Git provenance", target)
 			}
 		})
 	}
@@ -1062,15 +1068,18 @@ func TestMakeRaceRunsCanonicalConcurrentContractInOneContainer(t *testing.T) {
 	}
 }
 
-func TestRaceContainerInstallsGio(t *testing.T) {
+func TestRaceContainerInstallsPrerequisites(t *testing.T) {
 	dir := t.TempDir()
 	installArgs := filepath.Join(dir, "apt-install-args")
 	writeRaceCommandFixture(t, dir, "apt-get", `#!/bin/sh
 if [ "$1" = install ]; then printf '%s\n' "$*" > "$APT_INSTALL_ARGS"; fi
 `)
-	for _, name := range []string{"locale-gen", "chown", "make"} {
+	for _, name := range []string{"locale-gen", "chown"} {
 		writeRaceCommandFixture(t, dir, name, "#!/bin/sh\nexit 0\n")
 	}
+	writeRaceCommandFixture(t, dir, "make", `#!/bin/sh
+test "$GIT_CONFIG_COUNT" = 1 && test "$GIT_CONFIG_KEY_0" = safe.directory && test "$GIT_CONFIG_VALUE_0" = /work
+`)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("APT_INSTALL_ARGS", installArgs)
 	t.Setenv("HOST_UID", "1234")
@@ -1085,6 +1094,9 @@ if [ "$1" = install ]; then printf '%s\n' "$*" > "$APT_INSTALL_ARGS"; fi
 	}
 	if !regexp.MustCompile(`(?:^|\s)libglib2\.0-bin(?:\s|$)`).Match(args) {
 		t.Fatalf("race container does not install gio: apt-get %s", args)
+	}
+	if !regexp.MustCompile(`(?:^|\s)git(?:\s|$)`).Match(args) {
+		t.Fatalf("race container does not install git for native evidence provenance: apt-get %s", args)
 	}
 }
 

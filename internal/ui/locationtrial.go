@@ -21,6 +21,9 @@ func (v *viewer) borrowLocationTrial(recorder *locationtrial.Recorder) {
 		return
 	}
 	v.locationTrial = &locationTrialSession{recorder: recorder}
+	// Establish qualification geometry before loading or capturing the closed
+	// viewer baseline. Map entry and image auto-sizing must not change it.
+	v.win.Resize(fyne.NewSize(1200, 800))
 }
 
 func (v *viewer) beginLocationTrial() {
@@ -45,8 +48,6 @@ func (v *viewer) beginLocationTrial() {
 	}
 	t.state.Stages = append(t.state.Stages, locationtrial.Stage{Kind: kind, StartNS: time.Now().UnixNano()})
 	t.scanStart = 0
-	// Fixed qualification geometry affects only this isolated launch.
-	v.win.Resize(fyne.NewSize(1200, 800))
 }
 
 func (v *viewer) scanLocationTrial() {

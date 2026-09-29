@@ -681,7 +681,9 @@ Das Bild behält die Abmessungen des bei der Erstellung gewählten Bildschirms.
 ### Standortkarte
 
 **Fenster -> Standortkarte** oder **`Shift+L`** zeigt aufgezeichnete GPS-Standorte
-der geladenen Sammlung, unabhängig von Rastersuche und Auswahl. Über einem
+der geladenen Sammlung, unabhängig von Rastersuche und Auswahl. Beim Öffnen oder
+Zurückkehren zur Karte wird das Fenster maximiert, ohne den Vollbildmodus zu
+aktivieren. Über einem
 gerahmten Vorschaubild zeigt der Mauszeiger den Dateinamen; ein Klick auf ein
 einzelnes Foto öffnet es direkt. Die Pfeiltasten blättern durch verortete Bilder in
 Sammlungsreihenfolge; **Escape** kehrt zur unveränderten Kartenposition zurück.

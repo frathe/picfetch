@@ -486,10 +486,14 @@ ScreenCaptureKit/CGEvent helper for input-to-visible frame evidence. Its checker
 identity, native screen artifacts, timing thresholds and the separate 30k verdict;
 checker tests are not native performance qualification.
 Exit timing requires pixels matching the stable closed-viewer baseline captured
-before entry. Gesture latency requires identified visual transforms; the current
-hash-only helper refuses pan/zoom samples, leaving formal latency qualification
-unavailable. `native/capture_test.swift` checks that response policy without
-screen/input access; macOS CI also type-checks the production Swift helper.
+before entry. Gesture latency requires independent pixel registration in
+`native/transform.swift`: distributed textured patches identify horizontal
+translation or 2x/0.5x scaling, reject stationary/ambiguous frames and retain a
+transform witness for schema-2 report validation. `native/transform_test.swift`
+and `native/capture_test.swift` check registration and response policy without
+screen/input access; `make location-map-capture-test` runs them portably, and
+both macOS CI architectures also type-check the production Swift helper. Native
+capture qualification is recorded separately from these synthetic tests.
 `manual.go` in that tool supplies a separate human-controlled launch without a
 screen/input helper. It retains source-free state and sampled RSS in live JSONL
 and `manual-report.json`; these observations do not satisfy the latency checker

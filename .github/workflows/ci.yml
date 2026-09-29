@@ -284,9 +284,8 @@ jobs:
 
       - name: Check native Location Map observer
         run: |
-          xcrun swiftc -parse-as-library -warnings-as-errors -typecheck scripts/locationmapqualify/native/capture.swift
-          xcrun swiftc -parse-as-library -warnings-as-errors -D CAPTURE_TEST scripts/locationmapqualify/native/capture.swift scripts/locationmapqualify/native/capture_test.swift -o "$RUNNER_TEMP/location-map-capture-test"
-          "$RUNNER_TEMP/location-map-capture-test"
+          make location-map-capture-test SWIFTC='xcrun swiftc'
+          xcrun swiftc -parse-as-library -warnings-as-errors -typecheck scripts/locationmapqualify/native/capture.swift scripts/locationmapqualify/native/transform.swift
           go test -count=1 -run '^TestNativeProtocol' ./scripts/locationmapqualify
 
       - name: Check native Favorite ownership

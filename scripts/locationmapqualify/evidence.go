@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/png"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,13 +46,48 @@ type Report struct {
 type Stage = locationtrial.Stage
 
 type Gesture struct {
-	Kind       string `json:"kind"`
-	InputNS    int64  `json:"input_ns"`
-	VisibleNS  int64  `json:"visible_ns"`
-	Before     string `json:"before"`
-	After      string `json:"after"`
-	Skipped    bool   `json:"skipped"`
-	Identified bool   `json:"identified"`
+	Kind       string           `json:"kind"`
+	InputNS    int64            `json:"input_ns"`
+	VisibleNS  int64            `json:"visible_ns"`
+	Before     string           `json:"before"`
+	After      string           `json:"after"`
+	Skipped    bool             `json:"skipped"`
+	Identified bool             `json:"identified"`
+	Transform  *VisualTransform `json:"transform,omitempty"`
+}
+
+// VisualTransform records independently matched screen pixels, in capture-pixel
+// coordinates. It is a consistency witness, not a provenance attestation.
+type VisualTransform struct {
+	Method  string  `json:"method"`
+	Scale   float64 `json:"scale"`
+	DX      float64 `json:"dx"`
+	DY      float64 `json:"dy"`
+	Matches int     `json:"matches"`
+	Tested  int     `json:"tested"`
+}
+
+func (v *VisualTransform) validFor(kind string) bool {
+	if v == nil || v.Method != "patch-grid-v1" || v.Matches < 8 || v.Tested < v.Matches || v.Tested > 1024 || float64(v.Matches)/float64(v.Tested) < 0.65 {
+		return false
+	}
+	if math.IsNaN(v.DX) || math.IsNaN(v.DY) || math.Abs(v.DX) > 4096 || math.Abs(v.DY) > 4096 {
+		return false
+	}
+	switch kind {
+	case "pan":
+		return v.Scale == 1 && math.Abs(v.DX) >= 18 && math.Abs(v.DX) <= 166 && math.Abs(v.DY) <= 14
+	case "zoom":
+		if v.Scale != 2 && v.Scale != 0.5 {
+			return false
+		}
+		// The observer captures 1200x800 pixels. Its centered zoom search
+		// spans +/-12 and +/-20 four-pixel samples, plus 1.5 for refinement.
+		centerDX, centerDY := (1-v.Scale)*1200/2, (1-v.Scale)*800/2
+		return math.Abs(v.DX-centerDX) <= 54 && math.Abs(v.DY-centerDY) <= 86
+	default:
+		return false
+	}
 }
 
 type Cancellation struct {
@@ -71,7 +107,7 @@ func CheckReport(report Report, expectedImages int, expectedBuild string) error 
 	if expectedImages <= 0 || !validBuildID(expectedBuild) {
 		return errors.New("invalid expected count or build ID")
 	}
-	if report.Schema != 1 || !validBuildID(report.BuildID) || report.BuildID != expectedBuild {
+	if report.Schema != 2 || !validBuildID(report.BuildID) || report.BuildID != expectedBuild {
 		return errors.New("invalid schema or build ID")
 	}
 	if !report.Native || !report.Complete || report.Failure != "" || strings.TrimSpace(report.Protocol) == "" || report.Observation != "macos-screen-capture" {
@@ -117,31 +153,24 @@ func CheckReport(report Report, expectedImages int, expectedBuild string) error 
 	if len(report.Gestures) < 40 {
 		return errors.New("fewer than 40 gestures")
 	}
-	pan, zoom, fast := false, false, 0
+	fast := 0
 	for i, gesture := range report.Gestures {
-		if !gesture.Identified || gesture.Skipped || gesture.InputNS <= 0 || gesture.VisibleNS <= gesture.InputNS || gesture.Before == "" || gesture.After == "" {
+		if !gesture.Identified || gesture.Skipped || !validNativeResponseTime(gesture.InputNS, gesture.VisibleNS) || gesture.Before == "" || gesture.After == "" {
 			return fmt.Errorf("gesture %d is skipped or invalid", i)
 		}
-		switch gesture.Kind {
-		case "pan":
-			pan = true
-		case "zoom":
-			zoom = true
-		default:
-			return fmt.Errorf("gesture %d has invalid kind %q", i, gesture.Kind)
+		command := nativeGestureCommand(i)
+		if gesture.Kind != command.Kind || !command.matchesTransform(gesture.Transform) {
+			return fmt.Errorf("gesture %d has no valid witness for its scheduled command", i)
 		}
 		if gesture.VisibleNS-gesture.InputNS <= 100_000_000 {
 			fast++
 		}
 	}
-	if !pan || !zoom {
-		return errors.New("both pan and zoom gestures are required")
-	}
 	if len(report.Cancellations) == 0 {
 		return errors.New("cancellation feedback is required")
 	}
 	for i, cancellation := range report.Cancellations {
-		if !cancellation.Complete || cancellation.InputNS <= 0 || cancellation.VisibleNS <= cancellation.InputNS || cancellation.Before == "" || cancellation.After == "" {
+		if !cancellation.Complete || !validNativeResponseTime(cancellation.InputNS, cancellation.VisibleNS) || cancellation.Before == "" || cancellation.After == "" {
 			return fmt.Errorf("cancellation %d is incomplete or invalid", i)
 		}
 		if expectedImages == 10_000 && cancellation.VisibleNS-cancellation.InputNS > 250_000_000 {

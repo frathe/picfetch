@@ -5,7 +5,7 @@ Date: 2026-09-28
 Source: `/grill-with-docs ma-032`
 Implementation inspected at `4c759b2`; unchanged in the relevant paths at `68477a9`.
 
-This is the consolidated design for [MA-032](../needs_refactoring.md#ma-032).
+This is the consolidated design for [MA-032](../finished_refactorings/2026-09-29-needs-refactoring.md#ma-032).
 The user accepted the recommended answers in three rounds and invoked
 `/to-spec` to proceed with the consolidated design. The
 [local interview](../.scratch/ma-032/interview.md) retains the questions and

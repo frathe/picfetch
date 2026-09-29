@@ -6,7 +6,7 @@ Source: `/grill-with docs MA-029`
 Inspected revision: `e7d04561dd7f1565480ed8a46adf76cc327f0e73`.
 Branch: `feature/ma-029-browsing-visits`.
 
-Give [MA-029](../needs_refactoring.md#ma-029) one authoritative owner for the
+Give [MA-029](../finished_refactorings/2026-09-29-needs-refactoring.md#ma-029) one authoritative owner for the
 active browsing visit, its scope and return transitions. This replaces the
 need for unrelated navigation callers to infer ownership from several features.
 The [ownership ADR](adr/0004-browsing-visit-ownership.md) records the trade-off.

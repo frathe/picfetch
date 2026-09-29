@@ -46,9 +46,10 @@ import (
 type viewer struct {
 	app fyne.App
 	win fyne.Window
-	// unmaximizeWindow is the native window-manager boundary. Keeping it on
-	// the viewer lets reset tests observe native geometry independently of
+	// These are the native window-manager boundaries. Keeping them on
+	// the viewer lets tests observe native geometry independently of
 	// the Fyne test driver's always-resizable logical canvas.
+	maximizeWindow   func(fyne.Window)
 	unmaximizeWindow func(fyne.Window)
 	// stopping retires title/menu updates before shutdown cancels features.
 	// Fyne may run OnStopped after the native event loop has drained.
@@ -649,7 +650,7 @@ func (v *viewer) presentDropzone() {
 	// Escape returns to the same compact welcome frame as a fresh launch.
 	if !v.settings.staticWindowSize {
 		// A user can also maximize through the window manager, without a
-		// Grid/Explorer ownership flag. Restore that native state before
+		// Grid/Explorer/Location Map ownership flag. Restore that native state before
 		// Resize, which otherwise only shrinks Fyne's logical canvas.
 		if !unmaximizeRequested {
 			v.unmaximizeWindow(v.win)
@@ -659,10 +660,10 @@ func (v *viewer) presentDropzone() {
 	v.syncMenus()
 }
 
-// undoGridMaximize restores the window from a grid-triggered maximize (see
-// grid.Overview.ConsumeMaximized) before something is about to resize it
-// for a reason of its own - a no-op unless the grid actually left it
-// maximized. A plain Resize call alone can't shrink a window Maximize
+// undoGridMaximize restores the window from a Grid, Explorer or Location Map
+// maximize before something is about to resize it for a reason of its own.
+// It is a no-op unless one of those views left it maximized.
+// A plain Resize call alone can't shrink a window Maximize
 // grew: on Linux and Windows the maximized state is tracked by the OS
 // independently of window geometry, so a Resize made while it's still set
 // is silently ignored - see winpos.Unmaximize. Restoring the last known
@@ -671,10 +672,11 @@ func (v *viewer) presentDropzone() {
 // grid took over. The result reports whether an unmaximize was requested,
 // not whether an asynchronous window manager has already applied it.
 func (v *viewer) undoGridMaximize() bool {
-	if !v.grid.ConsumeMaximized() && !v.explorerInput.maximized {
+	if !v.grid.ConsumeMaximized() && !v.explorerInput.maximized && !v.locationInput.maximized {
 		return false
 	}
 	v.explorerInput.maximized = false
+	v.locationInput.maximized = false
 	v.unmaximizeWindow(v.win)
 	v.winPos.Restore(v.win)
 	return true

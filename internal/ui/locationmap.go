@@ -17,6 +17,7 @@ type locationInput struct {
 	prepare    func()
 	prepareOp  requestlife.Owner
 	rebuilding bool
+	maximized  bool
 }
 
 func (v *viewer) showLocationMap() {
@@ -44,6 +45,7 @@ func (v *viewer) showLocationMap() {
 	v.browsing.enterLocation(v.Generation())
 	binding := v.browsing.current().binding
 	v.beginLocationTrial()
+	v.maximizeLocationMap()
 	v.locationMap.Preparing()
 	v.locationMap.ValidateSources(func(changed bool) {
 		if !v.browsing.matches(binding, v.Generation()) {
@@ -58,6 +60,16 @@ func (v *viewer) showLocationMap() {
 		}
 		v.prepareLocationMap()
 	})
+	v.ForceRepaint()
+}
+
+func (v *viewer) maximizeLocationMap() {
+	// Native qualification compares fixed-size captured frames across visits.
+	if v.locationTrial != nil {
+		return
+	}
+	v.maximizeWindow(v.win)
+	v.locationInput.maximized = true
 }
 
 func (v *viewer) prepareLocationMap() {
@@ -255,6 +267,7 @@ func (v *viewer) returnLocationMapFrom(binding browsingBinding) {
 			v.rebuildLocationMap()
 		}
 		if ready {
+			v.maximizeLocationMap()
 			v.locationMap.Return()
 		}
 	})
