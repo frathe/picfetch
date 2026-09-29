@@ -10,6 +10,33 @@ Deliverable: identify requested pan/zoom transforms from captured pixels before
 accepting native latency samples. Route: Deep, because the capture adapter is
 macOS-specific. Branch: `feature/location-map-gesture-timing`.
 
+## PR closure requested — 2026-09-29
+
+Ronin manually tested zoom in the real-collection client and explicitly accepted
+it: "I tried zoom mark it as passed." Manual zoom behavior is PASS. The failed
+automated observation remains unchanged and supplies no zoom latency.
+
+Ronin then authorized committing, pushing, opening a PR, completing the GitHub
+Codex review loop, and closing the two long Open entries in `todos.md` with short
+user-facing Done notes. The automated zoom-registration/40-gesture benchmark is
+parked by this scope decision, not declared measured or passing. The prior
+maintainer performance acceptance remains valid. Real-photo/GPS captures stay
+local and excluded from Git. No merge or release is authorized.
+
+Closure verification: focused changed regressions and local IDE inspections;
+full tests, CodeQL and fresh post-suppression Qodana SARIF through PR CI; fresh
+code/security reviews on the latest pushed head and disposition of every thread.
+Compiler checks remain separate from unavailable Swift semantic IDE inspection.
+Archive this plan and replace the Open wall of text after the review round is
+clean, then obtain a fresh clean round for that final documentation commit.
+
+Budget: one read-only evidence scout, no delegated review or fixes, no duplicate
+full local race suite. Scout G1: locate CI/Qodana/review evidence conventions;
+G2: lead verifies reported artifact names and source locators with `rg`/`gh`;
+G3: no writes; G4/G5: prior-PR artifact/report relationships are not hot lead
+context; S/W: bounded relationship search, not a mechanical transform. All
+assessment, implementation and final acceptance remain lead-owned.
+
 ## Linux verification continuation — 2026-09-29
 
 Ronin confirmed the scope as Linux finalization after the macOS fixes. Local and

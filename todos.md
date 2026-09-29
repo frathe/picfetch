@@ -135,6 +135,10 @@
   After one foreground-interrupted attempt, the dedicated-desktop retry passed
   cold/warm scans, return and pan (73.617292 ms, 106/122 patches), then rejected
   the first zoom. All failed evidence is preserved in the plan.
+  **Manual zoom: PASS.** On 2026-09-29, Ronin tested zoom in the real-collection
+  trial and explicitly instructed: "I tried zoom mark it as passed."
+  This accepts the observed zoom behavior; it does not supply an automated
+  input-to-visible latency or change the retained failed recorder result.
   **Remaining: native timing measurement.** Cold/warm entry, pixel-verified
   return and one identified pan worked on 24 synthetic GPS images, but the
   recorder rejected the first zoom despite visible motion. The complete
