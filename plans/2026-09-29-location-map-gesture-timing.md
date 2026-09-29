@@ -162,16 +162,138 @@ Stay on `feature/location-map-gesture-timing` and read this plan before continui
 Commit/push authorization persists for the handoff; no merge/release authorization.
 The todo remains open until native verification resolves the remaining work.
 
-1. Fetch/switch to the branch and confirm a clean tree. Run
-   `make location-map-capture-test SWIFTC='xcrun swiftc'`, then type-check the
-   production adapter with
-   `xcrun swiftc -parse-as-library -warnings-as-errors -typecheck scripts/locationmapqualify/native/capture.swift scripts/locationmapqualify/native/transform.swift`.
-   Run `make location-map-qualification-test` and inspect changed Swift code with
-   a suitable native tool. Fix any adapter/compiler issue and repeat its checks.
-2. Obtain the explicitly chosen image collection and a fresh evidence directory,
-   plus approval for the foreground CGEvent-driven trial. The helper preflights
-   existing Screen Recording and Accessibility permissions; do not grant them
-   automatically. Run `make location-map-qualify` with those explicit paths.
+### macOS preparation completed — 2026-09-29
+
+Verified the clean handoff revision `232781f6207c8376f2a5f7cde846c3bad17b6a85`
+on macOS 27.0 (26A428), arm64, with Apple Swift 6.4
+(`swiftlang-6.4.0.34.1`), macOS SDK 27.0 and Go 1.27.1. No source changes were
+needed.
+
+- `make location-map-capture-test SWIFTC='xcrun swiftc'`: PASS; both visual
+  transform and response-frame policy suites passed with warnings as errors.
+  On this host the latter also compiles the AppKit capture adapter.
+- Production `xcrun swiftc -parse-as-library -warnings-as-errors -typecheck
+  scripts/locationmapqualify/native/capture.swift
+  scripts/locationmapqualify/native/transform.swift`: PASS.
+- `make location-map-qualification-test`: PASS under race;
+  `scripts/locationmapqualify` 3.460s and `internal/locationtrial` 1.176s.
+- `make build`: PASS; the linker reported only the duplicate `-lobjc` warning.
+  Optimized production capture-helper compilation with `xcrun swiftc
+  -parse-as-library -warnings-as-errors -O`: PASS.
+- Initial sandboxed checks could not write the normal Swift/Go caches. The Swift
+  diagnostic also reported an SDK/compiler mismatch after failing to build
+  SwiftShims; the same commands passed with approved cache access, without a
+  toolchain or SDK change.
+- GoLand batch inspection of all four Swift files returned no items and
+  `more=true`; the individual `capture.swift` request timed out. These are
+  incomplete inspection results, not clean IDE gates. Swift SDK compilation
+  with warnings as errors is verified separately. No SwiftLint is installed.
+
+Prepared binaries (local, not committed):
+
+| Binary | SHA-256 |
+| --- | --- |
+| `bin/picfetch` | `d65b039fe5bfd208a66aa4df66391d3caca2ba05e3fcefba997575f55bb59106` |
+| `bin/location-map-capture` | `8812471c1a5b9836f6add30c4e2ef559cbb2449004b9a94bdf496f6684afd69a` |
+
+The live trial has not started. The collection path and explicit foreground
+CGEvent authorization were requested from Ronin. Use a new evidence directory
+under `.scratch` once those are supplied; retain failures and inspect the PNGs
+and transform witnesses before claiming native qualification. Existing records
+identify earlier evidence directories but do not choose a collection for this
+run. Screen/input permissions have not been requested or changed.
+
+Native continuation cost: one read-only scout for prior collection/evidence and
+protocol locators, no delegated review or implementation. Its bounded search,
+read-only scope, independently checked locators and previously unread evidence
+meet the existing G1–G5 scout gate. Carry forward the complete native Linux/amd64
+verification above: this continuation changes documentation only and does not
+run an emulated full suite. No new CI, CodeQL or Qodana result is claimed.
+
+### Continuation readiness check — 2026-09-29
+
+The next-todo continuation rechecked HEAD at `232781f` and both prepared binary
+SHA-256 values; they match the macOS preparation above exactly. Only this plan
+and `todos.md` had existing working-tree edits. No source or binary changes were
+needed, so the recorded native and Linux test evidence carries forward without
+repeating the suites.
+
+A fresh GoLand `get_file_problems(errorsOnly=false, timeout=10000)` request for
+`native/transform.swift` returned `errors=[]` with `timedOut=true`: incomplete,
+not a pass. Installed GoLand 2026.2.2.1 has no Swift/AppCode/SourceKit inspection
+plugin. Its bundled `textmate-plugin/lib/bundles/swift/package.json` identifies
+Swift Language Basics and describes only snippets, syntax highlighting and
+bracket matching. Swift semantic IDE inspections, including weak warnings, are
+therefore unavailable in this configuration. Command-line SourceKit-LSP and
+swift-format exist, but their availability does not establish inspection coverage;
+the prior warnings-as-errors compiler evidence remains a separate check.
+
+One additional read-only scout checked installed inspection/tool metadata while
+the lead checked binary identity and trial setup. The bounded question,
+read-only scope, independently checked metadata, and previously unread tooling
+meet G1–G5; no review or implementation was delegated. This adds one scout for
+the newly investigated inspection limitation, beyond the prior continuation's
+recorded collection/evidence search.
+
+The chosen collection path and explicit CGEvent-helper authorization remain
+pending. No live trial, screen capture, input injection, permission change,
+commit or push occurred in this readiness check. The repository's Computer Use
+workflow requires a specific request before CGEvent synthesis; the next-todo
+request did not identify the collection or explicitly request that mechanism.
+
+### Unlocked-desktop continuation — 2026-09-29
+
+Ronin's repeated request to continue after unlocking authorizes the previously
+described CGEvent capture/input helper. That authorization is no longer pending.
+Computer Use reached PicFetch successfully; it showed the empty welcome window,
+so there was no currently loaded collection to reuse.
+
+The existing helper's permission-only probe (`bin/location-map-capture 0
+.scratch`, using a PID that cannot identify an application window) failed with
+`native capture/input permission is absent`. The result was identical outside
+the sandbox. A separate native CoreGraphics preflight reported:
+
+```text
+Screen Recording: true
+Post Event: false
+```
+
+Computer Use opened System Settings -> Privacy & Security -> Device Control
+and Data Access. GoLand's switch was off, while the separate Codex Computer Use
+app's switch was on. Ronin was asked to enable GoLand for the helper and reply
+when ready. No permission was requested through an API or changed automatically;
+no native trial or gesture measurement was started.
+
+Prepared a disposable fallback corpus in
+`.scratch/location-map-smoke-20260929/images`: 24 generated patterned JPEGs with
+synthetic GPS coordinates, independently read back with ExifTool (24 files, all
+with latitude/longitude). The local `generate.go` records deterministic creation
+and refuses an existing output directory. `bin/location-map-qualify` was built
+successfully. These inputs can check real native capture/input, but cannot
+qualify the 10k/30k performance promise or replace Ronin's chosen real collection.
+No private library was searched. A read-only fixture scout located the existing
+GPS test helpers and established that the checked fixture directories had no
+ready GPS corpus; its bounded search and independently checked locators follow
+the existing G1–G5 scout gate. No review or implementation was delegated.
+
+Remaining immediate dependency: enable the native helper's input-posting access,
+then repeat its preflight and run a new evidence directory. Keep the synthetic
+smoke explicitly separate from real-collection qualification. Source and shipped
+dependencies remain unchanged; prior compiler/test evidence still applies.
+
+### Remaining live qualification
+
+1. Stay on this branch. Native compilation and focused tests are complete at the
+   revision above; repeat them if source changes during the trial. Swift semantic
+   inspection is unavailable in the installed GoLand configuration. Complete it
+   with a suitable native tool if available, preserving the distinction between
+   that gate and the passed compiler checks.
+2. CGEvent-helper approval is received. Resolve the missing input-posting
+   permission with Ronin, then repeat preflight. Use the prepared synthetic
+   corpus for a smoke check or Ronin's chosen real collection, always with a
+   fresh evidence directory. The helper preflights existing Screen Recording
+   and Accessibility permissions; do not grant them automatically. Run
+   `make location-map-qualify` with explicit paths.
 3. Inspect whole-window before/after PNGs against retained witnesses and the
    recorded direction/latency. Verify 40 pan/zoom samples, closure matching and
    preservation of any failed sample. Use actual admitted image count when
