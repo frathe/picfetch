@@ -97,7 +97,9 @@ qualification remain pending until the native handoff in
 existing maintainer performance acceptance is separate from measured evidence.
 
 The protocol requires at least 40 alternating horizontal Shift+arrow pans and
-in/out zooms after complete cold and warm scans. Every submitted measurement is retained, including slow
+keypad plus/minus zooms after complete cold and warm scans. Keypad arithmetic
+avoids ANSI punctuation positions that translate differently on non-US layouts;
+the system keyboard layout is never changed. Every submitted measurement is retained, including slow
 or failed measurements. Another entry followed immediately by Escape measures
 visible cancellation/exit feedback. Exit frames must match the stable closed-viewer
 body captured before that entry; unrelated scan/tile changes cannot complete the

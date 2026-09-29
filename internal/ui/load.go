@@ -256,14 +256,14 @@ func (v *viewer) SetMaxWindowHeight(h float32) {
 // syncWindowToZoom resizes the main window to track the image at the
 // current zoom level, clamped between startW/startH and maxWinW/maxWinH.
 // A no-op while the slideshow or grid overlay is active, while a fixed
-// window size is set, or before any image has been loaded. Called from
+// window size or native trial geometry is set, or before an image is loaded. Called from
 // zoom's onChanged (features.go) so the window grows and shrinks with
 // every user-driven zoom step. undoGridMaximize is called before each
 // resize for the same reason finishLoad and applyRotationLayout call it:
 // a plain Resize on an OS-maximized window is silently ignored on some
 // platforms.
 func (v *viewer) syncWindowToZoom() {
-	if v.settings.staticWindowSize {
+	if v.settings.staticWindowSize || v.locationTrial != nil {
 		return
 	}
 	if v.slides != nil && v.slides.Active() {
@@ -288,10 +288,10 @@ func (v *viewer) syncWindowToZoom() {
 }
 
 // autoResizeToImage resizes the main window to fit b unless the user asked
-// for a fixed window size. Shared by load, zoom, and rotate so the static
-// toggle has one gate.
+// for a fixed window size or the native trial owns the geometry. Shared by
+// load, zoom, and rotate so those sizing policies have one gate.
 func (v *viewer) autoResizeToImage(b image.Rectangle) {
-	if v.settings.staticWindowSize {
+	if v.settings.staticWindowSize || v.locationTrial != nil {
 		return
 	}
 	resizeToImage(v.win, b, v.settings.maxWinW, v.settings.maxWinH)

@@ -11,15 +11,15 @@ import Foundation
         let zoomOut = scene(scale: 0.5, dx: 75, dy: 52)
         expect(before, right, kind: "pan", key: 0x7b, scale: 1, dx: 60, dy: 0)
         expect(before, left, kind: "pan", key: 0x7c, scale: 1, dx: -60, dy: 0)
-        expect(before, zoomIn, kind: "zoom", key: 0x18, scale: 2, dx: -600, dy: -416)
-        expect(before, zoomOut, kind: "zoom", key: 0x1b, scale: 0.5, dx: 300, dy: 208)
+        expect(before, zoomIn, kind: "zoom", key: 0x45, scale: 2, dx: -600, dy: -416)
+        expect(before, zoomOut, kind: "zoom", key: 0x4e, scale: 0.5, dx: 300, dy: 208)
         for (name, frame) in [("stationary", before), ("opposite pan", left),
                               ("wrong scale", zoomIn), ("unrelated repaint", scene(dx: 93, dy: 37))] {
             reject(before, frame, kind: "pan", key: 0x7b, name: name)
         }
-        reject(before, zoomOut, kind: "zoom", key: 0x18, name: "opposite zoom")
-        reject(before, right, kind: "zoom", key: 0x18, name: "pan instead of zoom")
-        reject(before, scene(scale: 1.2, dx: -30, dy: -20), kind: "zoom", key: 0x18, name: "wrong zoom scale")
+        reject(before, zoomOut, kind: "zoom", key: 0x45, name: "opposite zoom")
+        reject(before, right, kind: "zoom", key: 0x45, name: "pan instead of zoom")
+        reject(before, scene(scale: 1.2, dx: -30, dy: -20), kind: "zoom", key: 0x45, name: "wrong zoom scale")
         precondition(identifyTransform(before: before, after: right, kind: "pan", key: 0x7b, shift: false) == nil,
                      "Selection arrows cannot qualify as pan input")
         let blank = VisualFrame(width: 300, height: 200, luminance: Array(repeating: 128, count: 60_000))

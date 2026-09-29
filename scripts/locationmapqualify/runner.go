@@ -214,7 +214,7 @@ func runNative(ctx context.Context, images, evidence, binary, helper string, out
 	if err != nil {
 		return err
 	}
-	report.Protocol = "screen-v3: foreground 1200x800 window; 120fps capture requested, actual WindowServer frame cadence; pan/zoom requires unambiguous distributed patch registration (patch-grid-v1), with retained scale/translation witness; Shift+arrow pan; 250ms stable-frame admission; all submitted samples retained; cancellation requires observed closed viewer; Mach input/display clock; RSS sampled every 250ms (reported peak is sampled); capture/registration/PNG work runs outside PicFetch; helper_sha256=" + helperID
+	report.Protocol = "screen-v4: foreground 1200x800 window; 120fps capture requested, actual WindowServer frame cadence; pan/zoom requires unambiguous distributed patch registration (patch-grid-v1), with retained scale/translation witness; Shift+arrow pan; keypad plus/minus zoom; 250ms stable-frame admission; all submitted samples retained; cancellation requires observed closed viewer; Mach input/display clock; RSS sampled every 250ms (reported peak is sampled); capture/registration/PNG work runs outside PicFetch; helper_sha256=" + helperID
 	hardware, err := nativeDescription(ctx, "/usr/sbin/sysctl", "-n", "hw.model", "hw.memsize", "hw.ncpu")
 	if err != nil {
 		return err

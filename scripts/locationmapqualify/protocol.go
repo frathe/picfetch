@@ -10,14 +10,15 @@ import (
 	"github.com/frathe/picfetch/internal/locationtrial"
 )
 
-// Carbon virtual key positions used by the native Fyne keyboard path.
+// Carbon virtual key positions used by the native Fyne keyboard path. Keypad
+// plus/minus avoid the layout-dependent ANSI punctuation positions.
 const (
 	mapKeyL      = 0x25
 	mapKeyEscape = 0x35
 	mapKeyLeft   = 0x7b
 	mapKeyRight  = 0x7c
-	mapKeyEqual  = 0x18
-	mapKeyMinus  = 0x1b
+	mapKeyPlus   = 0x45
+	mapKeyMinus  = 0x4e
 )
 
 type nativeCommand struct {
@@ -44,7 +45,7 @@ func (c nativeCommand) matchesTransform(v *VisualTransform) bool {
 	case "pan":
 		return c.Shift && (c.Key == mapKeyLeft && v.DX > 0 || c.Key == mapKeyRight && v.DX < 0)
 	case "zoom":
-		return !c.Shift && (c.Key == mapKeyEqual && v.Scale == 2 || c.Key == mapKeyMinus && v.Scale == 0.5)
+		return !c.Shift && (c.Key == mapKeyPlus && v.Scale == 2 || c.Key == mapKeyMinus && v.Scale == 0.5)
 	default:
 		return false
 	}
@@ -136,7 +137,7 @@ func collectNative(ctx context.Context, driver nativeDriver, report *Report, sus
 	for i := 0; i < 40 || report.Images == 30_000 && sustain(); i++ {
 		kind, key := "pan", uint16(mapKeyLeft)
 		if i%2 == 1 {
-			kind, key = "zoom", mapKeyEqual
+			kind, key = "zoom", mapKeyPlus
 		}
 		if i%4 >= 2 {
 			if kind == "pan" {

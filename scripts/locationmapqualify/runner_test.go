@@ -86,7 +86,7 @@ func TestNativeProtocolRejectsMismatchedTransform(t *testing.T) {
 		alter   func(*nativeObservation)
 	}{
 		{"pan opposite direction", nativeCommand{Kind: "pan", Key: mapKeyLeft, Shift: true}, func(o *nativeObservation) { o.Transform.DX = -60 }},
-		{"zoom opposite direction", nativeCommand{Kind: "zoom", Key: mapKeyEqual}, func(o *nativeObservation) { o.Transform = fixtureTransform("zoom", mapKeyMinus) }},
+		{"zoom opposite direction", nativeCommand{Kind: "zoom", Key: mapKeyPlus}, func(o *nativeObservation) { o.Transform = fixtureTransform("zoom", mapKeyMinus) }},
 		{"pan without Shift", nativeCommand{Kind: "pan", Key: mapKeyLeft}, func(_ *nativeObservation) {}},
 		{"missing witness", nativeCommand{Kind: "pan", Key: mapKeyLeft, Shift: true}, func(o *nativeObservation) { o.Transform = nil }},
 		{"wrong response kind", nativeCommand{Kind: "pan", Key: mapKeyLeft, Shift: true}, func(o *nativeObservation) { o.Kind = "zoom" }},
@@ -157,6 +157,23 @@ func TestNativeProtocolUsesObservedCountAndRetainsFailedSample(t *testing.T) {
 			}
 			if err != nil || len(report.Gestures) != 40 || len(report.Stages) != 2 || len(report.Cancellations) != 1 || report.OpenCloseCycles < 2 {
 				t.Fatalf("incomplete native protocol: %+v %v", report, err)
+			}
+			zoom := 0
+			for _, command := range driver.commands {
+				if command.Kind != "zoom" {
+					continue
+				}
+				want := uint16(0x45) // Carbon keypad plus; ANSI equal is layout-dependent.
+				if zoom%2 == 1 {
+					want = 0x4e // Carbon keypad minus.
+				}
+				if command.Key != want || command.Shift {
+					t.Fatalf("zoom %d input = %#x, shift=%v; want keypad %#x", zoom, command.Key, command.Shift, want)
+				}
+				zoom++
+			}
+			if zoom != 20 {
+				t.Fatalf("zoom inputs = %d, want 20", zoom)
 			}
 		})
 	}

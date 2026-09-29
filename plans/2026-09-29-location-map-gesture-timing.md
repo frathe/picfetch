@@ -281,6 +281,158 @@ then repeat its preflight and run a new evidence directory. Keep the synthetic
 smoke explicitly separate from real-collection qualification. Source and shipped
 dependencies remain unchanged; prior compiler/test evidence still applies.
 
+### Native retry and geometry regression — 2026-09-29
+
+Both macOS permission preflights now pass. Two real runs on the prepared binary
+admitted all 24 synthetic GPS images. Their evidence is retained locally:
+
+- `.scratch/location-map-native-20260929T084115Z`: foreground focus was lost
+  after the first map entry; the helper refused to continue.
+- `.scratch/location-map-native-20260929T084400Z`: initial entry passed, but
+  `close-00` timed out. App state confirmed map retirement; retained PNGs show
+  different window geometry during entry and after return to the photo.
+
+Ranked causes: the trial's map-entry resize changes the closed-viewer baseline;
+initial display work could publish an early baseline; ScreenCaptureKit could
+deliver a stale frame across the resize. The existing `beginLocationTrial`
+resizes only after the helper captures its baseline. A focused root regression
+will first require the fixed 1200x800 geometry before initial map entry, then
+across entry/exit. This uses the established native-trial observation test seam.
+
+Task (T0 inline): update `internal/ui/locationtrial.go`, `load.go` and the existing
+`TestLocationMap/native_trial_observations` in `locationmap_test.go`; fix isolated
+trial geometry before loading, leaving ordinary launch behavior unchanged.
+Acceptance: `go test -tags no_emoji,nodynamic -count=1 ./internal/ui -run
+'^TestLocationMap$/^native_trial_observations$'`, focused native-trial/static-size
+regressions, changed-file GoLand inspections, native build and a new capture run.
+Budget: no delegated implementation/review; reuse the retained native Linux
+full-suite evidence only for unchanged code. New code requires fresh CI/native
+amd64 final verification; no emulated complete-suite pass may be claimed.
+
+The geometry-only native retries (`geometry-fixed`, `geometry-fixed-02` under
+the same evidence prefix) exposed a second defect: the app completed scanning
+and reported the map active/visible, but complete, newer WindowServer frames
+retained the photo body unchanged. A diagnostic helper recorded frame hashes
+and timestamps; the separate `location-map-paint-debug-20260929` app was kept
+alive to establish active/visible state before shutdown. `Container.Show` in the
+pinned Fyne only clears `Hidden`, and the existing root `ForceRepaint` contract
+explains why never-painted hidden children cannot invalidate the native canvas.
+The old entry resize had supplied that missing invalidation.
+
+Scope adds `internal/ui/locationmap.go`: request the existing root repaint after
+first entry. The same native-trial regression observes a transparent mounted
+root child's `Refresh` boundary; a software screenshot alone would repaint and
+miss this bug. It failed with `map entry did not request a repaint through the
+mounted window root` before the fix. Temporary Swift diagnostic changes were
+removed after collecting the retained debug run; the production helper remains
+unchanged. The isolated diagnostic app was stopped after state collection.
+
+Red/green and native evidence for the final implementation:
+
+- The geometry guard failed with `{520 340}` before the fix. A first attempt
+  using the persisted static-size setting failed the broader startup-default
+  regression; a new preference guard also failed before correction. The final
+  rule belongs to trial auto-sizing and leaves the saved preference unchanged.
+- The native-trial regression passed after both geometry and root repaint
+  changes. No new top-level test or test file was added, so the existing shard
+  assignment and exact Qodana exclusion continue to cover it.
+- `.scratch/location-map-native-20260929-repaint-fixed` completed cold map
+  entry, pixel-verified close, and warm entry on all 24 admitted JPEGs. The
+  inspected before/after close PNGs show the map and the same-size photo. It
+  stopped on foreground refusal before the first pan; no gesture timing is
+  qualified. The checker with `-images 24` correctly rejected the incomplete
+  report. Application SHA-256:
+  `5d0bb063fa88bf58a4b2a7c792b43de9956ea3a022f23bb2f51d0eda54f7d2a7`.
+- The next retry (`repaint-fixed-02`) also refused foreground admission. A
+  bounded diagnostic retry (`focus-debug`) identified the foreground process
+  as `loginwindow`: the desktop had locked again. Ronin was asked to unlock
+  it; capture/input authorization and both permission flags are already valid.
+  The diagnostic log change was removed; production Swift has no diff.
+- `make verify-build`: PASS for the final implementation, including format,
+  TUF, generated assets/notices, exclusions, vet and build. The native linker
+  retains its existing duplicate `-lobjc` warning.
+- Final focused `go test -race -tags no_emoji,nodynamic -count=1 ./internal/ui`
+  run: PASS in 74.245s. Its anchored selection covered `TestLocationMap`,
+  `TestLaunchPolicyIntegration`, all `TestStaticWindowSize_*` and
+  `TestSetStaticWindowSize_*` cases, plus the static-size zoom and rotation
+  regressions. Geometry, preference preservation and repaint guards were each
+  observed failing before their respective corrections.
+- GoLand `get_file_problems(errorsOnly=false)` completed with no findings on
+  `load.go`, `locationtrial.go`, `locationmap.go` and `locationmap_test.go`,
+  analyzed as the working tree based on `ed44d6a`. This is the documented IDE
+  fallback, not a fresh Qodana SARIF result.
+- `make check-test-platform` outside the sandbox rejects the local
+  `linux/aarch64` daemon. Fresh full Linux/amd64 verification is unverified for
+  these Go changes; the earlier full-suite result covers the prior code only.
+- Native logs retain Fyne's existing threading-migration and shutdown warnings;
+  this continuation makes no claim that those diagnostics have been resolved.
+
+No shipped dependency, matcher acceptance rule, timing threshold or foreground
+guard changed. All failed runs are retained, and the task remains open for the
+complete 40-gesture native trial and fresh full verification.
+
+### Unlocked retry and keyboard-layout regression — 2026-09-29
+
+Ronin unlocked the Mac and requested another run. The unchanged helper in
+`.scratch/location-map-native-20260929-awake-retry` completed cold/warm entry,
+pixel-verified close and one identified pan (58 captured pixels right, 79/94
+matching patches, 99.383 ms). The first zoom timed out with identical retained
+before/after pixels. This is partial smoke evidence, not a qualified report.
+
+The diagnosis loop used that native command and its retained PNGs. Ranked
+predictions were layout-dependent key translation, routing/focus, then missing
+repaint. A bounded key-logging retry (`key-diagnostic`) stopped earlier on an
+unidentified pan and required forced app termination; it did not establish zoom
+delivery. All temporary key logging was removed. The read-only Carbon probe in
+`.scratch/location-map-key-translation.swift` then reproduced the actual layout
+boundary: ANSI 0x18/0x1b translate to acute-accent/eszett, while keypad 0x45/0x4e
+translate to plus/minus. No keyboard settings were changed.
+
+A read-only native-key scout located the installed GLFW/Fyne path: Cocoa first
+maps physical key positions, but Fyne's punctuation lookup calls `GetKeyName`,
+which translates through the current layout. The lead independently checked the
+locators and owns the fix/review. G1: bounded native key-translation question;
+G2: verify local source locators; G3: no writes; G4/G5: unfamiliar dependency
+boundary; S/W: cross-module relationship search. This adds one scout to the
+continuation budget, no delegated implementation or review.
+
+Task (T0 inline): use keypad plus/minus in the existing Go command protocol and
+Swift registration contract; preserve transform acceptance, failed samples,
+permissions and foreground checks. The existing `runner_test.go` protocol seam
+now checks all 20 zoom inputs; `native/transform_test.swift` tests the new keys
+with the same independent synthetic frames and rejection cases. `screen-v4`
+records the actual keypad input in the evidence protocol. No app shortcut,
+system setting, dependency or distribution obligation changed.
+
+Verification:
+
+- Go regression first failed `zoom 0 input = 0x18, shift=false; want keypad
+  0x45`, then passed after the protocol fix. Swift first failed `Requested zoom
+  69 was not identified`, then passed after updating its command mapping.
+- `make location-map-qualification-test`: PASS; race packages
+  `scripts/locationmapqualify` 3.647s and `internal/locationtrial` 1.448s.
+- `make location-map-capture-test SWIFTC='xcrun swiftc'`: PASS for visual
+  transforms and response-frame policy, with warnings as errors. The production
+  Swift helper and native app also built successfully.
+- Final `make verify-build`: PASS again after the protocol changes (format,
+  TUF/assets/notices, exact exclusions, vet and build).
+- GoLand inspection including weak warnings: complete, no findings for
+  `protocol.go`, `runner.go`, `runner_test.go`, working tree based on `ed44d6a`.
+  The four previously changed UI files retain their recorded clean inspection
+  and focused race evidence. Swift semantic IDE support remains unavailable;
+  compiler checks do not replace it.
+- `.scratch/location-map-native-20260929-keypad` completed entry/close/warm
+  entry, then refused foreground admission before gesture 0 and required forced
+  app termination. It does not validate the corrected zoom on screen. All failed
+  runs remain retained; no sample or acceptance threshold was relaxed.
+  App SHA-256 remains `5d0bb063fa88bf58a4b2a7c792b43de9956ea3a022f23bb2f51d0eda54f7d2a7`;
+  corrected helper SHA-256 is
+  `b6be126d47a5bc8cf2a5a90d642dce4b8827103e4fb0ac1343887c5d9f877c66`.
+
+The remaining native gate needs an uninterrupted foreground session; Ronin was
+asked to avoid switching applications during the trial. Fresh full Linux/amd64
+verification is still required for the changed Go code.
+
 ### Remaining live qualification
 
 1. Stay on this branch. Native compilation and focused tests are complete at the
@@ -288,8 +440,8 @@ dependencies remain unchanged; prior compiler/test evidence still applies.
    inspection is unavailable in the installed GoLand configuration. Complete it
    with a suitable native tool if available, preserving the distinction between
    that gate and the passed compiler checks.
-2. CGEvent-helper approval is received. Resolve the missing input-posting
-   permission with Ronin, then repeat preflight. Use the prepared synthetic
+2. CGEvent-helper approval and both native permissions are verified. Resume
+   with an unlocked desktop and keep PicFetch foreground. Use the prepared synthetic
    corpus for a smoke check or Ronin's chosen real collection, always with a
    fresh evidence directory. The helper preflights existing Screen Recording
    and Accessibility permissions; do not grant them automatically. Run
@@ -304,6 +456,6 @@ dependencies remain unchanged; prior compiler/test evidence still applies.
    Use the documented exact-count protocols if formal qualification is requested.
    Ronin alone supplies the 30k verdict. Keep the maintainer acceptance separate.
 5. Record native results, update this plan/todos and commit/push. On Apple Silicon,
-   do not run or claim an emulated amd64 full-suite pass; use the recorded native
-   Linux verification or native amd64 CI for that gate. Both macOS CI jobs now
+   do not run or claim an emulated amd64 full-suite pass; the new Go fixes require
+   fresh native Linux/amd64 verification or CI. Both macOS CI jobs now
    run the portable matcher/policy target and type-check the production helper.

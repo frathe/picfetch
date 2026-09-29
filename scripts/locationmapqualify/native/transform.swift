@@ -26,8 +26,8 @@ func identifyTransform(before: VisualFrame, after: VisualFrame, kind: String, ke
     let requestedScale: Double
     switch (kind, key, shift) {
     case ("pan", 0x7b, true), ("pan", 0x7c, true): requestedScale = 1
-    case ("zoom", 0x18, false): requestedScale = 2
-    case ("zoom", 0x1b, false): requestedScale = 0.5
+    case ("zoom", 0x45, false): requestedScale = 2
+    case ("zoom", 0x4e, false): requestedScale = 0.5
     default: return nil
     }
     guard before.width == after.width, before.height == after.height,

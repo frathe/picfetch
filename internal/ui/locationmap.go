@@ -58,6 +58,7 @@ func (v *viewer) showLocationMap() {
 		}
 		v.prepareLocationMap()
 	})
+	v.ForceRepaint()
 }
 
 func (v *viewer) prepareLocationMap() {

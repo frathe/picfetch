@@ -119,12 +119,16 @@
 - **Native Location Map gesture timing:** independent pan/zoom pixel registration
   and schema-2 transform witnesses are implemented on
   `feature/location-map-gesture-timing`; portable Swift tests, focused race tests,
-  GoLand Go inspections and full Linux/amd64 `make verify` pass. Native macOS
-  arm64 Swift tests, adapter type-check, optimized helper/app builds and focused
-  Go race tests also pass. Ronin authorized the native helper; its preflight is
-  blocked by macOS input-posting access (Screen Recording is allowed, GoLand's
-  Device Control and Data Access switch is off). A 24-image synthetic GPS corpus
-  is ready for a smoke trial; real-collection qualification remains separate.
+  GoLand Go inspections and full Linux/amd64 `make verify` passed for the original
+  implementation. Native macOS compilation and permissions now pass. Live
+  retries exposed and repaired late trial resizing and missing first-map repaint;
+  focused race regressions, non-test verification and changed-file GoLand
+  inspections pass. Native cold/warm entry and pixel-verified return worked on 24 synthetic
+  GPS images. An unlocked retry identified one pan, then exposed layout-dependent
+  zoom keys; keypad plus/minus now pass protocol/Swift regressions. The corrected
+  live retry lost foreground before measurement. Resume with uninterrupted
+  foreground focus, then complete fresh native Linux/amd64 verification for the
+  Go fixes. Real-collection qualification remains separate from this smoke test.
   Swift semantic inspections are unavailable in the installed GoLand
   configuration and remain unverified.
   The [plan and macOS handoff](plans/2026-09-29-location-map-gesture-timing.md)

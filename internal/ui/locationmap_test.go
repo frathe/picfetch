@@ -64,6 +64,16 @@ func locationMenu(t *testing.T, v *viewer) *fyne.MenuItem {
 	return nil
 }
 
+type locationRefreshProbe struct {
+	fyne.CanvasObject
+	refreshes int
+}
+
+func (p *locationRefreshProbe) Refresh() {
+	p.refreshes++
+	p.CanvasObject.Refresh()
+}
+
 func TestLocationMap(t *testing.T) {
 	t.Run("copy_selection_navigation", func(t *testing.T) {
 		for _, route := range []string{"direct", "cluster"} {
@@ -719,16 +729,37 @@ func TestLocationMap(t *testing.T) {
 	t.Run("native_trial_observations", func(t *testing.T) {
 		v := newTestViewer(t)
 		dir := filepath.Join(t.TempDir(), "native")
+		staticSize := v.currentPreferences().StaticWindowSize
 		prepareTestLocationTrial(t, v, dir)
+		if v.currentPreferences().StaticWindowSize != staticSize {
+			t.Fatal("native trial geometry changed the saved static-size preference")
+		}
 		extensionless := uitest.TempGPSJPEGURI(t, "extensionless", 24, 16, 48.85, 2.35)
 		// A URI provider may know the MIME type even without a file extension.
 		dropAndWait(t, v,
 			uitest.TempGPSJPEGURI(t, "trial.jpg", 24, 16, 52.52, 13.405),
 			uitest.FakeURI{FileName: strings.TrimPrefix(extensionless.Path(), "/"), Mime: "image/jpeg"})
+		checkGeometry := func() {
+			t.Helper()
+			if got := v.win.Canvas().Size(); got != fyne.NewSize(1200, 800) {
+				t.Fatalf("native trial window = %v, want fixed 1200x800 before and after map entry", got)
+			}
+		}
+		checkGeometry()
+		// Observe repaint requests at the already-mounted window root. Capturing
+		// the test canvas alone would paint even without a native invalidation.
+		probe := &locationRefreshProbe{CanvasObject: canvas.NewRectangle(color.Transparent)}
+		v.win.Content().(*fyne.Container).Add(probe)
 		for range 2 {
+			probe.refreshes = 0
 			locationMenu(t, v).Action()
+			if probe.refreshes == 0 {
+				t.Fatal("map entry did not request a repaint through the mounted window root")
+			}
 			v.locationMap.Settle()
+			checkGeometry()
 			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyEscape})
+			checkGeometry()
 		}
 		v.stopLocationTrial()
 		if err := v.waitLocationTrial(); err != nil {
