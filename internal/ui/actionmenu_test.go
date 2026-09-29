@@ -19,7 +19,7 @@ import (
 )
 
 func actionsMenu(v *viewer) *fyne.Menu {
-	bar := v.win.MainMenu()
+	bar := shownMainMenu(v)
 	if bar == nil || len(bar.Items) < 3 {
 		return nil
 	}

@@ -95,8 +95,20 @@ func TestWindowCommandAdmissionMatrix(t *testing.T) {
 	}
 }
 
+// shownMainMenu is the bar a menu item test can read. Picture-frame mode
+// on an in-window menu detaches it from the window and draws the same
+// menu on the sliding strip, so a nil window menu is not an empty bar.
+func shownMainMenu(v *viewer) *fyne.MainMenu {
+	if v.win != nil {
+		if bar := v.win.MainMenu(); bar != nil {
+			return bar
+		}
+	}
+	return v.mainMenu
+}
+
 func windowMenu(v *viewer) *fyne.Menu {
-	bar := v.win.MainMenu()
+	bar := shownMainMenu(v)
 	if bar == nil || len(bar.Items) < 4 {
 		return nil
 	}
