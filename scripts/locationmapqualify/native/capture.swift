@@ -1,4 +1,5 @@
 import Foundation
+#if canImport(AppKit)
 import AppKit
 import ScreenCaptureKit
 import CoreMedia
@@ -7,6 +8,7 @@ import CoreImage
 import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
+#endif
 
 struct CaptureFailure: Error, CustomStringConvertible {
     let description: String
@@ -28,21 +30,22 @@ struct Observation: Encodable {
     var skipped = false
     var error = ""
     var closed_viewer = false
+    var identified = false
+    var transform: VisualTransform?
 }
 
 // Exit timing must identify the viewer captured before map entry. Scanning and
 // tile delivery can change arbitrary map pixels after Escape was posted.
-func isResponseFrame(kind: String, current: UInt64, before: UInt64, closed: UInt64?) -> Bool {
+func isResponseFrame(kind: String, current: UInt64, before: UInt64, closed: UInt64?, identified: Bool = false) -> Bool {
     guard current != before else { return false }
     if kind == "cancel" || kind == "close" { return closed == current }
-    // Body hashes cannot distinguish a gesture from background tile delivery.
-    // Formal gesture timing stays unavailable until visual correlation exists.
-    if kind == "pan" || kind == "zoom" { return false }
+    if kind == "pan" || kind == "zoom" { return identified }
     return true
 }
 
 // Both input and WindowServer display times use Mach absolute ticks, converted
 // through this one timebase. Media PTS and CGEvent.timestamp are not substituted.
+#if canImport(AppKit)
 func nanoseconds(_ ticks: UInt64) -> UInt64 {
     var base = mach_timebase_info_data_t()
     mach_timebase_info(&base)
@@ -60,7 +63,15 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
     var latestHash: UInt64 = 0
     var changedAt: UInt64 = 0
     var closedViewerHash: UInt64?
-    var pending: (Command, CVPixelBuffer, UInt64, UInt64, CheckedContinuation<Observation, Never>)?
+    struct Pending {
+        let command: Command
+        let before: CVPixelBuffer
+        let frame: VisualFrame
+        let hash: UInt64
+        let input: UInt64
+        let continuation: CheckedContinuation<Observation, Never>
+    }
+    var pending: Pending?
 
     init(pid: pid_t, directory: URL) {
         self.pid = pid
@@ -86,6 +97,32 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         return value
     }
 
+    // Average each 4x4 block before registration. Retain no application facts;
+    // both baseline and response are independent WindowServer screen pixels.
+    func visualFrame(_ pixels: CVPixelBuffer) -> VisualFrame? {
+        guard CVPixelBufferLockBaseAddress(pixels, .readOnly) == kCVReturnSuccess else { return nil }
+        defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
+        guard let address = CVPixelBufferGetBaseAddress(pixels) else { return nil }
+        let width = CVPixelBufferGetWidth(pixels) / 4, height = CVPixelBufferGetHeight(pixels) / 4
+        let rowBytes = CVPixelBufferGetBytesPerRow(pixels)
+        let bytes = address.assumingMemoryBound(to: UInt8.self)
+        var values = [UInt8]()
+        values.reserveCapacity(width * height)
+        for y in 0..<height {
+            for x in 0..<width {
+                var sum = 0
+                for py in 0..<4 {
+                    for px in 0..<4 {
+                        let offset = (y * 4 + py) * rowBytes + (x * 4 + px) * 4
+                        sum += Int(bytes[offset]) * 29 + Int(bytes[offset + 1]) * 150 + Int(bytes[offset + 2]) * 77
+                    }
+                }
+                values.append(UInt8(sum / (16 * 256)))
+            }
+        }
+        return VisualFrame(width: width, height: height, luminance: values)
+    }
+
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {
         guard outputType == .screen,
               let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
@@ -98,32 +135,41 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         if currentHash != latestHash { changedAt = mach_absolute_time() }
         latest = pixels
         latestHash = currentHash
-        guard let (command, before, beforeHash, inputTicks, continuation) = pending,
-              isResponseFrame(kind: command.kind, current: currentHash, before: beforeHash, closed: closedViewerHash),
-              displayTicks > inputTicks else { return }
+        guard let work = pending, displayTicks > work.input else { return }
+        let command = work.command
+        var transform: VisualTransform?
+        if (command.kind == "pan" || command.kind == "zoom"), currentHash != work.hash,
+           let current = visualFrame(pixels) {
+            transform = identifyTransform(before: work.frame, after: current, kind: command.kind,
+                                          key: command.key, shift: command.shift)
+        }
+        guard isResponseFrame(kind: command.kind, current: currentHash, before: work.hash,
+                              closed: closedViewerHash, identified: transform != nil) else { return }
         pending = nil
-        var observation = Observation(kind: command.kind, input_ns: nanoseconds(inputTicks), visible_ns: nanoseconds(displayTicks))
+        var observation = Observation(kind: command.kind, input_ns: nanoseconds(work.input), visible_ns: nanoseconds(displayTicks))
         observation.closed_viewer = command.kind == "cancel" || command.kind == "close"
+        observation.identified = transform != nil
+        observation.transform = transform
         do {
             // Entry feedback is an orchestration boundary, not a latency sample.
             // Avoid PNG encoding before the immediate scan-cancellation trial.
             if command.kind != "open" {
                 observation.before = command.name + "-before.png"
                 observation.after = command.name + "-after.png"
-                try save(before, name: observation.before)
+                try save(work.before, name: observation.before)
                 try save(pixels, name: observation.after)
             }
         } catch {
             observation.error = String(describing: error)
         }
-        continuation.resume(returning: observation)
+        work.continuation.resume(returning: observation)
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
         queue.async {
-            if let (command, _, _, input, continuation) = self.pending {
+            if let work = self.pending {
                 self.pending = nil
-                continuation.resume(returning: Observation(kind: command.kind, input_ns: nanoseconds(input), error: String(describing: error)))
+                work.continuation.resume(returning: Observation(kind: work.command.kind, input_ns: nanoseconds(work.input), error: String(describing: error)))
             }
         }
     }
@@ -145,11 +191,6 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
     }
 
     func admit(_ command: Command, _ continuation: CheckedContinuation<Observation, Never>, deadline: UInt64) {
-        if command.kind == "pan" || command.kind == "zoom" {
-            continuation.resume(returning: Observation(kind: command.kind, skipped: true,
-                error: "native gesture transform identification is unavailable; changed pixels cannot qualify latency"))
-            return
-        }
         let now = nanoseconds(mach_absolute_time())
         let needsStableFrame = command.kind == "pan" || command.kind == "zoom" || command.kind == "open"
         if latest == nil || (needsStableFrame && now - nanoseconds(changedAt) < 250_000_000) {
@@ -160,7 +201,7 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
             }
             return
         }
-        guard pending == nil, let before = latest,
+        guard pending == nil, let before = latest, let frame = visualFrame(before),
               let down = CGEvent(keyboardEventSource: nil, virtualKey: command.key, keyDown: true),
               let up = CGEvent(keyboardEventSource: nil, virtualKey: command.key, keyDown: false) else {
             continuation.resume(returning: Observation(kind: command.kind, skipped: true, error: "cannot admit native input"))
@@ -169,7 +210,7 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         if command.shift { down.flags = .maskShift; up.flags = .maskShift }
         if command.kind == "open" { closedViewerHash = latestHash }
         let input = mach_absolute_time()
-        pending = (command, before, latestHash, input, continuation)
+        pending = Pending(command: command, before: before, frame: frame, hash: latestHash, input: input, continuation: continuation)
         if command.shift, let modifier = CGEvent(keyboardEventSource: nil, virtualKey: 0x38, keyDown: true) {
             modifier.type = .flagsChanged
             modifier.flags = .maskShift
@@ -183,9 +224,20 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
             modifier.postToPid(pid)
         }
         queue.asyncAfter(deadline: .now() + .seconds(3)) {
-            guard let (_, _, _, current, callback) = self.pending, current == input else { return }
+            guard let work = self.pending, work.input == input else { return }
             self.pending = nil
-            callback.resume(returning: Observation(kind: command.kind, input_ns: nanoseconds(input), error: "no changed native frame after input"))
+            var observation = Observation(kind: command.kind, input_ns: nanoseconds(input), error: "no identified native response within 3s")
+            // Failed attempts retain pixels too; never pick a later frame and
+            // invent a successful timestamp when registration cannot identify it.
+            do {
+                observation.before = command.name + "-before.png"
+                try self.save(work.before, name: observation.before)
+                if let latest = self.latest {
+                    observation.after = command.name + "-after.png"
+                    try self.save(latest, name: observation.after)
+                }
+            } catch { observation.error += "; " + String(describing: error) }
+            work.continuation.resume(returning: observation)
         }
     }
 }
@@ -239,4 +291,5 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         }
     }
 }
+#endif
 #endif

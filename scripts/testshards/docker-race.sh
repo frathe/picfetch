@@ -40,7 +40,8 @@ if [ "${1-}" = --container ]; then
     trap finish_container EXIT
     snapshot_memory before
     apt-get update -qq
-    apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev libglib2.0-bin golang-go ca-certificates locales procps >/dev/null
+    apt-get install -y -qq apt-utils htop make gcc git libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev libglib2.0-bin golang-go ca-certificates locales procps >/dev/null
+    export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=/work
     locale-gen "$locale" >/dev/null
     make --no-print-directory test-race-direct
     exit 0

@@ -36,6 +36,20 @@ type nativeDriver interface {
 	Input(context.Context, nativeCommand) (nativeObservation, error)
 }
 
+func (c nativeCommand) matchesTransform(v *VisualTransform) bool {
+	if !v.validFor(c.Kind) {
+		return false
+	}
+	switch c.Kind {
+	case "pan":
+		return c.Shift && (c.Key == mapKeyLeft && v.DX > 0 || c.Key == mapKeyRight && v.DX < 0)
+	case "zoom":
+		return !c.Shift && (c.Key == mapKeyEqual && v.Scale == 2 || c.Key == mapKeyMinus && v.Scale == 0.5)
+	default:
+		return false
+	}
+}
+
 func waitNativeState(ctx context.Context, driver nativeDriver, accept func(locationtrial.State) bool) (locationtrial.State, error) {
 	tick := time.NewTicker(20 * time.Millisecond)
 	defer tick.Stop()
@@ -69,13 +83,13 @@ func nativeInput(ctx context.Context, driver nativeDriver, command nativeCommand
 	if result.Error != "" {
 		return result, errors.New(result.Error)
 	}
-	if result.Skipped || result.InputNS <= 0 || result.VisibleNS <= result.InputNS {
+	if result.Kind != command.Kind || result.Skipped || result.InputNS <= 0 || result.VisibleNS <= result.InputNS {
 		return result, errors.New("native input has no observed visible response")
 	}
 	if (command.Kind == "cancel" || command.Kind == "close") && !result.ClosedViewer {
 		return result, errors.New("native exit has no identified closed-viewer frame")
 	}
-	if (command.Kind == "pan" || command.Kind == "zoom") && !result.Identified {
+	if (command.Kind == "pan" || command.Kind == "zoom") && (!result.Identified || !command.matchesTransform(result.Transform)) {
 		return result, errors.New("native gesture has no identified transform; changed pixels alone cannot qualify latency")
 	}
 	return result, nil

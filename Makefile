@@ -142,14 +142,24 @@ LOCATION_MAP_IMAGES ?=
 LOCATION_MAP_EXPECTED_IMAGES ?= 10000
 LOCATION_MAP_TIMEOUT ?= 30m
 
-.PHONY: location-map-qualification-test location-map-check-evidence location-map-qualify
+.PHONY: location-map-qualification-test location-map-capture-test location-map-check-evidence location-map-qualify
 location-map-qualification-test: ## Test native Location Map evidence validation (does not qualify performance)
 	go test -race -count=1 ./scripts/locationmapqualify ./internal/locationtrial
+
+SWIFTC ?= swiftc
+location-map-capture-test: ## Test pixel registration without screen/input access (requires Swift)
+	@set -eu; \
+	output=$$(mktemp -d); \
+	trap 'rm -f "$$output/transform-test" "$$output/capture-test"; rmdir "$$output"' 0 1 2 3 15; \
+	$(SWIFTC) -parse-as-library -warnings-as-errors -O scripts/locationmapqualify/native/transform.swift scripts/locationmapqualify/native/transform_test.swift -o "$$output/transform-test"; \
+	"$$output/transform-test"; \
+	$(SWIFTC) -parse-as-library -warnings-as-errors -D CAPTURE_TEST scripts/locationmapqualify/native/capture.swift scripts/locationmapqualify/native/transform.swift scripts/locationmapqualify/native/capture_test.swift -o "$$output/capture-test"; \
+	"$$output/capture-test"
 
 location-map-qualify: build ## Collect native macOS Location Map evidence from explicitly supplied image/evidence directories
 	@test "$$(uname -s)" = Darwin || { echo 'Native Location Map collection currently requires macOS.'; exit 1; }
 	@test -n "$(LOCATION_MAP_IMAGES)" -a -n "$(LOCATION_MAP_EVIDENCE)" || { echo 'Set LOCATION_MAP_IMAGES and a new LOCATION_MAP_EVIDENCE directory.'; exit 1; }
-	xcrun swiftc -parse-as-library -warnings-as-errors -O scripts/locationmapqualify/native/capture.swift -o "$(BIN_DIR)/location-map-capture"
+	xcrun swiftc -parse-as-library -warnings-as-errors -O scripts/locationmapqualify/native/capture.swift scripts/locationmapqualify/native/transform.swift -o "$(BIN_DIR)/location-map-capture"
 	go run ./scripts/locationmapqualify run -images "$(LOCATION_MAP_IMAGES)" -evidence "$(LOCATION_MAP_EVIDENCE)" -binary "$(BIN_DIR)/$(BIN_NAME)" -helper "$(BIN_DIR)/location-map-capture" -timeout "$(LOCATION_MAP_TIMEOUT)"
 
 location-map-check-evidence: build ## Validate native evidence against this build and the explicit expected image count
@@ -397,7 +407,8 @@ test: ## Run tests in Linux/amd64 Docker, matching CI and golden rendering (need
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev libglib2.0-bin golang-go ca-certificates locales procps htop >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc git libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev libglib2.0-bin golang-go ca-certificates locales procps htop >/dev/null; \
+			export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=/work; \
 			locale-gen en_US.UTF-8 >/dev/null; \
 			export LANG=en_US.UTF-8; \
 			status=0; \
@@ -418,7 +429,8 @@ coverage: ## Generate HTML source-line coverage from the full unsharded Docker s
 		$(TEST_IMAGE) bash -c '\
 			set -e; \
 			apt-get update -qq; \
-			apt-get install -y -qq apt-utils htop make gcc libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev libglib2.0-bin golang-go ca-certificates locales >/dev/null; \
+			apt-get install -y -qq apt-utils htop make gcc git libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev libglib2.0-bin golang-go ca-certificates locales >/dev/null; \
+			export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=/work; \
 			locale-gen $(TEST_LOCALE) >/dev/null; \
 			export LANG=$(TEST_LOCALE); \
 			rm -f "$(COVERAGE_PROFILE)" "$(COVERAGE_HTML)"; \

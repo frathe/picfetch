@@ -16,6 +16,12 @@
         precondition(!isResponseFrame(kind: "zoom", current: 20, before: 10, closed: 30),
                      "Unidentified changed pixels must not qualify zoom timing")
         precondition(!isResponseFrame(kind: "zoom", current: 10, before: 10, closed: 30))
+        for kind in ["pan", "zoom"] {
+            precondition(isResponseFrame(kind: kind, current: 20, before: 10, closed: nil, identified: true),
+                         "A verified changed transform must complete gesture timing")
+            precondition(!isResponseFrame(kind: kind, current: 10, before: 10, closed: nil, identified: true),
+                         "An unchanged frame must never complete gesture timing")
+        }
         print("Native Location Map response-frame policy passed")
     }
 }

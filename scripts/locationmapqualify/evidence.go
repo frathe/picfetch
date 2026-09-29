@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/png"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,13 +46,42 @@ type Report struct {
 type Stage = locationtrial.Stage
 
 type Gesture struct {
-	Kind       string `json:"kind"`
-	InputNS    int64  `json:"input_ns"`
-	VisibleNS  int64  `json:"visible_ns"`
-	Before     string `json:"before"`
-	After      string `json:"after"`
-	Skipped    bool   `json:"skipped"`
-	Identified bool   `json:"identified"`
+	Kind       string           `json:"kind"`
+	InputNS    int64            `json:"input_ns"`
+	VisibleNS  int64            `json:"visible_ns"`
+	Before     string           `json:"before"`
+	After      string           `json:"after"`
+	Skipped    bool             `json:"skipped"`
+	Identified bool             `json:"identified"`
+	Transform  *VisualTransform `json:"transform,omitempty"`
+}
+
+// VisualTransform records independently matched screen pixels, in capture-pixel
+// coordinates. It is a consistency witness, not a provenance attestation.
+type VisualTransform struct {
+	Method  string  `json:"method"`
+	Scale   float64 `json:"scale"`
+	DX      float64 `json:"dx"`
+	DY      float64 `json:"dy"`
+	Matches int     `json:"matches"`
+	Tested  int     `json:"tested"`
+}
+
+func (v *VisualTransform) validFor(kind string) bool {
+	if v == nil || v.Method != "patch-grid-v1" || v.Matches < 8 || v.Tested < v.Matches || v.Tested > 1024 || float64(v.Matches)/float64(v.Tested) < 0.65 {
+		return false
+	}
+	if math.IsNaN(v.DX) || math.IsNaN(v.DY) || math.Abs(v.DX) > 4096 || math.Abs(v.DY) > 4096 {
+		return false
+	}
+	switch kind {
+	case "pan":
+		return v.Scale == 1 && math.Abs(v.DX) >= 18 && math.Abs(v.DX) <= 166 && math.Abs(v.DY) <= 14
+	case "zoom":
+		return v.Scale == 2 && v.DX < 0 && v.DY < 0 || v.Scale == 0.5 && v.DX > 0 && v.DY > 0
+	default:
+		return false
+	}
 }
 
 type Cancellation struct {
@@ -71,7 +101,7 @@ func CheckReport(report Report, expectedImages int, expectedBuild string) error 
 	if expectedImages <= 0 || !validBuildID(expectedBuild) {
 		return errors.New("invalid expected count or build ID")
 	}
-	if report.Schema != 1 || !validBuildID(report.BuildID) || report.BuildID != expectedBuild {
+	if report.Schema != 2 || !validBuildID(report.BuildID) || report.BuildID != expectedBuild {
 		return errors.New("invalid schema or build ID")
 	}
 	if !report.Native || !report.Complete || report.Failure != "" || strings.TrimSpace(report.Protocol) == "" || report.Observation != "macos-screen-capture" {
@@ -121,6 +151,9 @@ func CheckReport(report Report, expectedImages int, expectedBuild string) error 
 	for i, gesture := range report.Gestures {
 		if !gesture.Identified || gesture.Skipped || gesture.InputNS <= 0 || gesture.VisibleNS <= gesture.InputNS || gesture.Before == "" || gesture.After == "" {
 			return fmt.Errorf("gesture %d is skipped or invalid", i)
+		}
+		if !gesture.Transform.validFor(gesture.Kind) {
+			return fmt.Errorf("gesture %d has no valid visual transform witness", i)
 		}
 		switch gesture.Kind {
 		case "pan":

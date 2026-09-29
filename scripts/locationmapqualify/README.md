@@ -72,13 +72,29 @@ stable is retained as a failed sample. It samples RGB pixels every third pixel
 inside the central 80% by 60% of the window, excluding pointer/bars/toasts, and
 retains whole-window before/after PNGs for each measured gesture.
 
-Formal gesture qualification is currently unavailable: the capture helper refuses
-pan/zoom measurements because its body hash cannot identify the requested
-transform independently of background tile delivery. A native run therefore
-stops with an explicit error at its first gesture and cannot produce a qualifying
-report. Manual browsing and stage/RSS observation remain available. Reliable
-visual transform correlation is tracked in `todos.md`; the release's existing
-maintainer performance acceptance is separate from measured latency evidence.
+Pan/zoom response identification uses independent screen-pixel registration in
+`native/transform.swift`. The helper averages 4x4 luminance blocks, then compares
+distributed textured patches under horizontal translations and 2x/0.5x scales.
+It searches both directions independently of the input and requires the best
+transform to agree with the submitted key. At least eight patches and 65% of
+eligible patches must match, with matches spread across both axes. Competing
+transforms within eight percentage points of the best match are ambiguous and
+rejected. Stationary frames, isolated arriving tiles, insufficient texture and
+repeated placeholders cannot qualify by merely changing the body hash.
+
+Each accepted sample retains the matched scale, pixel translation and patch
+counts (`patch-grid-v1`) with its whole-window PNG pair. Registration selects the
+first identified captured response; its WindowServer display timestamp supplies
+latency, including when matching/encoding takes longer. The helper never subtracts
+its processing overhead. Capture cadence and processing can miss early responses;
+the retained timestamp is the first **identified captured** response, not a claim
+to observe every displayed frame. Unsupported or ambiguous content and clamped
+zoom fail closed after three seconds, retaining failed observations and PNGs.
+
+The matcher has portable synthetic coverage; real macOS capture and latency
+qualification remain pending until the native handoff in
+`plans/2026-09-29-location-map-gesture-timing.md` is completed. The release's
+existing maintainer performance acceptance is separate from measured evidence.
 
 The protocol requires at least 40 alternating horizontal Shift+arrow pans and
 in/out zooms after complete cold and warm scans. Every submitted measurement is retained, including slow
@@ -95,8 +111,8 @@ and at least three complete open/close cycles are recorded.
 
 Capture cadence quantizes latency. Changed body pixels alone do not identify
 a gesture. Both collection and report validation require explicit gesture
-identification; older reports without it no longer qualify. The current helper
-does not set that evidence. Capture and PNG
+identification and a valid transform witness; schema-1/boolean-only reports no
+longer qualify. Schema-2 reports preserve the witness. Capture, registration and PNG
 encoding run in a separate process but consume system resources. `/bin/ps`
 samples application RSS every 250 ms, so reported peak RSS is a sampled peak.
 Hardware, storage description, format counts, binary SHA-256, helper SHA-256 and
@@ -107,6 +123,7 @@ consistency, not cryptographic attestation of its provenance.
 
 ```sh
 make location-map-qualification-test
+make location-map-capture-test # Swift; portable matcher and response-policy tests
 make location-map-check-evidence \
   LOCATION_MAP_EVIDENCE=/explicit/evidence-directory \
   LOCATION_MAP_EXPECTED_IMAGES=10000
@@ -127,3 +144,9 @@ passing verdict satisfies the 30k gate; a failure stays a failure.
 
 `runner_test.go` and `evidence_test.go` author synthetic protocol fixtures only.
 They establish tool contracts, never native observations or feature acceptance.
+`native/transform_test.swift` uses synthetic camera scenes for both directions,
+tile repaint, partial occlusion, stationary, wrong-scale and ambiguous frames.
+On macOS, `make location-map-capture-test SWIFTC='xcrun swiftc'` also compiles the
+capture adapter. On Linux that adapter is excluded; the pure response policy and
+matcher still run. Both macOS CI architectures run these tests and separately
+type-check the production helper.

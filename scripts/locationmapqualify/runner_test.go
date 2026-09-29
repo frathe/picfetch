@@ -32,13 +32,14 @@ func TestProcessDriverReadsPublishedState(t *testing.T) {
 }
 
 type fixtureNativeDriver struct {
-	state        locationtrial.State
-	inputs       int
-	failGesture  int
-	gestures     int
-	wrongExit    bool
-	wrongGesture bool
-	commands     []nativeCommand
+	state            locationtrial.State
+	inputs           int
+	failGesture      int
+	gestures         int
+	wrongExit        bool
+	wrongGesture     bool
+	commands         []nativeCommand
+	alterObservation func(*nativeObservation)
 }
 
 func (d *fixtureNativeDriver) State(_ context.Context) (locationtrial.State, error) {
@@ -61,6 +62,9 @@ func (d *fixtureNativeDriver) Input(_ context.Context, command nativeCommand) (n
 	observation := nativeObservation{Kind: command.Kind, InputNS: int64(d.inputs) * 1_000_000_000, VisibleNS: int64(d.inputs)*1_000_000_000 + 10, Before: fmt.Sprintf("%s-before.png", command.Name), After: fmt.Sprintf("%s-after.png", command.Name)}
 	observation.ClosedViewer = !d.wrongExit && (command.Kind == "cancel" || command.Kind == "close")
 	observation.Identified = !d.wrongGesture && (command.Kind == "pan" || command.Kind == "zoom")
+	if observation.Identified {
+		observation.Transform = fixtureTransform(command.Kind, command.Key)
+	}
 	if command.Kind == "pan" || command.Kind == "zoom" {
 		d.gestures++
 		if d.gestures == d.failGesture {
@@ -69,7 +73,32 @@ func (d *fixtureNativeDriver) Input(_ context.Context, command nativeCommand) (n
 			return observation, errors.New("controlled native observation failure")
 		}
 	}
+	if d.alterObservation != nil {
+		d.alterObservation(&observation)
+	}
 	return observation, nil
+}
+
+func TestNativeProtocolRejectsMismatchedTransform(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		command nativeCommand
+		alter   func(*nativeObservation)
+	}{
+		{"pan opposite direction", nativeCommand{Kind: "pan", Key: mapKeyLeft, Shift: true}, func(o *nativeObservation) { o.Transform.DX = -60 }},
+		{"zoom opposite direction", nativeCommand{Kind: "zoom", Key: mapKeyEqual}, func(o *nativeObservation) { o.Transform = fixtureTransform("zoom", mapKeyMinus) }},
+		{"pan without Shift", nativeCommand{Kind: "pan", Key: mapKeyLeft}, func(_ *nativeObservation) {}},
+		{"missing witness", nativeCommand{Kind: "pan", Key: mapKeyLeft, Shift: true}, func(o *nativeObservation) { o.Transform = nil }},
+		{"wrong response kind", nativeCommand{Kind: "pan", Key: mapKeyLeft, Shift: true}, func(o *nativeObservation) { o.Kind = "zoom" }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			driver := &fixtureNativeDriver{alterObservation: test.alter}
+			observation, err := nativeInput(context.Background(), driver, test.command)
+			if err == nil || observation.VisibleNS == 0 {
+				t.Fatal("mismatched transform qualified timing or its observation was discarded")
+			}
+		})
+	}
 }
 
 func TestNativeProtocolRejectsUnidentifiedExit(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,15 +21,50 @@ func validReport(images int) Report {
 		if i%2 == 1 {
 			kind = "zoom"
 		}
-		gestures[i] = Gesture{Kind: kind, InputNS: int64(i+1) * 1_000_000_000, VisibleNS: int64(i+1)*1_000_000_000 + 100_000_000, Before: "before.png", After: "after.png", Identified: true}
+		gestures[i] = Gesture{Kind: kind, InputNS: int64(i+1) * 1_000_000_000, VisibleNS: int64(i+1)*1_000_000_000 + 100_000_000, Before: "before.png", After: "after.png", Identified: true, Transform: fixtureTransform(kind, mapKeyLeft)}
 	}
 	return Report{
-		Schema: 1, BuildID: fixtureBuild, Native: true, Observation: "macos-screen-capture",
+		Schema: 2, BuildID: fixtureBuild, Native: true, Observation: "macos-screen-capture",
 		Protocol: "synthetic checker fixture only; not native qualification",
 		Images:   images, Formats: map[string]int{"jpeg": images}, Hardware: "test Mac", Storage: "test SSD", Complete: true,
 		Stages:   []Stage{{Kind: "cold", StartNS: 1, EndNS: 1_000_000_001, PreparationNS: 500_000_000, ScanNS: 500_000_000, Complete: true}, {Kind: "warm", StartNS: 2_000_000_000, EndNS: 3_000_000_000, PreparationNS: 500_000_000, ScanNS: 500_000_000, Complete: true}},
 		Gestures: gestures, Cancellations: []Cancellation{{InputNS: 1, VisibleNS: 250_000_001, Before: "before.png", After: "after.png", Complete: true}},
 		Memory: []MemorySample{{AtNS: 1, RSSBytes: 100}, {AtNS: 60_000_000_001, RSSBytes: 200}},
+	}
+}
+
+func fixtureTransform(kind string, key uint16) *VisualTransform {
+	transform := &VisualTransform{Method: "patch-grid-v1", Scale: 1, DX: 60, Matches: 16, Tested: 20}
+	if kind == "zoom" {
+		transform.Scale, transform.DX, transform.DY = 2, -600, -416
+		if key == mapKeyMinus {
+			transform.Scale, transform.DX, transform.DY = 0.5, 300, 208
+		}
+	} else if key == mapKeyRight {
+		transform.DX = -60
+	}
+	return transform
+}
+
+func TestCheckReportRejectsInvalidTransformEvidence(t *testing.T) {
+	for name, mutate := range map[string]func(*Gesture){
+		"boolean alone":         func(g *Gesture) { g.Transform = nil },
+		"unknown method":        func(g *Gesture) { g.Transform.Method = "hash" },
+		"stationary":            func(g *Gesture) { g.Transform.DX = 0 },
+		"wrong scale":           func(g *Gesture) { g.Transform.Scale = 1.2 },
+		"vertical pan":          func(g *Gesture) { g.Transform.DY = 60 },
+		"too little texture":    func(g *Gesture) { g.Transform.Matches = 7 },
+		"unrelated repaint":     func(g *Gesture) { g.Transform.Tested = 100 },
+		"impossible accounting": func(g *Gesture) { g.Transform.Tested = 1 },
+		"nonfinite":             func(g *Gesture) { g.Transform.DX = math.NaN() },
+	} {
+		t.Run(name, func(t *testing.T) {
+			report := validReport(10_000)
+			mutate(&report.Gestures[0])
+			if err := CheckReport(report, 10_000, fixtureBuild); err == nil {
+				t.Fatal("invalid transform qualified gesture timing")
+			}
+		})
 	}
 }
 
