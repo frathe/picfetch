@@ -74,3 +74,4 @@ Verify: AC4 AC5
 |------|------------------------|---------------|------------|-------|
 | T1–T3 | 0 / 0 | 1 | no | inline. Race on framemenu and the picture-frame UI tests. Full `./...` and Docker suite not run on this darwin host. |
 | Review | 0 / 0 | 2 | no | Shutdown calls `slides.Close`, which does not notify the menu, so the dwell timer is stopped in `registerShutdown` and joined from the harness. |
+| Review 2 | 0 / 0 | 3 | no | Deactivate holds the enqueue lock until a started callback has submitted or skipped `fyne.Do`. Leaving mid-slide already repaints every 16ms because the in-progress slide stays active; that delay is now tested. |

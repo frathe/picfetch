@@ -120,6 +120,11 @@ func registerStartup(application fyne.App, view *viewer, initial []fyne.URI) {
 }
 
 func (v *viewer) waitForShutdown() {
+	// OnStopped already deactivated the bar. This joins a callback that
+	// started too late to submit a repaint and has not exited yet.
+	if v.frameChrome != nil {
+		v.frameChrome.Wait()
+	}
 	v.favorites.Wait()
 	v.waitHEIC()
 	v.help.Wait()

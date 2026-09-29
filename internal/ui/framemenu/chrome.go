@@ -43,9 +43,16 @@ type Chrome struct {
 
 	nowFn   func() time.Time
 	afterFn func(time.Duration, func()) func() bool
-	timerMu sync.Mutex
-	cancel  func() bool
-	pending sync.WaitGroup
+	// admit covers the decision to enqueue a repaint. Deactivate holds it
+	// across retiring the bar, so a callback cannot submit fyne.Do after
+	// Deactivate has returned.
+	admit sync.Mutex
+	// beforeEnqueue, when set, runs inside admit just before submission.
+	// Tests use it to observe that deactivation cannot interleave there.
+	beforeEnqueue func()
+	timerMu       sync.Mutex
+	cancel        func() bool
+	pending       sync.WaitGroup
 }
 
 // New builds a hidden bar for canvas. Pop-up menus use that canvas.
@@ -77,13 +84,16 @@ func (c *Chrome) Activate(menu *fyne.MainMenu) {
 }
 
 // Deactivate hides the strip, closes an open menu, and drops pending timers.
-// A callback that already started is left for Wait; it will not touch the bar
-// once this returns.
+// It does not return while a callback is still submitting a repaint. A
+// callback that has not entered that section yet sees the bar is inactive
+// and does not submit; Wait joins that callback.
 func (c *Chrome) Deactivate() {
-	c.timerMu.Lock()
+	c.admit.Lock()
 	c.active.Store(false)
+	c.timerMu.Lock()
 	c.disarmLocked()
 	c.timerMu.Unlock()
+	c.admit.Unlock()
 	c.suppress = true
 	if c.popup != nil {
 		c.popup.Dismiss()
@@ -95,9 +105,8 @@ func (c *Chrome) Deactivate() {
 	c.layer.Hide()
 }
 
-// Wait joins a dwell or slide callback that Deactivate could not prevent.
-// Call it off the UI thread. The callback delivers through fyne.Do, so waiting
-// on the UI thread can deadlock once that delivery is queued.
+// Wait joins a dwell or slide callback that had started but had not yet
+// decided whether to repaint. Call it off the UI thread, after Deactivate.
 func (c *Chrome) Wait() {
 	c.pending.Wait()
 }
@@ -231,17 +240,20 @@ func (c *Chrome) schedule() {
 	}
 	c.pending.Add(1)
 	c.cancel = c.afterFn(delay, func() {
-		c.timerMu.Lock()
-		active := c.active.Load()
-		c.timerMu.Unlock()
-		if !active {
+		c.admit.Lock()
+		defer c.admit.Unlock()
+		if !c.active.Load() {
 			c.pending.Done()
 			return
 		}
-		fyne.Do(func() {
-			defer c.pending.Done()
-			c.kick()
-		})
+		if c.beforeEnqueue != nil {
+			c.beforeEnqueue()
+		}
+		// Submitted before admit is released, so Deactivate cannot return
+		// and then observe this call. Done stays here, not inside the
+		// queued func: shutdown can discard a queued func without running it.
+		fyne.Do(func() { c.kick() })
+		c.pending.Done()
 	})
 }
 
