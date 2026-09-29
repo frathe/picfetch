@@ -21,6 +21,13 @@ const (
 	mapKeyMinus  = 0x4e
 )
 
+// Keep the evidence boundary aligned with responseTimeoutNS in native/capture.swift.
+const responseTimeoutNS int64 = 3_000_000_000
+
+func validNativeResponseTime(inputNS, visibleNS int64) bool {
+	return inputNS > 0 && visibleNS > inputNS && visibleNS-inputNS < responseTimeoutNS
+}
+
 type nativeCommand struct {
 	Kind  string `json:"kind"`
 	Key   uint16 `json:"key"`
@@ -35,6 +42,23 @@ type nativeObservation struct {
 type nativeDriver interface {
 	State(context.Context) (locationtrial.State, error)
 	Input(context.Context, nativeCommand) (nativeObservation, error)
+}
+
+// One schedule drives collection and validates retained witnesses, including
+// gestures beyond the first forty during the sustained 30k browse.
+func nativeGestureCommand(index int) nativeCommand {
+	kind, key := "pan", uint16(mapKeyLeft)
+	if index%2 == 1 {
+		kind, key = "zoom", mapKeyPlus
+	}
+	if index%4 >= 2 {
+		if kind == "pan" {
+			key = mapKeyRight
+		} else {
+			key = mapKeyMinus
+		}
+	}
+	return nativeCommand{Kind: kind, Key: key, Shift: kind == "pan", Name: fmt.Sprintf("gesture-%03d", index)}
 }
 
 func (c nativeCommand) matchesTransform(v *VisualTransform) bool {
@@ -84,7 +108,7 @@ func nativeInput(ctx context.Context, driver nativeDriver, command nativeCommand
 	if result.Error != "" {
 		return result, errors.New(result.Error)
 	}
-	if result.Kind != command.Kind || result.Skipped || result.InputNS <= 0 || result.VisibleNS <= result.InputNS {
+	if result.Kind != command.Kind || result.Skipped || !validNativeResponseTime(result.InputNS, result.VisibleNS) {
 		return result, errors.New("native input has no observed visible response")
 	}
 	if (command.Kind == "cancel" || command.Kind == "close") && !result.ClosedViewer {
@@ -135,18 +159,7 @@ func collectNative(ctx context.Context, driver nativeDriver, report *Report, sus
 		}
 	}
 	for i := 0; i < 40 || report.Images == 30_000 && sustain(); i++ {
-		kind, key := "pan", uint16(mapKeyLeft)
-		if i%2 == 1 {
-			kind, key = "zoom", mapKeyPlus
-		}
-		if i%4 >= 2 {
-			if kind == "pan" {
-				key = mapKeyRight
-			} else {
-				key = mapKeyMinus
-			}
-		}
-		observation, err := nativeInput(ctx, driver, nativeCommand{Kind: kind, Key: key, Shift: kind == "pan", Name: fmt.Sprintf("gesture-%03d", i)})
+		observation, err := nativeInput(ctx, driver, nativeGestureCommand(i))
 		// An errored observation is retained, including a zero/incomplete sample.
 		//goland:noinspection GoDfaErrorMayBeNotNil
 		report.Gestures = append(report.Gestures, observation.Gesture)

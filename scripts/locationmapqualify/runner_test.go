@@ -90,6 +90,8 @@ func TestNativeProtocolRejectsMismatchedTransform(t *testing.T) {
 		{"pan without Shift", nativeCommand{Kind: "pan", Key: mapKeyLeft}, func(_ *nativeObservation) {}},
 		{"missing witness", nativeCommand{Kind: "pan", Key: mapKeyLeft, Shift: true}, func(o *nativeObservation) { o.Transform = nil }},
 		{"wrong response kind", nativeCommand{Kind: "pan", Key: mapKeyLeft, Shift: true}, func(o *nativeObservation) { o.Kind = "zoom" }},
+		{"at response deadline", nativeCommand{Kind: "pan", Key: mapKeyLeft, Shift: true}, func(o *nativeObservation) { o.VisibleNS = o.InputNS + 3_000_000_000 }},
+		{"after response deadline", nativeCommand{Kind: "zoom", Key: mapKeyPlus}, func(o *nativeObservation) { o.VisibleNS = o.InputNS + 3_000_000_001 }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			driver := &fixtureNativeDriver{alterObservation: test.alter}

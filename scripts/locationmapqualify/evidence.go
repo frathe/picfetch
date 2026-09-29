@@ -153,34 +153,24 @@ func CheckReport(report Report, expectedImages int, expectedBuild string) error 
 	if len(report.Gestures) < 40 {
 		return errors.New("fewer than 40 gestures")
 	}
-	pan, zoom, fast := false, false, 0
+	fast := 0
 	for i, gesture := range report.Gestures {
-		if !gesture.Identified || gesture.Skipped || gesture.InputNS <= 0 || gesture.VisibleNS <= gesture.InputNS || gesture.Before == "" || gesture.After == "" {
+		if !gesture.Identified || gesture.Skipped || !validNativeResponseTime(gesture.InputNS, gesture.VisibleNS) || gesture.Before == "" || gesture.After == "" {
 			return fmt.Errorf("gesture %d is skipped or invalid", i)
 		}
-		if !gesture.Transform.validFor(gesture.Kind) {
-			return fmt.Errorf("gesture %d has no valid visual transform witness", i)
-		}
-		switch gesture.Kind {
-		case "pan":
-			pan = true
-		case "zoom":
-			zoom = true
-		default:
-			return fmt.Errorf("gesture %d has invalid kind %q", i, gesture.Kind)
+		command := nativeGestureCommand(i)
+		if gesture.Kind != command.Kind || !command.matchesTransform(gesture.Transform) {
+			return fmt.Errorf("gesture %d has no valid witness for its scheduled command", i)
 		}
 		if gesture.VisibleNS-gesture.InputNS <= 100_000_000 {
 			fast++
 		}
 	}
-	if !pan || !zoom {
-		return errors.New("both pan and zoom gestures are required")
-	}
 	if len(report.Cancellations) == 0 {
 		return errors.New("cancellation feedback is required")
 	}
 	for i, cancellation := range report.Cancellations {
-		if !cancellation.Complete || cancellation.InputNS <= 0 || cancellation.VisibleNS <= cancellation.InputNS || cancellation.Before == "" || cancellation.After == "" {
+		if !cancellation.Complete || !validNativeResponseTime(cancellation.InputNS, cancellation.VisibleNS) || cancellation.Before == "" || cancellation.After == "" {
 			return fmt.Errorf("cancellation %d is incomplete or invalid", i)
 		}
 		if expectedImages == 10_000 && cancellation.VisibleNS-cancellation.InputNS > 250_000_000 {

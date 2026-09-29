@@ -97,6 +97,37 @@ All four remaining numbered entries (MA-030 through MA-033) are qualified in
 their archives and PRs 69–72 are confirmed merged. Preserve optional opportunities
 as historical deferrals, repair relative links, and do not claim them implemented.
 
+### PR 73, second review and repairs
+
+The fresh code review on `86abc1d` reported two additional report-consistency
+issues; its security review completed without findings. Both new findings were
+validated at the existing checker/protocol seams and fixed by the lead:
+
+- `PRRT_kwDOT5ODVc6nGS5u`: report gestures could exceed the native observer's
+  deadline. One bounded response-time predicate now serves live Go observations,
+  retained gestures and cancellation samples. Both 10k and 30k reports reject
+  timestamps at or beyond three seconds, preserving the stricter 10k percentile
+  and cancellation limits. The new 12-case boundary regression had six failing
+  cases before the fix, then passed; direct protocol deadline cases also pass.
+- `PRRT_kwDOT5ODVc6nGS52`: a reassembled report could supply gestures in the
+  wrong order or direction. Collection and checking now share the existing
+  deterministic four-command schedule, including sustained browsing. All five
+  report-level wrong-direction/kind/order cases failed before the fix and pass
+  now. Valid fixtures independently enumerate Left/plus/Right/minus; they do not
+  derive expectations by calling the production schedule.
+
+Verification: qualifier/recorder race packages PASS (3.541s / 1.356s), focused
+`TestCheckReport*` PASS, `go vet ./scripts/locationmapqualify` PASS, formatting
+and diff checks PASS. Fresh GoLand inspections of all four affected Go files
+(`evidence.go`, `evidence_test.go`, `protocol.go`, `runner_test.go`) report no
+findings, including weak warnings. Swift source is unchanged from `86abc1d`.
+No new files, dependencies, shard entries or exclusions are needed.
+
+The first head's full CI completed successfully. Qodana on `86abc1d`, run
+`36565544360`, has exact revision provenance, successful invocation/exit 0 and
+zero post-suppression SARIF results; CodeQL reports no open alerts for PR 73.
+These are prior-head evidence, not certification of the next fix commit.
+
 ## Linux verification continuation — 2026-09-29
 
 Ronin confirmed the scope as Linux finalization after the macOS fixes. Local and
