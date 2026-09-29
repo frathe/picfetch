@@ -7,7 +7,7 @@
 # weights: single CI attempt; projected test sums, not measured shard runtimes
 # ui-1: 270 entries, 470.520s projected weight sum
 # ui-2: 255 entries, 470.530s projected weight sum
-# ui-3: 215 entries, 504.870s projected weight sum
+# ui-3: 221 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
 # evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
 # name	shard
@@ -638,6 +638,7 @@ TestHandleKeyEvent_ShiftDOpensGridOnCurrentGroup	ui-3
 TestHandleKeyEvent_VLeavesPictureFrameMode	ui-3
 TestHandleTypedRune_GridVisible_SwallowedByDeleteConfirmation	ui-3
 TestHandleTypedRune_OnlyReachesTheGridWhileItIsUp	ui-3
+TestInWindowMenuBarFollowsOSMenu	ui-3
 TestInvalidateLoad_ZeroValueIsSafe	ui-3
 TestJumpIfHiddenExtra_NoopWhileInspecting	ui-3
 TestLaunchOptions_UntouchedSettingsStillSaveLiveValues	ui-3
@@ -659,6 +660,11 @@ TestOpenInitialFiles_OpensPendingWhenNothingWasDelivered	ui-3
 TestOpenWithHandler_DeliveryMergesWhenMergeModeIsOn	ui-3
 TestPerformDelete_OSFailureKeepsTheFileAndToastsAnError	ui-3
 TestPerformUpdate_RecordsRelaunchThenQuits	ui-3
+TestPictureFrameMenu_DetachedMenuReachesTheWindowEdge	ui-3
+TestPictureFrameMenu_DetachesInWindowBarUntilExit	ui-3
+TestPictureFrameMenu_KeepsBarWhenSlidingIsOff	ui-3
+TestPictureFrameMenu_ShutdownDropsTheSlidingBar	ui-3
+TestPictureFrameSlidingMenuUsesInWindowMenuBar	ui-3
 TestRandomOtherIndex_CoversEveryOtherIndex	ui-3
 TestRandomOtherIndex_EmptyOrSingleReturnsCurrentUnchanged	ui-3
 TestRandomOtherIndex_NeverReturnsCurrent	ui-3

@@ -22,6 +22,7 @@ import (
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/display"
+	"github.com/frathe/picfetch/internal/ui/framemenu"
 	"github.com/frathe/picfetch/internal/ui/infoview"
 	"github.com/frathe/picfetch/internal/winpos"
 )
@@ -168,11 +169,15 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	// the export-format prompt (the latter two share widgets.ChoiceCard, whose scrim
 	// is translucent, so the grid dims through it rather than being hidden
 	// by it) and the toast that reports what the batch did.
+	view.frameChrome = framemenu.New(window.Canvas())
+	view.pictureFrameSlidingMenu = inWindowMenuBar()
 	window.SetContent(container.New(windowSizeTracker(view, window),
 		view.zoom.Widget(), dz.root, scanContainer, sortContainer, overlay, infoOverlay,
 		view.regionCopy.Overlay(), view.explorer.Surface().Overlay(), view.locationMap.Overlay(), view.grid.Overlay(), view.compare.Overlay(),
+		view.frameChrome.Layer(),
 		view.deletion.Overlay(), view.exportPrompt.Overlay(), toastOverlay))
-	window.SetMainMenu(buildMainMenu(view))
+	view.mainMenu = buildMainMenu(view)
+	window.SetMainMenu(view.mainMenu)
 	// Fyne's Darwin driver inserts our Window menu next to GLFW's system
 	// Window menu. Folding them must wait until setupNativeMenu has run.
 	// fyne.Do is not enough here: before Run, Do from the main goroutine

@@ -120,6 +120,11 @@ func registerStartup(application fyne.App, view *viewer, initial []fyne.URI) {
 }
 
 func (v *viewer) waitForShutdown() {
+	// OnStopped already deactivated the bar. This joins a callback that
+	// started too late to submit a repaint and has not exited yet.
+	if v.frameChrome != nil {
+		v.frameChrome.Wait()
+	}
 	v.favorites.Wait()
 	v.waitHEIC()
 	v.help.Wait()
@@ -189,6 +194,12 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.settingsWin.StopTracking()
 		view.exif.StopTracking()
 		view.mosaicWin.StopTracking()
+		// Close stops the slideshow worker without telling the menu
+		// observer, so an armed dwell or slide would otherwise call
+		// fyne.Do after the event loop has stopped.
+		if view.frameChrome != nil {
+			view.frameChrome.Deactivate()
+		}
 		view.slides.Close()
 		view.scanOp.lifecycle.Invalidate()
 		view.sortOp.lifecycle.Invalidate()
