@@ -1,8 +1,11 @@
 # Location Map: Linux handoff
 
-Next computer: follow the [return-to-macOS handoff](location-map-macos-handoff-2026-09-29.md).
-The Linux verification results below are complete; the original investigation
-instructions are retained for reference.
+Archived outcome, 2026-09-29: application fixes are complete and Ronin accepted
+manual zoom. Automated native timing is parked at his request; the
+[closure record](../finished_refactorings/2026-09-29-location-map-gesture-timing.md)
+and [PR 73](https://github.com/frathe/picfetch/pull/73) retain the final gates.
+The Linux results and [return-to-macOS handoff](location-map-macos-handoff-2026-09-29.md)
+below are historical, not instructions to resume the parked measurement.
 
 Continue on `feature/location-map-gesture-timing`. **Linux verification is
 complete at `d0998a9`; native timing measurement remains incomplete.** The macOS
@@ -10,7 +13,7 @@ fixes and focused tests passed, but the recorded native run stops at its first
 zoom even though the screen visibly zooms. No application or Swift source changed
 during Linux verification. Ronin authorized committing and pushing the original
 handoff; merge/release is not authorized. The complete history is in the
-[implementation plan](../plans/2026-09-29-location-map-gesture-timing.md).
+[implementation plan](../finished_refactorings/2026-09-29-location-map-gesture-timing.md).
 
 ## Linux completion — 2026-09-29
 

@@ -1,6 +1,49 @@
 # Native Location Map gesture timing
 
-Latest continuation: [return-to-macOS handoff](../docs/location-map-macos-handoff-2026-09-29.md)
+## Closure scope — 2026-09-29
+
+Application work is complete: initial Map repaint and native maximization on
+entry/return are implemented and tested. Ronin manually tested zoom and marked
+it passed. At his request, automated zoom registration and the incomplete
+40-gesture/cancellation benchmark are parked, not reported as measured passes.
+Real-photo/GPS evidence remains private and outside Git.
+
+[PR 73](https://github.com/frathe/picfetch/pull/73) records review dispositions and
+latest-head CI, CodeQL, Qodana and code/security review results. Final acceptance
+requires those gates on the final documentation head; earlier-head results below
+retain their original revisions. Swift semantic IDE inspection remains unavailable;
+compiler checks and CI are separate evidence. No merge or release is authorized.
+
+The dated investigation and handoff notes below are historical. Their remaining-
+work lists do not reopen the parked benchmark or create active todo entries.
+
+### Accepted source head and documentation closure
+
+`5ecd3fd0b6ec1285d4f5cc4e4a52f46e6a0b62e6` completed all 17 PR checks successfully:
+CI `36567008347`, CodeQL `36567008339`, Qodana `36567008377`, and dependency,
+license and security checks. Fresh Codex code review completed at 12:20:52 UTC
+and security review at 12:20:17 UTC with no findings; the connector's clean
+reaction is dated 12:20:55 UTC. All four earlier threads are fixed and resolved;
+none was dismissed. The downloaded Qodana `/end/qodana.sarif.json` records that
+exact revision, a successful invocation/exit 0 and zero post-suppression results.
+
+The closure commit only edits/moves documentation. It carries forward the
+unchanged-code local inspection and compiler evidence above/below, with Swift
+semantic IDE coverage still explicitly unavailable. Latest-head CI and fresh
+reviews for this documentation commit are recorded on PR 73, not inferred from
+the accepted source head.
+
+`todos.md` now has short user-facing Done notes and no Open entries. The completed
+refactoring backlog is archived as `2026-09-29-needs-refactoring.md`; all 60
+remaining local link targets resolve. Six pre-existing unavailable local/ADR
+targets are retained as historical paths rather than broken links. Incoming
+backlog/plan links were repaired. Release-note tests and `git diff --check` pass.
+
+Actual closure budget: one read-only evidence scout, no delegated reviews or
+fixes, two repair rounds covering four findings, then a fresh clean source-head
+round. Full suites ran in native CI; local work used focused regressions only.
+
+Historical continuation: [return-to-macOS handoff](../docs/location-map-macos-handoff-2026-09-29.md)
 after completed Linux verification, with transferable failed zoom screenshots
 and ordered next checks. Ronin requested committing and pushing this handoff
 before switching computers. Historical Linux/macOS evidence below retains the

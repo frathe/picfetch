@@ -89,12 +89,17 @@ latency, including when matching/encoding takes longer. The helper never subtrac
 its processing overhead. Capture cadence and processing can miss early responses;
 the retained timestamp is the first **identified captured** response, not a claim
 to observe every displayed frame. Unsupported or ambiguous content and clamped
-zoom fail closed after three seconds, retaining failed observations and PNGs.
+zoom fail closed, retaining failed observations and PNGs. Frames at or beyond
+the three-second input deadline cannot qualify, even if registration delays the
+queued timeout callback. The Go protocol and retained-report checker enforce
+that same response boundary, independently of the 10k percentile threshold.
 
-The matcher has portable synthetic coverage; real macOS capture and latency
-qualification remain pending until the native handoff in
-`plans/2026-09-29-location-map-gesture-timing.md` is completed. The release's
-existing maintainer performance acceptance is separate from measured evidence.
+The matcher has portable synthetic coverage and identified native pans, but
+mixed-scale zoom content can still be rejected. Ronin manually accepted zoom
+and parked the incomplete automated 40-gesture/cancellation benchmark on
+2026-09-29. The [archived record](../../finished_refactorings/2026-09-29-location-map-gesture-timing.md)
+preserves the evidence and limits. Manual acceptance is not measured latency;
+the checker remains strict for any future explicitly requested qualification.
 
 The protocol requires at least 40 alternating horizontal Shift+arrow pans and
 keypad plus/minus zooms after complete cold and warm scans. Keypad arithmetic
@@ -113,7 +118,8 @@ and at least three complete open/close cycles are recorded.
 
 Capture cadence quantizes latency. Changed body pixels alone do not identify
 a gesture. Both collection and report validation require explicit gesture
-identification and a valid transform witness; schema-1/boolean-only reports no
+identification and a valid transform witness for the scheduled gesture's kind
+and direction; schema-1/boolean-only reports no
 longer qualify. Schema-2 reports preserve the witness. Capture, registration and PNG
 encoding run in a separate process but consume system resources. `/bin/ps`
 samples application RSS every 250 ms, so reported peak RSS is a sampled peak.

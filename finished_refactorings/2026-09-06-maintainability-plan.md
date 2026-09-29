@@ -1,6 +1,6 @@
 # PicFetch maintainability implementation plan — 2026-09-06
 
-Status: required and selected conditional work complete; Windows acceptance closed by the user on 2026-09-09. Canonical remaining work and dependency watches are in [needs_refactoring.md](../needs_refactoring.md). [Audit validation](2026-09-06-maintainability-validation.md) records the baseline and probes. [Published tickets](https://github.com/frathe/picfetch/blob/34ab671230217996d76784916c2c20d606a4aa29/finished_refactorings/2026-09-07-maintainability/ticket-breakdown.md) track execution and accepted completion boundaries.
+Status: required and selected conditional work complete; Windows acceptance closed by the user on 2026-09-09. Subsequent refactorings and accepted dependency decisions are retained in the [archived backlog](2026-09-29-needs-refactoring.md). [Audit validation](2026-09-06-maintainability-validation.md) records the baseline and probes. [Published tickets](https://github.com/frathe/picfetch/blob/34ab671230217996d76784916c2c20d606a4aa29/finished_refactorings/2026-09-07-maintainability/ticket-breakdown.md) track execution and accepted completion boundaries.
 
 ## September 9 closeout
 

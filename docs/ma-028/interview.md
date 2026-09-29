@@ -11,7 +11,7 @@ empty `git diff --name-status 1adc477 6c0db30`.
 
 ## Purpose
 
-Stress-test [MA-028](../../needs_refactoring.md#ma-028), establish its scope
+Stress-test [MA-028](../../finished_refactorings/2026-09-29-needs-refactoring.md#ma-028), establish its scope
 and behavior contract, and retain the decisions before implementation planning.
 The user accepted all seven recommendations across two rounds. The tracked
 [design record](../command-admission.md) consolidates those decisions.

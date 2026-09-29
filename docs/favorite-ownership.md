@@ -6,7 +6,7 @@ Source: `/grill-with-docs MA-031`
 Inspected revision: `7e52ea5b5fe95ae7d0995e88fa765ab57d549b86`.
 
 This is the accepted design record for
-[MA-031](../needs_refactoring.md#ma-031). The interview is complete. The
+[MA-031](../finished_refactorings/2026-09-29-needs-refactoring.md#ma-031). The interview is complete. The
 [local specification](../.scratch/ma-031/spec.md) is published as
 `ready-for-agent`, with 70 user stories, test boundaries and 22 acceptance
 criteria covering both migration stages. Implementation planning remains next;

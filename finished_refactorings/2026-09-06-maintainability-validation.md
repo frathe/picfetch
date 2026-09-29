@@ -1,6 +1,6 @@
 # PicFetch audit validation — 2026-09-06
 
-Companion evidence for [the canonical backlog](../needs_refactoring.md) and [implementation plan](2026-09-06-maintainability-plan.md). Production baseline: `2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f`. No audit probe was added to production or the maintained test suite.
+Companion evidence for [the archived backlog](2026-09-29-needs-refactoring.md) and [implementation plan](2026-09-06-maintainability-plan.md). Production baseline: `2ae4e0f6fd3ec53b35fb20d60c583402e0045d3f`. No audit probe was added to production or the maintained test suite.
 
 ## Completed checks
 

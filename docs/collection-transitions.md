@@ -6,7 +6,7 @@ Date: 2026-09-28
 Source: `/grill-with-docs MA-030`
 Inspected revision: `eb2ea0b2b3072f6baada09d7da81b68f577f863d`.
 
-Strengthen [MA-030](../needs_refactoring.md#ma-030)'s collection model and
+Strengthen [MA-030](../finished_refactorings/2026-09-29-needs-refactoring.md#ma-030)'s collection model and
 root reconciliation so callers no longer coordinate collection facts and
 feature update ordering independently. Both proposed slices are in scope.
 This document is the accepted design record. The

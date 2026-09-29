@@ -1,5 +1,12 @@
 # Location Map: return to macOS
 
+Archived outcome, 2026-09-29: application fixes are complete, Ronin's manual zoom
+check passed, and automated zoom timing is parked at his request. The
+[closure record](../finished_refactorings/2026-09-29-location-map-gesture-timing.md)
+and [PR 73](https://github.com/frathe/picfetch/pull/73) retain verification and
+final-head review gates. The handoff instructions below are historical, not an
+active request to resume measurement.
+
 Continue on `feature/location-map-gesture-timing`. Ronin requested this handoff,
 commit and push before switching computers. No merge or release is authorized.
 Read `AGENTS.md`, the SDD/TDD working agreement and `ARCHITECTURE.md` before
@@ -38,7 +45,7 @@ partitions. Root UI outcomes were 738 passes and two existing conditional skips;
 the runner and container both exited 0 with no OOM events. Focused qualifier and
 recorder race tests, both portable Swift suites, and complete GoLand inspections
 of all ten changed Go files also passed with no actionable findings. The
-[plan](../plans/2026-09-29-location-map-gesture-timing.md) records exact commands,
+[plan](../finished_refactorings/2026-09-29-location-map-gesture-timing.md) records exact commands,
 scope, timings, exclusions and inspection limitations. Documentation-only
 handoff changes carry that unchanged-code evidence; do not repeat the full suite
 under ARM-hosted amd64 emulation.
