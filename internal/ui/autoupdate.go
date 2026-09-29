@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/requestlife"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
@@ -173,6 +174,9 @@ func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
 
 func (v *viewer) updateRestrictionError() error {
 	if v.launchPolicy.Valid() && v.launchPolicy.Purpose() == launch.Ordinary && v.launchPolicy.StoreManaged() {
+		if distribution.AppleAppStore {
+			return errors.New(lang.L("Updates are managed by Mac App Store."))
+		}
 		return errors.New(lang.L("Updates are managed by Microsoft Store."))
 	}
 	return errors.New(lang.L("Updates are unavailable in this session"))

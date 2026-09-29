@@ -25,7 +25,7 @@ type DownloadProgress struct {
 }
 
 // ErrBundledRuntimeUnavailable requires package repair, never a code download.
-var ErrBundledRuntimeUnavailable = errors.New("bundled runtime is unavailable; repair or update PicFetch through Microsoft Store")
+var ErrBundledRuntimeUnavailable = errors.New("bundled runtime is unavailable; repair or update PicFetch through the app store")
 
 type assetDownload struct {
 	name, address, digest string

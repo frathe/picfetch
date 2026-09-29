@@ -133,6 +133,11 @@ skip debug symbols. Store builds verify/load DLLs beside the executable, ignore
 model-cache runtime overrides, and download only model data. `assets_package.go`
 verifies architecture-specific archives for MSIX staging and extracts both DLLs
 and the upstream license, third-party notices and privacy document.
+`StageMacRuntime` stages architecture-pinned macOS native code and upstream
+notices only after archive and extracted-library verification, for later bundle
+signing. Both Windows and macOS packaging verify in private staging before
+copying allowlisted files into the package. Signed Mac runtime validation is
+still pending and must not compare signed Mach-O bytes with upstream hashes.
 Asset availability is separate from analysis admission; analysis
 never starts a download. `offline.go`
 verifies actual TCP/UDP OS denial on macOS/Linux; `files.go` registers the driverless read-only
@@ -289,6 +294,11 @@ payloads; CI runs this before release publication/Store upload.
 reviewed WASM payload, build recipe and retained source license texts against
 `manifest.json`; it generates the AVIF section of `THIRD-PARTY-NOTICES.md` offline.
 Its README records the libyuv/WASI source-provenance limits.
+
+`scripts/apple-store-preflight.sh`, reached through `make apple-store-preflight`,
+checks full Xcode and caller-supplied Store signing prerequisites without changing
+credentials or uploading an artifact. `packaging/apple-app-store/README.md`
+records the experimental channel and outstanding signed qualification.
 
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image
 digests consumed by Makefile and the release/Store workflows.
@@ -935,8 +945,11 @@ switching automatically.
 ### `internal/distribution`
 
 Compile-time distribution policy. `StoreManaged` is false for ordinary builds
-and true only with the `microsoftstore` build tag. Production startup captures
-it in `launch.Policy`; UI composition receives that explicit decision.
+and true with either the `microsoftstore` or macOS-only `appleappstore` build
+tag. `AppleAppStore` distinguishes the Apple channel for localized repair and
+update explanations. Apple builds remain experimental until signed sandbox and
+packaging qualification is recorded in the active Apple Store plan. Production
+startup captures it in `launch.Policy`; UI composition receives that decision.
 
 ### `internal/wingesture`
 

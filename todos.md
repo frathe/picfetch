@@ -12,7 +12,17 @@
 
 ## Open
 
-No open items.
+### Mac App Store preparation
+
+Preserve the full feature set. Active plan: [Mac App Store preparation](plans/2026-09-29-apple-app-store.md).
+
+- [x] Add an immutable Apple Store channel, localized update/repair messages, verified pre-sign runtime staging and a read-only developer-input preflight.
+- [ ] Qualify persistent security-scoped permissions for opening, saved sessions, Favorites, writes and workers.
+- [ ] Replace the Store worker launch with public sandbox-compatible helpers while retaining verified network denial.
+- [ ] Bundle pinned native runtimes and notices, and validate signed Mach-O code without comparing its post-sign bytes with upstream archive hashes.
+- [ ] Add the signed Store packaging route and validate the final artifact on Intel and Apple Silicon.
+- [ ] Complete privacy/dependency/export assessment, listing metadata and Apple submission validation.
+- [ ] Obtain full Xcode, developer Team ID, Store application/installer certificates and provisioning profile for signed qualification.
 
 ## Deferred
 

@@ -1,6 +1,6 @@
 # PicFetch privacy policy
 
-Effective date: September 25, 2026
+Effective date: September 29, 2026
 
 PicFetch is a free and open-source desktop image viewer. It has no accounts,
 advertising, analytics, or telemetry. The PicFetch developer does not collect,
@@ -56,8 +56,8 @@ cancels that map's pending tile work; requests already sent cannot be recalled.
 ## Similarity Explorer downloads
 
 On first use, the Explorer explains its local analysis and offers to download
-the required model data. Standalone builds also download the runtime; the
-Microsoft Store version includes it, as described below. Downloads begin only
+the required model data. Standalone builds also download the runtime;
+Store-managed builds require an included runtime, as described below. Downloads begin only
 when the user chooses Download. PicFetch obtains the pinned SigLIP 2 model from
 Hugging Face and, in standalone builds, the ONNX Runtime package from Microsoft's
 ONNX Runtime releases on GitHub. These
@@ -103,7 +103,8 @@ privacy statement; public posts can be read by other people.
 
 ## Updates
 
-The Microsoft Store build uses Microsoft Store delivery and updates. In other
+Store-managed builds use their app store for delivery and updates: Microsoft
+Store on Windows and Mac App Store on macOS. In direct-download
 distributions, users can optionally enable PicFetch's update checker; when
 enabled, it contacts GitHub to check and download PicFetch releases. GitHub
 processes those requests under its own

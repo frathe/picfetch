@@ -5735,6 +5735,13 @@ Explorer setup, except Intel macOS, which obtains ONNX Runtime 1.23.2,
 Microsoft's last official Intel binary. Microsoft Store setup downloads only the model and its processor
 configuration; runtime DLL installation and updates belong to the Store package.
 
+Mac App Store preparation stages the same architecture-pinned macOS releases:
+ONNX Runtime 1.23.2 for Intel and 1.29.0 for Apple Silicon. Each staged runtime
+retains the complete upstream `LICENSE`, `ThirdPartyNotices.txt`, and
+`Privacy.md` in its versioned directory. These notices must accompany the native
+library in the eventual Store bundle; PicFetch's source license does not replace
+the runtime's component licenses. Signed Store packaging remains under qualification.
+
 Intel macOS setup retains the complete upstream `LICENSE`,
 `ThirdPartyNotices.txt` and `Privacy.md` beside
 `onnxruntime-osx-x86_64-1.23.2/lib/libonnxruntime.1.23.2.dylib`.

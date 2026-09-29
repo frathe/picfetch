@@ -66,6 +66,7 @@ COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 .PHONY: verify-build --skip-local-tests
 .PHONY: generate-updater-notices check-updater-notices generate-avif-notices check-avif-notices
 .PHONY: fossa-findings
+.PHONY: apple-store-preflight
 .PHONY: loc
 
 all: build
@@ -101,6 +102,9 @@ loc: ## Show tracked source files and physical lines, split into Go production/t
 
 fossa-findings: ## Retrieve current FOSSA licensing findings (PR=61 or FOSSA_REVISION=<sha>; key in .env.local)
 	go run ./scripts/fossafindings
+
+apple-store-preflight: ## Check native Xcode and Mac App Store signing inputs (see packaging/apple-app-store/README.md)
+	bash scripts/apple-store-preflight.sh
 
 generate-updater-notices: ## Regenerate updater notices from the reviewed source/license manifest
 	go run ./scripts/updaternotices -write

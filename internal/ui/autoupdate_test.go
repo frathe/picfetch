@@ -29,6 +29,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
@@ -291,12 +292,16 @@ func TestMicrosoftStoreUpdateActionsAreRefused(t *testing.T) {
 		t.Error("Store-managed build retained the GitHub update preference")
 	}
 
+	want := lang.L("Updates are managed by Microsoft Store.")
+	if distribution.AppleAppStore {
+		want = lang.L("Updates are managed by Mac App Store.")
+	}
 	var manualErr error
 	v.CheckForUpdatesNow(settingswin.UpdateCallbacks{Failed: func(err error) { manualErr = err }})
-	if manualErr == nil || manualErr.Error() != lang.L("Updates are managed by Microsoft Store.") {
+	if manualErr == nil || manualErr.Error() != want {
 		t.Fatalf("manual update error = %v", manualErr)
 	}
-	if err := v.PerformUpdate(); err == nil || err.Error() != lang.L("Updates are managed by Microsoft Store.") {
+	if err := v.PerformUpdate(); err == nil || err.Error() != want {
 		t.Fatalf("PerformUpdate error = %v", err)
 	}
 	if v.updater.Done().Begun() {
