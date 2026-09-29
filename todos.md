@@ -128,6 +128,13 @@
   (not full-screen), with fixed qualification geometry preserved. Focused native
   race tests, GoLand inspections, build checks and packaged-app visual checks
   pass; the new window policy still needs full native-amd64 CI coverage.
+  Window fix is pushed as `f1d5e6a`. The continued investigation repairs premature
+  coarse pan-candidate rejection, with a retained red/green native-frame test.
+  A first-response zoom fixture now shows scaling tiles and fixed-size cards;
+  the current registration still fails the unchanged 65% coverage requirement.
+  After one foreground-interrupted attempt, the dedicated-desktop retry passed
+  cold/warm scans, return and pan (73.617292 ms, 106/122 patches), then rejected
+  the first zoom. All failed evidence is preserved in the plan.
   **Remaining: native timing measurement.** Cold/warm entry, pixel-verified
   return and one identified pan worked on 24 synthetic GPS images, but the
   recorder rejected the first zoom despite visible motion. The complete

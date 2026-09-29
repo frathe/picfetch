@@ -139,6 +139,71 @@ Ronin explicitly authorized committing and pushing the window fix on the current
 branch, then continuing the existing timing work. The timing matcher changes
 remain separate; no fresh CI, CodeQL or Qodana SARIF pass is claimed here.
 
+Window fix committed/pushed as `f1d5e6a`. The native manual guard suite also
+passed (`go test -tags no_emoji,nodynamic ./internal/ui/help -run TestManual
+-count=1`, 0.449s). No CI run started: this feature branch has no PR and CI is
+triggered by `main` pushes or PRs targeting `main`, not ordinary feature pushes.
+
+### Matcher continuation after the window fix
+
+Retained pan repair: the coarse search's 45% coverage gate discarded a real
+subpixel peak before refinement. The retained first-frame pair has only 14/48
+coarse matches at dx 56, but 33/48 refined matches at dx 58, dy 0, scale 1, with
+the required spatial spread and separation. Keep the eight-match seed floor and
+twelve-peak bound; apply the existing final 65% coverage, ambiguity, direction
+and scale gates unchanged. The new native pan fixture pins this at the portable
+observer seam. Restoring the premature gate made the test fail with
+`Requested pan 123 was not identified`; removing it made both Swift suites pass.
+
+The first changed zoom frame is now retained as a diagnostic luminance pair,
+not merely the previous final timeout PNG. Its old map tiles visibly scale 2x
+while photo cards retain their size. The matcher finds the correct transform
+at dx -574, dy -394 but only 15/31 eligible high-contrast patches match.
+Lowering the contrast floor in scratch replay increases this to 24/40 (60%);
+reversing the original registration gives 34/84. Neither passes the unchanged
+65% rule. Denser sampling and contrast-relative error limits also failed. All
+such experiments remain under `.scratch/location-map-zoom-replay-20260929/`;
+none changed production matching or invented an accepted timestamp. Recognizing
+this mixed-scale scene requires separating map background from fixed-size cards
+or another independently validated registration model. This remains open.
+
+Verification and native evidence:
+
+- `make location-map-capture-test SWIFTC='xcrun swiftc -module-cache-path
+  /private/tmp/picfetch-swift-module-cache'`: both suites PASS, including the
+  negatively verified retained pan pair and existing rejection cases.
+- Native helper compilation with `-parse-as-library -warnings-as-errors -O`:
+  PASS. All diagnostic instrumentation was removed from shipped Swift sources.
+- `make location-map-qualification-test`: race packages PASS, qualifier 3.497s
+  and recorder 1.318s. No Go qualifier/recorder source changed.
+- `GOOS=windows GOARCH=amd64 go vet -tags no_emoji,nodynamic ./internal/...`:
+  PASS for the shared window-policy change. This is not a native Windows run.
+- GoLand `lint_files` on both changed Swift files returned no analyzed items;
+  Swift semantic inspection remains unavailable, not a clean inspection gate.
+- Diagnostic runs remain at `.scratch/location-map-native-after-linux-diagnostic`,
+  `...-after-linux-frames`, and `...-after-linux-zoom-frames`. Instrumentation
+  changes workload: their intermediate frame timestamps are not qualification.
+- A clean helper/app run at `.scratch/location-map-native-after-window-fix`
+  completed cold/warm scans and pixel-verified close, then failed at gesture 0
+  because PicFetch lost foreground (`EOF` from the helper). No valid gesture
+  latency follows. The failed report and images are retained. App SHA-256
+  `57a464dbd8c2886f6817f6bfe598343b1fbbb45fc7a5a5388aba887ee4246c5f`;
+  helper `1a3f9f80b31228f020c1ce5e8d94220e216acaf8ceddee864bf2f7660d411603`.
+  Raw native logs also repeat the Fyne threading warnings already present in
+  prior runs; this continuation does not certify those warnings as resolved.
+- After Ronin dedicated the desktop, the clean retry at
+  `.scratch/location-map-native-after-window-fix-retry1` passed cold/warm scans,
+  pixel-verified close and pan: first identified captured response 73.617292 ms,
+  scale 1, dx 58, dy 0, 106/122 patches. Lead inspected the retained pan pair
+  against that witness. Foreground and input delivery were no longer blockers.
+  The first zoom visibly changed the map but still failed registration after
+  three seconds, with `visible_ns=0`; its retained final PNG is not a timestamp.
+  This confirms the pan path, not complete native performance qualification.
+
+Lead reviewed the bounded seed-search change; no delegated implementation or
+review and no new dependencies. The complete 40-gesture/cancellation measurement,
+Swift semantic inspection and real-collection qualification remain unverified.
+
 The current helper refuses gestures because body hashes cannot distinguish input
 responses from tile delivery. Keep hashes for stable-frame admission and the
 existing closed-viewer exit boundary. Use independent image registration for

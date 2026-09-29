@@ -5,6 +5,27 @@ commit and push before switching computers. No merge or release is authorized.
 Read `AGENTS.md`, the SDD/TDD working agreement and `ARCHITECTURE.md` before
 implementation. Preserve any local edits when fetching and updating the branch.
 
+## macOS continuation update
+
+The window fix is now pushed as `f1d5e6a`: entering/returning to Location Map
+maximizes the work area, with fixed qualification geometry preserved. The
+reported first-map redraw symptom came from an old local app bundle; rebuilding
+the branch bundle restored its existing repaint fix. Focused race tests, GoLand
+Go inspections, build/shard checks and native entry/return checks passed. The
+new code still needs full native-amd64 verification; ordinary feature pushes
+do not start CI without a PR.
+
+The resumed matcher investigation found a premature coarse pan-candidate
+rejection and added a retained native-frame regression. A separate diagnostic
+fixture now captures the first changed zoom frame: old tiles scale, photo cards
+do not. The current matcher still rejects this mixed-scale content under the
+unchanged coverage rule. Do not interpret the new fixture as a passing zoom or
+latency sample. One clean run lost foreground before gesture 0; a dedicated
+retry passed cold/warm scans, return and pan (73.617292 ms), then rejected the
+first zoom. Both failures are retained. See the plan's "Matcher continuation after the
+window fix" for exact evidence and remaining work. Earlier sections below are
+the original Linux-to-Mac handoff, not newer verification claims.
+
 ## Completed
 
 The application fixes are complete at `33cd7af`: fixed trial geometry before the

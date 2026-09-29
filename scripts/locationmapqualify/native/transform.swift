@@ -151,7 +151,10 @@ private struct Registration {
         }
         coarse.sort { $0.better(than: $1) }
         var peaks = [Score]()
-        for candidate in coarse where candidate.coverage >= 0.45 && candidate.matches >= 8 {
+        // A two-sample coarse step can straddle a narrow subpixel peak. Keep
+        // supported seeds for refinement; only the full-resolution result may
+        // enforce the acceptance coverage and ambiguity requirements.
+        for candidate in coarse where candidate.matches >= 8 {
             if !peaks.contains(where: { $0.near(candidate) }) { peaks.append(candidate) }
             if peaks.count == 12 { break }
         }

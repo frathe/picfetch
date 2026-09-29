@@ -13,6 +13,9 @@ import Foundation
         expect(before, left, kind: "pan", key: 0x7c, scale: 1, dx: -60, dy: 0)
         expect(before, zoomIn, kind: "zoom", key: 0x45, scale: 2, dx: -600, dy: -416)
         expect(before, zoomOut, kind: "zoom", key: 0x4e, scale: 0.5, dx: 300, dy: 208)
+        let nativePan = "scripts/locationmapqualify/testdata/native-pan-20260929/"
+        expect(fixture(nativePan + "before.luma"), fixture(nativePan + "after.luma"),
+               kind: "pan", key: 0x7b, scale: 1, dx: 58, dy: 0)
         for (name, frame) in [("stationary", before), ("opposite pan", left),
                               ("wrong scale", zoomIn), ("unrelated repaint", scene(dx: 93, dy: 37))] {
             reject(before, frame, kind: "pan", key: 0x7b, name: name)
@@ -74,5 +77,12 @@ import Foundation
             }
         }
         return VisualFrame(width: 300, height: 200, luminance: pixels)
+    }
+
+    static func fixture(_ path: String) -> VisualFrame {
+        do {
+            return VisualFrame(width: 300, height: 200,
+                luminance: Array(try Data(contentsOf: URL(fileURLWithPath: path))))
+        } catch { fatalError("Cannot read retained native frame: \(error)") }
     }
 }
