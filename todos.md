@@ -6,9 +6,11 @@
 
 #### New Features
 
-- On Linux and Windows, picture-frame mode hides the menu bar until the
-  pointer rests along the top edge, then slides it in. An open menu holds
-  the bar in place. macOS keeps the system menu bar.
+- In picture-frame mode on Linux and Windows, the menu bar no longer sits
+  on top of your photos. Rest the mouse along the top of the screen for a
+  moment and the menu slides in. Move the mouse away and it slides back
+  out. While a menu is open, it stays put. On a Mac, the menu bar is
+  unchanged.
 
 - Help -> Privacy policy opens the installed build's policy in a scrollable
   offline window, alongside Release Notes. Menu labels use the existing English
