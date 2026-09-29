@@ -1,12 +1,34 @@
 # Location Map: Linux handoff
 
-Continue on `feature/location-map-gesture-timing`. The implementation is **not
-qualified**: the native run stops at its first zoom even though the screen visibly
-zooms. Ronin authorized committing and pushing this handoff; merge/release is not
-authorized. The complete history is in the
+Next computer: follow the [return-to-macOS handoff](location-map-macos-handoff-2026-09-29.md).
+The Linux verification results below are complete; the original investigation
+instructions are retained for reference.
+
+Continue on `feature/location-map-gesture-timing`. **Linux verification is
+complete at `d0998a9`; native timing measurement remains incomplete.** The macOS
+fixes and focused tests passed, but the recorded native run stops at its first
+zoom even though the screen visibly zooms. No application or Swift source changed
+during Linux verification. Ronin authorized committing and pushing the original
+handoff; merge/release is not authorized. The complete history is in the
 [implementation plan](../plans/2026-09-29-location-map-gesture-timing.md).
 
-## Start on Linux
+## Linux completion — 2026-09-29
+
+Local and remote branch tips were confirmed as `d0998a9`. The native Linux/amd64
+prerequisite, focused qualifier/recorder race tests, portable Swift suites and
+full `make verify` passed. All ten changed Go files received complete GoLand
+inspections including weak warnings, with no actionable findings; existing
+test-duplication warnings retain their exact exclusions. This is IDE fallback
+evidence, not a fresh Qodana SARIF result.
+
+The full race run is retained at `.scratch/race-runs/20260929T095440Z-KtahR5/`.
+All partitions passed; runner/container exits are 0 and no OOM events occurred.
+The 740-entry root UI inventory produced 738 passes and its two existing
+conditional skips (case-insensitive filesystem and explicit native HEIC provider
+qualification). The plan records exact scope, timings and limitations. These
+local results do not establish a successful native macOS timing run or new CI.
+
+## Original Linux handoff steps
 
 1. Fetch and check out this branch, preserving any local edits. Read `AGENTS.md`,
    its SDD/TDD working agreement and `ARCHITECTURE.md` before implementation.
@@ -22,9 +44,8 @@ authorized. The complete history is in the
    The Swift target requires `swiftc`; the plan records the previously working
    Linux Swift 6.2.4 container fallback. Linux checks the portable matcher/policy,
    not the AppKit/ScreenCaptureKit adapter.
-4. Once any repair is tested, inspect every changed code file and run
-   `make verify` on native Linux/amd64. Record the revision and actual results.
-   The old full-suite pass at `232781f` does not verify the newer Go changes.
+4. Linux inspections and `make verify` now cover the newer Go changes at
+   `d0998a9`, as recorded above. Repeat affected checks if source changes.
 
 ## What is already fixed
 
@@ -86,9 +107,9 @@ portable Swift and native adapter compilation passed with warnings as errors;
 inspections, including weak warnings. Exact commands and scope are in the plan.
 Swift semantic IDE inspections remain unavailable, not passed.
 
-Still required: a fresh full Linux/amd64 gate and a complete **macOS** native
-40-gesture plus cancellation run after measurement repair. Linux unit tests or
-offline replay cannot replace WindowServer timing. Check smoke evidence against
+The fresh full Linux/amd64 gate is complete. Still required: a complete
+**macOS** native 40-gesture plus cancellation run after measurement repair.
+Linux unit tests or offline replay cannot replace WindowServer timing. Check smoke evidence against
 its actual count and confirm it cannot qualify 10k/30k. Real-collection performance
 qualification and Ronin's 30k verdict remain separate.
 

@@ -1,12 +1,72 @@
 # Native Location Map gesture timing
 
-Latest continuation: [Linux handoff](../docs/location-map-linux-handoff-2026-09-29.md)
-with transferable failed zoom screenshots and ordered next checks. Historical
-Linux/macOS evidence below retains the revision and limits of each run.
+Latest continuation: [return-to-macOS handoff](../docs/location-map-macos-handoff-2026-09-29.md)
+after completed Linux verification, with transferable failed zoom screenshots
+and ordered next checks. Ronin requested committing and pushing this handoff
+before switching computers. Historical Linux/macOS evidence below retains the
+revision and limits of each run.
 
 Deliverable: identify requested pan/zoom transforms from captured pixels before
 accepting native latency samples. Route: Deep, because the capture adapter is
 macOS-specific. Branch: `feature/location-map-gesture-timing`.
+
+## Linux verification continuation — 2026-09-29
+
+Ronin confirmed the scope as Linux finalization after the macOS fixes. Local and
+remote branch tips agree at `d0998a9ab2cce4c4a7c1ac20b9cc125f1e767f52`.
+No application, Swift helper, matcher, acceptance rule or dependency changes
+were made in this continuation. The macOS fixes and focused tests are complete;
+the recorded native 40-gesture measurement is still incomplete. Linux test
+results cannot fill that separate gate or establish a latency timestamp.
+
+Verified on native Linux x86_64, Go 1.27.1:
+
+- `make check-test-platform`: PASS against the native Linux/amd64 Docker daemon.
+- `PATH=/snap/go/current/bin:$PATH make location-map-qualification-test`: PASS,
+  race packages `scripts/locationmapqualify` 3.236s and
+  `internal/locationtrial` 1.033s.
+- `make location-map-capture-test`: PASS in the offline Swift 6.2.4 container,
+  using the same read-only repository/make mounts and pinned image digest
+  recorded below. Both portable transform and response-frame suites passed;
+  this does not compile or qualify the macOS adapter.
+- Fresh GoLand `get_file_problems(errorsOnly=false)` inspections completed on
+  all ten branch-changed Go files: root `load.go`, `locationmap.go`,
+  `locationmap_test.go`, `locationtrial.go`; qualifier `evidence.go`,
+  `evidence_test.go`, `protocol.go`, `runner.go`, `runner_test.go`; and
+  `scripts/testshards/main_test.go`. The first nine had no findings. The last
+  retained the four existing weak duplicate-fragment warnings at 90/174 and
+  225/275, in unchanged intentional fixture/assertion sequences covered by its
+  exact Qodana exclusion. No actionable findings or incomplete scans. This is
+  the documented IDE inspection fallback, not a Qodana SARIF result.
+- `PATH=/snap/go/current/bin:$PATH make verify`: PASS, exit 0. Format,
+  TUF/assets/notices, exact test exclusions, vet, build and the 740-runnable shard
+  inventory passed. The complete non-UI partition and all three UI race shards
+  passed (611.365s / 402.412s / 445.751s). Root UI outcomes: 738 passed and two
+  existing conditional skips: case-alias export requires a case-insensitive
+  filesystem; native HEIC image operations require explicit provider
+  qualification. No tests, exclusions or worker isolation policies were changed.
+  Runner/container exits are both 0; OOM counters/events are zero. Artifacts:
+  `.scratch/race-runs/20260929T095440Z-KtahR5/`, including raw JSON streams,
+  console, container state and memory evidence.
+
+The Linux final gate is complete for `d0998a9`. These documentation-only changes
+carry that unchanged-code evidence. No PR was opened and no new CI, CodeQL,
+Qodana SARIF or bot-review result is claimed. The todo remains open for the
+native measurement and previously recorded Swift inspection gap; the accepted
+maintainer performance verdict remains separate.
+
+An initial temporary replay investigation reproduced rejection of the retained
+final zoom image; it did not establish the first changed frame or its timing.
+All temporary replay sources/data were removed when the Linux-only scope was
+clarified, with tracked source and the original PNG pair unchanged. One initial
+verification attempt stopped at formatting those temporary files before any
+race suite ran; the complete run above began after their removal.
+
+Continuation budget/actual: one read-only scout, no delegated implementation or
+review, one full race suite. Scout G1: bounded capture/render coordinate question;
+G2: independently checked source locators; G3: no writes; G4/G5: unfamiliar
+capture-to-render relationship; S/W: relationship search rather than an edit.
+The lead owns verification and the evidence-only documentation changes.
 
 ## Scope and decisions
 
@@ -503,6 +563,7 @@ forward from `33cd7af`; full native Linux/amd64 verification remains open.
    Use the documented exact-count protocols if formal qualification is requested.
    Ronin alone supplies the 30k verdict. Keep the maintainer acceptance separate.
 5. Record native results, update this plan/todos and commit/push. On Apple Silicon,
-   do not run or claim an emulated amd64 full-suite pass; the new Go fixes require
-   fresh native Linux/amd64 verification or CI. Both macOS CI jobs now
+   do not run or claim an emulated amd64 full-suite pass. The Linux continuation
+   above now verifies the Go fixes through `d0998a9`; further source changes need
+   fresh affected verification. Both macOS CI jobs now
    run the portable matcher/policy target and type-check the production helper.

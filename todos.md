@@ -118,26 +118,25 @@
 
 - **Native Location Map gesture timing:** independent pan/zoom pixel registration
   and schema-2 transform witnesses are implemented on
-  `feature/location-map-gesture-timing`; portable Swift tests, focused race tests,
-  GoLand Go inspections and full Linux/amd64 `make verify` passed for the original
-  implementation. Native macOS compilation and permissions now pass. Live
-  retries exposed and repaired late trial resizing and missing first-map repaint;
-  focused race regressions, non-test verification and changed-file GoLand
-  inspections pass. Native cold/warm entry and pixel-verified return worked on 24 synthetic
-  GPS images. An unlocked retry identified one pan, then exposed layout-dependent
-  zoom keys; keypad plus/minus now pass protocol/Swift regressions and visibly
-  zoom the native app. The uninterrupted local attempt passed one pan, then
-  failed to identify the zoom transform despite visible motion. Replay the
-  retained frame pair to resolve registration before repeating all 40 gestures.
-  Fresh native Linux/amd64 verification is also required for the Go fixes; the
-  local ARM daemon fails the prerequisite check. Real-collection qualification
-  remains separate from this smoke test.
+  `feature/location-map-gesture-timing`. macOS geometry, first-map repaint and
+  layout-independent keypad fixes have passed focused regressions and native
+  compilation. Fresh Linux/amd64 `make verify`, focused race tests, portable
+  Swift suites and all changed-file GoLand inspections now cover `d0998a9`,
+  including those fixes; no actionable Go inspection findings remain.
+  **Remaining: native timing measurement.** Cold/warm entry, pixel-verified
+  return and one identified pan worked on 24 synthetic GPS images, but the
+  recorder rejected the first zoom despite visible motion. The complete
+  macOS 40-gesture/cancellation run therefore remains unqualified. The retained
+  final frame pair cannot establish the missing first-response timestamp.
+  Real-collection qualification remains separate from this smoke test.
   Swift semantic inspections are unavailable in the installed GoLand
   configuration and remain unverified.
   The [plan and macOS handoff](plans/2026-09-29-location-map-gesture-timing.md)
-  records verification and remaining steps. Continue from the
-  [Linux handoff](docs/location-map-linux-handoff-2026-09-29.md), which includes
-  the tracked failed screen pair. Existing maintainer performance
+  records verification and remaining steps. The
+  [Linux handoff and completion record](docs/location-map-linux-handoff-2026-09-29.md)
+  includes the tracked failed screen pair. Resume on the next computer from the
+  [return-to-macOS handoff](docs/location-map-macos-handoff-2026-09-29.md).
+  Existing maintainer performance
   acceptance stands separately from measured timing evidence.
 
 ## Deferred
