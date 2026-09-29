@@ -78,7 +78,7 @@ func stageRuntime(ctx context.Context, asset runtimeAsset, archivePath, root str
 	if _, err := unpackRuntimeAsset(ctx, staging, asset); err != nil {
 		return err
 	}
-	if err := verifyRuntime(ctx, staging, asset); err != nil {
+	if err := verifyRuntimePayload(ctx, staging, asset); err != nil {
 		return err
 	}
 	for _, name := range asset.files() {

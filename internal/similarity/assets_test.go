@@ -50,7 +50,14 @@ func TestStoreDownloadPolicy(t *testing.T) {
 	cache := t.TempDir()
 	t.Setenv("PICFETCH_SIMILARITY_ASSETS", cache)
 	root, err := runtimeDirectory(cache)
-	if err != nil || root != filepath.Dir(executable) {
+	// The test executable is outside the installed Apple bundle; it must refuse
+	// native loading instead of falling back to the model/cache override.
+	//goland:noinspection GoBoolExpressions
+	if distribution.AppleAppStore {
+		if err == nil || root != "" {
+			t.Fatalf("Apple runtime accepted an unbundled executable: %s, %v", root, err)
+		}
+	} else if err != nil || root != filepath.Dir(executable) {
 		t.Fatalf("Store runtime followed a model/cache override: %s, %v", root, err)
 	}
 	requests := 0
@@ -117,13 +124,17 @@ func TestStageMacRuntime(t *testing.T) {
 func TestStageMacRuntimePinnedArchive(t *testing.T) {
 	archive := os.Getenv("PICFETCH_TEST_MAC_RUNTIME_ARCHIVE")
 	if archive == "" {
-		t.Skip("explicit pinned macOS arm64 archive required")
+		t.Skip("explicit pinned macOS archive required")
+	}
+	arch := os.Getenv("PICFETCH_TEST_MAC_RUNTIME_ARCH")
+	if arch == "" {
+		arch = "arm64"
 	}
 	root := t.TempDir()
-	if err := StageMacRuntime(t.Context(), "arm64", archive, root); err != nil {
+	if err := StageMacRuntime(t.Context(), arch, archive, root); err != nil {
 		t.Fatal(err)
 	}
-	asset, _ := platformRuntime("darwin", "arm64")
+	asset, _ := platformRuntime("darwin", arch)
 	asset.privacyNotice = true
 	for _, name := range asset.files() {
 		if info, err := os.Stat(filepath.Join(root, name)); err != nil || !info.Mode().IsRegular() || info.Size() == 0 {

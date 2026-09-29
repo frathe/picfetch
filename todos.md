@@ -23,6 +23,7 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [ ] Qualify persistent security-scoped permissions for opening, saved sessions, Favorites, writes and workers.
 - [x] Implement the Apple Store XPC worker boundary and qualify native fixture TCP/UDP denial, cancellation and broker crash on Apple Silicon.
 - [ ] Qualify real HEIC/ONNX execution and granted source/cache access through that worker boundary on both Mac architectures.
+- [x] Validate post-sign Apple runtime code and outer bundle seals, use a shared Frameworks path for the app and worker, and qualify real arm64 CPU inference in a network-disabled sandbox fixture.
 - [ ] Bundle pinned native runtimes and notices, and validate signed Mach-O code without comparing its post-sign bytes with upstream archive hashes.
 - [ ] Add the signed Store packaging route and validate the final artifact on Intel and Apple Silicon.
 - [ ] Complete privacy/dependency/export assessment, listing metadata and Apple submission validation.

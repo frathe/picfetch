@@ -800,6 +800,16 @@ source separately. `imaging/staging_apple.go` selects Foundation's private
 same-volume replacement directory for Apple Store writes; `staging_other.go`
 keeps ordinary sibling staging.
 
+### `internal/macbundle`
+
+Apple Store native runtime layout and signed admission. `bundle.go` recognizes
+only the main app and known XPC image-helper executable, resolves their shared
+Contents/Frameworks, refuses escaping links and checks dylib architecture/type.
+`signature_darwin.go` validates the library and outer app's complete nested-code
+and resource seals through Security.framework; `signature_other.go` refuses
+native verification elsewhere. Similarity separates pre-sign payload checksums
+from Apple runtime signature checks and revalidates before loading native code.
+
 ### `internal/macworker`
 
 Mac App Store worker broker factory and native XPC service. `command.go` selects

@@ -94,7 +94,7 @@ func (c Client) InstallAssets(ctx context.Context, progress func(DownloadProgres
 	if distribution.StoreManaged {
 		nativeRoot, err := runtimeDirectory("")
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("%w: %w", ErrBundledRuntimeUnavailable, err)
 		}
 		if err := verifyRuntime(ctx, nativeRoot, assetRuntime); err != nil {
 			return "", fmt.Errorf("%w: %w", ErrBundledRuntimeUnavailable, err)

@@ -667,3 +667,80 @@ Remaining: stale grant renewal/reselection, post-write authority/source-version
 reconciliation, window drop and OS handoffs, worker source transport, signed
 runtime validation and packaging, full artifact/platform qualification. T2 remains
 open. Budget: 0 spawns, 2 inline review rounds; focused tests only for this slice.
+
+### Next slice — signed bundled runtime validation
+
+Base `cae44c9`; T4, T0 inline, Deep route. Native dylib bytes change when signed,
+but runtime admission still compares them with upstream archive hashes. The
+worker executable also lives in an XPC bundle, so its executable directory does
+not identify a shared app runtime. Fix these before building the full package.
+
+Contract: `internal/macbundle` locates only the main app or the known nested XPC
+image-helper layout and validates a regular, architecture-matching dylib in that
+app's Contents/Frameworks. Native Security checks validate the library signature
+and the outer app's complete resource/nested-code seal under PicFetch's signing
+identifier. Apple runtime loading revalidates before dlopen. Models/cache cannot
+redirect native code. Ordinary/MS Store checksums and directory policy remain.
+Pre-sign staging always checks upstream payload hashes independent of build tags.
+Native libraries go in Frameworks; license/privacy notices go in Resources,
+following Apple's standard nested-code locations rather than mixing data/code.
+
+Files: new macbundle locator/native verifier plus tests; similarity asset
+admission/encoder/staging and focused tests; architecture/exclusions/evidence.
+Tests: accepted main/helper layout, refused unrelated executable, wrong library
+location/architecture, unsigned/modified library and modified outer resources;
+valid ad-hoc signed temporary native bundle; pre-sign checks still reject bad
+archives under Apple tags. Tests use generated C fixtures, no user application.
+Verification: focused ordinary/Apple tests, native signing fixture, negative
+guards, package build/vet, GoLand. Full Store packaging is the next dependent
+slice. No new dependency; preserve pinned ONNX versions and notice obligations.
+Budget: zero spawns, two inline review rounds, no extra complete race suite.
+References: Apple Code Signing Tasks; TN2206 standard code locations and nested
+resource seals; current code-signature format guidance. Ad-hoc qualification is
+separate from Apple Distribution signing, provisioning and App Store processing.
+
+
+#### Signed runtime admission evidence
+
+Added `internal/macbundle`: known main/XPC-helper layout only, shared Frameworks
+location, no escaping symlinks, exact dylib architecture/type, native library
+signature and complete outer PicFetch resource/nested-code seal. Kernel
+`proc_pidpath` identifies the running executable independently of argv and the
+sandbox's changed working directory. Apple loading checks these seals again
+immediately before dlopen. Pre-sign staging retains upstream checksum validation;
+ordinary and Microsoft Store policies remain unchanged. Native system Security
+and CoreFoundation APIs add no redistributed dependency.
+
+- Generated native fixtures pass valid signing and reject modified/re-signed/
+  unsigned libraries, altered outer resources, wrong architecture and escaping
+  Frameworks/library links. Deliberately bypassing native validity or architecture
+  causes the regression tests to fail behaviorally.
+- Apple-tagged full affected-package race tests pass (macbundle 1.417s, similarity
+  38.848s). Ordinary and Microsoft Store focused policy/staging tests pass.
+  One existing checksum-cancellation test initially hit unbundled-executable
+  refusal first; model checks now retain their cancellation behavior before the
+  native runtime lookup, while Store installation still refuses missing runtime
+  before any download.
+- The real pinned arm64 ONNX 1.29.0 archive was staged with original hashes and
+  all three notices. Its dylib was then signed inside a sandboxed app without
+  network entitlement. Real CPU inference through CheckAssets/NewEncoder/Encode
+  returned 768 finite values. The first relative-launch fixture used os.Executable
+  after the sandbox changed cwd and failed to find models; the corrected native
+  executable lookup passes both absolute and relative launches. One intermediate
+  scratch fixture rebuild failed on an unused import; only the subsequent
+  fail-fast rebuilt execution counts as qualification.
+- The existing pinned Intel ONNX 1.23.2 archive was fetched from the exact upstream
+  release and passed repository size/SHA-256 admission and complete notice staging
+  under Apple tags. Rosetta execution is available for further Intel testing.
+  ARM runtime load commands declare macOS 14.0; Intel's existing policy is 13.4.
+- GoLand inspected every changed Go file, including warnings. Wrapped-error
+  comparison and a fixture section nil check were corrected; reinspection is
+  clean. `make verify-build`, Apple build/vet and Windows no-cgo vet passed. An
+  initial format gate caught an unformatted scratch qualification helper; the
+  corrected complete build gate passed. No full Linux race gate is implied.
+
+Evidence: `.scratch/apple-app-store-runtime/` and
+`.scratch/apple-store-runtime-probe/`; base `cae44c9` plus this slice. Ad-hoc code
+validity is not Apple Distribution trust, provisioning or App Store approval.
+The full packaged app/XPC workers and Intel execution remain next qualification
+steps. Cost: 0 spawns, 2 inline review rounds; no repeated complete suite.
