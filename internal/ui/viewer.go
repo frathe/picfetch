@@ -382,6 +382,10 @@ type viewer struct {
 	mainMenu                *fyne.MainMenu
 	pictureFrameSlidingMenu bool
 	frameChrome             *framemenu.Chrome
+	// pictureFramePadSaved remembers whether picture-frame mode removed the
+	// window padding so the sliding bar can meet the screen edge.
+	pictureFramePadSaved  bool
+	pictureFrameWasPadded bool
 
 	// clipboard tracks the active clipboard operation through result delivery;
 	// clipboardWork owns admission, cancellation, all workers and their queue.

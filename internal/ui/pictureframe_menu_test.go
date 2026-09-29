@@ -5,7 +5,9 @@ import (
 	"runtime"
 	"testing"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -59,6 +61,47 @@ func TestPictureFrameMenu_DetachesInWindowBarUntilExit(t *testing.T) {
 	}
 	if v.frameChrome.Layer().Visible() {
 		t.Fatal("the sliding bar should hide outside picture-frame mode")
+	}
+}
+
+func TestPictureFrameMenu_DetachedMenuReachesTheWindowEdge(t *testing.T) {
+	v := newTestViewer(t)
+	v.pictureFrameSlidingMenu = true
+	v.win.Resize(fyne.NewSize(800, 600))
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
+	if !v.win.Padded() {
+		t.Fatal("the window should start padded")
+	}
+
+	// glfw leaves the content below the removed menu. Reproduce that inset.
+	content := v.win.Content()
+	content.Move(fyne.NewPos(4, 40))
+	content.Resize(fyne.NewSize(700, 500))
+
+	v.togglePictureFrameMode()
+	t.Cleanup(func() { settleSlideshow(t, v) })
+
+	canvasSize := v.win.Canvas().Size()
+	if content.Position() != fyne.NewPos(0, 0) {
+		t.Fatalf("content position = %v, want the window edge", content.Position())
+	}
+	if content.Size() != canvasSize {
+		t.Fatalf("content size = %v, want the canvas %v", content.Size(), canvasSize)
+	}
+	if h := v.frameChrome.Size().Height; h < 24 {
+		t.Fatalf("hot zone height = %v, want at least 24", h)
+	}
+	if y := v.frameChrome.Position().Y; y != 0 {
+		t.Fatalf("hot zone Y = %v, want the top of the content", y)
+	}
+
+	v.togglePictureFrameMode()
+	if !v.win.Padded() {
+		t.Fatal("leaving picture-frame mode should restore window padding")
+	}
+	pad := theme.Size(theme.SizeNamePadding)
+	if content.Position() != fyne.NewPos(pad, pad) {
+		t.Fatalf("content position after exit = %v, want padded origin %v", content.Position(), pad)
 	}
 }
 

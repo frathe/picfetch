@@ -7,7 +7,7 @@
 # weights: single CI attempt; projected test sums, not measured shard runtimes
 # ui-1: 270 entries, 470.520s projected weight sum
 # ui-2: 255 entries, 470.530s projected weight sum
-# ui-3: 220 entries, 504.870s projected weight sum
+# ui-3: 221 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
 # evidence: finished_refactorings/2026-09-11-ui-shard-rebalance.md
 # name	shard
@@ -660,6 +660,7 @@ TestOpenInitialFiles_OpensPendingWhenNothingWasDelivered	ui-3
 TestOpenWithHandler_DeliveryMergesWhenMergeModeIsOn	ui-3
 TestPerformDelete_OSFailureKeepsTheFileAndToastsAnError	ui-3
 TestPerformUpdate_RecordsRelaunchThenQuits	ui-3
+TestPictureFrameMenu_DetachedMenuReachesTheWindowEdge	ui-3
 TestPictureFrameMenu_DetachesInWindowBarUntilExit	ui-3
 TestPictureFrameMenu_KeepsBarWhenSlidingIsOff	ui-3
 TestPictureFrameMenu_ShutdownDropsTheSlidingBar	ui-3
