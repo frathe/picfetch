@@ -11,11 +11,28 @@ package filepicker
 #include <string.h>
 
 // Both panels and the native transport regression use this serializer.
-static char *serializePanelURLs(NSArray<NSURL *> *urls) {
-	NSMutableArray<NSString *> *paths = [NSMutableArray array];
+static char *serializePanelURLs(NSArray<NSURL *> *urls, int scopes, char **failure) {
+	NSMutableArray *paths = [NSMutableArray array];
 	for (NSURL *url in urls) {
 		if (!url.path) return NULL;
-		[paths addObject:url.path];
+		if (scopes) {
+			NSError *error = nil;
+			NSNumber *directory = nil;
+			if (![url getResourceValue:&directory forKey:NSURLIsDirectoryKey error:&error] || !directory) {
+				*failure = strdup(error ? error.description.UTF8String : "selected URL directory inspection failed");
+				return NULL;
+			}
+			NSData *bookmark = [url bookmarkDataWithOptions:NSURLBookmarkCreationWithSecurityScope
+				includingResourceValuesForKeys:nil relativeToURL:nil error:&error];
+			if (!bookmark) {
+				*failure = strdup(error ? error.description.UTF8String : "selected URL bookmark capture failed");
+				return NULL;
+			}
+			[paths addObject:@{@"uri":url.absoluteString,
+				@"bookmark":[bookmark base64EncodedStringWithOptions:0], @"directory":directory}];
+		} else {
+			[paths addObject:url.path];
+		}
 	}
 	NSData *data = [NSJSONSerialization dataWithJSONObject:paths options:0 error:NULL];
 	if (!data) return NULL;
@@ -30,16 +47,39 @@ static char *roundTripPanelPaths(const char *input) {
 		NSArray<NSString *> *paths = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
 		NSMutableArray<NSURL *> *urls = [NSMutableArray array];
 		for (NSString *path in paths) [urls addObject:[NSURL fileURLWithPath:path]];
-		return serializePanelURLs(urls);
+		return serializePanelURLs(urls, 0, NULL);
 	}
 }
 
 // runOpenPanel shows an app-modal NSOpenPanel that allows files, folders,
 // and multi-select all at once - a combination none of AppleScript's
 // Standard Additions pickers offer. Must be called on the main thread (an
-// AppKit requirement); chooseFilesDarwin below guarantees that. Returns a
-// malloc'd JSON path array; JSON null on cancel, NULL on failure.
-static char *runOpenPanel(const char *message) {
+// AppKit requirement); chooseFilesDarwin below guarantees that. Returns
+// retained URLs or an explicit cancellation/failure state. Serialization runs
+// on the chooser worker after the modal panel closes.
+typedef struct {
+	int state; // 0 cancellation, 1 selected URLs, -1 native failure.
+	void *urls;
+} panelResult;
+
+// Keep original native URL authority through delivery to the chooser worker.
+static panelResult retainSelection(NSArray<NSURL *> *urls) {
+	if (!urls.count) return (panelResult){-1, NULL};
+	return (panelResult){1, (__bridge_retained void *)[urls copy]};
+}
+
+static char *serializeSelection(panelResult result, int scopes, char **failure) {
+	@autoreleasepool {
+		NSArray<NSURL *> *urls = (__bridge_transfer NSArray<NSURL *> *)result.urls;
+		char *data = serializePanelURLs(urls, scopes, failure);
+		if (scopes) {
+			for (NSURL *url in urls) [url stopAccessingSecurityScopedResource];
+		}
+		return data;
+	}
+}
+
+static panelResult runOpenPanel(const char *message) {
 	NSOpenPanel *panel = [NSOpenPanel openPanel];
 	panel.message = [NSString stringWithUTF8String:message];
 	panel.canChooseFiles = YES;
@@ -47,9 +87,9 @@ static char *runOpenPanel(const char *message) {
 	panel.allowsMultipleSelection = YES;
 
 	NSModalResponse response = [panel runModal];
-	if (response == NSModalResponseCancel) return strdup("null");
-	if (response != NSModalResponseOK) return NULL;
-	return serializePanelURLs(panel.URLs);
+	if (response == NSModalResponseCancel) return (panelResult){0, NULL};
+	if (response != NSModalResponseOK) return (panelResult){-1, NULL};
+	return retainSelection(panel.URLs);
 }
 
 // runSavePanel shows an app-modal NSSavePanel pre-filled with name, opened
@@ -57,8 +97,8 @@ static char *runOpenPanel(const char *message) {
 // chooseSaveDarwin guarantees it the same way. No allowedContentTypes is
 // set: the format is already decided by which "Export as…" item the user
 // picked, and constraining the panel would only stop them naming the file
-// whatever they want. Returns the same JSON contract as runOpenPanel.
-static char *runSavePanel(const char *message, const char *dir, const char *name) {
+// whatever they want. Returns the same retained-URL contract as runOpenPanel.
+static panelResult runSavePanel(const char *message, const char *dir, const char *name) {
 	NSSavePanel *panel = [NSSavePanel savePanel];
 	panel.message = [NSString stringWithUTF8String:message];
 	panel.nameFieldStringValue = [NSString stringWithUTF8String:name];
@@ -68,20 +108,23 @@ static char *runSavePanel(const char *message, const char *dir, const char *name
 	}
 
 	NSModalResponse response = [panel runModal];
-	if (response == NSModalResponseCancel) return strdup("null");
-	if (response != NSModalResponseOK) return NULL;
-	return serializePanelURLs(panel.URL ? @[panel.URL] : @[]);
+	if (response == NSModalResponseCancel) return (panelResult){0, NULL};
+	if (response != NSModalResponseOK) return (panelResult){-1, NULL};
+	return retainSelection(panel.URL ? @[panel.URL] : @[]);
 }
 */
 import "C"
 
 import (
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"unsafe"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
+
+	"github.com/frathe/picfetch/internal/distribution"
 )
 
 // chooseFilesDarwin runs AppKit's NSOpenPanel in-process rather than
@@ -107,13 +150,9 @@ func chooseFilesDarwin() ([]byte, error) {
 	cMsg := C.CString(lang.L("Open images"))
 	defer C.free(unsafe.Pointer(cMsg))
 
-	var out []byte
-	fyne.DoAndWait(func() {
-		cOut := C.runOpenPanel(cMsg)
-		defer C.free(unsafe.Pointer(cOut))
-		out = []byte(C.GoString(cOut))
-	})
-	return out, nil
+	var result C.panelResult
+	fyne.DoAndWait(func() { result = C.runOpenPanel(cMsg) })
+	return decodeNativePanel(result, distribution.AppleAppStore)
 }
 
 // chooseSaveDarwin is chooseFilesDarwin's save-panel twin, in-process and
@@ -130,13 +169,9 @@ func chooseSaveDarwin(suggestedPath string) ([]byte, error) {
 	cName := C.CString(filepath.Base(suggestedPath))
 	defer C.free(unsafe.Pointer(cName))
 
-	var out []byte
-	fyne.DoAndWait(func() {
-		cOut := C.runSavePanel(cMsg, cDir, cName)
-		defer C.free(unsafe.Pointer(cOut))
-		out = []byte(C.GoString(cOut))
-	})
-	return out, nil
+	var result C.panelResult
+	fyne.DoAndWait(func() { result = C.runSavePanel(cMsg, cDir, cName) })
+	return decodeNativePanel(result, false)
 }
 
 // darwinPathTransport exercises the panel's actual Objective-C NSURL serializer
@@ -151,4 +186,30 @@ func darwinPathTransport(paths []string) ([]byte, error) {
 	cOut := C.roundTripPanelPaths(cInput)
 	defer C.free(unsafe.Pointer(cOut))
 	return []byte(C.GoString(cOut)), nil
+}
+
+// URL/bookmark inspection runs on the tracked chooser worker, after the modal
+// panel releases UI. Native URLs remain owned until this serialization ends.
+func decodeNativePanel(result C.panelResult, scoped bool) ([]byte, error) {
+	if result.state == 0 {
+		return []byte("null"), nil
+	}
+	if result.state != 1 {
+		return nil, errors.New("native file panel failed")
+	}
+	scopes := C.int(0)
+	if scoped {
+		scopes = 1
+	}
+	var failure *C.char
+	data := C.serializeSelection(result, scopes, &failure)
+	defer C.free(unsafe.Pointer(data))
+	defer C.free(unsafe.Pointer(failure))
+	if failure != nil {
+		return nil, errors.New(C.GoString(failure))
+	}
+	if data == nil {
+		return nil, errors.New("native file panel serialization failed")
+	}
+	return []byte(C.GoString(data)), nil
 }

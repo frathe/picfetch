@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
 	_ "github.com/fyne-io/image/xpm" // registers XPM with image.Decode
 	_ "github.com/gen2brain/avif"    // registers AVIF with image.Decode (WASM/wazero, no cgo)
 	_ "golang.org/x/image/bmp"       // registers BMP with image.Decode
@@ -29,6 +28,7 @@ import (
 	_ "golang.org/x/image/webp"      // registers WebP with image.Decode
 
 	_ "github.com/frathe/picfetch/internal/avifpolicy" // requires the WASM/wazero build
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/heic"
 )
 
@@ -258,7 +258,7 @@ func readRawBytes(ctx context.Context, u fyne.URI) ([]byte, error) {
 		return nil, err
 	}
 
-	rc, err := storage.Reader(u)
+	rc, err := fileaccess.Reader(ctx, u)
 	if err != nil {
 		return nil, err
 	}

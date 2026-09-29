@@ -25,6 +25,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/imaging"
 )
 
@@ -127,7 +128,7 @@ func gather(ctx context.Context, uris []fyne.URI, max int, progress func(int), a
 	// already allows re-adding a file that's already loaded.
 	seenFiles := make(map[string]bool)
 
-	process := func(u fyne.URI) {
+	process := func(u, identity fyne.URI) {
 		if truncated || ctx.Err() != nil {
 			return
 		}
@@ -155,7 +156,7 @@ func gather(ctx context.Context, uris []fyne.URI, max int, progress func(int), a
 			seenFiles[pathOf] = true
 		}
 
-		images = append(images, u)
+		images = append(images, identity)
 		count++
 		if count >= max {
 			truncated = true
@@ -166,7 +167,15 @@ func gather(ctx context.Context, uris []fyne.URI, max int, progress func(int), a
 	}
 
 	for _, u := range uris {
-		process(u)
+		resolved, release, err := fileaccess.Acquire(ctx, u)
+		if err != nil {
+			// Preserve recorded occurrences; a failed grant does not turn a known
+			// image into an empty successful collection. Its read reports the failure.
+			process(u, u)
+			continue
+		}
+		process(resolved, u)
+		release()
 	}
 
 	for len(dirs) > 0 && !truncated {
@@ -175,13 +184,20 @@ func gather(ctx context.Context, uris []fyne.URI, max int, progress func(int), a
 		}
 		d := dirs[len(dirs)-1]
 		dirs = dirs[:len(dirs)-1]
-		children, err := storage.List(d)
+		resolved, release, err := fileaccess.Acquire(ctx, d)
 		if err != nil {
 			continue
 		}
-		for _, child := range children {
-			process(child)
+		children, err := storage.List(resolved)
+		if err == nil {
+			for _, child := range children {
+				granted, err := fileaccess.Child(resolved, child)
+				if err == nil {
+					process(granted, granted)
+				}
+			}
 		}
+		release()
 	}
 
 	return images, truncated
@@ -216,7 +232,13 @@ func SiblingsWithAdmission(ctx context.Context, file fyne.URI, max int, progress
 		return nil, false
 	}
 
-	origin := realPathOf(file)
+	resolved, releaseFile, err := fileaccess.Acquire(ctx, file)
+	if err == nil {
+		defer releaseFile()
+	} else {
+		resolved = file
+	}
+	origin := realPathOf(resolved)
 	seen := make(map[string]bool)
 	count := 0
 	add := func(u fyne.URI) {
@@ -247,19 +269,24 @@ func SiblingsWithAdmission(ctx context.Context, file fyne.URI, max int, progress
 		}
 	}
 
-	add(file)
+	add(resolved)
 	if truncated {
 		return images, truncated
 	}
 	seeded := len(images)
 
-	parent, err := storage.Parent(file)
+	parent, err := fileaccess.Parent(resolved)
 	if err != nil {
 		return images, truncated
 	}
 	if parent.Scheme() != "file" {
 		return images, truncated
 	}
+	parent, releaseParent, err := fileaccess.Acquire(ctx, parent)
+	if err != nil {
+		return images, truncated
+	}
+	defer releaseParent()
 	directory, err := os.Open(parent.Path())
 	if err != nil {
 		return images, truncated
@@ -274,7 +301,10 @@ func SiblingsWithAdmission(ctx context.Context, file fyne.URI, max int, progress
 		entries, readErr := directory.ReadDir(batch)
 		for _, entry := range entries {
 			entriesRead++
-			add(storage.NewFileURI(filepath.Join(parent.Path(), entry.Name())))
+			child, err := fileaccess.Child(parent, storage.NewFileURI(filepath.Join(parent.Path(), entry.Name())))
+			if err == nil {
+				add(child)
+			}
 		}
 		if readErr != nil {
 			break

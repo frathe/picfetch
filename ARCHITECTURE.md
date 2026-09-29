@@ -773,6 +773,22 @@ Help's `privacy.go` uses the same document-injection pattern through
 policy opens a separate, word-wrapped Markdown singleton with vertical scrolling,
 Escape-to-close, and the same command-admission and shutdown guards.
 
+### `internal/fileaccess`
+
+Immutable source URI authority and bounded native acquisition. `source.go`
+restores/snapshots bookmark records, propagates selected directory grants to
+validated children and resolves an independent scope for each operation.
+`reader.go` holds the scope through the actual ReadCloser.Close; imaging's
+canonical read path uses it. `native_darwin.go` resolves explicit scopes in
+Apple Store builds; `native_other.go` preserves ordinary URI behavior.
+`manifest.go` stores each distinct scope once while retaining every ordered
+source occurrence. Session and Favorite persistence validate the complete
+manifest against their saved membership before publishing restored sources.
+The Darwin open picker captures native URL bookmarks on its tracked chooser
+worker; folder scans pass captured directory authority to children. Native
+save/Open With/drop capture, permission reselection, writes, source versions
+and analysis transfer remain open in the active Apple Store plan.
+
 ### `internal/macworker`
 
 Mac App Store worker broker factory and native XPC service. `command.go` selects
@@ -889,7 +905,7 @@ unavailable.
 | File | Responsibility |
 |------|----------------|
 | `favstore.go` | `Save` / `Load` / `Count` / `DefaultDir`; trash-backed remove. |
-| `membership.go` | One strict numeric-position decoder, cancellable reads, validated encoding and the exact 64 MiB read/write definition limit. |
+| `membership.go` | Strict numeric-position membership with optional `$access` scope manifest, cancellable reads, complete authority/membership validation and the exact 64 MiB read/write definition limit. |
 | `ownership.go` | `Open` / `Definition`, captured directory/list `Owner`, short-lived `Access`, permanent observed retirement, full-list fingerprint and captured relative-path interpretation. `Observe` supports unknown-membership maintenance. |
 | `inventory.go` | Cancellable 64-entry enumeration, complete validation with scoped retained membership, healthy/unknown outcomes and enumeration completeness. |
 | `listing.go` | Batched Favorite discovery and complete validated counts, retaining bare names for unreadable definitions; no partial cancelled listing. |
@@ -917,7 +933,7 @@ Last-open file set via Fyne’s app-scoped cache.
 
 | File | Responsibility |
 |------|----------------|
-| `session.go` | `Save`, `Load`. |
+| `session.go` | `Save`, `Load`; legacy path lists plus an optional deduplicated scope manifest aligned to complete occurrence order. |
 
 ### `internal/update`
 
@@ -1134,6 +1150,8 @@ viewer's handler and flushes in the same critical section.
 Recursive image gather for drop/open, plus a non-recursive sibling listing
 when the user opened a single file. Recorded Favorite/session replay shares the
 bounded admission loop without discovering directories or collapsing occurrences.
+Listings acquire operation-bound scopes, preserve directory grants in descendants,
+and refuse sibling discovery beyond a selected file or directory root.
 
 | File | Responsibility |
 |------|----------------|

@@ -20,6 +20,9 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // Choose returns the exact selected file/folder identities in selection order.
@@ -67,7 +70,7 @@ func decodePickedDestination(out []byte, err error) (fyne.URI, error) {
 	return picked[0], nil
 }
 
-// Native adapters emit a JSON array of paths, or null for cancellation.
+// Native adapters emit paths, Apple Store scope records, or null for cancellation.
 // An empty successful selection is distinct from cancellation and cannot be used.
 func decodePickedPaths(out []byte, err error) ([]fyne.URI, error) {
 	if err != nil {
@@ -78,6 +81,9 @@ func decodePickedPaths(out []byte, err error) ([]fyne.URI, error) {
 	}
 	var paths []string
 	if err := json.Unmarshal(out, &paths); err != nil {
+		if distribution.AppleAppStore {
+			return decodeScopedSelection(out)
+		}
 		return nil, fmt.Errorf("invalid file chooser result: %w", err)
 	}
 	if paths == nil {
@@ -248,4 +254,28 @@ try {
 	[Console]::Error.WriteLine($_.Exception.Message)
 	exit 1
 }`
+}
+
+// decodeScopedSelection accepts only complete native authority records. It
+// never upgrades plain paths or a partially captured selection into grants.
+func decodeScopedSelection(out []byte) ([]fyne.URI, error) {
+	var records []fileaccess.Record
+	if err := json.Unmarshal(out, &records); err != nil {
+		return nil, fmt.Errorf("invalid scoped file chooser result: %w", err)
+	}
+	if len(records) == 0 {
+		return nil, errors.New("file chooser returned an empty scoped selection")
+	}
+	files := make([]fyne.URI, len(records))
+	for i, record := range records {
+		if len(record.Bookmark) == 0 || record.Relative != "" {
+			return nil, errors.New("file chooser did not capture its selected scope")
+		}
+		source, err := fileaccess.FromRecord(record)
+		if err != nil {
+			return nil, err
+		}
+		files[i] = source
+	}
+	return files, nil
 }

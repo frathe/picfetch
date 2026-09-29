@@ -8,6 +8,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 func TestDecodePickedPaths_PreservesBoundaries(t *testing.T) {
@@ -295,5 +300,29 @@ func TestZenityResult_DistinguishesCancelAndFailure(t *testing.T) {
 		} else if !errors.Is(err, processErr) {
 			t.Fatal("execution failure was lost")
 		}
+	}
+}
+
+func TestDecodePickedPaths_ScopedRecords(t *testing.T) {
+	source := storage.NewFileURI("/tmp/ scoped café folder ")
+	payload, err := json.Marshal([]fileaccess.Record{{URI: source.String(), Bookmark: []byte("selected-scope"), Directory: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	picked, err := decodePickedPaths(payload, nil)
+	// The immutable channel changes with the build tags used by this test.
+	//goland:noinspection GoBoolExpressions
+	if !distribution.AppleAppStore {
+		if err == nil {
+			t.Fatal("ordinary picker accepted a Store authority payload")
+		}
+		return
+	}
+	if err != nil || len(picked) != 1 {
+		t.Fatalf("scoped selection: %v, %v", picked, err)
+	}
+	record := fileaccess.Snapshot(picked[0])
+	if record.URI != picked[0].String() || string(record.Bookmark) != "selected-scope" || !record.Directory {
+		t.Fatalf("lost selected authority: %+v", record)
 	}
 }

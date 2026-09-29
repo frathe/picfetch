@@ -330,3 +330,135 @@ io.github.frathe.picfetch.grantqualification and only the generated
 .scratch/apple-store-grant-probe/selected folder. User selection/relaunch/moved
 folder evidence is pending. No production bookmark readiness is inferred from
 the successful temporary interprocess grant fixture.
+
+### Persistent grant probe — actual user-selected folder
+
+Ronin selected only the generated fixture folder in the temporary native
+NSOpenPanel. Its separate ad-hoc signed app has app-sandbox,
+files.user-selected.read-write and files.bookmarks.app-scope entitlements.
+
+- Capture returned a nonempty security-scoped bookmark with no native error.
+- Fresh-process restore: original-path read failed with Cocoa error 257,
+  startAccessingSecurityScopedResource returned true, content read succeeded,
+  and stale=false. The matching stop call ran before process exit.
+- Renamed generated folder: original-path read failed with error 260; the
+  bookmark resolved the moved directory, returned stale=true, read succeeded,
+  and regenerating persistent data succeeded. The fixture folder was restored
+  to its original path afterward.
+- Evidence: .scratch/apple-store-grant-probe/restored.json and moved.json;
+  native source and signed app are alongside them. No user photo was selected.
+- Computer-use launched the probe but AX requests timed out. The completed
+  native output, rather than inaccessible AX state, establishes these results.
+  Ronin performed the initial selection; subsequent launches need no picker.
+- Full Apple-tagged application build to a temporary executable succeeds.
+  This is compilation evidence only; no production sandbox bundle is ready.
+
+Source boundary map before T2 edits:
+
+| Boundary | Existing entry points | Required authority lifetime |
+| --- | --- | --- |
+| Selection/open | filepicker Darwin panel serializer; openwith native URL bridge; UI open/drop admission | Capture selected URL bookmark before flattening, admit immutable URI metadata; cancelled requests publish no new sources. |
+| Decode/EXIF | imaging.readRawBytes | Acquire before storage.Reader; release after ReadCloser closes, including cancelled/failed reads. |
+| Scan | filescan.gather and SiblingsWithAdmission | Acquire during each directory listing/stat; attach captured directory grant to discovered children; file grants cannot authorize parent scans. |
+| Save/export/metadata | imaging.SaveRotatedContext, ExportContext, StripJPEGMetadataContext | Hold source/destination grant across transaction, temp replacement and committed effects; source metadata reads need their own grant. |
+| Version/reconciliation | favthumbs.EntryName; UI filework stats and alias comparisons | Acquire on existing tracked workers; keep captured source/version semantics. |
+| Delete | deletion.performDelete -> imaging.WithFileMutation -> trash.Move | Hold captured target grant through submitted native completion even if view closes. |
+| Persistence | session state; favstore.Definition.Files and saving list encoding | Preserve complete ordered grant metadata/occurrences; no filesystem widening from path lists. |
+| OS handoff | reveal, clipboard file copy and wallpaper native URLs | Hold scope through actual native call; verify recipient access using public URL mechanisms. |
+| Analysis | similarity.Client Analyze/Search request and WorkerMain | Parent leases through complete worker wait; temporary bookmark array bounded by existing protocol limits; worker scopes through complete producer/nested decoder retirement. |
+
+T2 remains open. These probes establish the native bookmark behavior, not
+production grant propagation, stale collection reconciliation or complete
+sandboxed feature operation.
+
+### Recovery continuation — source permission persistence
+
+Resume the uncommitted fileaccess/picker/scan/read patch on `a293137`.
+Owner: T0 inline; no delegation. Seams: fileaccess Acquire/Reader/Child/Parent,
+filescan Images/Replay/Siblings, session Save/Load, and favstore Save/Open/Files.
+Preserve occurrence order and distinct grants for repeated paths; ordinary
+path-only records remain readable. Favorite publication must return the same
+authority that reopening its complete saved membership returns, without native
+scope acquisition during encoding or decoding. Malformed authority fails closed.
+Verify: focused ordinary and Apple-tagged tests for fileaccess, filepicker,
+filescan, session and favstore; then affected regressions, vet and IDE inspections.
+Budget: 0 spawns, 2 inline review rounds, complete verification once at handoff.
+This slice does not establish signed full-application qualification.
+
+### Recovery checkpoint — 2026-09-29
+
+Base: `a293137`, plus the recovered and continued working-tree patch; no commit
+or push in this continuation. Code scope: 21 Go files, sorted path/NUL/content/NUL
+SHA-256 `bcfd4b0b4531e8301d11b5c2b7ad3c0f6a8d7db881cf2091846bc78c3bfac05a`.
+
+Concurrent detached Codex sessions were still modifying this checkout after the
+interrupted run. Ronin explicitly requested stopping all other sessions. They
+were terminated, remaining detached processes were force-stopped, and a process
+check confirmed only the current session remained. Late manifest/session edits
+were reconciled before the final tests. Some shell tool calls fail to report
+completion even after command exit; explicit command exit markers and complete
+package results are the verification evidence, not those tool session handles.
+
+Implemented checkpoint:
+
+- Native open-panel URL ownership survives UI delivery to the tracked chooser
+  worker, where Apple-channel persistent bookmarks are captured. Canonical image
+  reads hold one acquired scope through ReadCloser.Close, with idempotent release.
+- Folder scans propagate the captured directory grant to descendants; file-only
+  selections do not acquire parent/sibling authority. Replay preserves occurrences.
+- `fileaccess.Manifest` stores each shared scope once and retains every ordered
+  source occurrence. Session `access` and Favorite `$access` metadata are checked
+  against the complete saved list before restoration. Ordinary path-only writes
+  retain their existing format; old path-only records remain readable. Older
+  PicFetch versions do not understand the new scoped Favorite metadata.
+- Committed Favorite save results carry the same source authority as reopening
+  the published membership. No native scope is acquired while serializing or
+  restoring metadata. A 1,024-occurrence collection sharing a 128 KiB bookmark
+  saves and reopens within the existing 64 MiB Favorite definition limit.
+
+Verification:
+
+- Session and Favorite authority regressions first failed because bookmarks were
+  lost; both pass with the implementation. Malformed, mismatched and incomplete
+  manifests fail closed; duplicate numeric positions and legacy size limits
+  retain their existing regression coverage.
+- Ordinary and Apple-tagged fileaccess, filepicker, filescan, session and favstore
+  suites pass. Ordinary imaging, favthumbs, UI Favorites, Location Map, similarity
+  and macworker regressions pass.
+- Apple-tagged root UI collection/Favorite and Store-policy integration passes
+  (`TestCollectionReplay|TestCollection|TestFavorite|TestLaunchPolicyIntegration|TestUpdateCheck_StoreManaged`).
+- Temporary Go overlays deliberately discarded bookmarks, omitted cancellation
+  release, discarded child grants and widened file-only sibling access. Guards
+  failed on each intended behavior; real sources were unchanged and restored
+  focused suites pass. The first scan overlay had an unused variable compile
+  error; it was corrected before the reported behavioral failures.
+- `make verify-build` passes (format, TUF/assets/notices/exclusions, vet, build).
+  Focused Apple-tagged vet and Windows/amd64 no-cgo vet pass for fileaccess,
+  session, favstore, filescan and filepicker. The two new scan structural tests
+  use the non-Store resolver explicitly; signed native grant behavior remains
+  a separate qualification gate.
+- GoLand `get_file_problems(errorsOnly=false)` inspected all 21 changed Go files.
+  Import ordering and a previously unhandled test Close error were corrected.
+  The build-channel constant warning has a narrow documented suppression.
+  Reinspection leaves intentional duplicate test fragments in session,
+  favstore/saving and filepicker; existing exact Qodana exclusions cover them.
+  The current IDE profile does not select `nodynamic`, so imaging/loader.go has
+  an AVIF build-constraint diagnostic. CLI vet/build with required tags passes;
+  that IDE profile's imaging result remains unverified, not suppressed. This is
+  IDE fallback evidence, not a fresh Qodana SARIF/profile result.
+- `make verify` cannot pass its prerequisite: the selected Docker daemon reports
+  Linux/aarch64. Complete native Linux/amd64 race verification remains unverified;
+  no isolation test or worker restriction was bypassed.
+
+Next: native save/Open With/drop capture, missing/stale-grant reselection and
+renewal, mutation/version/OS-handoff scope lifetimes, worker grant transport,
+signed runtime validation/packaging, and full Intel/Apple Silicon qualification.
+Session cache corruption retains its existing nil-result behavior; presenting a
+reselection/error surface for unusable authority is still part of T2. The raw
+record and manifest tests establish serialization/lifetimes, not a sandboxed
+production application's readiness. Signing inputs and Apple submission gates
+remain outstanding. No release, upload, credential change or dependency upgrade.
+
+Recovery budget: 0 spawns; 3 inline review rounds (one additional reconciliation
+round for concurrent edits); one attempted complete gate, blocked at the daemon
+platform guard. Focused tests and build-only verification completed separately.
