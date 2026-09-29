@@ -80,11 +80,71 @@ static void deliverAbsoluteStrings(NSArray<NSString *> *strings) {
 	free(buf);
 }
 
+// Transfer original native URLs, not reconstructed paths. Go assumes ownership
+// of each retained object even when it refuses the associated identity.
+static void deliverSelectedURLs(NSArray<NSURL *> *urls) {
+	NSUInteger count = urls.count;
+	if (count == 0 || count > INT_MAX) return;
+	void **owners = calloc(count, sizeof(void *));
+	char **addresses = calloc(count, sizeof(char *));
+	if (!owners || !addresses) {
+		free(owners); free(addresses);
+		for (NSURL *url in urls) [url stopAccessingSecurityScopedResource];
+		return;
+	}
+	int n = 0;
+	for (NSURL *url in urls) {
+		const char *address = url.absoluteString.UTF8String;
+		char *copy = address ? strdup(address) : NULL;
+		if (!copy) { [url stopAccessingSecurityScopedResource]; continue; }
+		owners[n] = (__bridge_retained void *)url;
+		addresses[n++] = copy;
+	}
+	if (n) picfetchDeliverSelectedURLs(owners, addresses, n);
+	for (int i = 0; i < n; i++) free(addresses[i]);
+	free(addresses); free(owners);
+}
+
+char *picfetchCaptureSelectedURL(void *owner, char **failure) {
+	@autoreleasepool {
+		NSURL *url = (__bridge NSURL *)owner;
+		NSError *error = nil;
+		NSNumber *directory = nil;
+		if (![url getResourceValue:&directory forKey:NSURLIsDirectoryKey error:&error] || !directory) {
+			*failure = strdup(error ? error.description.UTF8String : "selected URL directory inspection failed");
+			return NULL;
+		}
+		NSData *bookmark = [url bookmarkDataWithOptions:NSURLBookmarkCreationWithSecurityScope
+			includingResourceValuesForKeys:nil relativeToURL:nil error:&error];
+		if (!bookmark) {
+			*failure = strdup(error ? error.description.UTF8String : "selected URL bookmark capture failed");
+			return NULL;
+		}
+		NSDictionary *record = @{@"uri":url.absoluteString,
+			@"bookmark":[bookmark base64EncodedStringWithOptions:0], @"directory":directory};
+		NSData *data = [NSJSONSerialization dataWithJSONObject:record options:0 error:&error];
+		if (!data) {
+			*failure = strdup(error ? error.description.UTF8String : "selected URL serialization failed");
+			return NULL;
+		}
+		NSString *json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+		return json ? strdup(json.UTF8String) : NULL;
+	}
+}
+
+void picfetchReleaseSelectedURL(void *owner) {
+	@autoreleasepool {
+		NSURL *url = (__bridge_transfer NSURL *)owner;
+		[url stopAccessingSecurityScopedResource];
+	}
+}
+
 // picfetchOpenURLs is the IMP grafted on as -application:openURLs:, the
 // modern (10.13+) open-document callback. Fast enumeration over a nil array
 // is a no-op, so a nil urls argument simply delivers nothing.
 static void picfetchOpenURLs(id self, SEL _cmd, id sender, NSArray<NSURL *> *urls) {
 	@autoreleasepool {
+		if (picfetchUsesScopedOpen()) { deliverSelectedURLs(urls); return; }
 		NSMutableArray<NSString *> *absolute = [NSMutableArray arrayWithCapacity:[urls count]];
 		for (NSURL *url in urls) {
 			NSString *s = [url absoluteString];
@@ -106,6 +166,17 @@ static void picfetchOpenURLs(id self, SEL _cmd, id sender, NSArray<NSURL *> *url
 // when a delegate answers both, so there is no double delivery.
 static void picfetchOpenFiles(id self, SEL _cmd, id sender, NSArray<NSString *> *paths) {
 	@autoreleasepool {
+		if (picfetchUsesScopedOpen()) {
+			NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+			for (NSString *path in paths) {
+				if (!path.length) continue;
+				NSURL *url = [NSURL fileURLWithPath:path];
+				if (url) [urls addObject:url];
+			}
+			deliverSelectedURLs(urls);
+			[(NSApplication *)sender replyToOpenOrPrint:NSApplicationDelegateReplySuccess];
+			return;
+		}
 		NSMutableArray<NSString *> *absolute = [NSMutableArray arrayWithCapacity:[paths count]];
 		for (NSString *path in paths) {
 			// +fileURLWithPath: answers nil for an empty path on current
@@ -205,5 +276,17 @@ void picfetchTestInvokeOpenFiles(const char **paths, int n) {
 			}
 		}
 		picfetchOpenFiles(nil, @selector(application:openFiles:), nil, arr);
+	}
+}
+
+void picfetchTestInvokeSelectedURLs(const char **urls, int n) {
+	@autoreleasepool {
+		NSMutableArray<NSURL *> *selected = [NSMutableArray array];
+		for (int i = 0; urls && i < n; i++) {
+			if (!urls[i]) continue;
+			NSURL *url = [NSURL URLWithString:[NSString stringWithUTF8String:urls[i]]];
+			if (url) [selected addObject:url];
+		}
+		deliverSelectedURLs(selected);
 	}
 }

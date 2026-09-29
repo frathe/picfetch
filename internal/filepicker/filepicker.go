@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -271,6 +272,11 @@ func decodeScopedSelection(out []byte) ([]fyne.URI, error) {
 		if len(record.Bookmark) == 0 || record.Relative != "" {
 			return nil, errors.New("file chooser did not capture its selected scope")
 		}
+		nativeURL, err := url.Parse(record.URI)
+		if err != nil || nativeURL.Scheme != "file" || (nativeURL.Host != "" && nativeURL.Host != "localhost") || nativeURL.Path == "" {
+			return nil, errors.New("file chooser returned an invalid native file URL")
+		}
+		record.URI = storage.NewFileURI(nativeURL.Path).String()
 		source, err := fileaccess.FromRecord(record)
 		if err != nil {
 			return nil, err

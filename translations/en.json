@@ -1,4 +1,5 @@
 {
+  "could not open selected files: %v": "could not open selected files: %v",
    "Could not cache Favorite locations. Locations remain available in memory.": "Could not cache Favorite locations. Locations remain available in memory.",
    "Showing location cluster": "Showing location cluster",
    "Location from %s": "Location from %s",

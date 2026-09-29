@@ -3,6 +3,7 @@ package filepicker
 import (
 	"encoding/json"
 	"errors"
+	"net/url"
 	"os"
 	"os/exec"
 	"slices"
@@ -305,7 +306,7 @@ func TestZenityResult_DistinguishesCancelAndFailure(t *testing.T) {
 
 func TestDecodePickedPaths_ScopedRecords(t *testing.T) {
 	source := storage.NewFileURI("/tmp/ scoped café folder ")
-	payload, err := json.Marshal([]fileaccess.Record{{URI: source.String(), Bookmark: []byte("selected-scope"), Directory: true}})
+	payload, err := json.Marshal([]fileaccess.Record{{URI: (&url.URL{Scheme: "file", Path: source.Path()}).String(), Bookmark: []byte("selected-scope"), Directory: true}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,5 +325,26 @@ func TestDecodePickedPaths_ScopedRecords(t *testing.T) {
 	record := fileaccess.Snapshot(picked[0])
 	if record.URI != picked[0].String() || string(record.Bookmark) != "selected-scope" || !record.Directory {
 		t.Fatalf("lost selected authority: %+v", record)
+	}
+}
+
+func TestScopedSelectionDecodesNativeURLExactlyOnce(t *testing.T) {
+	for _, path := range []string{"/photos/space café.jpg", "/photos/literal%20name.jpg", "/photos/hash#question?.jpg"} {
+		native := (&url.URL{Scheme: "file", Path: path}).String()
+		payload, err := json.Marshal([]fileaccess.Record{{URI: native, Bookmark: []byte("scope")}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		selected, err := decodeScopedSelection(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(selected) != 1 || selected[0].Path() != path {
+			t.Fatalf("native URL %q became %v", native, selected)
+		}
+		restored, err := fileaccess.FromRecord(fileaccess.Snapshot(selected[0]))
+		if err != nil || restored.Path() != path {
+			t.Fatalf("persistent URI decoded twice: %v, %v", restored, err)
+		}
 	}
 }

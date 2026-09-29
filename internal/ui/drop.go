@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/filescan"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
@@ -87,6 +88,12 @@ const (
 )
 
 func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collectionInputKind) {
+	inputOwned := true
+	defer func() {
+		if inputOwned {
+			fileaccess.ReleaseSelected(uris)
+		}
+	}()
 	if len(uris) == 0 {
 		return
 	}
@@ -94,6 +101,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 		return
 	}
 
+	uris = slices.Clone(uris)
 	// Admission precedes collection replacement and all cancellation effects.
 	v.favorites.CancelOpen()
 	// A replacement request must not inherit --slideshow from the launch
@@ -118,6 +126,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 	v.invalidateSort()
 	v.invalidateLoad()
 	token, scanDone := v.scanOp.begin(v.heicContext(context.Background()))
+	workerDone := v.scanWorkerDone.Begin()
 	v.syncMenus()
 
 	v.scanOp.label.SetText(lang.L("Scanning... 0 images"))
@@ -135,15 +144,39 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 	// scan. See SetMaxScan's doc comment.
 	maxScan := v.settings.maxScan
 
-	hasDirs := false
-	for _, u := range uris {
-		if canList, err := storage.CanList(u); err == nil && canList {
-			hasDirs = true
-			break
+	protected := false
+	for _, uri := range uris {
+		protected = protected || fileaccess.HasScope(uri) || fileaccess.NeedsCapture(uri)
+	}
+	inspect := func() (hasDirs, singleImage bool) {
+		for _, uri := range uris {
+			resolved, release, err := fileaccess.Acquire(token.Context(), uri)
+			if err != nil {
+				continue
+			}
+			directory, err := storage.CanList(resolved)
+			hasDirs = err == nil && directory
+			if !hasDirs && len(uris) == 1 {
+				// MIME fallback may read bytes; keep the scope through that read.
+				singleImage = imaging.IsSupportedImage(resolved) || heic.IsExtension(resolved.Extension())
+			}
+			release()
+			if hasDirs {
+				return true, false
+			}
 		}
+		return hasDirs, singleImage
+	}
+	hasDirs, expandSiblings := false, false
+	inspectInput := func() {
+		var singleImage bool
+		hasDirs, singleImage = inspect()
+		expandSiblings = kind == discoverCollection && !merging && !hasDirs && singleImage
+	}
+	if !protected {
+		inspectInput()
 	}
 
-	expandSiblings := kind == discoverCollection && !merging && !hasDirs && len(uris) == 1 && (imaging.IsSupportedImage(uris[0]) || heic.IsExtension(uris[0].Extension()))
 	gather := filescan.ImagesWithAdmission
 	if kind == replayCollection {
 		gather = filescan.ReplayWithAdmission
@@ -249,7 +282,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 	for _, uri := range uris {
 		explicitHEIC = explicitHEIC || heic.IsExtension(uri.Extension())
 	}
-	if !hasDirs && !expandSiblings && (check == nil || !explicitHEIC) {
+	if !protected && !hasDirs && !expandSiblings && (check == nil || !explicitHEIC) {
 		// nil progress: this path is synchronous and instantaneous, so
 		// there's nothing to show, and it avoids calling fyne.Do from the
 		// UI goroutine. Multi-file loose drops and merge-mode single
@@ -257,13 +290,27 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 		// directory does not — that listing belongs on the goroutine
 		// below, same as a folder drop.
 		images, truncated := scan(nil)
-		fyne.Do(func() {
+		v.scanUI.Do(func() {
 			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone, favoriteDir, skipped, sourceOrder)
 		})
+		workerDone()
 		return
 	}
 
-	go func() {
+	inputOwned = false
+	v.scanWorkers.Go(func() {
+		defer workerDone()
+		selected := uris
+		defer fileaccess.ReleaseSelected(selected)
+		if protected {
+			captured, err := fileaccess.CaptureSelected(token.Context(), selected)
+			if err != nil {
+				v.scanUI.Do(func() { v.failSelectedInput(token, err, scanDone) })
+				return
+			}
+			uris = captured
+			inspectInput()
+		}
 		// token.Context() is what lets a superseded scan (a newer drop, or
 		// an explicit cancel - see cancelScan) stop walking the tree instead
 		// of racing storage.List calls to completion for a result nobody
@@ -271,7 +318,7 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 		// discard the result anyway. The same context cancels a sibling
 		// listing (Siblings) as a recursive Images walk.
 		images, truncated := scan(func(n int) {
-			fyne.Do(func() {
+			v.scanUI.Do(func() {
 				if !token.Current() {
 					return
 				}
@@ -279,10 +326,10 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 			})
 		})
 
-		fyne.Do(func() {
+		v.scanUI.Do(func() {
 			v.applyScanResult(token, merging, uris, images, truncated, maxScan, scanDone, favoriteDir, skipped, sourceOrder)
 		})
-	}()
+	})
 }
 
 func admittedSourceOrder(order, images, unavailable []fyne.URI) []fyne.URI {
@@ -460,4 +507,23 @@ func (v *viewer) applyScannedCollection(merging bool, images, dropped []fyne.URI
 			v.loadImage(input.index)
 		})
 	})
+}
+
+// A failed native capture cannot publish a partial selection or replace the
+// existing collection. Its resources have already retired on the worker.
+func (v *viewer) failSelectedInput(token requestlife.Token, err error, done func()) {
+	defer done()
+	defer token.Release()
+	if !token.Current() {
+		return
+	}
+	v.scanOp.finish()
+	v.pendingPictureFrame = false
+	v.explorerInput.pendingLaunch = false
+	if v.FileCount() == 0 {
+		v.presentDropzone()
+	}
+	v.syncMenus()
+	fyne.LogError("failed to capture selected file access", err)
+	v.ShowToast(fmt.Sprintf(lang.L("could not open selected files: %v"), err))
 }

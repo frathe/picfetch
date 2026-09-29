@@ -462,3 +462,89 @@ remain outstanding. No release, upload, credential change or dependency upgrade.
 Recovery budget: 0 spawns; 3 inline review rounds (one additional reconciliation
 round for concurrent edits); one attempted complete gate, blocked at the daemon
 platform guard. Focused tests and build-only verification completed separately.
+
+### Next slice — owned native opening requests
+
+Base: `03a2eaf`. Owner: T0 inline; Deep route, no delegation.
+Files: fileaccess selected-input ownership; openwith Darwin bridge/queue;
+root collection scan, composition and harness; focused tests, manifests/docs.
+Contract: `fileaccess.NewSelection` carries one native selected URL through
+admission; `CaptureSelected(ctx, files)` consumes it on the scan worker into
+immutable bookmark URIs, and `ReleaseSelected(files)` discards unstarted input.
+Release never retires a native URL while capture is active. Capture is one-shot;
+repeated occurrences inside one batch share the captured immutable result.
+The native bridge retains original URLs before returning from the Apple Event,
+performs metadata/bookmark I/O on the tracked collection worker, and balances
+implicit access on capture/discard. Queue shutdown discards pending selections.
+Collection scans with selected/scoped inputs perform no filesystem work on UI;
+scan workers and their per-instance delivery queue are settled by the harness.
+Tests: ownership exact-once/active cancellation/duplicate occurrence; queue stop
+and cold-start delivery; blocked capture returns to UI, cancellation cannot apply
+stale inputs, rejected input releases, capture error preserves current collection.
+Verify: ordinary/Apple fileaccess and openwith tests; focused root opening,
+collection and shutdown tests; native bridge serialization fixture; shard and
+Qodana exclusions, vet/build and GoLand inspections. Native signed production
+Open With/drop qualification remains explicit until actually exercised.
+Budget: 0 spawns, 2 inline review rounds, complete suite only at final gate.
+Apple's file-access guide confirms implicit access on selected/Dock URLs and
+requires a matching stop after use; it does not authorize reconstructed path
+strings to manufacture permission.
+Source: https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox?changes=_4
+
+
+#### Owned opening implementation and verification
+
+Implemented original-NSURL retention for Apple Store Open With/Dock events,
+worker-side capture, and exact-once discard through process and viewer queues.
+Scoped scans use a tracked worker and drainable UI delivery; ordinary loose-file
+opening retains its synchronous fast path. Cancellation cannot retire an actively
+capturing native object or publish a partial collection. Shutdown discards native
+inputs even when their scheduled UI callback never runs. Existing collection
+replay and superseded-scan tests now explicitly drain retired scan delivery.
+
+Native serialization exposed an escaped-URL identity defect: Foundation emits
+percent escapes while Fyne's persisted URI strings contain decoded paths. Native
+picker and Open With boundaries now decode once; persistent records remain
+unchanged, including literal percent sequences. MIME fallback inspection stays
+inside the acquired operation scope. No new dependency or shipped payload.
+
+Evidence (base `03a2eaf`, this slice's working-tree changes; local logs retained
+under `.scratch/apple-app-store-opening/`):
+
+- Ordinary focused root opening/collection regressions pass. Apple-tagged root
+  opening/collection race regressions pass (94.286s); after the final MIME-scope
+  adjustment, the same Apple-tagged non-race regression set passes (7.812s).
+- Final Apple-tagged fileaccess/openwith/filepicker race suites pass. The native
+  serializer fixture captures a real bookmark for a filename containing a space
+  and accent; picker cases also cover literal percent, hash and question marks.
+  This fixture runs outside a signed production sandbox and does not qualify
+  actual LaunchServices/Dock authorization or restored sandbox access.
+- Translation parity and English identity tests pass. Shard inventory validates
+  748 root UI tests across three shards. Exact Qodana exclusion added for the new
+  fileaccess test file; existing exclusions cover modified test files.
+- Negative Go overlays fail behaviorally when capture releases early, active
+  capture loses ownership, failure omits batch discard, process/viewer shutdown retains
+  queued input, or either native boundary keeps escaped path identities. The
+  initial batch-discard test masked the defect by explicitly releasing before
+  asserting; it now asserts release count at capture return and detects the
+  deliberately broken implementation. Actual sources stayed intact throughout.
+- `make verify-build` and the complete Apple-tagged application build pass.
+  Apple-tagged vet of changed packages and Windows
+  amd64 no-cgo vet of their shared code pass. GoLand inspections cover every
+  changed Go file plus the Objective-C/header bridge, including weak warnings;
+  only existing intentional filepicker test duplication is reported, covered by
+  its exact Qodana exclusion. Reinspection after fixes is clear. IDE fallback
+  evidence is not a fresh Qodana SARIF result.
+- `make verify` stops at the native Linux/amd64 prerequisite: the local Docker
+  daemon reports Linux/aarch64. Complete race/golden CI verification remains
+  unverified, with no relaxed isolation or excluded worker test.
+
+Remaining T2 work: native save/window-drop ownership, stale/missing grant
+reselection and renewal, write/metadata/version/OS-handoff lifetimes, and worker
+source transport. Signed production opening, runtime/package validation and
+Intel/Apple Silicon qualification remain required before release. T2 remains
+open; this is a completed opening-ownership slice, not App Store readiness.
+
+Cost ledger: 0 spawns (budget 0); 2 inline review rounds (budget 2), with guard
+strengthening inside final review; one full gate attempted and blocked before
+suite execution. Build-only checks and focused native/race checks recorded above.

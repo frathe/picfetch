@@ -28,4 +28,9 @@ int picfetchDelegateRespondsToOpen(void);
 void picfetchTestInvokeOpenURLs(const char **urls, int n);
 void picfetchTestInvokeOpenFiles(const char **paths, int n);
 
+// Capture and retirement operate on the original retained NSURL.
+char *picfetchCaptureSelectedURL(void *url, char **failure);
+void picfetchReleaseSelectedURL(void *url);
+void picfetchTestInvokeSelectedURLs(const char **urls, int n);
+
 #endif // PICFETCH_OPENWITH_DARWIN_H

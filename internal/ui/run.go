@@ -213,9 +213,8 @@ func registerShutdown(application fyne.App, view *viewer) {
 		// state that outlives the viewer: openwith's queue is
 		// process-global, so a delivery landing mid-shutdown would
 		// otherwise reach a viewer whose window is already going away.
-		// Anything still buffered stays buffered - SetHandler(nil) does
-		// not discard it - which costs nothing, as the process is exiting.
-		openwith.SetHandler(nil)
+		// Native selections still buffered own implicit scope and must retire.
+		openwith.Stop()
 
 		session.Save(application, view.state.Observe().Capture(collectionSourceOrder))
 		preferences.Save(application, view.currentPreferences())

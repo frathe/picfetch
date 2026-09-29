@@ -702,8 +702,8 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `menu.go` | Explicit File/Favorites/Actions/Window/Help composition. `menuState` observes one command context and derives named availability decisions; `syncMenus` applies them with presentation facts, updates Favorites and Help, and refreshes the native bar once when rendered state changes. |
 | `commandpolicy.go`, `commandadmission.go` | Private value-only request/context/decision policy for application commands; root observes feature facts and applies refusal feedback/yield only after admission. Visible surfaces, retained visits, input ownership, capabilities and operation state stay distinct. Payload capture/workers remain with handlers. Delete/export notifications assign their card's single keyboard owner and release it on dismissal; prompt/Fyne-dialog notifications refresh availability. |
 | `actionmenu.go` | Actions-menu adapters call guarded bare handlers. Duplicate preparation rechecks admission before presenting a group and retires refused presentation instead of replaying it. Progress and accepted-group notifications remain separate. |
-| `drop.go` | `openCollection` / `applyScanResult` / `applyScannedFiles` glue over filescan discovery and recorded replay. `handleDrop` discovers, Favorite/session replay; both retain the same scan lifecycle, captured admission and commit path. A non-empty open is refused before any state change while comparison is active. |
-| `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. The combined pending set is cleared before that shared path refuses an active comparison, so deliveries cannot queue behind it. |
+| `drop.go` | `openCollection` / `applyScanResult` / `applyScannedFiles` glue over filescan discovery and recorded replay. `handleDrop` discovers, Favorite/session replay; both retain the same scan lifecycle, captured admission and commit path. Native/scoped inputs capture and inspect authority on tracked workers; `scanUI` owns delivery. A non-empty open is refused before any state change while comparison is active. |
+| `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. `osInputQueue` owns native selections until UI admission and discards undelivered requests at shutdown. The combined pending set is cleared before comparison admission. |
 | `memlimits.go` | `settings` value, `settingsState` / `ApplySettings`, memory-limit get/set that retune caches and `imaging.SetMaxEncodedBytes`. |
 | `theme.go` | Settings-facing appearance getter/setter; applies `internal/appearance` modes live. |
 | `favthumbs.go` | Viewer glue for `favthumbs.Sync` and `gridSink`; carries the owner captured by complete opening or committed saving, captures the saved preview limit (default 1000), and retires active work on edits; per-request completion plus all-pass worker tracking and terminal shutdown cancellation. |
@@ -784,10 +784,13 @@ Apple Store builds; `native_other.go` preserves ordinary URI behavior.
 `manifest.go` stores each distinct scope once while retaining every ordered
 source occurrence. Session and Favorite persistence validate the complete
 manifest against their saved membership before publishing restored sources.
-The Darwin open picker captures native URL bookmarks on its tracked chooser
-worker; folder scans pass captured directory authority to children. Native
-save/Open With/drop capture, permission reselection, writes, source versions
-and analysis transfer remain open in the active Apple Store plan.
+`selection.go` owns native selected URLs through admission, worker-side bookmark
+capture and exact-once release, including active cancellation and duplicate
+occurrences. The Darwin open picker captures native URL bookmarks on its tracked
+chooser worker; Open With/Dock selections use the collection worker. Folder scans
+pass captured directory authority to children. Native save/window-drop capture,
+permission reselection, writes, source versions and analysis transfer remain open
+in the active Apple Store plan.
 
 ### `internal/macworker`
 
@@ -1141,8 +1144,8 @@ viewer's handler and flushes in the same critical section.
 
 | File | Responsibility |
 |------|----------------|
-| `openwith.go` | The queue (`Deliver` / `SetHandler`) and `URIsFromFileURLs`. |
-| `openwith_darwin.{go,h,m}` | `Install` / `DelegateRespondsToOpen` + the `application:openURLs:` / `application:openFiles:` graft. |
+| `openwith.go` | The queue (`Deliver` / `SetHandler` / terminal `Stop`) and `URIsFromFileURLs`; pending native ownership is discarded at shutdown. |
+| `openwith_darwin.{go,h,m}` | `Install` / `DelegateRespondsToOpen` + the `application:openURLs:` / `application:openFiles:` graft; Apple Store deliveries retain original native URLs until worker capture or discard. |
 | `openwith_notdarwin.go` | Both report false; other OSes use `argv`. |
 
 ### `internal/filescan`

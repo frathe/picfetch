@@ -1,4 +1,5 @@
 {
+  "could not open selected files: %v": "Ausgewählte Dateien konnten nicht geöffnet werden: %v",
    "Could not cache Favorite locations. Locations remain available in memory.": "Standorte des Favoriten konnten nicht zwischengespeichert werden. Sie bleiben im Arbeitsspeicher verfügbar.",
    "Showing location cluster": "Standortgruppe wird angezeigt",
    "Location from %s": "Standort von %s",

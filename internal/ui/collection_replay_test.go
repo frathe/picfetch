@@ -289,6 +289,8 @@ func TestCollectionReplay(t *testing.T) {
 						v.cancelScan()
 					}
 					unblock()
+					v.scanWorkers.Wait()
+					settleScan(t, v)
 					ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 					defer cancel()
 					if err := completion.Wait(ctx); err != nil {
