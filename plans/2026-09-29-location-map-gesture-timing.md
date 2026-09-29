@@ -70,6 +70,75 @@ The lead owns verification and the evidence-only documentation changes.
 
 ## Scope and decisions
 
+### macOS continuation after Linux — 2026-09-29
+
+Resume at `5a95ea6`, clean and equal to the fetched feature branch. Deliverable:
+diagnose the rejected native zoom, repair a demonstrated matcher defect if one
+is established, and collect fresh native smoke evidence. The existing Deep
+route and acceptance criteria apply; no release or real-collection claim follows
+from the synthetic corpus. The Mac-local 24-image corpus and failed run remain
+available. Preserve the complete Linux verification for unchanged Go source.
+
+Budget: one read-only scout for capture/render coordinate relationships, no
+delegated fixes or review, no emulated full suite. Delegation gate: G1 bounded
+input/viewport/scene relationship; G2 lead checks returned source locators; G3 no
+writes; G4/G5 the render path is not yet held by the lead; S/W this is a relation
+across code boundaries, not an exact transform. Lead owns the replay, diagnosis,
+tests, repair and final evidence.
+
+Ronin then reported a stale first-map surface and requested maximizing when
+switching to Map. The running local app bundle was from `0ce849c` (September 26),
+before this branch's explicit root repaint. Repackaging `5a95ea6` made ordinary
+image -> Shift+L draw the map without resizing; the old bundle is preserved at
+`.scratch/PicFetch-before-redraw-check.app`. The installed `/Applications` copy
+was not replaced. This is artifact provenance, not a new rendering fix.
+
+Added scope: reuse native work-area maximization on initial Map entry and return
+from its image/Grid visits, without entering full-screen. Retain maximization
+until normal image sizing/reset consumes it, like Grid/Explorer. Qualification
+sessions retain fixed 1200x800 geometry. T0 owns this small root-UI change and
+tests; no new dependencies, strings, packages or platform implementation.
+Verification: focused `TestLocationMap` and reset regressions, GoLand inspection
+of changed Go files, native packaged-app entry/return check. The existing command
+harness and per-viewer native-window boundary are the test seams.
+No new top-level tests or test files are planned. Native amd64 full verification
+will remain pending for new Go source; the earlier Linux result is not relabeled.
+
+Scout budget actual: one scout reused for a second bounded read-only question
+after the redraw report (Fyne Show/Hide/invalidation semantics). No additional
+spawn or delegated fix/review. Lead checked the reported library source locators.
+
+Map window change verification (working tree based on `5a95ea6`):
+
+- Red/green: `TestLocationMap/maximizes_window` separately failed on initial
+  entry, return from a manually restored image window, and failure to restore
+  native state for ordinary image sizing; each then passed. Both dynamic and
+  static window preferences are covered. The fixed-trial guard was deliberately
+  removed: `native_trial_observations` failed on the forbidden native maximize;
+  restoring the guard made both focused subtests pass (0.666s).
+- `go test -race -tags no_emoji,nodynamic ./internal/ui -run
+  '^(TestLocationMap|TestEscapeResetRestoresNativeWindow|TestViewerReset|TestBatchDelete_LeavesTheWindowMaximized.*)$'
+  -count=1`: PASS (79.861s).
+- `make verify-build check-test-shards`: PASS, including vet, native build,
+  notices/assets, exact Qodana exclusions and all 740 runnable shard assignments.
+  The first attempt stopped on an unformatted temporary replay utility; it was
+  formatted before the successful rerun. No complete race suite ran under ARM
+  emulation. Native Linux/amd64 CI remains the full-suite gate for this new code.
+- GoLand `get_file_problems(errorsOnly=false)` completed on `build.go`,
+  `viewer.go`, `locationmap.go`, `locationmap_test.go`: no findings, including
+  weak warnings. Rechecked `locationmap.go` after the negative guard experiment.
+- `make package-mac`: PASS. Native image -> Shift+L drew and maximized the map;
+  manually restored map -> opened photo -> Escape drew and maximized it again.
+  Screenshots: `.scratch/location-map-window-20260929/{entry,return}.jpeg`.
+  App binary SHA-256:
+  `f4770bc6ca738f508658ba136d330552538da8ba0bde942086831e92de3ef59a`.
+  The local bundle's generated build number is 477; the tracked packaging-only
+  increment was restored. `/Applications/PicFetch.app` remains unchanged.
+
+Ronin explicitly authorized committing and pushing the window fix on the current
+branch, then continuing the existing timing work. The timing matcher changes
+remain separate; no fresh CI, CodeQL or Qodana SARIF pass is claimed here.
+
 The current helper refuses gestures because body hashes cannot distinguish input
 responses from tile delivery. Keep hashes for stable-frame admission and the
 existing closed-viewer exit boundary. Use independent image registration for

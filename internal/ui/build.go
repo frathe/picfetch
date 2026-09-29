@@ -111,6 +111,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 	}
 
 	view.chooserUI = fyneChooserQueue{}
+	view.maximizeWindow = winpos.Maximize
 	view.unmaximizeWindow = winpos.Unmaximize
 	view.regionCopyDo = fyne.Do
 	view.regionCopyDoAndWait = fyne.DoAndWait

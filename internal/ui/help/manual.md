@@ -597,7 +597,9 @@ of the display selected when it was generated.
 ### Location Map
 
 **Window -> Location Map** or **`Shift+L`** shows recorded GPS locations for the
-loaded collection, independently of Grid search and selection. Hover over a
+loaded collection, independently of Grid search and selection. Entering or
+returning to the map maximizes the window without entering full-screen mode.
+Hover over a
 framed thumbnail to see its filename; click an individual photo to open it directly.
 Image arrows browse mapped photos in collection order; **Escape** returns to
 the same map camera. Drag to pan, scroll to zoom, and use **Fit All** to frame

@@ -123,6 +123,11 @@
   compilation. Fresh Linux/amd64 `make verify`, focused race tests, portable
   Swift suites and all changed-file GoLand inspections now cover `d0998a9`,
   including those fixes; no actionable Go inspection findings remain.
+  macOS continuation: the stale local app bundle was rebuilt, restoring the
+  existing Shift+L repaint fix. Map entry/return now maximize the native window
+  (not full-screen), with fixed qualification geometry preserved. Focused native
+  race tests, GoLand inspections, build checks and packaged-app visual checks
+  pass; the new window policy still needs full native-amd64 CI coverage.
   **Remaining: native timing measurement.** Cold/warm entry, pixel-verified
   return and one identified pan worked on 24 synthetic GPS images, but the
   recorder rejected the first zoom despite visible motion. The complete
