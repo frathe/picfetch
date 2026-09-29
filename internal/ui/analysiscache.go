@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"path/filepath"
-
 	"fyne.io/fyne/v2"
 
 	"github.com/frathe/picfetch/internal/preferences"
@@ -23,9 +21,6 @@ func (v *viewer) registerAnalysisCache(prefs preferences.State) {
 	v.settings.looseAnalysisCache, v.settings.analysisCacheMiB = prefs.SimilarityLooseCache, prefs.AnalysisCacheLimitMiB
 	if v.settings.analysisCacheMiB <= 0 {
 		v.settings.analysisCacheMiB = 2048
-	}
-	if root := v.app.Cache().RootURI(); root != nil && root.Scheme() == "file" {
-		v.analysisDir = filepath.Join(root.Path(), "image-analysis")
 	}
 	v.analysisCache = analysiscache.New(analysisCacheHost{v}, analysiscache.Options{
 		Roots: v.analysisRoots(), ConfirmClear: v.settingsWin.ConfirmClearAnalysis, Changed: v.syncMenus,

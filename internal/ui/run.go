@@ -4,22 +4,16 @@
 package ui
 
 import (
-	"errors"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"fyne.io/fyne/v2"
 
-	"github.com/frathe/picfetch/internal/explorertrial"
-
-	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/session"
-	"github.com/frathe/picfetch/internal/ui/autoupdate"
 )
 
 const (
@@ -40,28 +34,19 @@ const (
 // already parsed and validated by internal/launch; the zero value is a
 // plain launch that overrides nothing. notices and privacy are this build's
 // embedded documents, supplied by main alongside its other resources.
-func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices, privacy string) error {
-	var trial *explorertrial.Session
-	var err error
-	var favoritesDir string
-	if opts.ExplorerTrial != "" {
-		trial, err = explorertrial.New(opts.ExplorerTrial)
-		if err != nil {
-			return err
-		}
-		favoritesDir = filepath.Join(opts.ExplorerTrial, "favorites")
-	} else if opts.LocationMapTrial != "" {
-		favoritesDir = filepath.Join(opts.LocationMapTrial, "favorites")
-	} else {
-		favoritesDir, err = favstore.DefaultDir()
-		if err != nil {
-			return err
-		}
+// prepared lends the captured policy and trial recorders; its caller retains
+// ownership and closes them after Run joins their producers and returns.
+func Run(application fyne.App, initial []fyne.URI, opts launch.Options, prepared *launch.Prepared, notices, privacy string) error {
+	policy := prepared.Policy()
+	if !policy.Valid() {
+		return launch.ErrInvalidPolicy
 	}
-	view, window := buildStartupViewer(application)
-	if err := view.configureLocationTrial(opts.LocationMapTrial); err != nil {
-		return errors.Join(err, trial.Close())
+	trial := prepared.ExplorerTrial()
+	view, window, err := buildStartupViewer(application, policy, ordinaryLaunchStorage)
+	if err != nil {
+		return err
 	}
+	view.borrowLocationTrial(prepared.LocationMapTrial())
 	view.help.SetLicenses(notices)
 	view.help.SetPrivacyPolicy(privacy)
 
@@ -74,7 +59,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices,
 	// the command line asked for.
 	view.applyLaunchOptions(opts)
 
-	startViewerRuntime(view, window, favoritesDir)
+	startViewerRuntime(view, window)
 	registerShutdown(application, view)
 
 	// Show() (not ShowAndRun) so we can fold Darwin's Window menus after
@@ -87,30 +72,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices,
 	// touches widgets directly.
 	window.Show()
 	view.syncNativeMenuBar()
-	application.Lifecycle().SetOnStarted(func() {
-		view.syncNativeMenuBar()
-		// The failure report takes its record from the sweep rather than
-		// re-reading the cache, and that data dependency is what keeps the
-		// report ordered after the sweep: reporting clears the record, and a
-		// cleared record reads as a clean install, so a reporter that ran
-		// first would let the sweep take the last working binary.
-		if !view.storeManaged && trial == nil && view.locationTrial == nil {
-			failure := view.sweepUpdateBackup()
-			view.maybeShowWhatsNew()
-			view.maybeShowUpdateFailure(failure)
-		}
-
-		// Install before opening, not after: a delivery arriving in the
-		// gap between the two would have nobody to take it. Installing
-		// also flushes whatever the cold-start Apple Event queued while
-		// Fyne was still building this window, and that flush shares
-		// pendingInitial with openInitialFiles - so a launch carrying both
-		// command-line paths and an "Open With" ends in one scan, not two.
-		// See internal/ui/openwith.go.
-		view.pendingInitial = initial
-		view.installOpenWithHandler()
-		view.openInitialFiles()
-	})
+	registerStartup(application, view, initial)
 	stopSignals := func() {}
 	if trial != nil || view.locationTrial != nil {
 		notices := make(chan os.Signal, 1)
@@ -134,7 +96,27 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, notices,
 	application.Run()
 	stopSignals()
 	view.waitForShutdown()
-	return errors.Join(trial.Close(), view.waitLocationTrial())
+	return nil
+}
+
+func registerStartup(application fyne.App, view *viewer, initial []fyne.URI) {
+	application.Lifecycle().SetOnStarted(func() {
+		view.syncNativeMenuBar()
+		// The sweep reads failure evidence before any reporter can consume it.
+		// A reporter running first could erase a failed-restore warning and let
+		// cleanup delete the only working binary.
+		if view.launchPolicy.Updates().Allowed() {
+			failure := view.sweepUpdateBackup()
+			view.maybeShowWhatsNew()
+			view.maybeShowUpdateFailure(failure)
+		}
+
+		// Install before opening: installing also flushes cold-start Apple
+		// Events, combining them with argv in one scan. See openwith.go.
+		view.pendingInitial = initial
+		view.installOpenWithHandler()
+		view.openInitialFiles()
+	})
 }
 
 func (v *viewer) waitForShutdown() {
@@ -156,13 +138,10 @@ func (v *viewer) waitForShutdown() {
 // Runtime side effects start only after feature construction and geometry
 // restoration, so polling cannot observe a nil slideshow or replace a saved
 // position before it has been applied.
-func startViewerRuntime(view *viewer, window fyne.Window, favoritesDir string) {
+func startViewerRuntime(view *viewer, window fyne.Window) {
 	view.startHEICCheck(false)
-	view.favorites.SetDir(favoritesDir)
+	view.favorites.SetDir(view.favorites.Dir())
 	view.stopWinPosPoll = startWindowPosPolling(view, window)
-	if view.updater.Dir() == "" {
-		view.updater.SetDir(autoupdate.DefaultDir())
-	}
 	view.maybeStartUpdateCheck()
 }
 
@@ -190,7 +169,6 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.help.Stop()
 		view.closeLocationMap()
 		view.locationMap.Stop()
-		view.stopLocationTrial()
 		view.spiral.Close()
 		view.closeExplorer()
 		view.closeVisualSearch()
@@ -230,7 +208,7 @@ func registerShutdown(application fyne.App, view *viewer) {
 
 		session.Save(application, view.state.Observe().Capture(collectionSourceOrder))
 		preferences.Save(application, view.currentPreferences())
-		if !view.storeManaged && view.explorer.Trial() == nil && view.locationTrial == nil {
+		if view.launchPolicy.Updates().Allowed() {
 			view.updater.ApplyStagedUpdate()
 		}
 	})

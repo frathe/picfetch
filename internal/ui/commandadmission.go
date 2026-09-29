@@ -152,5 +152,5 @@ func (v *viewer) showSettings() {
 	if _, ok := v.admitCommand(commandRequest{command: commandSettings}); !ok {
 		return
 	}
-	v.settingsWin.Show(v.settingsState(), v.storeManaged)
+	v.settingsWin.Show(v.settingsState(), v.launchPolicy.Updates())
 }

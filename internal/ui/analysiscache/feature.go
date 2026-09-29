@@ -85,6 +85,9 @@ func (f *Feature) Configure(options Options) {
 
 func (f *Feature) SetRoots(roots similarity.CacheRoots) { f.options.Roots = roots }
 
+// Options returns a value snapshot for replacing per-instance external adapters.
+func (f *Feature) Options() Options { return f.options }
+
 // SetPolicy seeds standing settings without writing them back to the host.
 func (f *Feature) SetPolicy(enabled bool, limitMiB int) {
 	f.enabled = enabled

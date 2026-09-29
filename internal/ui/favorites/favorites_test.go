@@ -70,7 +70,7 @@ func newFeature(t *testing.T, host *fakeHost) *Feature {
 	win := app.NewWindow("favorites test")
 	t.Cleanup(win.Close)
 
-	f := New(host, win)
+	f := New(host, win, "")
 	f.SetUIQueue(&uitest.UIQueue{})
 	f.SetDir(t.TempDir())
 	f.Settle()
@@ -128,7 +128,7 @@ func TestNewBuildsStaticMenuWithoutDiskAccess(t *testing.T) {
 	win := app.NewWindow("favorites test")
 	t.Cleanup(win.Close)
 
-	f := New(host, win)
+	f := New(host, win, "")
 
 	if f.dir != "" {
 		t.Errorf("New set storage dir to %q, want no disk initialization", f.dir)
@@ -157,7 +157,7 @@ func TestNewSetsManageItemAccelerator(t *testing.T) {
 	win := app.NewWindow("favorites test")
 	t.Cleanup(win.Close)
 
-	f := New(&fakeHost{}, win)
+	f := New(&fakeHost{}, win, "")
 
 	got, ok := f.manageItem.Shortcut.(*desktop.CustomShortcut)
 	if !ok {
@@ -179,7 +179,7 @@ func TestNewSetsAddItemAccelerator(t *testing.T) {
 	win := app.NewWindow("favorites test")
 	t.Cleanup(win.Close)
 
-	f := New(&fakeHost{}, win)
+	f := New(&fakeHost{}, win, "")
 
 	got, ok := f.addItem.Shortcut.(*desktop.CustomShortcut)
 	if !ok {

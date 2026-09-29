@@ -9,13 +9,19 @@ Standing rules (data flow, concurrency, conventions, build) live in
 
 ### `github.com/frathe/picfetch` (package main)
 
-Entry point only. `main.go` parses the command line (`launchArgs`, see
+Entry point only. `main.go` supplies production operations to `main_startup.go`'s
+`runStartup`, the same ordered orchestration exercised by `main_startup_test.go`.
+It parses the command line (`launchArgs`, see
 `internal/launch`) before any side effect, dispatches the private `heic.WorkerMain` and `similarity.WorkerMain`
 subprocess modes before desktop startup, calls `openwith.Install` (first
 statement after that, see `internal/openwith`), skips GitHub-update predecessor
 cleanup for Store-managed builds and explicit Explorer or Location Map trials,
-asks `launch.Options.ApplicationID` to validate and select the app identity before
-building the `fyne.App`, loads embedded
+captures `launch.Policy` from options and compiled distribution, and acquires
+`launch.Prepared` (including Explorer's offline prerequisite and exclusive trial
+reservation) before predecessor cleanup or `fyne.App` construction. The entry
+point owns finalization on every return; `ui.Run` borrows recorders and joins their
+producers after the production shutdown hook before returning. The same explicit
+policy enters UI composition before preferences/session access. It loads embedded
 `translations/*.json`, embeds `THIRD-PARTY-NOTICES.md` and `PRIVACY.md`, converts CLI paths to URIs
 (`argsToURIs`), and passes the immutable documents to `ui.Run`, which supplies
 Help's offline Licenses and Privacy policy windows before startup. `main_darwin_test.go` asserts the graft landed — this is the only
@@ -321,7 +327,7 @@ release. `docs/microsoft-store.md` covers setup and recovery.
 
 Native Linux/Windows/macOS and explicit Microsoft Store validation. `main.go`
 selects suites, verifies build-selected inventories, runs the full packages
-(or the focused `command-admission` and `favorite-ownership` guards),
+(or focused `command-admission`, `favorite-ownership` and `launch-policy` guards),
 retains raw Go test events and requires named guards to run/pass without skips.
 The macOS suite includes root main's Cocoa-linked delegate test; Windows includes
 native Unicode transport, wallpaper and updater guards. CI invokes this command
@@ -331,6 +337,12 @@ and uploads its event files. Linux, Windows and both macOS architectures also
 require Favorite ownership's exact storage/URI/preview/UI parents and children,
 including active-handle release, with no codec exemptions. `main_test.go` covers admission, selection, event
 validation, process failures and workflow wiring through a per-call runner.
+`launch-policy` runs the six startup/policy/preparation/root/updater/Settings
+families and every required child on Linux, Windows and both macOS architectures;
+`launch-policy-store` adds the Windows-only Store build selection. These focused
+captures also retain applicable native predecessor/Open With guards and a
+`.metadata.json` sidecar identifying revision, dirty state, runtime, tags and each
+required outcome. Missing, skipped or failed cases leave the capture incomplete.
 
 ### `internal/ui/explorer`
 
@@ -599,8 +611,9 @@ Host reasons distinguish local policy retirement before inspection, explicit
 record removal after lease revocation and automatic eviction. Cache
 inspection holds only one queued progress callback, reading the latest count on
 delivery, so inventory size cannot create an unbounded UI progress backlog. Root
-composes the two-method Host in `internal/ui/analysiscache.go`, uses the Fyne
-application cache root, persists accepted policy and disables new analysis
+composes the two-method Host in `internal/ui/analysiscache.go`, receives selected
+launch roots before construction (ordinary analysis uses the identified Fyne
+app cache; trials use their reserved tree), persists accepted policy and disables new analysis
 admission while maintenance owns the roots.
 Automatic eviction notifies search through `CacheWritesRevoked`, permitting an
 idle, fully prepared producer to retain its vectors after lease invalidation;
@@ -649,8 +662,8 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | File(s) | Responsibility |
 |---------|----------------|
 | `run.go` | `Run`: restore startup viewer, start runtime (`favstore.DefaultDir`, position polling), register shutdown and CLI drop, enter the Fyne loop. Shutdown retires title/menu updates, cancels feature work and flushes preferences without rebuilding retired native menus. Store-managed builds skip GitHub update startup and staged-binary apply. Explicit trial startup reserves new evidence, isolates Favorites/presets/updates, disables update activity, auto-opens Explorer after the ordinary scan, and joins its signal watcher and workers before finalizing evidence. |
-| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules and snapshots `distribution.StoreManaged` onto the viewer. Overlay tail: copy selection, similarity map, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
-| `startup.go` | `loadStartupState` / `restoreStartupGeometry` / `buildStartupViewer` — the one load→build→restore path shared by `Run` and tests. |
+| `build.go` | `buildViewer` composes widgets and `registerFeatures` modules with the validated captured launch policy. Overlay tail: copy selection, similarity map, grid, comparison (including its pointer shield), delete confirm, export prompt, toast. Desktop canvases also receive the chained comparison key-down hook for exact physical `Ctrl+L`; ordinary typed-key and shortcut wiring remains separate. |
+| `startup.go` | `buildStartupViewer` selects all launch storage before `loadStartupState`, feature construction and `restoreStartupGeometry`. Only ordinary policy invokes the supplied fallback resolver; `ordinaryLaunchStorage` retains existing OS defaults and the identified app's cache. Tests supply temporary roots at this same boundary. |
 | `components.go` | Dropzone, scan, sort, and info-overlay constructors. Toast stays in `toast.go`. |
 | `trane.go` | Welcome-screen Trane: hosts `widgets.Gaze` with a compact 17-cell atlas. Owns pointer/window-layout coordinates, scaled dead zone, immutable decode cache and magenta-spill correction within five source pixels of transparency. Hide/MouseOut forget pointer position and circle progress. A hover-only surface preserves input across the restore link; ten circles request `Help.ShowFinis`. No timers or background workers. `scripts/appassets` retains the used pixels from `assets/trane/codex-pet/spritesheet.webp`. |
 | `explorer.go` | Root adapter for Explorer: captures duplicate-prepared sources, composes setup acknowledgment with preferences, maps frozen cohort identities to collection indexes, and coordinates map/Grid/image transitions. The feature owns workflow, dialogs, workers and delivery. `explorerInput` retains collection/launch/window policy only. |
@@ -716,14 +729,23 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/exifwin/` | EXIF panel (E): `metadata.go` owns cancellable source reads, generation-checked tag/GPS/action presentation and content-based removal inspection/status and separate `MetadataDone` completion. `stripwork.go` owns cancellable removal, busy admission and a committed `WriteResult` in the Host notification. GPS map (`tiles.go`, `tilework.go`, `startWarm`): four shared workers, a 64-job queue, 256 expiring failure entries and a 16 MiB encoded-byte cache. Navigation/close cancels old reads and tile sessions; collapse cancels tiles. `uiqueue.go` owns result delivery and Settle waits/drains removal, metadata, warm and tile workers repeatedly. Shutdown Stop is terminal. Geometry via `widgets.Singleton`. | 4-method `Host`. |
 | `internal/ui/help/` | Manual, About, release notes/What's New (`whatsnew.go`), Help menu; embeds `manual.md` / `manual_de.md` and this build's `release-notes.md`. `make release` copies the canonical `.github/release-notes.md` into the bundle alongside the version bump. Both notes entry points share the bundled file and a singleton with a GitHub release-history link. `releaseart.go` replaces Markdown images before layout and loads GitHub-hosted HTTPS URLs on up to three background workers; `releaseimage.go` owns the allowlisted redirect policy and bounded HTTP fetch/decode. `releasework.go` cancels on close, stops admission on shutdown and exposes Wait/Settle with a per-instance UIQueue. Notes without images start no workers. Secret search phrase calls the viewer’s registered `SetOnSpiral` callback; `finis` in manual search opens the cursor-following companion (`finis.go`, embedded `finis.webp`), hosting `widgets.Gaze` with centered portrait geometry and its own hover surface. `ShowFinis` also serves welcome Trane; ten independent circles reveal the localized, wrapped bubble in `finis_clue.go`, whose click opens an empty focused manual search. | `New(app, title, art)` plus optional event callbacks. |
 | `internal/ui/spiral/` | Full-screen shader easter egg. `tunnel.go` owns serial preview admission and three texture slots; `playback.go` advances bounded GIF frames on the existing UI clock with independent flight origins; `flow.go` owns cycles, batch variation and route selection; `flight.go` owns safe route geometry used for admission/retirement; `shader.go` renders depth, feather and translucent composition. `uiqueue.go` marshals preview/frame callbacks with session checks. H toggles local help; F1 invokes the viewer's manual callback. The shared centre stays within a resized viewport. | Viewer supplies a frozen URI value to `Show` / `ShowForGesture`; `Close` cancels on UI and test `Settle` joins/drains off UI. Process shutdown does not join uninterruptible preview source reads. |
-| `internal/ui/settingswin/` | Settings: General/Appearance/Updates/Limits/Cache, update dialogs, snapshot seed, live apply, Singleton geometry. `Show(State, storeManaged)` replaces the GitHub update controls with Store-owned-update copy when applicable. | `Show(State, bool)` + Host (`ApplySettings`, `CheckForUpdatesNow`, `PerformUpdate`). |
-| `internal/ui/favorites/` | Favorites menu and add/overwrite/manage/remove dialogs. `storage.go` owns tracked reads, coalesced refresh, captured-owner open handoff and the per-instance UIQueue. `mutations.go` serializes saves/removals and owns captured saves; `removal.go` binds confirmations and native outcomes to captured targets. Opening rechecks `AdmitFavorite` before existing replay. Close cancels view work; Stop closes admission; Wait/Settle join current/retired workers off UI, including native removal. Root source changes retire pending opens. `SetAvailability` renders host decisions; modal-change callbacks refresh menus. `New` does no disk I/O; `SetDir` from `Run`. | 6-method `Host`. |
+| `internal/ui/settingswin/` | Settings: General/Appearance/Updates/Limits/Cache, update dialogs, snapshot seed, live apply, Singleton geometry. Updates always shows the installed version, with permitted GitHub controls or every supplied Store/trial explanation. | `Show(preferences.State, launch.UpdatePermission)` + Host (`ApplySettings`, `CheckForUpdatesNow`, `PerformUpdate`). |
+| `internal/ui/favorites/` | Favorites menu and add/overwrite/manage/remove dialogs. `storage.go` owns tracked reads, coalesced refresh, captured-owner open handoff and the per-instance UIQueue. `mutations.go` serializes saves/removals and owns captured saves; `removal.go` binds confirmations and native outcomes to captured targets. Opening rechecks `AdmitFavorite` before existing replay. Close cancels view work; Stop closes admission; Wait/Settle join current/retired workers off UI, including native removal. Root source changes retire pending opens. `SetAvailability` renders host decisions; modal-change callbacks refresh menus. `New` captures the selected launch root without disk I/O; runtime refresh uses that same root after composition and queue setup. | 6-method `Host`. |
 | `internal/ui/menus/` | Stateful File/Window/Actions items. `Apply(State)` renders supplied `Availability` plus labels/check states and detects changes; it has no surface/modal/busy admission formulas. Construction, accelerators and callbacks stay explicit. | No Host: snapshot from root `menuState`. |
 | `internal/ui/autoupdate/` | Shared serialized automatic/manual update worker: lazy verifier/client preparation, check/download progress events, same-process matching-stage reuse, all-worker settle, last-check-day persistence, staged apply/relaunch intent, the What's-New cache (`whatsnew.go`), and the apply-failure cache (`applyfailure.go`) — `ApplyStagedUpdate` writes it when `update.Apply` fails, and `internal/ui` reads and clears it on the next launch. Persisted stages carry a process-ephemeral authentication seal, so a stage from an earlier run is redownloaded and re-attested rather than trusted from the user-writable cache. Both UI caches are one JSON document each in `app.Cache()`, over the `saveCacheJSON` / `loadCacheJSON` / `clearCacheJSON` helpers in `cache.go`; a failed relaunch is deliberately *not* recorded, since it happens after the new binary is installed and verified. | No Host: takes a `context.Context` and a staleness func per call (`Start` / `StartManual`), plus `Persist` and per-`Updater` verifier-factory seams — cancellation stays the viewer’s own `requestlife.Owner`, not promoted here. |
 | `internal/ui/infoview/` | The persistent info overlay (I key): its four widgets - text, the EXIF link, the reveal link, the card - the current file's raw facts (byte size, EXIF presence, RAW-preview flag), its own toggle preference, and `formatFileSize`. The EXIF link follows `HasEXIF`; the reveal link is shown with the card itself. | No Host: `Update(State)` / `Sync(bool, State)` over a value snapshot built by `info.go`'s `infoState()`. |
 | `internal/ui/display/` | Single-image surface publication, rotation/fades, source-bound observations and action captures. `feature.go` owns the surface, snapshots and worker settlement, `capture.go` saved baselines and stable captures, `animation.go`/`pause.go` playback and its acquisition gate, `vector.go` sharpening, `load.go` complete navigation/retries/handoff and `preload.go` bounded speculation. All three request owners use `requestlife`; preloads borrow the retained load token. One UI queue delivers workers; separate completion observations distinguish loaded/applied/stopped. | `Feature`; root shares `Surface()` with zoom for geometry only. |
 | `internal/ui/widgets/` | Shared UI mechanics: `ChoicePanel` / `ChoiceCard` (+ its optional `ExtraRows` slot above the button row, Up/Down between them, Return offered to the focused row before it commits, and `SetSelectionActive` muting the button ring so only one mark is ever at full strength), `TappableArea`, `Singleton` (+ geometry memory), `NewSizeTracker`, focus-ring style. `gaze.go` extracts the compact single-row atlas and owns the 16-direction/neutral portrait presenter shared by Trane and Finis; callers own artwork preparation, hosting and face-relative coordinates. `circlegesture.go` recognizes timestamped head-relative pointer turns; hosts own independent instances, geometry normalization and lifecycle reset. | Leaf aside from `internal/winpos`. |
 | `internal/ui/assets/` | Embedded viewer artwork, including `ExplorerIntroPNG` for first use. | Leaf. |
+
+`autoupdate.New` receives the captured launch policy and selected stage root.
+The updater and viewer gate checks, staging, recovery, records and installation
+on that fixed decision, including direct calls with configured dependencies.
+`RestoreLastCheckDay` only seeds memory; `SetLastCheckDay` persists permitted check
+results. All six record operations are policy-admitted Updater methods over private
+JSON helpers. `registerStartup` sweeps backups before reporters consume failure
+evidence; `registerShutdown` applies permitted stages. Trial feature lifetime
+never authorizes updates. Settings renders the same permission and all reasons.
 
 Help's `licenses.go` displays the complete immutable release notice document
 supplied by `main.go` through `ui.Run` and `Help.SetLicenses`. Help -> Licenses
@@ -907,9 +929,8 @@ switching automatically.
 ### `internal/distribution`
 
 Compile-time distribution policy. `StoreManaged` is false for ordinary builds
-and true only with the `microsoftstore` build tag. `internal/ui` snapshots it
-when constructing a viewer so Microsoft Store packages cannot use the GitHub
-self-updater while all other distributions retain the existing behavior.
+and true only with the `microsoftstore` build tag. Production startup captures
+it in `launch.Policy`; UI composition receives that explicit decision.
 
 ### `internal/wingesture`
 
@@ -1086,15 +1107,19 @@ bounded admission loop without discovering directories or collapsing occurrences
 ### `internal/launch`
 
 Command-line flag parsing into the `Options` value `ui.Run` applies at startup.
-`Options.ApplicationID` owns pre-app Explorer trial offline validation and
-isolated identity selection; the ordinary app ID passes through unchanged.
+`Policy` captures identity, purpose and permissions without effects; `Prepared`
+separately acquires and owns trial evidence before app construction. The ordinary
+app ID passes through unchanged; `Policy.ApplicationID` captures both existing
+trial identity formats without probing or reserving a directory.
 Hand-rolled rather than `flag`, so flags may appear anywhere among the paths;
 rejects an unknown flag, ignores macOS's `-psn_*`, and validates `--sort`
 against the `preferences.SortBy*` vocabulary. No Fyne import.
 
 | File | Responsibility |
 |------|----------------|
-| `launch.go` | `Options`, `Options.ApplicationID`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
+| `launch.go` | `Options`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
+| `policy.go` | Explicit immutable `Policy`, `UpdatePermission` and storage selection, independent of trial resources and offline prerequisites. |
+| `preparation.go` | Per-launch prerequisite/reservation operations and `Prepared`, the single evidence owner; partial acquisition and finalization preserve joined errors and retained evidence. |
 
 ### `internal/filesort`
 
@@ -1241,7 +1266,7 @@ see `AGENTS.md`.
 - "How does delete work?" → `internal/ui/deletion` + `internal/trash` + `shortcuts.go` / `batch.go` `requestDelete`.
 - "How are native file dialogs implemented?" → `internal/filepicker` + `openfiles.go` / `export.go`.
 - "How is the last session saved/restored?" → `internal/session` + `session.go` `restoreSession`.
-- "How do in-app updates work?" → `internal/update` + `internal/ui/autoupdate` (serialized automatic/manual checks, staging, apply intent, What's-New cache, apply-failure cache) + `internal/ui/autoupdate.go` (`maybeStartUpdateCheck` / `CheckForUpdatesNow` / `PerformUpdate` / `maybeShowWhatsNew` / `maybeShowUpdateFailure`) + `settingswin` (manual dialogs) + `help/whatsnew.go` (the window). Automatic checks are off by default (`preferences.CheckForUpdates`) and stage silently. Apply remains OnStopped: normal shutdown installs without relaunch; explicit Perform update adds a post-apply relaunch. On Windows that relaunch starts the new executable with `PICFETCH_UPDATE_AWAIT_PID` set to the installing process's PID; `update.CleanupPredecessor` (`internal/update/await.go`), called from `main.go` before `app.NewWithID`, waits on that PID before preferences are touched, unsets the variable, and sweeps legacy leftovers. On Unix it also reclaims stale randomized staging files after an interrupted apply. If `update.Apply` fails, `ClassifyApplyError` (`internal/update/applyerr.go`) records the reason via `autoupdate.SaveApplyFailure`, and `maybeShowUpdateFailure` explains it on the next launch with a button to the releases page — releases are unsigned, so Controlled Folder Access can still deny the write even to `picfetch.exe` itself. GitHub TUF bootstrap expiry: `tufroot.go`.
+- "How do in-app updates work?" → `internal/update` + `internal/ui/autoupdate` (serialized automatic/manual checks, staging, apply intent, What's-New cache, apply-failure cache) + `internal/ui/autoupdate.go` (`maybeStartUpdateCheck` / `CheckForUpdatesNow` / `PerformUpdate` / `maybeShowWhatsNew` / `maybeShowUpdateFailure`) + `settingswin` (manual dialogs) + `help/whatsnew.go` (the window). Automatic checks are off by default (`preferences.CheckForUpdates`) and stage silently. Apply remains OnStopped: normal shutdown installs without relaunch; explicit Perform update adds a post-apply relaunch. On Windows that relaunch starts the new executable with `PICFETCH_UPDATE_AWAIT_PID` set to the installing process's PID; `update.CleanupPredecessor` (`internal/update/await.go`), called from `main.go` before `app.NewWithID`, waits on that PID before preferences are touched, unsets the variable, and sweeps legacy leftovers. On Unix it also reclaims stale randomized staging files after an interrupted apply. If `update.Apply` fails, `ClassifyApplyError` (`internal/update/applyerr.go`) records the reason via `autoupdate.Updater.SaveApplyFailure`, and `maybeShowUpdateFailure` explains it on the next launch with a button to the releases page — releases are unsigned, so Controlled Folder Access can still deny the write even to `picfetch.exe` itself. GitHub TUF bootstrap expiry: `tufroot.go`.
 - "How are GitHub release notes written?" → `todos.md` `## Done` + `scripts/releasenotes` + `make release` + `.github/workflows/release.yml` `body_path`.
 - "How are Linux race-test shards measured and assigned?" → `scripts/testshards` + `.github/testshards/internal-ui.tsv` + the measured CI sharding plan.
 - "How is a WinGet publish gated after Release?" → `.github/workflows/winget.yml` + `scripts/wingettag` (vX.Y.Z allowlist; `workflow_run` must be `release.yml` on a published tag).

@@ -113,7 +113,7 @@ func TestTraneFollowsCursor(t *testing.T) {
 func TestTraneOnlyMovesForPointer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		v, win, _ := newTestUI(t)
-		startViewerRuntime(v, win, t.TempDir())
+		startViewerRuntime(v, win)
 		picture := traneSurfaceImage(win.Content(), v.welcomeArt, false)
 		for _, duration := range []time.Duration{3 * time.Second, 7 * time.Second, time.Minute} {
 			time.Sleep(duration)

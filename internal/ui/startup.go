@@ -5,17 +5,25 @@
 package ui
 
 import (
+	"path/filepath"
+
 	"fyne.io/fyne/v2"
 
+	"github.com/frathe/picfetch/internal/explorerpresets"
+	"github.com/frathe/picfetch/internal/favstore"
 	"github.com/frathe/picfetch/internal/filescan"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/session"
+	"github.com/frathe/picfetch/internal/ui/autoupdate"
 )
 
-// startupState is the persisted input snapshot consumed by buildViewer and
-// geometry restoration.
+// startupState combines captured launch inputs and persisted state for
+// buildViewer and geometry restoration.
 type startupState struct {
+	policy       launch.Policy
+	storage      launch.Storage
 	savedSession []fyne.URI
 	prefs        preferences.State
 }
@@ -31,11 +39,42 @@ func loadStartupState(application fyne.App) startupState {
 
 // buildStartupViewer is the shared load, construct, then restore entry point.
 // It leaves noPollerStop installed for startViewerRuntime to replace.
-func buildStartupViewer(application fyne.App) (*viewer, fyne.Window) {
+func buildStartupViewer(application fyne.App, policy launch.Policy, resolveOrdinary func(fyne.App) (launch.Storage, error)) (*viewer, fyne.Window, error) {
+	if !policy.Valid() {
+		return nil, nil, launch.ErrInvalidPolicy
+	}
+	var ordinary launch.Storage
+	if policy.Purpose() == launch.Ordinary {
+		var err error
+		ordinary, err = resolveOrdinary(application)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	selected, err := policy.ResolveStorage(ordinary)
+	if err != nil {
+		return nil, nil, err
+	}
 	startup := loadStartupState(application)
+	startup.policy = policy
+	startup.storage = selected
 	view, window := buildViewer(application, startup)
 	restoreStartupGeometry(view, window, startup)
-	return view, window
+	return view, window, nil
+}
+
+// ordinaryLaunchStorage resolves the existing defaults only for ordinary launches.
+// The supplied app already owns the captured application identity.
+func ordinaryLaunchStorage(application fyne.App) (launch.Storage, error) {
+	favorites, err := favstore.DefaultDir()
+	if err != nil {
+		return launch.Storage{}, err
+	}
+	roots := launch.Storage{FavoritesDir: favorites, PresetsDir: explorerpresets.DefaultDir(), UpdatesDir: autoupdate.DefaultDir()}
+	if root := application.Cache().RootURI(); root != nil && root.Scheme() == "file" {
+		roots.AnalysisDir = filepath.Join(root.Path(), "image-analysis")
+	}
+	return roots, nil
 }
 
 // normalizePreferenceDefaults fills only caps. The other zero values remain

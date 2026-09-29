@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"runtime"
 
 	"fyne.io/fyne/v2"
@@ -14,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/requestlife"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
@@ -25,11 +25,11 @@ import (
 // on starts a check when due; turning it off cancels an in-flight check but
 // leaves an already-complete stage on disk for apply-on-stop.
 func (v *viewer) CheckForUpdates() bool {
-	return v.settings.checkForUpdates && !v.storeManaged && v.explorer.Trial() == nil && v.locationTrial == nil
+	return v.settings.checkForUpdates && v.launchPolicy.Updates().Allowed()
 }
 
 func (v *viewer) SetCheckForUpdates(on bool) {
-	if v.storeManaged || v.explorer.Trial() != nil || v.locationTrial != nil {
+	if !v.launchPolicy.Updates().Allowed() {
 		v.settings.checkForUpdates = false
 		v.updateOp.Invalidate()
 		return
@@ -62,7 +62,7 @@ func (v *viewer) currentUpdateVersion() string { return v.updater.CurrentVersion
 // before beginning updateOp's lifecycle token and handing Updater.Start its
 // context and a staleness func.
 func (v *viewer) maybeStartUpdateCheck() {
-	if v.storeManaged || v.explorer.Trial() != nil || v.locationTrial != nil {
+	if !v.launchPolicy.Updates().Allowed() {
 		return
 	}
 	v.updater.RemoveStaleStage()
@@ -103,15 +103,9 @@ func (v *viewer) maybeStartUpdateCheck() {
 // on Updater's tracked worker; this entry point only validates cheap local
 // prerequisites and adapts worker events onto Fyne's UI thread.
 func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
-	if v.explorer.Trial() != nil || v.locationTrial != nil {
+	if !v.launchPolicy.Updates().Allowed() {
 		if callbacks.Failed != nil {
-			callbacks.Failed(errors.New(lang.L("Updates are unavailable in this session")))
-		}
-		return
-	}
-	if v.storeManaged {
-		if callbacks.Failed != nil {
-			callbacks.Failed(errors.New("updates are managed by Microsoft Store"))
+			callbacks.Failed(v.updateRestrictionError())
 		}
 		return
 	}
@@ -177,15 +171,19 @@ func (v *viewer) CheckForUpdatesNow(callbacks settingswin.UpdateCallbacks) {
 	})
 }
 
+func (v *viewer) updateRestrictionError() error {
+	if v.launchPolicy.Valid() && v.launchPolicy.Purpose() == launch.Ordinary && v.launchPolicy.StoreManaged() {
+		return errors.New(lang.L("Updates are managed by Microsoft Store."))
+	}
+	return errors.New(lang.L("Updates are unavailable in this session"))
+}
+
 // PerformUpdate accepts the disruptive Settings action only while a newer,
 // usable staged update still exists. The actual file replacement remains in
 // Run's SetOnStopped callback, after session and preference persistence.
 func (v *viewer) PerformUpdate() error {
-	if v.explorer.Trial() != nil || v.locationTrial != nil {
-		return errors.New(lang.L("Updates are unavailable in this session"))
-	}
-	if v.storeManaged {
-		return errors.New("updates are managed by Microsoft Store")
+	if !v.launchPolicy.Updates().Allowed() {
+		return v.updateRestrictionError()
 	}
 	if err := v.updater.RequestApplyAndRelaunch(); err != nil {
 		return err
@@ -218,7 +216,10 @@ func currentUpdateCallback(token requestlife.Token, callback func()) func() {
 // decision needs that record, and it lives in v.app's cache - which does not
 // exist yet at the point CleanupPredecessor has to run.
 func (v *viewer) sweepUpdateBackup() *autoupdate.ApplyFailure {
-	dest, err := os.Executable()
+	if !v.launchPolicy.Updates().Allowed() {
+		return nil
+	}
+	dest, err := v.updateExecutable()
 	if err != nil {
 		return nil
 	}
@@ -229,7 +230,10 @@ func (v *viewer) sweepUpdateBackup() *autoupdate.ApplyFailure {
 // record-versus-backup decision can be exercised without writing into the
 // directory the test binary itself runs from.
 func (v *viewer) sweepUpdateBackupAt(dest string) *autoupdate.ApplyFailure {
-	failure, err := autoupdate.LoadApplyFailure(v.app)
+	if !v.launchPolicy.Updates().Allowed() {
+		return nil
+	}
+	failure, err := v.updater.LoadApplyFailure()
 	if err != nil {
 		// An unreadable record might have said "restore", and keeping a
 		// stale backup costs disk while deleting the wrong one costs the
@@ -251,7 +255,10 @@ func (v *viewer) sweepUpdateBackupAt(dest string) *autoupdate.ApplyFailure {
 // The marker is cleared before show. newTestUI does not run
 // SetOnStarted; tests call this directly.
 func (v *viewer) maybeShowWhatsNew() {
-	wn, err := autoupdate.LoadWhatsNew(v.app)
+	if !v.launchPolicy.Updates().Allowed() {
+		return
+	}
+	wn, err := v.updater.LoadWhatsNew()
 	if err != nil || wn == nil || wn.Version == "" {
 		return
 	}
@@ -259,7 +266,7 @@ func (v *viewer) maybeShowWhatsNew() {
 	if cur == "" || update.NormalizeVersion(wn.Version) != cur {
 		return
 	}
-	_ = autoupdate.ClearWhatsNew(v.app)
+	_ = v.updater.ClearWhatsNew()
 	v.help.ShowReleaseNotes()
 }
 
@@ -274,7 +281,7 @@ func (v *viewer) maybeShowWhatsNew() {
 // dialog would never reach the clear below, and a stranded record with Op
 // "restore" vetoes the backup sweep on every later launch.
 func (v *viewer) maybeShowUpdateFailure(rec *autoupdate.ApplyFailure) {
-	if rec == nil {
+	if !v.launchPolicy.Updates().Allowed() || rec == nil {
 		return
 	}
 	// Detail is the raw OS error text, and this is the only place it is
@@ -284,7 +291,7 @@ func (v *viewer) maybeShowUpdateFailure(rec *autoupdate.ApplyFailure) {
 	// the user still has.
 	fyne.LogError(fmt.Sprintf("update %s was not installed (%s during %q at %s): %s",
 		rec.Version, rec.Reason, rec.Op, rec.Path, rec.Detail), nil)
-	_ = autoupdate.ClearApplyFailure(v.app)
+	_ = v.updater.ClearApplyFailure()
 
 	prompt := dialog.NewCustomConfirm(
 		lang.L("Update could not be installed"),

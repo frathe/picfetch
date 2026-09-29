@@ -356,7 +356,7 @@ func TestClipboardCloseWaitsActiveDispatchAndDiscardsItsError(t *testing.T) {
 
 func TestShutdownStopsClipboardAdmission(t *testing.T) {
 	application := test.NewApp()
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	t.Cleanup(win.Close)
 	t.Cleanup(func() { drain(t, v) })
 	v.img.Image = image.NewRGBA(image.Rect(0, 0, 2, 2))

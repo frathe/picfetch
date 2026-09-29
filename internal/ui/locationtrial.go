@@ -16,16 +16,11 @@ type locationTrialSession struct {
 	scanStart int64
 }
 
-func (v *viewer) configureLocationTrial(dir string) error {
-	if dir == "" {
-		return nil
-	}
-	recorder, err := locationtrial.New(dir)
-	if err != nil {
-		return err
+func (v *viewer) borrowLocationTrial(recorder *locationtrial.Recorder) {
+	if recorder == nil {
+		return
 	}
 	v.locationTrial = &locationTrialSession{recorder: recorder}
-	return nil
 }
 
 func (v *viewer) beginLocationTrial() {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -38,6 +39,230 @@ func TestNativeSuitesSelectPlatformAndDistributionGuards(t *testing.T) {
 			t.Errorf("accepted %v", tc)
 		}
 	}
+}
+
+func TestLaunchPolicyNativeSuite(t *testing.T) {
+	for _, tc := range []struct {
+		name, host, tags string
+		count            int
+	}{
+		{"launch-policy", "linux", "", 165}, {"launch-policy", "windows", "", 166},
+		{"launch-policy", "darwin", "", 169}, {"launch-policy-store", "windows", "microsoftstore", 166},
+	} {
+		t.Run(tc.name+"/"+tc.host, func(t *testing.T) {
+			s, err := suiteFor(tc.name, tc.host)
+			if err != nil {
+				t.Fatalf("focused native launch suite unavailable: %v", err)
+			}
+			if s.tags != tc.tags || s.skipTests != "" || len(s.guards) != tc.count {
+				t.Fatalf("wrong build selection or inventory: tags=%q skip=%q guards=%d, want %d", s.tags, s.skipTests, len(s.guards), tc.count)
+			}
+			seenPackages := map[string]bool{}
+			for _, pkg := range s.packages {
+				if seenPackages[pkg] {
+					t.Fatalf("duplicate package execution: %s", pkg)
+				}
+				seenPackages[pkg] = true
+			}
+			for _, pkg := range []string{".", "./internal/launch", "./internal/ui", "./internal/ui/autoupdate", "./internal/ui/settingswin", "./internal/distribution"} {
+				if !seenPackages[pkg] {
+					t.Errorf("omitted required native package %s", pkg)
+				}
+			}
+			wantTags := "-tags=no_emoji,nodynamic"
+			if tc.tags != "" {
+				wantTags += "," + tc.tags
+			}
+			if slices.Contains(s.testArgs(), "-skip") || !slices.Contains(s.testArgs(), wantTags) {
+				t.Fatalf("wrong native test arguments: %v", s.testArgs())
+			}
+			for pkg, name := range map[string]string{
+				"":                        "TestLaunchStartupContract/ordering/compiled_distribution_and_identity",
+				"internal/launch":         "TestLaunchPreparationContract/evidence/default_Explorer_probe_reports_actual_platform_result",
+				"internal/ui":             "TestLaunchPolicyIntegration/settings/store_explorer",
+				"internal/ui/autoupdate":  "TestUpdaterLaunchPolicy/admission/missing_policy",
+				"internal/ui/settingswin": "TestUpdatesTabLaunchPolicy/missing_policy",
+			} {
+				full := "github.com/frathe/picfetch"
+				if pkg != "" {
+					full += "/" + pkg
+				}
+				if !slices.Contains(s.guards, guard{full, name}) {
+					t.Errorf("missing launch guard %s %s", full, name)
+				}
+			}
+			if tc.host == "darwin" && !slices.Contains(s.guards, guard{"github.com/frathe/picfetch/internal/openwith", "TestInvokeOpenURLs_DeliversDecodedPaths"}) {
+				t.Error("macOS native Open With guard absent")
+			}
+			if tc.host == "windows" && !slices.Contains(s.guards, guard{"github.com/frathe/picfetch/internal/update", "TestWindowsRelaunchCommand_PassesThePIDInTheInheritedEnvironment"}) {
+				t.Error("Windows predecessor guard absent")
+			}
+			compiled := "TestStoreManaged_DefaultBuildIsFalse"
+			if tc.tags != "" {
+				compiled = "TestStoreManaged_MicrosoftStoreBuildIsTrue"
+			}
+			if !slices.Contains(s.guards, guard{"github.com/frathe/picfetch/internal/distribution", compiled}) {
+				t.Error("compiled distribution guard absent")
+			}
+			for _, name := range []string{"store", "explorer", "location_map", "store_explorer", "store_location_map", "ordinary"} {
+				if !slices.Contains(s.guards, guard{"github.com/frathe/picfetch/internal/ui", "TestLaunchPolicyIntegration/settings/" + name}) {
+					t.Errorf("missing integrated Settings guard %s", name)
+				}
+			}
+			filter := regexp.MustCompile(s.runTests)
+			for _, g := range s.guards {
+				top, _, _ := strings.Cut(g.Test, "/")
+				if !filter.MatchString(top) || filter.MatchString(top+"Extra") {
+					t.Fatalf("guard outside exact focus: %v", g)
+				}
+			}
+			for _, unrelated := range []string{"TestE2E_Golden", "TestHEICNativeQualification", "TestLaunchStartupContractExtra"} {
+				if filter.MatchString(unrelated) {
+					t.Fatalf("selected unrelated test %s", unrelated)
+				}
+			}
+		})
+	}
+	for _, mismatch := range [][2]string{{"launch-policy", "plan9"}, {"launch-policy-store", "linux"}, {"launch-policy-store", "darwin"}} {
+		if _, err := suiteFor(mismatch[0], mismatch[1]); err == nil {
+			t.Errorf("accepted wrong native selection %v", mismatch)
+		}
+	}
+	t.Run("evidence_metadata", func(t *testing.T) {
+		parent := guard{"github.com/frathe/picfetch", "TestLaunchStartupContract"}
+		child := guard{parent.Package, parent.Test + "/ordering/compiled_distribution_and_identity"}
+		s := suite{name: "launch-policy", goos: runtime.GOOS, packages: []string{"."}, guards: []guard{parent, child}}
+		for _, tc := range []struct {
+			name, stream, tags, goos string
+			runErr                   error
+			complete                 bool
+		}{
+			{"passed", eventsFor(parent, "run") + eventsFor(child, "run", "pass") + eventsFor(parent, "pass"), "", "", nil, true},
+			{"missing_child", eventsFor(parent, "run", "pass"), "", "", errors.New("required child absent"), false},
+			{"skipped_child", eventsFor(parent, "run") + eventsFor(child, "run", "skip") + eventsFor(parent, "pass"), "", "", errors.New("required child skipped"), false},
+			{"process_failure", eventsFor(parent, "run") + eventsFor(child, "run", "pass") + eventsFor(parent, "pass"), "", "", errors.New("go test failed"), false},
+			{"wrong_tags", eventsFor(parent, "run") + eventsFor(child, "run", "pass") + eventsFor(parent, "pass"), "microsoftstore", "", nil, false},
+			{"wrong_host", eventsFor(parent, "run") + eventsFor(child, "run", "pass") + eventsFor(parent, "pass"), "", "plan9", nil, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				path := t.TempDir() + "/capture.json"
+				if err := os.WriteFile(path, []byte(tc.stream), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				selected := s
+				selected.tags = tc.tags
+				if tc.goos != "" {
+					selected.goos = tc.goos
+				}
+				metadataErr := writeLaunchMetadata(selected, path, tc.runErr)
+				if (metadataErr == nil) != (tc.name == "passed" || tc.name == "process_failure") {
+					t.Fatalf("metadata selection/evidence error = %v", metadataErr)
+				}
+				data, err := os.ReadFile(path + ".metadata.json")
+				if err != nil {
+					t.Fatalf("raw capture lacks provenance and outcomes: %v", err)
+				}
+				var metadata struct {
+					Suite, HostOS, HostArch, GoVersion, Revision, Tags string
+					Complete                                           bool
+					Required                                           []struct {
+						Package, Test string
+						Runs, Passes  int
+						Rejected      bool
+					}
+				}
+				if err := json.Unmarshal(data, &metadata); err != nil {
+					t.Fatal(err)
+				}
+				wantTags := "no_emoji,nodynamic"
+				if tc.tags != "" {
+					wantTags += "," + tc.tags
+				}
+				if metadata.Suite != s.name || metadata.HostOS != runtime.GOOS || metadata.HostArch != runtime.GOARCH || metadata.GoVersion != runtime.Version() || len(metadata.Revision) != 40 || metadata.Tags != wantTags || metadata.Complete != tc.complete || len(metadata.Required) != 2 {
+					t.Fatalf("invalid provenance or completion: %+v", metadata)
+				}
+				if metadata.Required[0].Package != parent.Package || metadata.Required[0].Test != parent.Test || metadata.Required[1].Test != child.Test {
+					t.Fatalf("required outcomes do not identify exact guards: %+v", metadata.Required)
+				}
+				if tc.name == "missing_child" && (metadata.Required[1].Runs != 0 || metadata.Required[1].Passes != 0) {
+					t.Fatalf("missing child marked as seen: %+v", metadata.Required[1])
+				}
+				if tc.name == "skipped_child" && !metadata.Required[1].Rejected {
+					t.Fatal("skipped child not marked rejected")
+				}
+			})
+		}
+	})
+	t.Run("runner_refusal", func(t *testing.T) {
+		s, err := suiteFor("launch-policy", "linux")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			name, target, problem string
+		}{
+			{"valid", "", ""},
+			{"missing_parent", "TestLaunchStartupContract", "inventory"},
+			{"missing_child", "TestLaunchPreparationContract/evidence/default_Explorer_probe_reports_actual_platform_result", "missing"},
+			{"skipped_required", "TestUpdaterLaunchPolicy/admission/missing_policy", "skip"},
+			{"skipped_descendant", "TestLaunchPolicyIntegration/update_entrypoints", "descendant"},
+			{"failed_process", "", "process"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				var capture bytes.Buffer
+				var executed bool
+				execute := func(_ context.Context, args []string, out io.Writer) error {
+					if !slices.Contains(args, "-tags=no_emoji,nodynamic") || slices.Contains(args, "-skip") {
+						t.Fatalf("incorrect build selection: %v", args)
+					}
+					if slices.Contains(args, "-list") {
+						pkg := strings.TrimPrefix(args[len(args)-1], "./")
+						full := "github.com/frathe/picfetch"
+						if pkg != "." {
+							full += "/" + pkg
+						}
+						seen := map[string]bool{}
+						for _, g := range s.guards {
+							parent, _, _ := strings.Cut(g.Test, "/")
+							if g.Package == full && !seen[parent] && !(tc.problem == "inventory" && parent == tc.target) {
+								_, _ = fmt.Fprintln(out, parent)
+								seen[parent] = true
+							}
+						}
+						return nil
+					}
+					executed = true
+					for _, g := range s.guards {
+						if tc.problem == "missing" && g.Test == tc.target {
+							continue
+						}
+						actions := []string{"run", "pass"}
+						if tc.problem == "skip" && g.Test == tc.target {
+							actions[1] = "skip"
+						}
+						_, _ = io.WriteString(out, eventsFor(g, actions...))
+						if tc.problem == "descendant" && g.Test == tc.target {
+							_, _ = io.WriteString(out, eventsFor(guard{g.Package, g.Test + "/new_case"}, "run", "skip"))
+						}
+					}
+					if tc.problem == "process" {
+						return errors.New("go test failed")
+					}
+					return nil
+				}
+				err := runSuite(context.Background(), s, execute, io.Discard, &capture)
+				if (err == nil) != (tc.problem == "") {
+					t.Fatalf("wrong native capture result: %v", err)
+				}
+				if tc.problem == "inventory" && executed {
+					t.Fatal("executed after absent build-selected parent")
+				}
+				if tc.problem != "inventory" && !executed {
+					t.Fatal("never exercised event validation")
+				}
+			})
+		}
+	})
 }
 
 func TestHEICNativeInventory(t *testing.T) {
@@ -519,6 +744,7 @@ func TestFocusedNativeCIExecutesAndRetainsGuards(t *testing.T) {
 	}
 	var workflow struct {
 		Jobs map[string]struct {
+			Env   map[string]string
 			Steps []struct {
 				Run  string
 				Uses string
@@ -530,9 +756,29 @@ func TestFocusedNativeCIExecutesAndRetainsGuards(t *testing.T) {
 	if err := yaml.Unmarshal(data, &workflow); err != nil {
 		t.Fatal(err)
 	}
+	t.Run("macos_trial_tools", func(t *testing.T) {
+		job := workflow.Jobs["macos-test"]
+		if job.Env["PICFETCH_SIMILARITY_ASSETS"] != "${{ github.workspace }}/.scratch/visual-similarity-explorer/assets" {
+			t.Error("native trial fixture assets do not match its retained compatibility path")
+		}
+		found := false
+		for _, step := range job.Steps {
+			if strings.Contains(step.Run, "^TestNativeLibraryRunner$") {
+				found = true
+				if step.If != "" || !strings.Contains(step.Run, "-tags no_emoji,nodynamic,explorertrial") || !strings.Contains(step.Run, "native-guards-trial-tools.json") || !strings.Contains(step.Run, "jq -e") {
+					t.Error("native trial tool fixture lacks strict, retained native execution")
+				}
+			}
+		}
+		if !found {
+			t.Error("macOS native trial-tool qualification is absent")
+		}
+	})
 	for _, selected := range []struct{ job, suite string }{
 		{"windows-test", "command-admission"}, {"macos-test", "command-admission"},
 		{"linux-native", "favorite-ownership"}, {"windows-test", "favorite-ownership"}, {"macos-test", "favorite-ownership"},
+		{"linux-native", "launch-policy"}, {"windows-test", "launch-policy"}, {"macos-test", "launch-policy"},
+		{"windows-test", "launch-policy-store"},
 	} {
 		t.Run(selected.job+"/"+selected.suite, func(t *testing.T) {
 			jobName := selected.job

@@ -1,6 +1,6 @@
 # PicFetch — Open Refactoring Backlog
 
-Updated 2026-09-28 after implementation and qualification of MA-031 and MA-032.
+Updated 2026-09-29 after implementation and qualification of MA-031 through MA-033.
 The cross-feature architecture assessment of PR review history and
 implementation is dated 2026-09-26.
 
@@ -35,8 +35,13 @@ applicable [tickets](.scratch/ma-032/issues/README.md) are complete and CI-quali
 all 15 root/display request owners are migrated, and fallback 08 is inapplicable.
 The [archived record](finished_refactorings/2026-09-28-ma-032-request-lifetimes.md)
 holds implementation evidence; [PR 71](https://github.com/frathe/picfetch/pull/71)
-tracks latest-head review dispositions and checks. MA-033 remains a proposal,
-not an unresolved PR defect.
+tracks latest-head review dispositions and checks. MA-033's
+[accepted launch-policy design](docs/launch-policy.md) resolves all ten interview
+decisions; its [resolved specification](.scratch/ma-033/spec.md) has 60 stories
+and 22 qualified acceptance criteria. All nine tickets are complete in the
+[archived record](finished_refactorings/2026-09-28-ma-033-launch-policy.md).
+[PR 72](https://github.com/frathe/picfetch/pull/72) tracks latest-head review
+dispositions and checks.
 
 Historical inspection baseline: `main` at `54fd7c3` (v1.1.2). At that revision,
 the root `internal/ui` package contained 55 production Go files, 10,835 non-test
@@ -49,7 +54,7 @@ explicit cross-feature composition in `internal/ui`.
 | [MA-030](#ma-030) | P1 | Deepen collection identity and committed transitions | All nine tickets complete and CI-qualified; latest review/checks in PR 69 |
 | [MA-031](#ma-031) | P2 | Share Favorite membership and ownership primitives | All nine tickets complete and CI-qualified; latest review/checks in PR 70 |
 | [MA-032](#ma-032) | P2 | Consolidate proven worker-lifetime mechanics | Complete: all 15 owners converged and qualified; review-loop evidence in PR 71 |
-| [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | Recommended independent small task |
+| [MA-033](#ma-033) | P2 | Capture launch side-effect policy once | All nine tickets complete and CI-qualified; latest review/checks in PR 72 |
 
 Priorities express architectural value, not the severity of a currently open bug.
 
@@ -569,29 +574,57 @@ passed on `fc7aa32`; the archived record maps all applicable acceptance criteria
 
 ## MA-033 — Capture launch side-effect policy once
 
-**P2; high confidence, small independent task.** Runtime policy is distinct from
-interactive command policy and must exist before feature construction.
+**P2; complete and qualified.** The
+[accepted design](docs/launch-policy.md),
+[ADR](docs/adr/0007-captured-launch-policy.md) and
+[completed interview](.scratch/ma-033/interview.md) resolve all ten decisions.
+Runtime policy is distinct from interactive command policy and must exist before
+feature construction. The [resolved specification](.scratch/ma-033/spec.md) has
+60 user stories, agreed testing interfaces and 22 qualified acceptance criteria.
+All nine tickets are complete; the
+[archived record](finished_refactorings/2026-09-28-ma-033-launch-policy.md) retains
+TDD, caller assessment, all native host/build captures, full CI and inspections.
+[PR 72](https://github.com/frathe/picfetch/pull/72) tracks latest-head reviews.
+
+The following rationale describes the historical pre-implementation state.
 
 **Evidence:** trial isolation first missed
 [manual update/apply paths](https://github.com/frathe/picfetch/pull/58#discussion_r4105976269),
 then [pre-app predecessor cleanup](https://github.com/frathe/picfetch/pull/58#discussion_r4106350305).
-Current guards repeat Store-managed/Explorer-trial/Location-Map-trial decisions
+The former guards repeated Store-managed/Explorer-trial/Location-Map-trial decisions
 in [main.go](main.go), [run.go](internal/ui/run.go) and
 [autoupdate.go](internal/ui/autoupdate.go). The UI guards also derive launch
-policy from live feature objects (`explorer.Trial`, `locationTrial`).
+policy from live feature objects (`explorer.Trial`, `locationTrial`). These covered
+routes now consume captured policy; the obsolete Options.ApplicationID adapter
+has been removed in favor of separate passive policy and effectful preparation.
 
-**Refactor:** derive one immutable runtime policy from validated
+**Accepted refactor:** derive one immutable runtime policy from validated
 [launch.Options](internal/launch/launch.go) and distribution mode before normal
 startup side effects. Pass the relevant value to root composition and updater
 admission. It decides normal-install cleanup, update check/download/apply and
 storage isolation; it does not hold feature objects or perform those effects.
 Reuse `Options.ApplicationID`'s existing validation and keep `main` thin.
+Require explicit valid policy at composition and updater effect admission;
+missing policy refuses effects. Distribution and trial purpose compose their
+restrictions. Validate/reserve trial evidence before Fyne storage access, retain
+failed evidence, and keep one preparation owner across the UI run to finalize
+resources after trial-evidence producers stop/join. Preserve current identity/path
+formats and their path-routing isolation limits. Settings renders every applicable refusal
+reason instead of presenting unavailable update controls.
 
-**Verification/done:** a portable/Store/Explorer-trial/Location-Map-trial matrix
-covers automatic and manual update paths, staged apply and both startup cleanup
-paths. Use temporary sentinel artifacts and injected updater operations. Adding
-a new isolated launch mode changes one policy decision and its tests, not a
-search for scattered feature-name predicates.
+**Required verification:** a distribution-by-trial matrix covers automatic/manual
+updates, verifier and stage access, apply/relaunch and both startup cleanup paths.
+Exercise production startup ordering, invalid launches before Fyne storage,
+prepared-resource cleanup, retained evidence and mounted Settings content.
+Use injected operations to observe prohibited reads and temporary sentinels to
+observe mutation; untouched contents alone cannot prove no read. Preserve
+predecessor waiting and failed-restore backup protection. Focused TDD, changed-file
+GoLand inspections, full verification and relevant native startup guards remain
+required; current helper/native suites do not prove the new composition contract.
+Adding a new isolated launch mode changes one policy decision and its tests,
+not a search for scattered feature-name predicates. The design interview itself
+ran no implementation verification; the subsequent completed checks are in the
+archived implementation record.
 
 ## Smaller opportunities and deliberate deferrals
 

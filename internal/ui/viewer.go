@@ -14,6 +14,7 @@ import (
 	"github.com/frathe/picfetch/internal/dupes"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/requestlife"
 	"github.com/frathe/picfetch/internal/ui/analysiscache"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
@@ -52,10 +53,8 @@ type viewer struct {
 	// stopping retires title/menu updates before shutdown cancels features.
 	// Fyne may run OnStopped after the native event loop has drained.
 	stopping bool
-	// storeManaged is immutable in production and copied from the build-tag
-	// fact in internal/distribution. Tests can set the per-viewer value to
-	// exercise both delivery channels without mutable package-level seams.
-	storeManaged bool
+	// launchPolicy is captured before composition and independent of features.
+	launchPolicy launch.Policy
 	heic         *heicWork
 	// quit requests application shutdown after PerformUpdate has successfully
 	// recorded apply-and-relaunch intent. buildViewer initializes it from the
@@ -450,8 +449,9 @@ type viewer struct {
 	// refactor's locked decision on cancellation), so
 	// maybeStartUpdateCheck (autoupdate.go) prepares the client, then begins
 	// the token and hands Updater.Start its context and a staleness func.
-	updater  *autoupdate.Updater
-	updateOp requestlife.Owner
+	updater          *autoupdate.Updater
+	updateOp         requestlife.Owner
+	updateExecutable func() (string, error)
 
 	// settings is the whole settings-backed state - see memlimits.go's
 	// settings for what it holds and why it's grouped.

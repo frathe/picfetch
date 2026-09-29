@@ -1,9 +1,9 @@
 // Command picfetch is a desktop image viewer: drop files or folders onto
 // it (or open them from the file dialog) and page through them.
 //
-// This file is the whole of package main - app setup, translations, and
-// the command-line arguments. Everything else lives in internal/ui; see
-// ARCHITECTURE.md for the package map.
+// Package main owns app setup, translations and command-line arguments;
+// main_startup.go keeps the production startup order observable. Everything
+// else lives in internal/ui; see ARCHITECTURE.md for the package map.
 package main
 
 import (
@@ -111,63 +111,47 @@ func launchArgs(args []string, stdout, stderr io.Writer) (paths []string, opts l
 
 // cleanupLaunchPredecessor admits the pre-app filesystem cleanup only for
 // ordinary portable launches. The callback keeps this boundary desktop-free.
-func cleanupLaunchPredecessor(opts launch.Options, cleanup func()) {
-	//goland:noinspection GoBoolExpressions
-	if !distribution.StoreManaged && opts.ExplorerTrial == "" && opts.LocationMapTrial == "" {
+func cleanupLaunchPredecessor(policy launch.Policy, cleanup func()) {
+	if policy.Updates().Allowed() {
 		cleanup()
 	}
 }
 
 func main() {
-	// Before every side effect below: --help and a rejected flag must not
-	// graft Objective-C methods, touch the update channel, or create an app
-	// whose preferences would then be flushed on the way out.
-	paths, opts, exit := launchArgs(os.Args[1:], os.Stdout, os.Stderr)
-	if exit >= 0 {
-		os.Exit(exit)
-	}
-
-	if heic.WorkerMain() || similarity.WorkerMain() {
-		return
-	}
-
-	// First statement in the process, before the fyne.App exists.
-	// openwith.Install grafts the "Open With" methods onto GLFW's
-	// application delegate class, and -[NSApplication setDelegate:] caches
-	// which selectors its delegate answers at the moment it is called -
-	// which GLFW does inside glfw.Init(), so a method grafted after that
-	// is never consulted no matter that the runtime can now find it.
-	// app.NewWithID below creates no window and so never reaches initGLFW,
-	// which is what makes this position both early enough and safe.
-	//
-	// The result is deliberately dropped rather than logged: it is false on
-	// every non-macOS build by design, so logging it would put a line in
-	// every Linux and Windows launch that means nothing, and on macOS false
-	// says only that the Cocoa driver isn't linked or that the methods were
-	// already grafted. Neither is actionable, and neither is a reason not
-	// to start - the app simply behaves as it did before, ignoring
-	// "Open With".
-	openwith.Install()
-
-	// Before app.NewWithID: an update relaunch must not read or write
-	// preferences while the process it replaced is still flushing its own.
-	// Microsoft Store builds never stage or apply GitHub-delivered binaries,
-	// so they must not inspect or clean that channel's predecessor files.
-	cleanupLaunchPredecessor(opts, update.CleanupPredecessor)
-
-	identity, err := opts.ApplicationID(context.Background(), appID)
+	exit, err := runStartup(os.Args[1:], os.Stdout, os.Stderr, productionStartup())
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
 	}
-	application := app.NewWithID(identity)
-
-	if err := lang.AddTranslationsFS(translationsFS, "translations"); err != nil {
-		fyne.LogError("failed to load translations", err)
+	if exit != 0 {
+		os.Exit(exit)
 	}
+}
 
-	if err := ui.Run(application, argsToURIs(paths), opts, thirdPartyNotices, privacyPolicy); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func productionStartup() startupOps {
+	return startupOps{
+		heicWorker:       heic.WorkerMain,
+		similarityWorker: similarity.WorkerMain,
+		installOpenWith: func() {
+			// Cocoa caches delegate selectors during glfw.Init. Installation
+			// belongs before app construction. False is normal off macOS.
+			openwith.Install()
+		},
+		cleanup: update.CleanupPredecessor,
+		capture: func(opts launch.Options) (launch.Policy, error) {
+			return launch.NewPolicy(opts, appID, distribution.StoreManaged)
+		},
+		prepare: func(ctx context.Context, policy launch.Policy) (*launch.Prepared, error) {
+			return launch.Prepare(ctx, policy, launch.PreparationOptions{})
+		},
+		newApp: func(identity string) (fyne.App, error) {
+			application := app.NewWithID(identity)
+			if err := lang.AddTranslationsFS(translationsFS, "translations"); err != nil {
+				fyne.LogError("failed to load translations", err)
+			}
+			return application, nil
+		},
+		run: func(application fyne.App, initial []fyne.URI, opts launch.Options, prepared *launch.Prepared) error {
+			return ui.Run(application, initial, opts, prepared, thirdPartyNotices, privacyPolicy)
+		},
 	}
 }

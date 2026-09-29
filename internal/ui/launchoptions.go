@@ -6,10 +6,8 @@
 package ui
 
 import (
-	"path/filepath"
 	"time"
 
-	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
@@ -96,20 +94,10 @@ func (v *viewer) applyLaunchOptions(opts launch.Options) {
 	}
 
 	v.pendingPictureFrame = opts.PictureFrame
-	if opts.ExplorerTrial != "" {
+	if v.launchPolicy.Purpose() == launch.ExplorerTrial {
 		v.explorerInput.pendingLaunch = true
 	}
-	trialDir := opts.ExplorerTrial
-	if trialDir == "" {
-		trialDir = opts.LocationMapTrial
-	}
-	if trialDir != "" {
-		options := v.explorer.Options()
-		options.Presets = &explorerpresets.Store{Dir: filepath.Join(trialDir, "presets")}
-		v.explorer.Configure(options)
-		v.favorites.SetDir(filepath.Join(trialDir, "favorites"))
-		v.analysisDir = filepath.Join(trialDir, "image-analysis")
-		v.updater.SetDir(filepath.Join(trialDir, "updates"))
+	if !v.launchPolicy.Updates().Allowed() {
 		v.settings.checkForUpdates = false
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -13,11 +14,11 @@ import (
 	"fyne.io/fyne/v2/test"
 
 	"github.com/frathe/picfetch/internal/completion"
-	"github.com/frathe/picfetch/internal/explorerpresets"
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/heic"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/openwith"
 	"github.com/frathe/picfetch/internal/similarity"
-	"github.com/frathe/picfetch/internal/ui/analysiscache"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/display"
 	explorerui "github.com/frathe/picfetch/internal/ui/explorer"
@@ -89,6 +90,29 @@ func TestMain(m *testing.M) {
 // a window, not just this one.
 func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	t.Helper()
+	return newTestUIWithPolicy(t, testLaunchPolicy(t, launch.Options{}, distribution.StoreManaged))
+}
+
+func testLaunchPolicy(t *testing.T, opts launch.Options, storeManaged bool) launch.Policy {
+	t.Helper()
+	policy, err := launch.NewPolicy(opts, "io.github.frathe.picfetch", storeManaged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return policy
+}
+
+func buildTestStartupViewer(t *testing.T, application fyne.App) (*viewer, fyne.Window) {
+	t.Helper()
+	view, window, err := buildStartupViewer(application, testLaunchPolicy(t, launch.Options{}, distribution.StoreManaged), testLaunchStorage(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return view, window
+}
+
+func newTestUIWithPolicy(t *testing.T, policy launch.Policy) (v *viewer, win fyne.Window, closed func() bool) {
+	t.Helper()
 
 	// Reassert the shared app as the current one before building: the
 	// persistence tests construct their own app, and Fyne makes whichever
@@ -111,7 +135,11 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 		}
 	}
 
-	v, win = buildStartupViewer(testApp)
+	var err error
+	v, win, err = buildStartupViewer(testApp, policy, testLaunchStorage(t))
+	if err != nil {
+		t.Fatal(err)
+	}
 	v.configureHEIC(unavailableHEICBackend{})
 	v.heic.ui = &uitest.UIQueue{}
 	v.display.SetUIQueue(&uitest.UIQueue{})
@@ -123,14 +151,14 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	v.locationMap.ConfigureTiles(locationmap.TileOptions{Client: &http.Client{Transport: offlineReleaseImages{}}}, noLocationRetry)
 	v.visualsearch.Configure(searchui.Options{Queue: &uitest.UIQueue{}})
 	v.searchView.overlayUI = &uitest.UIQueue{}
-	v.analysisDir = t.TempDir()
-	v.analysisCache.Configure(analysiscache.Options{Roots: v.analysisRoots(), Queue: &uitest.UIQueue{}, ConfirmClear: v.settingsWin.ConfirmClearAnalysis, Changed: v.syncMenus})
+	cacheOptions := v.analysisCache.Options()
+	cacheOptions.Queue = &uitest.UIQueue{}
+	v.analysisCache.Configure(cacheOptions)
 	v.spiral.SetUIQueue(&uitest.UIQueue{})
 	// Ordinary Explorer fixtures begin after first-use setup; setup cases reset these.
 	configureExplorer(v, func(options *explorerui.Options) {
 		options.Queue = &uitest.UIQueue{}
 		options.Settings.IntroSeen, options.AssetsReady = true, true
-		options.Presets = &explorerpresets.Store{Dir: t.TempDir()}
 	})
 	v.compare.SetUIQueue(&uitest.UIQueue{})
 	v.mosaicWin.SetUIQueue(&uitest.UIQueue{})
@@ -170,11 +198,8 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	// nothing here ever reaches the desktop.
 	v.wallpaperDir = t.TempDir()
 
-	// Update staging must never touch the real cache directory or construct
-	// a live GitHub client. Tests that exercise Check/Download assign
-	// v.updater's client themselves (httptest + fake Verifier) before
-	// enabling the setting; newTestUI only redirects the stage dir.
-	v.updater.SetDir(t.TempDir())
+	// Storage roots were supplied before construction. Tests that exercise
+	// Check/Download install their offline client before enabling the setting.
 
 	var isClosed bool
 	win.SetOnClosed(func() { isClosed = true })
@@ -190,6 +215,20 @@ func newTestUI(t *testing.T) (v *viewer, win fyne.Window, closed func() bool) {
 	t.Cleanup(func() { drain(t, v) })
 
 	return v, win, func() bool { return isClosed }
+}
+
+func testLaunchStorage(t *testing.T) func(fyne.App) (launch.Storage, error) {
+	t.Helper()
+	root := t.TempDir()
+	roots := launch.Storage{FavoritesDir: filepath.Join(root, "favorites"), PresetsDir: filepath.Join(root, "presets"), AnalysisDir: filepath.Join(root, "image-analysis"), UpdatesDir: filepath.Join(root, "updates")}
+	for _, dir := range []string{roots.FavoritesDir, roots.PresetsDir, roots.AnalysisDir, roots.UpdatesDir} {
+		if err := os.Mkdir(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return func(_ fyne.App) (launch.Storage, error) {
+		return roots, nil
+	}
 }
 
 // drain waits out every background operation this viewer may still have in

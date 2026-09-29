@@ -7,6 +7,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"os"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -15,7 +16,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/appearance"
-	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
@@ -86,7 +86,8 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		loadingBar:    loadingBar,
 		toast:         toastComp,
 		info:          info,
-		storeManaged:  distribution.StoreManaged,
+		launchPolicy:  startup.policy,
+		analysisDir:   startup.storage.AnalysisDir,
 		state:         newAppState(filesort.FromPref(prefs.SortMode), prefs.MergeMode),
 		baseTitle:     appTitle,
 		imgCache:      cache,
@@ -98,14 +99,15 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 			imgCacheMB: prefs.MaxImageCacheMB,
 		},
 		wallpaperDir: defaultWallpaperDir(),
-		updater: autoupdate.New(application, autoupdate.DefaultDir(), func(day string) {
+		updater: autoupdate.New(application, startup.storage.UpdatesDir, startup.policy, func(day string) {
 			preferences.SaveLastUpdateCheckDay(application, day)
 		}),
-		keyModifiers:   defaultKeyModifiers,
-		stopWinPosPoll: noPollerStop,
-		waitWinPosPoll: noPollerStop,
-		clipboardWork:  newClipboardWork(),
-		fileWork:       newFileMutationWork(),
+		keyModifiers:     defaultKeyModifiers,
+		stopWinPosPoll:   noPollerStop,
+		waitWinPosPoll:   noPollerStop,
+		clipboardWork:    newClipboardWork(),
+		fileWork:         newFileMutationWork(),
+		updateExecutable: os.Executable,
 	}
 
 	view.chooserUI = fyneChooserQueue{}
@@ -132,7 +134,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		dz.restoreLink.Show()
 	}
 
-	registerFeatures(view, application, window, prefs)
+	registerFeatures(view, application, window, prefs, startup.storage)
 	view.configureHEIC(heic.NewClient(""))
 
 	// The bar lives in its own overlay layer on top of the stack, pinned to

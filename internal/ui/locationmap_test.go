@@ -38,6 +38,7 @@ import (
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/locationtrial"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/locationmap"
@@ -669,10 +670,9 @@ func TestLocationMap(t *testing.T) {
 		}
 	})
 	t.Run("native_trial_update_isolation", func(t *testing.T) {
-		v := newTestViewer(t)
-		if err := v.configureLocationTrial(filepath.Join(t.TempDir(), "trial")); err != nil {
-			t.Fatal(err)
-		}
+		dir := filepath.Join(t.TempDir(), "trial")
+		v, _, _ := newTestUIWithPolicy(t, testLaunchPolicy(t, launch.Options{LocationMapTrial: dir}, false))
+		prepareTestLocationTrial(t, v, dir)
 		v.updater.SetCurrentVersion("0.2.6")
 		stale := saveVerifiedUpdateStage(t, v, "v0.2.5", "old stage")
 		v.SetCheckForUpdates(true)
@@ -719,9 +719,7 @@ func TestLocationMap(t *testing.T) {
 	t.Run("native_trial_observations", func(t *testing.T) {
 		v := newTestViewer(t)
 		dir := filepath.Join(t.TempDir(), "native")
-		if err := v.configureLocationTrial(dir); err != nil {
-			t.Fatal(err)
-		}
+		prepareTestLocationTrial(t, v, dir)
 		extensionless := uitest.TempGPSJPEGURI(t, "extensionless", 24, 16, 48.85, 2.35)
 		// A URI provider may know the MIME type even without a file extension.
 		dropAndWait(t, v,

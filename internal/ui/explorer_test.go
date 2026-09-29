@@ -917,16 +917,18 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 	})
 
 	t.Run("trial_launch", func(t *testing.T) {
-		v := newTestViewer(t)
 		root := filepath.Join(t.TempDir(), "trial")
-		session, err := explorertrial.New(root)
+		policy := testLaunchPolicy(t, launch.Options{ExplorerTrial: root}, false)
+		prepared, err := launch.Prepare(context.Background(), policy, launch.PreparationOptions{VerifyOffline: func(_ context.Context) error { return nil }})
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer func() { _ = prepared.Close() }()
+		v, _, _ := newTestUIWithPolicy(t, policy)
+		session := prepared.ExplorerTrial()
 		configureExplorer(v, func(options *explorerui.Options) {
 			options.Trial = session
 		})
-		defer func() { _ = session.Close() }()
 		v.applyLaunchOptions(launch.Options{ExplorerTrial: root})
 		v.SetCheckForUpdates(true)
 		if v.CheckForUpdates() || v.updater.Dir() != filepath.Join(root, "updates") ||
@@ -970,16 +972,18 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 	})
 	t.Run("trial_truncated", func(t *testing.T) {
-		v := newTestViewer(t)
 		root := filepath.Join(t.TempDir(), "trial")
-		session, err := explorertrial.New(root)
+		policy := testLaunchPolicy(t, launch.Options{ExplorerTrial: root}, false)
+		prepared, err := launch.Prepare(context.Background(), policy, launch.PreparationOptions{VerifyOffline: func(_ context.Context) error { return nil }})
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer func() { _ = prepared.Close() }()
+		v, _, _ := newTestUIWithPolicy(t, policy)
+		session := prepared.ExplorerTrial()
 		configureExplorer(v, func(options *explorerui.Options) {
 			options.Trial = session
 		})
-		defer func() { _ = session.Close() }()
 		limit := 1
 		v.applyLaunchOptions(launch.Options{ExplorerTrial: root, MaxFiles: &limit, PictureFrame: true})
 		library := t.TempDir()
@@ -3645,7 +3649,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 		}
 		labels := []string{"Save analysis for favorites", "Auto-update every 30 images", "Fit new stacks into view"}
 		findChecks := func(v *viewer) (fyne.Window, map[string]*widget.Check) {
-			v.settingsWin.Show(v.settingsState(), false)
+			v.settingsWin.Show(v.settingsState(), v.launchPolicy.Updates())
 			checks := map[string]*widget.Check{}
 			for _, win := range v.app.Driver().AllWindows() {
 				if win.Title() != lang.L("Settings") {

@@ -171,7 +171,7 @@ func TestE2E_LaunchWithSavedSessionShowsRestoreLink(t *testing.T) {
 	b := uitest.TempJPEGURI(t, "b.jpg", 40, 30, color.RGBA{B: 200, A: 255})
 	session.Save(application, []fyne.URI{a, b})
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	defer win.Close()
 
 	if !v.restoreLink.Visible() {
@@ -207,7 +207,7 @@ func TestE2E_TappingRestoreLinkRestoresNotFileDialog(t *testing.T) {
 	saved := uitest.TempJPEGURI(t, "saved.jpg", 40, 30, color.RGBA{G: 200, A: 255})
 	session.Save(application, []fyne.URI{saved})
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	defer win.Close()
 
 	if !v.restoreLink.Visible() {

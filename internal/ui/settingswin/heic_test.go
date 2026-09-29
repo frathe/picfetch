@@ -55,7 +55,7 @@ func TestHEICSettingsGuideActionAndClosedWindow(t *testing.T) {
 	if calls != 1 {
 		t.Fatal("the closed Settings window must ignore an obsolete guide action")
 	}
-	w.Show(host.prefs, false)
+	w.Show(host.prefs, testUpdatePermission(t, false))
 	button.OnTapped()
 	if calls != 1 {
 		t.Fatal("reopening Settings must not reactivate the old guide action")

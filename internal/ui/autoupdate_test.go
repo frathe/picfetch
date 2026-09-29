@@ -29,6 +29,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 	"github.com/frathe/picfetch/internal/ui/settingswin"
@@ -251,8 +252,7 @@ func TestUpdateCheck_SettingOffNeverCallsHTTP(t *testing.T) {
 }
 
 func TestUpdateCheck_StoreManagedBuildNeverTouchesGitHubStage(t *testing.T) {
-	v := newTestViewer(t)
-	v.storeManaged = true
+	v, _, _ := newTestUIWithPolicy(t, testLaunchPolicy(t, launch.Options{}, true))
 	v.settings.checkForUpdates = true
 	v.updater.SetCurrentVersion("0.2.6")
 	calls := 0
@@ -283,8 +283,7 @@ func TestUpdateCheck_StoreManagedBuildNeverTouchesGitHubStage(t *testing.T) {
 }
 
 func TestMicrosoftStoreUpdateActionsAreRefused(t *testing.T) {
-	v := newTestViewer(t)
-	v.storeManaged = true
+	v, _, _ := newTestUIWithPolicy(t, testLaunchPolicy(t, launch.Options{}, true))
 	v.settings.checkForUpdates = true
 
 	v.SetCheckForUpdates(true)
@@ -294,10 +293,10 @@ func TestMicrosoftStoreUpdateActionsAreRefused(t *testing.T) {
 
 	var manualErr error
 	v.CheckForUpdatesNow(settingswin.UpdateCallbacks{Failed: func(err error) { manualErr = err }})
-	if manualErr == nil || manualErr.Error() != "updates are managed by Microsoft Store" {
+	if manualErr == nil || manualErr.Error() != lang.L("Updates are managed by Microsoft Store.") {
 		t.Fatalf("manual update error = %v", manualErr)
 	}
-	if err := v.PerformUpdate(); err == nil || err.Error() != "updates are managed by Microsoft Store" {
+	if err := v.PerformUpdate(); err == nil || err.Error() != lang.L("Updates are managed by Microsoft Store.") {
 		t.Fatalf("PerformUpdate error = %v", err)
 	}
 	if v.updater.Done().Begun() {
@@ -819,7 +818,7 @@ func TestApplyStagedUpdate_SavesNotesAndCallsApply(t *testing.T) {
 	if gotOptions.Relaunch {
 		t.Error("normal shutdown apply unexpectedly requested relaunch")
 	}
-	wn, err := autoupdate.LoadWhatsNew(v.app)
+	wn, err := v.updater.LoadWhatsNew()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -859,7 +858,7 @@ func TestApplyStagedUpdate_SameVersionRemovesWithoutApply(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(v.updater.Dir(), "stage.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("want stage removed, stat err %v", err)
 	}
-	wn, err := autoupdate.LoadWhatsNew(v.app)
+	wn, err := v.updater.LoadWhatsNew()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -893,7 +892,7 @@ func TestApplyStagedUpdate_UnverifiedStageNeverApplies(t *testing.T) {
 	if _, err := update.LoadStage(v.updater.Dir()); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("unverified stage should be removed, got %v", err)
 	}
-	if notes, err := autoupdate.LoadWhatsNew(v.app); err != nil || notes != nil {
+	if notes, err := v.updater.LoadWhatsNew(); err != nil || notes != nil {
 		t.Fatalf("unverified stage wrote What's New: notes=%+v err=%v", notes, err)
 	}
 }
@@ -988,7 +987,7 @@ func TestApplyStagedUpdate_RelaunchFailureRetainsNotesAndStage(t *testing.T) {
 	t.Cleanup(func() { update.Apply = orig })
 	v.updater.ApplyStagedUpdate()
 
-	wn, err := autoupdate.LoadWhatsNew(v.app)
+	wn, err := v.updater.LoadWhatsNew()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1002,20 +1001,20 @@ func TestApplyStagedUpdate_RelaunchFailureRetainsNotesAndStage(t *testing.T) {
 
 func TestWhatsNewCache_RoundTripAndClear(t *testing.T) {
 	v := newTestViewer(t)
-	if err := autoupdate.SaveWhatsNew(v.app, "v0.2.6", "body text"); err != nil {
+	if err := v.updater.SaveWhatsNew("v0.2.6", "body text"); err != nil {
 		t.Fatal(err)
 	}
-	got, err := autoupdate.LoadWhatsNew(v.app)
+	got, err := v.updater.LoadWhatsNew()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got == nil || got.Version != "v0.2.6" || got.Body != "body text" {
 		t.Fatalf("loadWhatsNew = %+v", got)
 	}
-	if err := autoupdate.ClearWhatsNew(v.app); err != nil {
+	if err := v.updater.ClearWhatsNew(); err != nil {
 		t.Fatal(err)
 	}
-	got, err = autoupdate.LoadWhatsNew(v.app)
+	got, err = v.updater.LoadWhatsNew()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1026,7 +1025,7 @@ func TestWhatsNewCache_RoundTripAndClear(t *testing.T) {
 
 func TestMaybeShowWhatsNew_ShowsAndClearsCache(t *testing.T) {
 	v := newTestViewer(t)
-	if err := autoupdate.SaveWhatsNew(v.app, "v0.2.6", "# obsolete cached release notes"); err != nil {
+	if err := v.updater.SaveWhatsNew("v0.2.6", "# obsolete cached release notes"); err != nil {
 		t.Fatal(err)
 	}
 	v.updater.SetCurrentVersion("0.2.6")
@@ -1062,7 +1061,7 @@ func TestMaybeShowWhatsNew_ShowsAndClearsCache(t *testing.T) {
 	if !strings.Contains(prose.String(), "What's Changed") || strings.Contains(prose.String(), "obsolete cached release notes") {
 		t.Fatalf("post-update window did not use the bundled release-notes file: %q", prose.String())
 	}
-	wn, err := autoupdate.LoadWhatsNew(v.app)
+	wn, err := v.updater.LoadWhatsNew()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1074,7 +1073,7 @@ func TestMaybeShowWhatsNew_ShowsAndClearsCache(t *testing.T) {
 	// window may still be open; Singleton.Open stays true either way, so
 	// assert via cache staying empty and a fresh viewer with no cache.
 	v.maybeShowWhatsNew()
-	wn, err = autoupdate.LoadWhatsNew(v.app)
+	wn, err = v.updater.LoadWhatsNew()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1094,7 +1093,7 @@ func TestMaybeShowWhatsNew_EmptyCacheDoesNotShow(t *testing.T) {
 
 func TestMaybeShowWhatsNew_VersionMismatchDoesNotShow(t *testing.T) {
 	v := newTestViewer(t)
-	if err := autoupdate.SaveWhatsNew(v.app, "v0.2.6", "# notes"); err != nil {
+	if err := v.updater.SaveWhatsNew("v0.2.6", "# notes"); err != nil {
 		t.Fatal(err)
 	}
 	v.updater.SetCurrentVersion("0.2.5")
@@ -1102,7 +1101,7 @@ func TestMaybeShowWhatsNew_VersionMismatchDoesNotShow(t *testing.T) {
 	if v.help.WhatsNewOpen() {
 		t.Error("version mismatch must not show What's New")
 	}
-	wn, err := autoupdate.LoadWhatsNew(v.app)
+	wn, err := v.updater.LoadWhatsNew()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1116,7 +1115,7 @@ func TestStartViewerRuntime_DefaultOffDoesNotAssignClient(t *testing.T) {
 	if v.updater.Client() != nil {
 		t.Fatal("newTestUI must not assign v.updater's client")
 	}
-	startViewerRuntime(v, win, t.TempDir())
+	startViewerRuntime(v, win)
 	t.Cleanup(v.stopWinPosPoll)
 	if v.updater.Client() != nil {
 		t.Fatal("startViewerRuntime with CheckForUpdates=false must not construct a Client")
@@ -1172,7 +1171,7 @@ func TestSweepUpdateBackup_KeepsTheBackupAfterAFailedRestore(t *testing.T) {
 	// that stats fine. The backup is the only executable known to work.
 	v := newTestViewer(t)
 	dest := updateBackupFixture(t)
-	if err := autoupdate.SaveApplyFailure(v.app, autoupdate.ApplyFailure{
+	if err := v.updater.SaveApplyFailure(autoupdate.ApplyFailure{
 		Version: "v0.2.6",
 		Reason:  string(update.ReasonAccessDenied),
 		Op:      "restore",
@@ -1213,7 +1212,7 @@ func TestSweepUpdateBackup_SweepsAfterAFailureThatLeftTheExecutableAlone(t *test
 		t.Run(op, func(t *testing.T) {
 			v := newTestViewer(t)
 			dest := updateBackupFixture(t)
-			if err := autoupdate.SaveApplyFailure(v.app, autoupdate.ApplyFailure{
+			if err := v.updater.SaveApplyFailure(autoupdate.ApplyFailure{
 				Version: "v0.2.6",
 				Reason:  string(update.ReasonAccessDenied),
 				Op:      op,
@@ -1310,7 +1309,7 @@ func TestMaybeShowUpdateFailure_NoRecordShowsNothing(t *testing.T) {
 func TestMaybeShowUpdateFailure_ClearsRecord(t *testing.T) {
 	v := newTestViewer(t)
 	rec := updateFailureRecord(update.ReasonAccessDenied)
-	if err := autoupdate.SaveApplyFailure(v.app, rec); err != nil {
+	if err := v.updater.SaveApplyFailure(rec); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1319,7 +1318,7 @@ func TestMaybeShowUpdateFailure_ClearsRecord(t *testing.T) {
 	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
 		t.Errorf("overlay count = %d, want 1 (the update failure dialog)", n)
 	}
-	got, err := autoupdate.LoadApplyFailure(v.app)
+	got, err := v.updater.LoadApplyFailure()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1338,7 +1337,7 @@ func TestMaybeShowUpdateFailure_ReportsWhateverVersionFailed(t *testing.T) {
 	v.updater.SetCurrentVersion("0.2.5")
 	rec := updateFailureRecord(update.ReasonAccessDenied)
 	rec.Version = "v9.9.9"
-	if err := autoupdate.SaveApplyFailure(v.app, rec); err != nil {
+	if err := v.updater.SaveApplyFailure(rec); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1347,7 +1346,7 @@ func TestMaybeShowUpdateFailure_ReportsWhateverVersionFailed(t *testing.T) {
 	if n := len(v.win.Canvas().Overlays().List()); n != 1 {
 		t.Errorf("overlay count = %d, want 1 - the report must not be version-gated", n)
 	}
-	got, err := autoupdate.LoadApplyFailure(v.app)
+	got, err := v.updater.LoadApplyFailure()
 	if err != nil {
 		t.Fatal(err)
 	}

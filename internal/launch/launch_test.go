@@ -20,7 +20,8 @@ func TestParse_FlagsAnywhereAmongPaths(t *testing.T) {
 		if err != nil || !equalStrings(paths, []string{"/photos"}) || opts.LocationMapTrial != "/new map trial" {
 			t.Fatalf("map trial flag: %+v %v", opts, err)
 		}
-		identity, err := opts.ApplicationID(context.Background(), "ordinary")
+		policy, err := NewPolicy(opts, "ordinary", false)
+		identity := policy.ApplicationID()
 		if err != nil || identity == "ordinary" || identity == "" {
 			t.Fatalf("trial did not isolate preferences: %q %v", identity, err)
 		}
@@ -28,7 +29,7 @@ func TestParse_FlagsAnywhereAmongPaths(t *testing.T) {
 			t.Fatal("empty trial directory accepted")
 		}
 		opts.ExplorerTrial = "/another trial"
-		if _, err := opts.ApplicationID(context.Background(), "ordinary"); err == nil {
+		if _, err := NewPolicy(opts, "ordinary", false); err == nil {
 			t.Fatal("overlapping trial modes accepted")
 		}
 	})
@@ -290,15 +291,22 @@ func equalStrings(got, want []string) bool {
 	return true
 }
 
-func TestApplicationID(t *testing.T) {
+func TestTrialPreparationHonorsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	identity, err := (Options{}).ApplicationID(ctx, "normal-app")
-	if err != nil || identity != "normal-app" {
-		t.Fatalf("ordinary identity=%q err=%v", identity, err)
+	ordinary, err := NewPolicy(Options{}, "normal-app", false)
+	if err != nil {
+		t.Fatal(err)
 	}
-	identity, err = (Options{ExplorerTrial: t.TempDir()}).ApplicationID(ctx, "normal-app")
-	if err == nil || identity != "" {
-		t.Fatalf("unverified trial identity=%q err=%v", identity, err)
+	if ordinary.ApplicationID() != "normal-app" {
+		t.Fatalf("ordinary identity=%q", ordinary.ApplicationID())
+	}
+	trial, err := NewPolicy(Options{ExplorerTrial: t.TempDir()}, "normal-app", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := Prepare(ctx, trial, PreparationOptions{})
+	if !errors.Is(err, context.Canceled) || owner != nil {
+		t.Fatalf("cancelled trial owner=%v err=%v", owner, err)
 	}
 }

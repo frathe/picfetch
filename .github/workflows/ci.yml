@@ -182,6 +182,9 @@ jobs:
       - name: Execute native Linux guards
         run: go run ./scripts/nativeguards -suite linux -capture "${{ runner.temp }}/native-guards-linux.json"
 
+      - name: Check native launch policy
+        run: go run ./scripts/nativeguards -suite launch-policy -capture "${{ runner.temp }}/native-guards-launch-policy.json"
+
       - name: Check native Favorite ownership
         run: go run ./scripts/nativeguards -suite favorite-ownership -capture "${{ runner.temp }}/native-guards-favorite-ownership.json"
 
@@ -229,6 +232,12 @@ jobs:
       - name: Execute Microsoft Store distribution guards
         run: go run ./scripts/nativeguards -suite store -capture "${{ runner.temp }}/native-guards-store.json" -skip-heic-codecs
 
+      - name: Check native launch policy
+        run: go run ./scripts/nativeguards -suite launch-policy -capture "${{ runner.temp }}/native-guards-launch-policy.json"
+
+      - name: Check native Store launch policy
+        run: go run ./scripts/nativeguards -suite launch-policy-store -capture "${{ runner.temp }}/native-guards-launch-policy-store.json"
+
       - name: Upload native guard events
         if: always()
         uses: actions/upload-artifact@v7
@@ -250,7 +259,7 @@ jobs:
             arch: amd64
     runs-on: ${{ matrix.runner }}
     env:
-      PICFETCH_SIMILARITY_ASSETS: ${{ github.workspace }}/.scratch/native-guard-assets
+      PICFETCH_SIMILARITY_ASSETS: ${{ github.workspace }}/.scratch/visual-similarity-explorer/assets
     steps:
       - name: Check out code
         uses: actions/checkout@v7
@@ -267,6 +276,9 @@ jobs:
       - name: Execute Cocoa-linked macOS guards
         run: go run ./scripts/nativeguards -suite macos -capture "${{ runner.temp }}/native-guards-macos.json"
 
+      - name: Check native launch policy
+        run: go run ./scripts/nativeguards -suite launch-policy -capture "${{ runner.temp }}/native-guards-launch-policy.json"
+
       - name: Check native command admission
         run: go run ./scripts/nativeguards -suite command-admission -capture "${{ runner.temp }}/native-guards-command-admission.json"
 
@@ -282,6 +294,14 @@ jobs:
 
       - name: Check Explorer runtime selection and worker exit
         run: go test ./internal/ort ./internal/similarity ./scripts/explorereval -count=1
+
+      - name: Check native trial-tool compatibility
+        # The child is controlled; this qualifies the native launcher/evidence
+        # contract, not the production viewer or model quality.
+        run: |
+          go test -tags no_emoji,nodynamic,explorertrial -list '^TestNativeLibraryRunner$' ./scripts/explorereval
+          go test -tags no_emoji,nodynamic,explorertrial -count=1 -json -v ./scripts/explorereval -run '^TestNativeLibraryRunner$' | tee "$RUNNER_TEMP/native-guards-trial-tools.json"
+          jq -e -s 'map(select(.Test == "TestNativeLibraryRunner")) as $test | ($test | map(select(.Action == "run")) | length) == 1 and ($test | map(select(.Action == "pass")) | length) == 1 and all(.[]; .Action != "fail" and .Action != "skip")' "$RUNNER_TEMP/native-guards-trial-tools.json"
 
       - name: Qualify Intel Explorer download and offline inference
         if: matrix.arch == 'amd64'

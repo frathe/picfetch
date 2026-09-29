@@ -63,7 +63,7 @@ func viewerWithSavedPreferences(t *testing.T) *viewer {
 	application := test.NewApp()
 	preferences.Save(application, savedPreferences())
 
-	v, win := buildStartupViewer(application)
+	v, win := buildTestStartupViewer(t, application)
 	t.Cleanup(func() { win.Close() })
 	t.Cleanup(func() { imaging.SetMaxEncodedBytes(0) }) // process-wide - see memlimits.go
 
