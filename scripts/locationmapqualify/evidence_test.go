@@ -76,6 +76,38 @@ func TestCheckReportRejectsUnidentifiedGestures(t *testing.T) {
 	}
 }
 
+func TestCheckReportBoundsZoomWitnesses(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		scale, dx, dy float64
+		valid         bool
+	}{
+		{"in lower limits", 2, -654, -486, true},
+		{"in upper limits", 2, -546, -314, true},
+		{"out lower limits", 0.5, 246, 114, true},
+		{"out upper limits", 0.5, 354, 286, true},
+		{"in wrong center", 2, -1, -1, false},
+		{"out wrong center", 0.5, 1, 1, false},
+		{"in beyond left", 2, -654.01, -400, false},
+		{"in beyond right", 2, -545.99, -400, false},
+		{"in beyond top", 2, -600, -486.01, false},
+		{"in beyond bottom", 2, -600, -313.99, false},
+		{"out beyond left", 0.5, 245.99, 200, false},
+		{"out beyond right", 0.5, 354.01, 200, false},
+		{"out beyond top", 0.5, 300, 113.99, false},
+		{"out beyond bottom", 0.5, 300, 286.01, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			report := validReport(10_000)
+			witness := report.Gestures[1].Transform
+			witness.Scale, witness.DX, witness.DY = test.scale, test.dx, test.dy
+			if err := CheckReport(report, 10_000, fixtureBuild); (err == nil) != test.valid {
+				t.Fatalf("zoom witness acceptance = %v, want valid=%v", err, test.valid)
+			}
+		})
+	}
+}
+
 func writePNG(t *testing.T, path string, shade color.RGBA) {
 	t.Helper()
 	f, err := os.Create(path)

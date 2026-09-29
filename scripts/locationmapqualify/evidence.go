@@ -78,7 +78,13 @@ func (v *VisualTransform) validFor(kind string) bool {
 	case "pan":
 		return v.Scale == 1 && math.Abs(v.DX) >= 18 && math.Abs(v.DX) <= 166 && math.Abs(v.DY) <= 14
 	case "zoom":
-		return v.Scale == 2 && v.DX < 0 && v.DY < 0 || v.Scale == 0.5 && v.DX > 0 && v.DY > 0
+		if v.Scale != 2 && v.Scale != 0.5 {
+			return false
+		}
+		// The observer captures 1200x800 pixels. Its centered zoom search
+		// spans +/-12 and +/-20 four-pixel samples, plus 1.5 for refinement.
+		centerDX, centerDY := (1-v.Scale)*1200/2, (1-v.Scale)*800/2
+		return math.Abs(v.DX-centerDX) <= 54 && math.Abs(v.DY-centerDY) <= 86
 	default:
 		return false
 	}

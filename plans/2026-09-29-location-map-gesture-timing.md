@@ -37,6 +37,66 @@ G3: no writes; G4/G5: prior-PR artifact/report relationships are not hot lead
 context; S/W: bounded relationship search, not a mechanical transform. All
 assessment, implementation and final acceptance remain lead-owned.
 
+### PR 73, first review and repairs
+
+[PR 73](https://github.com/frathe/picfetch/pull/73) opened at `1dd0113`.
+Security review completed without findings. Code review reported two P2 issues;
+both were validated and fixed by the lead, not dismissed or delegated:
+
+- Thread `PRRT_kwDOT5ODVc6nF7qh`: serial capture callbacks could outrun the queued
+  timeout. The response policy now requires the captured display timestamp to
+  be strictly after input and before the three-second deadline, checked before
+  registration. The timer shares the same duration constant. Portable policy
+  tests cover pre-input, equal-input, just-before, at/after-deadline and near-
+  UInt64-limit timestamps. With the old lower-bound-only predicate, the new
+  test failed with "A stale or expired captured frame must not beat a queued
+  timeout"; the deadline predicate makes both Swift suites pass.
+- Thread `PRRT_kwDOT5ODVc6nF7qo`: sign-only zoom witnesses admitted impossible
+  offsets. `CheckReport` now bounds offsets to the fixed 1200x800 capture's
+  centered search, including refinement: center +/-54 horizontal and +/-86
+  vertical pixels. All ten impossible/out-of-range cases failed before the fix;
+  both directions' four boundary cases passed. The fixed 14-case regression
+  passes through the real report checker.
+
+The diagnosing-bugs/TDD loop used the already agreed portable observer-policy
+and report-checker seams. These exact missing-boundary cases needed no speculative
+multi-hypothesis instrumentation or live desktop run. No native timing or manual
+performance evidence is reclassified by these development-tool repairs.
+
+Fresh local verification on `1dd0113` plus these repairs:
+
+- Qualifier and recorder race packages PASS (3.450s / 1.271s); both portable
+  Swift suites PASS; macOS native helper warnings-as-errors typecheck PASS.
+- Focused Map/reset/Grid native UI race regressions PASS (76.821s).
+- `make verify-build check-test-shards` PASS: formatting/notices, vet, build and
+  all 740 UI runnables. Testshards prerequisite regressions PASS under race
+  (1.799s). Initial sandbox attempts denied loopback binding and a Go cache
+  entry; reruns with those required accesses passed, without changing tests.
+- GoLand `get_file_problems(errorsOnly=false)` completed on all 12 changed Go
+  files. The four existing weak duplicate warnings in `scripts/testshards/main_test.go`
+  remain intentional unchanged fixtures covered by its exact Qodana exclusion.
+  Three whole-file duplicate warnings came from the local-only attach adapter;
+  byte-for-byte comparison confirmed that cause. Moving the adapter outside
+  project content and re-inspecting all three originals cleared them. Fresh
+  inspection of both repaired Go files has no findings. No actionable findings.
+- GoLand Swift batch inspection again returned no analyzed items: semantic IDE
+  coverage remains unavailable, not passing. Portable/native compiler checks
+  remain the available evidence for these files.
+- Qodana run `36564062425`: downloaded `qodana-report`, inspected
+  `/end/qodana.sarif.json`; exact revision `1dd011373ffe2b97b8fb3dc02809930f8e7e97e9`,
+  successful invocation, exit 0, zero post-suppression results. Latest repaired
+  head still requires its own fresh report and all CI/review gates.
+
+Lead review axes: Standards — no actionable convention issues after the two
+repairs and documented weak-warning dispositions. Spec — application behavior
+and failure-preserving tooling contracts covered; automated zoom benchmarking
+is explicitly parked by Ronin rather than treated as a successful measurement.
+
+Ronin additionally requested archiving `needs_refactoring.md` with a date prefix.
+All four remaining numbered entries (MA-030 through MA-033) are qualified in
+their archives and PRs 69–72 are confirmed merged. Preserve optional opportunities
+as historical deferrals, repair relative links, and do not claim them implemented.
+
 ## Linux verification continuation — 2026-09-29
 
 Ronin confirmed the scope as Linux finalization after the macOS fixes. Local and

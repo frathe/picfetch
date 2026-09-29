@@ -34,6 +34,14 @@ struct Observation: Encodable {
     var transform: VisualTransform?
 }
 
+let responseTimeoutNS: UInt64 = 3_000_000_000
+
+// Capture callbacks and the timeout share a serial queue. Eligibility follows
+// the frame's display timestamp, even if registration has delayed the timer.
+func isResponseWithinDeadline(inputNS: UInt64, displayNS: UInt64) -> Bool {
+    displayNS > inputNS && displayNS - inputNS < responseTimeoutNS
+}
+
 // Exit timing must identify the viewer captured before map entry. Scanning and
 // tile delivery can change arbitrary map pixels after Escape was posted.
 func isResponseFrame(kind: String, current: UInt64, before: UInt64, closed: UInt64?, identified: Bool = false) -> Bool {
@@ -135,7 +143,8 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
         if currentHash != latestHash { changedAt = mach_absolute_time() }
         latest = pixels
         latestHash = currentHash
-        guard let work = pending, displayTicks > work.input else { return }
+        guard let work = pending,
+              isResponseWithinDeadline(inputNS: nanoseconds(work.input), displayNS: nanoseconds(displayTicks)) else { return }
         let command = work.command
         var transform: VisualTransform?
         if (command.kind == "pan" || command.kind == "zoom"), currentHash != work.hash,
@@ -223,7 +232,7 @@ final class Observer: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sen
             modifier.flags = []
             modifier.postToPid(pid)
         }
-        queue.asyncAfter(deadline: .now() + .seconds(3)) {
+        queue.asyncAfter(deadline: .now() + .nanoseconds(Int(responseTimeoutNS))) {
             guard let work = self.pending, work.input == input else { return }
             self.pending = nil
             var observation = Observation(kind: command.kind, input_ns: nanoseconds(input), error: "no identified native response within 3s")
