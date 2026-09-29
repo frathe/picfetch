@@ -300,6 +300,11 @@ func drain(t *testing.T, v *viewer) {
 	v.exif.Stop()
 	v.updateOp.Invalidate()
 	v.slides.Exit()
+	// Exit drops the sliding bar. Wait joins a dwell callback that had
+	// already started; Deactivate only prevents one that has not.
+	if v.frameChrome != nil {
+		v.frameChrome.Wait()
+	}
 	v.compare.Close()
 	v.spiral.Close()
 	v.mosaicWin.Close()

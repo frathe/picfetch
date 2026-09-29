@@ -21,7 +21,7 @@ func attachClock(c *Chrome, start time.Time) *manualClock {
 	clk := &manualClock{now: start}
 	c.manual = true
 	c.nowFn = func() time.Time { return clk.now }
-	c.afterFn = func(time.Duration, func()) func() { return func() {} }
+	c.afterFn = func(_ time.Duration, _ func()) func() bool { return func() bool { return true } }
 	return clk
 }
 
@@ -114,5 +114,66 @@ func TestChrome_OpenMenuStaysShownUntilDismissed(t *testing.T) {
 	clk.now = closed.Add(700 * time.Millisecond)
 	if got := c.Slide(); got != 0 {
 		t.Fatalf("slide 700ms after close = %v, want 0", got)
+	}
+}
+
+func TestChrome_DeactivatePreventsTheDwellTimer(t *testing.T) {
+	c, _ := newTestChrome(t)
+	stops := 0
+	c.afterFn = func(_ time.Duration, _ func()) func() bool {
+		return func() bool {
+			stops++
+			return true
+		}
+	}
+	c.Activate(menuWithFile())
+	c.MouseIn(&desktop.MouseEvent{})
+	c.Deactivate()
+	waitChrome(t, c)
+	if stops != 1 {
+		t.Fatalf("timer stops = %d, want 1", stops)
+	}
+	if c.Layer().Visible() {
+		t.Fatal("deactivating should hide the bar")
+	}
+}
+
+func TestChrome_StartedTimerDoesNotTouchTheBarAfterDeactivate(t *testing.T) {
+	c, _ := newTestChrome(t)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	c.afterFn = func(_ time.Duration, fn func()) func() bool {
+		go func() {
+			close(started)
+			<-release
+			fn()
+		}()
+		return func() bool { return false }
+	}
+	c.Activate(menuWithFile())
+	c.MouseIn(&desktop.MouseEvent{})
+	<-started
+	c.Deactivate()
+	close(release)
+	waitChrome(t, c)
+	if c.Layer().Visible() {
+		t.Fatal("a timer that already started should still leave the bar hidden")
+	}
+	if got := c.Slide(); got != 0 {
+		t.Fatalf("slide after a late timer = %v, want 0", got)
+	}
+}
+
+func waitChrome(t *testing.T, c *Chrome) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		c.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the menu timer")
 	}
 }

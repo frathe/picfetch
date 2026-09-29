@@ -189,6 +189,12 @@ func registerShutdown(application fyne.App, view *viewer) {
 		view.settingsWin.StopTracking()
 		view.exif.StopTracking()
 		view.mosaicWin.StopTracking()
+		// Close stops the slideshow worker without telling the menu
+		// observer, so an armed dwell or slide would otherwise call
+		// fyne.Do after the event loop has stopped.
+		if view.frameChrome != nil {
+			view.frameChrome.Deactivate()
+		}
 		view.slides.Close()
 		view.scanOp.lifecycle.Invalidate()
 		view.sortOp.lifecycle.Invalidate()

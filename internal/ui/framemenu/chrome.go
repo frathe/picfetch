@@ -1,6 +1,8 @@
 package framemenu
 
 import (
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -34,14 +36,16 @@ type Chrome struct {
 	popup  *widget.PopUpMenu
 	reveal Reveal
 
-	active         bool
+	active         atomic.Bool
 	leftDuringMenu bool
 	suppress       bool
 	manual         bool
 
 	nowFn   func() time.Time
-	afterFn func(time.Duration, func()) func()
-	cancel  func()
+	afterFn func(time.Duration, func()) func() bool
+	timerMu sync.Mutex
+	cancel  func() bool
+	pending sync.WaitGroup
 }
 
 // New builds a hidden bar for canvas. Pop-up menus use that canvas.
@@ -63,7 +67,7 @@ func (c *Chrome) Layer() fyne.CanvasObject { return c.layer }
 
 // Activate shows the hidden strip for menu and resets any previous slide.
 func (c *Chrome) Activate(menu *fyne.MainMenu) {
-	c.active = true
+	c.active.Store(true)
 	c.leftDuringMenu = false
 	c.reveal.Reset()
 	c.setMenu(menu)
@@ -73,9 +77,13 @@ func (c *Chrome) Activate(menu *fyne.MainMenu) {
 }
 
 // Deactivate hides the strip, closes an open menu, and drops pending timers.
+// A callback that already started is left for Wait; it will not touch the bar
+// once this returns.
 func (c *Chrome) Deactivate() {
-	c.active = false
-	c.stopTimer()
+	c.timerMu.Lock()
+	c.active.Store(false)
+	c.disarmLocked()
+	c.timerMu.Unlock()
 	c.suppress = true
 	if c.popup != nil {
 		c.popup.Dismiss()
@@ -85,6 +93,13 @@ func (c *Chrome) Deactivate() {
 	c.leftDuringMenu = false
 	c.reveal.Reset()
 	c.layer.Hide()
+}
+
+// Wait joins a dwell or slide callback that Deactivate could not prevent.
+// Call it off the UI thread. The callback delivers through fyne.Do, so waiting
+// on the UI thread can deadlock once that delivery is queued.
+func (c *Chrome) Wait() {
+	c.pending.Wait()
 }
 
 // Slide is how far the bar has traveled right now, from 0 to 1.
@@ -100,7 +115,7 @@ func (c *Chrome) MouseIn(_ *desktop.MouseEvent) { c.hover(true) }
 func (c *Chrome) MouseMoved(_ *desktop.MouseEvent) { c.hover(true) }
 
 func (c *Chrome) MouseOut() {
-	if !c.active {
+	if !c.active.Load() {
 		return
 	}
 	// The open menu is a canvas overlay, so it takes the pointer off this
@@ -114,7 +129,7 @@ func (c *Chrome) MouseOut() {
 }
 
 func (c *Chrome) hover(inside bool) {
-	if !c.active {
+	if !c.active.Load() {
 		return
 	}
 	c.reveal.Pointer(inside, c.now())
@@ -142,7 +157,7 @@ func (c *Chrome) setMenu(menu *fyne.MainMenu) {
 }
 
 func (c *Chrome) open(index int, anchor fyne.CanvasObject) {
-	if !c.active || c.menu == nil || index < 0 || index >= len(c.menu.Items) || c.canvas == nil {
+	if !c.active.Load() || c.menu == nil || index < 0 || index >= len(c.menu.Items) || c.canvas == nil {
 		return
 	}
 	c.suppress = true
@@ -171,7 +186,7 @@ func (c *Chrome) open(index int, anchor fyne.CanvasObject) {
 }
 
 func (c *Chrome) onMenuDismissed() {
-	if c.suppress || !c.active {
+	if c.suppress || !c.active.Load() {
 		return
 	}
 	inside := !c.leftDuringMenu
@@ -182,10 +197,13 @@ func (c *Chrome) onMenuDismissed() {
 }
 
 func (c *Chrome) kick() {
-	if !c.active {
-		c.stopTimer()
+	c.timerMu.Lock()
+	if !c.active.Load() {
+		c.disarmLocked()
+		c.timerMu.Unlock()
 		return
 	}
+	c.timerMu.Unlock()
 	_ = c.reveal.Shown(c.now())
 	c.Refresh()
 	if c.layer != nil {
@@ -195,8 +213,10 @@ func (c *Chrome) kick() {
 }
 
 func (c *Chrome) schedule() {
-	c.stopTimer()
-	if !c.active || c.manual {
+	c.timerMu.Lock()
+	defer c.timerMu.Unlock()
+	c.disarmLocked()
+	if !c.active.Load() || c.manual {
 		return
 	}
 	delay, ok := c.reveal.NextDelay(c.now())
@@ -209,15 +229,32 @@ func (c *Chrome) schedule() {
 	if delay <= 0 {
 		return
 	}
+	c.pending.Add(1)
 	c.cancel = c.afterFn(delay, func() {
-		fyne.Do(c.kick)
+		c.timerMu.Lock()
+		active := c.active.Load()
+		c.timerMu.Unlock()
+		if !active {
+			c.pending.Done()
+			return
+		}
+		fyne.Do(func() {
+			defer c.pending.Done()
+			c.kick()
+		})
 	})
 }
 
-func (c *Chrome) stopTimer() {
-	if c.cancel != nil {
-		c.cancel()
-		c.cancel = nil
+// disarmLocked stops the armed timer. The caller holds timerMu. A callback
+// that already started owns the pending count and must finish it.
+func (c *Chrome) disarmLocked() {
+	if c.cancel == nil {
+		return
+	}
+	prevented := c.cancel()
+	c.cancel = nil
+	if prevented {
+		c.pending.Done()
 	}
 }
 
@@ -228,9 +265,9 @@ func (c *Chrome) now() time.Time {
 	return time.Now()
 }
 
-func realAfter(d time.Duration, fn func()) func() {
+func realAfter(d time.Duration, fn func()) func() bool {
 	timer := time.AfterFunc(d, fn)
-	return func() { timer.Stop() }
+	return timer.Stop
 }
 
 type chromeRenderer struct {
@@ -254,7 +291,7 @@ func (r *chromeRenderer) Layout(size fyne.Size) {
 }
 
 func (r *chromeRenderer) MinSize() fyne.Size {
-	if !r.c.active {
+	if !r.c.active.Load() {
 		return fyne.NewSize(0, 0)
 	}
 	bar := r.row.MinSize()

@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"testing"
 
+	"fyne.io/fyne/v2/test"
+
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -74,4 +76,32 @@ func TestPictureFrameMenu_KeepsBarWhenSlidingIsOff(t *testing.T) {
 	if v.frameChrome.Layer().Visible() {
 		t.Fatal("the sliding bar should stay hidden when sliding is off")
 	}
+}
+
+func TestPictureFrameMenu_ShutdownDropsTheSlidingBar(t *testing.T) {
+	application := test.NewApp()
+	v, win := buildTestStartupViewer(t, application)
+	t.Cleanup(win.Close)
+	t.Cleanup(func() { drain(t, v) })
+	v.pictureFrameSlidingMenu = true
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "a.jpg", 4, 4, color.White))
+	v.togglePictureFrameMode()
+	if !v.frameChrome.Layer().Visible() {
+		t.Fatal("picture-frame mode should show the sliding bar")
+	}
+
+	lifecycle, ok := application.Lifecycle().(interface{ OnStopped() func() })
+	if !ok {
+		t.Fatal("test app lifecycle does not expose its stopped hook")
+	}
+	original := lifecycle.OnStopped()
+	registerShutdown(application, v)
+	shutdown := lifecycle.OnStopped()
+	application.Lifecycle().SetOnStopped(original)
+	shutdown()
+
+	if v.frameChrome.Layer().Visible() {
+		t.Fatal("shutdown should hide the sliding bar")
+	}
+	v.frameChrome.Wait()
 }
