@@ -97,14 +97,46 @@ working-tree patch on 2026-09-30.
 - `make verify-build` passed (exit 0): formatting, TUF, exact Qodana test
   exclusions, generated assets/notices, full host vet and full host build.
 
-## Handoff
+## Hosted qualification and review
 
-Implementation is complete; final verification is blocked on native Windows
-execution and the native Linux/amd64 full suite. Keep the original finding open
-until those gates pass. Run the existing Windows CI native-guard suite after the
-patch is committed/pushed. Ronin authorized this step and the GitHub review
-loop on 2026-09-30. Review and CI evidence will be recorded on
-[PR #75](https://github.com/frathe/picfetch/pull/75).
+Signed fix commit `bb6ce5dd86d4adf0f3271fbee50fb68692df15ff` was pushed to
+[PR #75](https://github.com/frathe/picfetch/pull/75) with Ronin's authorization.
+The earlier Trane commit `8533342` was already on the branch; its changes were
+not included in the security-fix commit.
 
-Ledger: zero spawns, one inline candidate review, one full-suite attempt.
-Unrelated Trane files and edits were preserved.
+- [CI 36725097510](https://github.com/frathe/picfetch/actions/runs/36725097510)
+  passed on the first attempt: validation, all four native Linux/amd64 race
+  partitions, Linux native guards, Windows tests, and both macOS architectures.
+  The local full-suite platform limitation is covered by this hosted run.
+- The downloaded Windows event artifact confirms
+  `TestWindowsSaveTransport_PathIsData` passed (2.35 seconds) and
+  `TestWindowsTrashTransport_PathIsData` passed (7.03 seconds), with run/pass
+  events and no skips. The production PowerShell commands received exact
+  ordinary/malicious Unicode paths at the instrumented sinks; picker OK/Cancel
+  and file/directory recycle semantics remained intact. This closes the native
+  verification gap without opening a dialog or moving a real file.
+- [CodeQL 36725097446](https://github.com/frathe/picfetch/actions/runs/36725097446)
+  passed Go and Actions analysis.
+- [Qodana 36725097549](https://github.com/frathe/picfetch/actions/runs/36725097549)
+  completed. Its fresh post-suppression `/qodana.sarif.json` contains eight
+  `GoUnusedExportedFunction` false positives, all checked against production
+  callers: fileaccess.Stat, NeedsCapture, HasScope, Export, Import;
+  macbundle.CurrentRuntimeDirectory; openwith.InstallWindowDrop and Stop.
+  No actionable result or new broad suppression. The neutral annotation check
+  is not described as an empty report. Downloaded evidence is retained locally
+  under `.scratch/windows-path-review/bb6ce5d/`.
+- [Fresh code review](https://github.com/frathe/picfetch/pull/75#issuecomment-5912827831)
+  and [fresh security review](https://github.com/frathe/picfetch/pull/75#issuecomment-5912966500)
+  report no findings on `bb6ce5d`. All three historical threads remain resolved;
+  this round introduced none.
+
+The first medium finding is fixed and qualified. This documentation-only
+completion record carries forward unchanged-code local inspection/test evidence
+from `bb6ce5d`; it does not claim a review of an older commit covers a new head.
+Fresh code/security reviews and hosted CI for the final documentation commit
+will be retained on PR #75, without another status-only commit. No merge or
+release is authorized by this review loop.
+
+Ledger: zero spawns, one inline candidate review, one local full-suite attempt;
+hosted full-suite and Windows qualification passed. The GitHub review loop is
+additional user-authorized work. Unrelated Trane changes were preserved.
