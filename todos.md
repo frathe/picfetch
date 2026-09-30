@@ -37,7 +37,7 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Ronin confirmed persistent folder approvals work across real quit/relaunch in `bin/apple-store-e2e-persistent-folders/PicFetch.app`.
 - [ ] Confirm moved-folder bookmark reuse in the persistent-folder test app; automated coverage passes, live moved-folder testing remains open.
 - [x] Fix PR #75 findings: acquire source authority for metadata sorting and map analysis/search file I/O to resolved bookmark locations while preserving collection/cache identities.
-- [ ] Finish the requested [PR #75 review loop](https://github.com/frathe/picfetch/pull/75): final review/CI evidence lives on the PR. Code review is clean at `71fd577`; pin candidate/signing actions for the confirmed security advisory and obtain fresh code/security review plus passing CI on the final head.
+- [x] Complete the application/CI review fixes in [PR #75](https://github.com/frathe/picfetch/pull/75): `0a670e6` has fresh clean code/security reviews, passing platform/race CI and CodeQL, and no actionable local/Qodana findings. All three threads are resolved. Final documentation-commit review/CI evidence lives on the PR.
 - [x] Validate copyright/category metadata and reject quarantine attributes in local Store packages.
 - [ ] Finish GUI sandbox workflows, moved-folder relaunch, and physical Intel/minimum-OS validation.
 - [x] Implement a separate Store distribution-signing/installer route with identity, profile and payload guards.

@@ -1685,3 +1685,35 @@ Linux/macOS, validation and CodeQL pass. Fresh Qodana SARIF contains the same
 eight validated false positives. Windows first attempt hit the unchanged
 clipboard PowerShell test deadline at 30.01s; only the failed Windows job was
 rerun with original assertions/timeouts. Its result remains on the PR CI run.
+
+### PR #75 accepted review outcome — application/CI revision 0a670e6
+
+All three confirmed findings are fixed and their threads answered/resolved:
+metadata-sort authority and moved analysis/search sources in 71fd577, immutable
+candidate/signing action pins in 0a670e6. The intermediate test-only 0ecfaf6
+restricts the unbundled analyzer fixture to ordinary builds while preserving
+Store-tagged source mapping and installed-runtime policy guards.
+
+On 2026-09-30, Codex's fresh code review completed at 12:26 UTC with no findings;
+its fresh security review completed at 12:39 UTC explicitly reporting no security
+issues, both naming 0a670e6. All three review threads are resolved and pagination
+is exhausted. The summary's older action-pin advisory is retained history; the
+latest security comment reports a clean result. No merge or release occurred.
+
+Full CI run 36713820517 passes: all four Linux race partitions, Linux native,
+Windows on its first attempt, both macOS architectures and validation. CodeQL
+run 36713820552 passes Go and Actions analysis. Qodana run 36713820387 completed;
+its post-suppression /qodana.sarif.json identifies 0a670e6 and the same eight
+unused-export false positives, with production callers verified and no actionable
+findings. GoLand evidence for changed code/workflow/test files, including weak
+warnings, remains the clean inspections recorded above. The 32 local package
+checks and actionlint pass. Full local Docker races remain unavailable on ARM;
+the complete native-amd64 CI suite supplies that gate.
+
+This final documentation-only record carries unchanged-code inspection evidence
+from 0a670e6. A final fresh code/security review and CI run for its documentation
+commit are tracked directly on PR #75. The PR is the live source for those final
+checks, avoiding further status-only commits that would invalidate their head.
+Apple certificates/profiles, SDK/privacy qualification and hands-on distribution
+validation remain open in the owner checklist; a clean code review does not
+establish App Store release readiness.
