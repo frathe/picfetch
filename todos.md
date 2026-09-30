@@ -8,6 +8,11 @@
 
 #### Bugfix
 
+- [x] Preserve broker cancellation during signal-source startup and retain a
+  nonzero exit status when SIGTERM interrupts animated terminal help. Native
+  XPC and terminal regressions pass; fresh hosted review evidence is retained
+  on PR #75. See the [verification record](plans/2026-09-30-review-cancellation.md).
+
 - [x] Keep Windows Export/Trash filenames out of PowerShell source. Qualified
   with native Windows regression events, the full Linux/amd64 race suite,
   macOS checks, CodeQL, reviewed Qodana SARIF and clean code/security reviews

@@ -3,7 +3,9 @@ package consolehelp
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -15,7 +17,7 @@ func TestOneTurnExitsAndLeavesPortraitAboveHelp(t *testing.T) {
 	ticks <- start.Add(1500 * time.Millisecond)
 	ticks <- start.Add(3 * time.Second)
 	const usage = "Usage:\n  picfetch [flags]\n"
-	if err := play(context.Background(), &out, usage, func() (int, int, error) { return 100, 50, nil }, ticks, start); err != nil {
+	if err := play(context.Background(), &out, usage, func() (int, int, error) { return 100, 50, nil }, ticks, start, nil); err != nil {
 		t.Fatal(err)
 	}
 	width, height, text := layout(100, 50, usage)
@@ -34,7 +36,7 @@ func TestAnimationCancellationRestoresTerminal(t *testing.T) {
 	var output strings.Builder
 	out := callbackWriter{out: &output, after: cancel}
 	const usage = "Usage:\n  picfetch [flags]\n"
-	if err := animate(ctx, out, usage, func() (int, int, error) { return 100, 50, nil }); err != nil {
+	if err := animate(ctx, out, usage, func() (int, int, error) { return 100, 50, nil }, nil); err != nil {
 		t.Fatal(err)
 	}
 	result := output.String()
@@ -60,7 +62,7 @@ func (w callbackWriter) Write(p []byte) (int, error) {
 func TestSmallTerminalKeepsCompleteHelp(t *testing.T) {
 	var out strings.Builder
 	const usage = "Usage:\n  picfetch [flags]\n"
-	if err := animate(context.Background(), &out, usage, func() (int, int, error) { return 20, 10, nil }); err != nil {
+	if err := animate(context.Background(), &out, usage, func() (int, int, error) { return 20, 10, nil }, nil); err != nil {
 		t.Fatal(err)
 	}
 	if out.String() != usage {
@@ -83,7 +85,7 @@ func TestResizeAndOutputFailureRestoreTerminal(t *testing.T) {
 			}
 			return 100, 50, nil
 		}
-		if err := play(context.Background(), &out, usage, size, ticks, start); err != nil {
+		if err := play(context.Background(), &out, usage, size, ticks, start, nil); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.HasSuffix(out.String(), "\x1b[?25h\x1b[?1049l"+usage) {
@@ -92,7 +94,7 @@ func TestResizeAndOutputFailureRestoreTerminal(t *testing.T) {
 	})
 	t.Run("partial_write", func(t *testing.T) {
 		out := &partialWriter{}
-		err := animate(context.Background(), out, usage, func() (int, int, error) { return 100, 50, nil })
+		err := animate(context.Background(), out, usage, func() (int, int, error) { return 100, 50, nil }, nil)
 		if !errors.Is(err, errOutput) || !strings.Contains(out.String(), "\x1b[?25h\x1b[?1049l") {
 			t.Fatalf("partial write: error=%v, cleanup missing=%v", err, out.String())
 		}
@@ -178,5 +180,25 @@ func TestTurntable(t *testing.T) {
 	}
 	if len(views) != 5 {
 		t.Fatal("front, angled, side and back views must be distinct")
+	}
+}
+
+func TestAnimationSignalsRestoreTerminal(t *testing.T) {
+	for _, notice := range []os.Signal{os.Interrupt, syscall.SIGTERM} {
+		t.Run(notice.String(), func(t *testing.T) {
+			var out strings.Builder
+			notices := make(chan os.Signal, 1)
+			notices <- notice
+			const usage = "Usage: picfetch\n"
+			err := play(context.Background(), &out, usage, func() (int, int, error) {
+				return 100, 50, nil
+			}, nil, time.Unix(0, 0), notices)
+			if (err == nil) != (notice == os.Interrupt) {
+				t.Fatalf("signal %v returned %v; only Ctrl+C is successful", notice, err)
+			}
+			if !strings.HasSuffix(out.String(), "\x1b[?25h\x1b[?1049l"+usage) {
+				t.Fatal("signal did not restore cursor/screen and ordinary help")
+			}
+		})
 	}
 }

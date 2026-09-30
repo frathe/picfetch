@@ -1,5 +1,6 @@
 """Exercise the actual signed broker/service and transferred process pipes."""
 import errno
+from functools import partial
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,26 @@ def assert_reaped(pid):
     except ProcessLookupError:
         return
     raise AssertionError(f"worker {pid} survived broker completion")
+
+
+for mask in (signal.SIG_BLOCK, signal.SIG_UNBLOCK):
+    for mode in ("heic", "similarity"):
+        process = subprocess.Popen(command("early-" + mode), stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   text=True, preexec_fn=partial(signal.pthread_sigmask, mask, {signal.SIGTERM}))
+        try:
+            output, error = process.communicate("hold\n", timeout=10)
+            # Cancellation may beat admission or retire a worker already submitted.
+            assert process.returncode in (2, 128 + signal.SIGKILL), (output, error, process.returncode)
+            for line in output.splitlines():
+                assert_reaped(json.loads(line)["pid"])
+            print(f"PASS {mode}/{mask.name}: SIGTERM during handler installation preserved; cleanup acknowledged")
+        except subprocess.TimeoutExpired as error:
+            raise AssertionError(f"early {mode} cancellation timed out: {error.stdout!r}; {error.stderr!r}") from error
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate(timeout=15)
 
 
 for mode in ("heic", "similarity"):

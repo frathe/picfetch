@@ -4,6 +4,7 @@ package consolehelp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -21,11 +22,12 @@ func Write(out io.Writer, usage string) error {
 		restore, err := enableANSI(file)
 		if err == nil {
 			defer restore()
-			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-			defer stop()
-			return animate(ctx, out, usage, func() (int, int, error) {
+			notices := make(chan os.Signal, 2)
+			signal.Notify(notices, os.Interrupt, syscall.SIGTERM)
+			defer signal.Stop(notices)
+			return animate(context.Background(), out, usage, func() (int, int, error) {
 				return term.GetSize(int(file.Fd()))
-			})
+			}, notices)
 		}
 	}
 	_, err := io.WriteString(out, usage)
@@ -34,13 +36,13 @@ func Write(out io.Writer, usage string) error {
 
 const turnDuration = 3 * time.Second
 
-func animate(ctx context.Context, out io.Writer, usage string, size func() (int, int, error)) error {
+func animate(ctx context.Context, out io.Writer, usage string, size func() (int, int, error), notices <-chan os.Signal) error {
 	ticker := time.NewTicker(time.Second / 30)
 	defer ticker.Stop()
-	return play(ctx, out, usage, size, ticker.C, time.Now())
+	return play(ctx, out, usage, size, ticker.C, time.Now(), notices)
 }
 
-func play(ctx context.Context, out io.Writer, usage string, size func() (int, int, error), ticks <-chan time.Time, start time.Time) (err error) {
+func play(ctx context.Context, out io.Writer, usage string, size func() (int, int, error), ticks <-chan time.Time, start time.Time, notices <-chan os.Signal) (err error) {
 	active := false
 	final := usage
 	defer func() {
@@ -85,6 +87,11 @@ func play(ctx context.Context, out io.Writer, usage string, size func() (int, in
 		select {
 		case <-ctx.Done():
 			return nil
+		case notice := <-notices:
+			if notice == os.Interrupt {
+				return nil
+			}
+			return fmt.Errorf("help interrupted by %s", notice)
 		case now := <-ticks:
 			elapsed = now.Sub(start)
 			if elapsed >= turnDuration {

@@ -11,6 +11,10 @@ int main(int argc, char **argv) {
         NSString *broker = [NSBundle.mainBundle.bundlePath
             stringByAppendingPathComponent:@"Contents/MacOS/picfetch-worker-client"];
         const char *mode = argv[1];
+        if (!strncmp(mode, "early-", 6)) {
+            broker = [broker stringByAppendingString:@"-early"];
+            mode += 6;
+        }
         if (!strcmp(mode, "grant")) {
             NSURL *directory = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory
                 inDomains:NSUserDomainMask].firstObject;
