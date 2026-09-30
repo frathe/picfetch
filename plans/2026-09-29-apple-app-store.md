@@ -1553,3 +1553,59 @@ and three variables. The checklist now includes these inputs and the manual
 approval step. The workflow deliberately only retains a candidate .pkg and
 provenance; SDK privacy qualification, TestFlight upload and release automation
 remain open. No claim of release readiness follows from these tests.
+
+### PR #75 review loop — first code findings
+
+Ronin invoked the GitHub review loop. At 710ba5c, GoLand/actionlint and focused
+packaging checks are clean; fresh Qodana SARIF has the same eight validated
+unused-function false positives. CodeQL passes. Earlier da2df0c Windows native
+clipboard test failed at its 30s child deadline (multiple case 30.03s, single
+3.87s); current 710ba5c passed that guard unchanged. Do not infer a product fix
+or relax the guard from this observation. Captured events retained in scratch.
+
+Codex reviewed da2df0c and reported two P2 findings, confirmed in current code:
+4143950052: filesort mtime/size/EXIF-fallback stats bypass fileaccess acquisition.
+4143950062: analysis/search transfers grant a resolved moved bookmark path but
+worker I/O still uses the original path. Security review is still running.
+
+Deep continuation, both fixes T0 inline, zero spawns/two reviews. First reproduce
+sort authority bypass through a closed destination capability with a still-existing
+file; verify all three sort modes honor the denied scope, while ordinary sorting
+and cancellation remain covered. Route stat through fileaccess.Stat with the
+operation context, preserving the existing unavailable-key fallback.
+
+Keep analysis/search public paths, queries, results and cache membership unchanged.
+Capture a request-owned original-to-resolved source lookup alongside grants; use
+that lookup for worker stat/decode/version checks and Favorite preview reads.
+Cloning/mutating public source lists or translating result identities is unnecessary.
+Verify moved files with real rename and cached representations, retained-search
+queries/validation/preview reads, and analyzer output when pinned assets exist.
+Run focused race tests, native Store build checks and GoLand on changed files;
+use latest native CI for full cross-platform verification. These changes do not
+alter entitlements, runtime dependencies or the network boundary.
+
+First findings verification: the metadata-capability regression failed all three
+modes before the fix, then filesort race tests passed (1.499s). Worker capture
+regressions failed both Analyze/Search request forms before recording the resolved
+lookup. The real isolated analyzer with pinned local assets failed with "no images
+were represented successfully" on a renamed source before the I/O fix. Focused
+analysis/search/cache/protocol race checks now pass (10.121s), including cached
+moved-file reuse, unchanged query/result identities, preview regeneration, source
+change detection and grant retirement. Test setup registers the same read-only
+file repository production uses; no UI or desktop integration is touched.
+
+The native analyzer test is opt-in via PICFETCH_SIMILARITY_ASSETS and runs in the
+real isolated child; ordinary package runs without pinned assets skip that one
+case. Both hosted macOS native jobs already install assets and run the complete
+similarity package, so they also execute it. Store-tagged focused filesort and
+worker-access tests pass (0.327s/0.324s). make verify-build passes notice/generated
+checks, vet and build. GoLand inspected all seven changed code/test files,
+including weak warnings, with no findings. Existing exact Qodana exclusions cover
+both test files; no new root UI tests or shard changes. Two reviews, zero agents.
+
+CI/CodeQL at 710ba5c completed successfully across every required platform/race
+job. Its Qodana report was read and the eight false positives rechecked against
+current callers. Codex's security review at da2df0c completed without findings;
+the code review's two P2 findings are addressed by this pending fix. After push,
+reply and resolve both threads, then request another code/security review of the
+new head. Older clean gates do not count as completion of this requested loop.

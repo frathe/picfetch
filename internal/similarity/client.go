@@ -102,6 +102,7 @@ type Client struct {
 }
 
 type request struct {
+	SourcePaths               workerSourcePaths     `json:",omitempty"`
 	Access                    []fileaccess.Transfer `json:",omitempty"`
 	Search                    *SearchRequest        `json:",omitempty"`
 	Assets                    string

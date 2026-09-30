@@ -15,6 +15,7 @@ import (
 )
 
 type searchPreparer struct {
+	sources  workerSourcePaths
 	assets   string
 	cache    *representationStore
 	encoder  *Encoder
@@ -25,7 +26,8 @@ type searchPreparer struct {
 
 func (p *searchPreparer) prepare(ctx context.Context, path string) (Item, bool, error) {
 	item := Item{Path: path}
-	before, err := os.Stat(path)
+	sourcePath := p.sources.resolve(path)
+	before, err := os.Stat(sourcePath)
 	if err != nil {
 		return item, false, err
 	}
@@ -43,7 +45,7 @@ func (p *searchPreparer) prepare(ctx context.Context, path string) (Item, bool, 
 		reused = true
 	}
 	if !reused {
-		data, bounds, err := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
+		data, bounds, err := imaging.ReadAndProbe(ctx, storage.NewFileURI(sourcePath))
 		if err != nil {
 			return item, false, err
 		}
@@ -61,7 +63,7 @@ func (p *searchPreparer) prepare(ctx context.Context, path string) (Item, bool, 
 		if err != nil {
 			return item, false, err
 		}
-		item.Facts, err = imageFacts(ctx, path, data, bounds)
+		item.Facts, err = imageFacts(ctx, sourcePath, data, bounds)
 		if err != nil {
 			return item, false, err
 		}
@@ -72,7 +74,7 @@ func (p *searchPreparer) prepare(ctx context.Context, path string) (Item, bool, 
 		}
 		item.Preview = preview.Bytes()
 	}
-	after, err := os.Stat(path)
+	after, err := os.Stat(p.sources.resolve(path))
 	if err != nil {
 		return item, false, err
 	}
@@ -110,7 +112,7 @@ func searchLocal(ctx context.Context, req request, queries <-chan SearchQuery, e
 	if cache != nil {
 		defer cache.close()
 	}
-	p := searchPreparer{assets: req.Assets, cache: cache, versions: map[string]os.FileInfo{}}
+	p := searchPreparer{assets: req.Assets, cache: cache, versions: map[string]os.FileInfo{}, sources: req.SourcePaths}
 	if cacheErr != nil {
 		p.warning = cacheErr.Error()
 	}
@@ -141,7 +143,7 @@ func (p *searchPreparer) validate(ctx context.Context, reference Item, matches [
 			return err
 		}
 		before := p.versions[path]
-		after, err := os.Stat(path)
+		after, err := os.Stat(p.sources.resolve(path))
 		if err != nil || before == nil || !sameVersion(before, after) {
 			return fmt.Errorf("search source changed: %s", path)
 		}
@@ -175,7 +177,7 @@ func (p *searchPreparer) refreshFavorites(ctx context.Context, items []Item) {
 }
 
 func (p *searchPreparer) completePreview(ctx context.Context, item Item) (Item, error) {
-	data, _, err := imaging.ReadAndProbe(ctx, storage.NewFileURI(item.Path))
+	data, _, err := imaging.ReadAndProbe(ctx, storage.NewFileURI(p.sources.resolve(item.Path)))
 	if err != nil {
 		return item, err
 	}

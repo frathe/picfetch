@@ -856,8 +856,9 @@ actual TCP/UDP denial, pipe transfer, cancellation, broker crash, group exit
 and implicit bookmark transfer from a separate app container.
 Similarity `worker_access*.go` captures app/model/cache and exact source grants
 in the existing bounded request stream, retains parent scopes through process
-Wait and releases receiving scopes at worker exit. Explorer/search capture
-authority before leaving UI. Final Store signing remains qualification work.
+Wait and releases receiving scopes at worker exit. Its request-owned source-path
+lookup maps file I/O to moved bookmark locations while keeping collection/query,
+result and cache identities unchanged. Explorer/search capture authority before leaving UI. Final Store signing remains qualification work.
 
 ### `internal/heic`
 
@@ -1237,7 +1238,8 @@ against the `preferences.SortBy*` vocabulary. No Fyne import.
 ### `internal/filesort`
 
 Five orderings the S key cycles, plus `Label` (`lang.L`) and preference
-string translation (`FromPref` / `PrefValue`).
+string translation (`FromPref` / `PrefValue`). Metadata keys use operation-scoped
+`fileaccess.Stat`, including the EXIF-to-mtime fallback.
 
 | File | Responsibility |
 |------|----------------|
