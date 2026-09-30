@@ -129,7 +129,7 @@ func TestCheckGeneratedRejectsBrokenAnchorOnLinkedPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read copied regular template: %v", err)
 	}
-	broken := strings.Replace(string(regular), `href="{{.URL}}"`, `href="/picfetch/de/#missing"`, 1)
+	broken := strings.Replace(string(regular), `href="{{.URL}}"`, `href="/de/#missing"`, 1)
 	if broken == string(regular) {
 		t.Fatal("test setup did not create a broken cross-page anchor")
 	}
@@ -157,7 +157,19 @@ func TestCheckGeneratedRejectsBrokenAnchorOnLinkedPage(t *testing.T) {
 
 func TestCheckGeneratedRejectsRootRelativeLinkOutsideSiteBase(t *testing.T) {
 	repo := repositoryRoot(t)
-	cachePath := createControlledGermanCache(t, repo)
+	source, err := os.ReadFile(filepath.Join(repo, "website.md"))
+	if err != nil {
+		t.Fatalf("read website source: %v", err)
+	}
+	prefixed := strings.Replace(string(source), "base_url: https://frathe.github.io/", "base_url: https://frathe.github.io/picfetch/", 1)
+	if prefixed == string(source) {
+		t.Fatal("test setup did not move the site into a path prefix")
+	}
+	sourcePath := filepath.Join(t.TempDir(), "website.md")
+	if err := os.WriteFile(sourcePath, []byte(prefixed), 0o600); err != nil {
+		t.Fatalf("write prefixed website source: %v", err)
+	}
+	cachePath := createControlledGermanCacheForSource(t, repo, sourcePath)
 	templates := copyTemplateDirectory(t, repo)
 	regularPath := filepath.Join(templates, "regular.html.tmpl")
 	regular, err := os.ReadFile(regularPath)
@@ -172,14 +184,14 @@ func TestCheckGeneratedRejectsRootRelativeLinkOutsideSiteBase(t *testing.T) {
 		t.Fatalf("write template with root-relative link outside the site base: %v", err)
 	}
 	output := t.TempDir()
-	build := exec.Command("make", "build", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	build := exec.Command("make", "build", "SITE_SOURCE="+sourcePath, "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
 	build.Dir = repo
 	if combined, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("prepare generated site with root-relative link outside the site base: %v\n%s", err, combined)
 	}
 	writeStaticSiteFiles(t, output)
 
-	check := exec.Command("make", "check-generated", "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
+	check := exec.Command("make", "check-generated", "SITE_SOURCE="+sourcePath, "SITE_TEMPLATES="+templates, "SITE_TRANSLATIONS="+cachePath, "SITE_OUTPUT_DIR="+output)
 	check.Dir = repo
 	combined, err := check.CombinedOutput()
 	if err == nil {
@@ -219,8 +231,8 @@ func TestCheckGeneratedRejectsLocalAssetDirectory(t *testing.T) {
 		source     string
 		diagnostic string
 	}{
-		{source: "/picfetch/de", diagnostic: "target de is not a regular file"},
-		{source: "/picfetch/de/", diagnostic: "regular-file URL must not end in a slash or dot segment"},
+		{source: "/de", diagnostic: "target de is not a regular file"},
+		{source: "/de/", diagnostic: "regular-file URL must not end in a slash or dot segment"},
 	} {
 		t.Run(testCase.source, func(t *testing.T) {
 			repo := repositoryRoot(t)
@@ -387,7 +399,7 @@ func TestCheckGeneratedAllowsLocalHrefDirectoryRoute(t *testing.T) {
 	withDirectoryRoute := strings.Replace(
 		string(regular),
 		`{{range .LanguageLinks}}<a href="{{.URL}}"`,
-		`{{range .LanguageLinks}}<a href="/picfetch/de"`,
+		`{{range .LanguageLinks}}<a href="/de"`,
 		1,
 	)
 	if withDirectoryRoute == string(regular) {
@@ -421,7 +433,7 @@ func TestCheckGeneratedAllowsLocalIframeDirectoryRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read copied regular template: %v", err)
 	}
-	withDirectoryRoute := strings.Replace(string(regular), `src="{{.Video.RegularURL}}"`, `src="/picfetch/de"`, 1)
+	withDirectoryRoute := strings.Replace(string(regular), `src="{{.Video.RegularURL}}"`, `src="/de"`, 1)
 	if withDirectoryRoute == string(regular) {
 		t.Fatal("test setup did not create a directory-valued local iframe route")
 	}
@@ -456,7 +468,7 @@ func TestCheckGeneratedRejectsDirectoryRouteWithoutIndex(t *testing.T) {
 	withEmptyDirectoryRoute := strings.Replace(
 		string(regular),
 		`{{range .LanguageLinks}}<a href="{{.URL}}"`,
-		`{{range .LanguageLinks}}<a href="/picfetch/empty"`,
+		`{{range .LanguageLinks}}<a href="/empty"`,
 		1,
 	)
 	if withEmptyDirectoryRoute == string(regular) {
@@ -483,7 +495,7 @@ func TestCheckGeneratedRejectsDirectoryRouteWithoutIndex(t *testing.T) {
 	if err == nil {
 		t.Fatal("check-generated accepted a directory route without an index page")
 	}
-	if !strings.Contains(string(combined), `broken local link "/picfetch/empty"`) || !strings.Contains(string(combined), "target empty/index.html does not exist") {
+	if !strings.Contains(string(combined), `broken local link "/empty"`) || !strings.Contains(string(combined), "target empty/index.html does not exist") {
 		t.Fatalf("empty-directory-route diagnostic is not actionable:\n%s", combined)
 	}
 }

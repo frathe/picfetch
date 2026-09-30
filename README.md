@@ -80,30 +80,35 @@ git diff -- website.md site/translations/de.json \
 make check
 ```
 
-GitHub Pages continues to publish the committed files beneath `docs/` after the
-branch is pushed; there is no separate deployment step here.
+`frathe/frathe.github.io` publishes the live site. Its Pages source is the
+`main` branch `docs/` directory, which GitHub serves at `https://frathe.github.io/`.
+Pushing this `website` branch does not publish the site. After `make build` and
+`make check`, copy the generated `docs/` tree into that repository's `docs/`
+directory, keep `docs/robots.txt` there, and push `main`.
+
+The old project URL `https://frathe.github.io/picfetch/` stays on a separate
+`legacy-picfetch-redirect` branch of `frathe/picfetch`. That branch is the
+picfetch Pages source and only redirects the former pages, AMP pages, and sitemap
+to the root site. Do not point picfetch Pages back at this `website` branch.
 
 ## Search indexing
 
-The preferred indexed pages are `https://frathe.github.io/picfetch/` and
-`https://frathe.github.io/picfetch/de/`. AMP pages and `index.html` aliases declare
+The preferred indexed pages are `https://frathe.github.io/` and
+`https://frathe.github.io/de/`. AMP pages and `index.html` aliases declare
 the corresponding regular URL as canonical. The sitemap contains only the two
 regular URLs; AMP discovery and language alternates remain in the HTML.
 
-After publishing, submit `https://frathe.github.io/picfetch/sitemap.xml` in the
-Search Console property `https://frathe.github.io/picfetch/`. Inspect the regular
+After publishing, submit `https://frathe.github.io/sitemap.xml` in the
+Search Console property `https://frathe.github.io/`. Inspect the regular
 URLs, run the live test, and request indexing. For a duplicate warning, compare
 the last crawl date, user-declared canonical, and Google-selected canonical.
 Google may still report an older canonical choice while it reprocesses the site.
 Confirm the preferred URLs become indexed; duplicate aliases need not be indexed.
 
-The separate `frathe/frathe.github.io` repository owns the host homepage and
-redirects it to `/picfetch/`. Preserve its matching canonical and immediate
-redirect. If Google selects the host homepage instead, inspect that page too.
-A `docs/robots.txt` here would be served at `/picfetch/robots.txt`, whereas crawlers
-read robots rules only at `https://frathe.github.io/robots.txt`. Sitemap submission
-works without adding a robots file to this project. `.gitignore` does not control
-search indexing.
+Crawlers read robots rules only at `https://frathe.github.io/robots.txt`. That
+file lives in the user-site repository and points at the root sitemap. The
+legacy `/picfetch/` URLs redirect to these canonical pages. `.gitignore` does not
+control search indexing.
 
 See Google's [canonical URL guidance](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls)
 and [Page indexing report documentation](https://support.google.com/webmasters/answer/7440203).

@@ -1,6 +1,6 @@
 ---
 site:
-  base_url: https://frathe.github.io/picfetch/
+  base_url: https://frathe.github.io/
   product_name: PicFetch
   protected_terms:
     - PicFetch
@@ -189,7 +189,7 @@ sections:
           text: Inspect camera settings and the photo's recorded location
       - id: shot-location-map
         image:
-          url: https://frathe.github.io/picfetch/screenshots/location-map.webp
+          url: https://frathe.github.io/screenshots/location-map.webp
           width: 1726
           height: 1083
         alt:
@@ -200,7 +200,7 @@ sections:
           text: Browse GPS-tagged photos by place with Location Map
       - id: shot-similarity-explorer
         image:
-          url: https://frathe.github.io/picfetch/screenshots/similarity-explorer.webp
+          url: https://frathe.github.io/screenshots/similarity-explorer.webp
           width: 1728
           height: 1083
         alt:

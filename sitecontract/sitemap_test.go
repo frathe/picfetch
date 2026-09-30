@@ -30,7 +30,7 @@ func TestBuildSitemapListsRegularCanonicalPages(t *testing.T) {
 		t.Fatalf("read generated sitemap: %v", err)
 	}
 	locations := sitemapLocations(t, data)
-	want := []string{"https://frathe.github.io/picfetch/", "https://frathe.github.io/picfetch/de/"}
+	want := []string{"https://frathe.github.io/", "https://frathe.github.io/de/"}
 	if !reflect.DeepEqual(locations, want) {
 		t.Fatalf("sitemap locations = %v, want regular canonical URLs only: %v", locations, want)
 	}
@@ -55,7 +55,7 @@ func TestBuildSitemapFollowsConfiguredBaseAndSelectedRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read website source: %v", err)
 	}
-	changed := strings.Replace(string(source), "base_url: https://frathe.github.io/picfetch/", "base_url: https://example.com/a&b", 1)
+	changed := strings.Replace(string(source), "base_url: https://frathe.github.io/", "base_url: https://example.com/a&b", 1)
 	if changed == string(source) {
 		t.Fatal("test setup did not change the base URL")
 	}

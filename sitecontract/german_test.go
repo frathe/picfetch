@@ -37,8 +37,8 @@ func TestMakeBuildGeneratesGermanRegularFromCurrentCache(t *testing.T) {
 	html := string(german)
 	for _, want := range []string{
 		`<html lang="de">`,
-		`<link rel="canonical" href="https://frathe.github.io/picfetch/de/">`,
-		`<link rel="amphtml" href="https://frathe.github.io/picfetch/de/amp/">`,
+		`<link rel="canonical" href="https://frathe.github.io/de/">`,
+		`<link rel="amphtml" href="https://frathe.github.io/de/amp/">`,
 		`<meta property="og:locale" content="de_DE">`,
 		`class="translation-disclosure"`,
 		`Deutsch: This page was translated with DeepL and has not been edited.`,

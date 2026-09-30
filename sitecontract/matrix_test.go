@@ -19,7 +19,7 @@ func TestFourPageMetadataAndSelectorMatrix(t *testing.T) {
 		t.Fatalf("build four-page site: %v\n%s", err, combined)
 	}
 
-	base := "https://frathe.github.io/picfetch/"
+	base := "https://frathe.github.io/"
 	cases := []struct {
 		path        string
 		language    string

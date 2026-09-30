@@ -270,7 +270,7 @@ func TestInvalidSourceRejectsQueryAndFragmentInBaseURL(t *testing.T) {
 				t.Fatalf("read website source: %v", err)
 			}
 			broken := strings.Replace(string(source),
-				"  base_url: https://frathe.github.io/picfetch/",
+				"  base_url: https://frathe.github.io/",
 				"  base_url: '"+testCase.baseURL+"'",
 				1,
 			)
@@ -526,7 +526,7 @@ func TestMakeBuildGeneratesEnglishAMPFromSharedSource(t *testing.T) {
 	html := string(page)
 	for _, want := range []string{
 		`<html amp lang="en">`,
-		`<link rel="canonical" href="https://frathe.github.io/picfetch/">`,
+		`<link rel="canonical" href="https://frathe.github.io/">`,
 		`https://cdn.ampproject.org/v0.js`,
 		`custom-element="amp-vimeo"`,
 		`custom-element="amp-lightbox-gallery"`,
