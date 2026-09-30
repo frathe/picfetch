@@ -311,7 +311,7 @@ func jpegFileBytesContext(ctx context.Context, path string) ([]byte, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
-	return io.ReadAll(contextRead{ctx: ctx, in: f})
+	return readMutationSource(ctx, f)
 }
 
 // writeEncodedContext encodes img into a same-volume staging file and

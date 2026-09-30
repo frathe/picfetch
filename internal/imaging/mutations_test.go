@@ -561,3 +561,114 @@ func TestExportDoesNotReadMetadataThroughClosedSourceAuthority(t *testing.T) {
 		t.Fatal("export read metadata outside source access")
 	}
 }
+
+func TestSecondaryJPEGReadsRespectInputLimit(t *testing.T) {
+	for _, change := range []string{"grow", "replace"} {
+		for _, operation := range []string{"save", "export", "mislabeled export"} {
+			t.Run(change+"/"+operation, func(t *testing.T) {
+				source := uitest.TempGPSJPEGURI(t, "source.jpg", 8, 4, 48.858222, 2.2945)
+				original := mustRead(t, source.Path())
+				withMaxEncodedBytes(t, int64(len(original)))
+				loaded, err := LoadImage(source, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				oversized := append(bytes.Clone(original), 0)
+				if change == "grow" {
+					f, err := os.OpenFile(source.Path(), os.O_APPEND|os.O_WRONLY, 0)
+					if err != nil {
+						t.Fatal(err)
+					}
+					_, writeErr := f.Write([]byte{0})
+					closeErr := f.Close()
+					if err := errors.Join(writeErr, closeErr); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					replacement := writeTempFile(t, "replacement.jpg", oversized)
+					if err := os.Rename(replacement, source.Path()); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if operation == "save" {
+					result, err := SaveRotatedContext(context.Background(), source, loaded.Frames[0])
+					var tooLarge *InputTooLargeError
+					if !errors.As(err, &tooLarge) || result.Committed {
+						t.Fatalf("oversized save = %+v, %v; want uncommitted InputTooLargeError", result, err)
+					}
+				} else {
+					if operation == "mislabeled export" {
+						path := filepath.Join(filepath.Dir(source.Path()), "source.png")
+						if err := os.Rename(source.Path(), path); err != nil {
+							t.Fatal(err)
+						}
+						source = storage.NewFileURI(path)
+					}
+					data, err := jpegSourceBytesContext(context.Background(), source)
+					var tooLarge *InputTooLargeError
+					if !errors.As(err, &tooLarge) || data != nil {
+						t.Fatalf("oversized metadata read = %d bytes, %v", len(data), err)
+					}
+					dest := storage.NewFileURI(filepath.Join(t.TempDir(), "copy.jpg"))
+					result, err := ExportContext(context.Background(), dest, loaded.Frames[0], source, ExportOptions{})
+					if err != nil || !result.Committed {
+						t.Fatalf("pixel-only export = %+v, %v", result, err)
+					}
+					if len(jpegMetadataSegments(mustRead(t, dest.Path()))) != 0 {
+						t.Fatal("export retained metadata from oversized source")
+					}
+				}
+				if !bytes.Equal(mustRead(t, source.Path()), oversized) {
+					t.Fatal("operation changed oversized source")
+				}
+			})
+		}
+	}
+}
+
+func TestSecondaryJPEGReadsAtExactLimitPreserveMetadata(t *testing.T) {
+	for _, operation := range []string{"save", "export"} {
+		t.Run(operation, func(t *testing.T) {
+			source := uitest.TempGPSJPEGURI(t, "source.jpg", 8, 4, 48.858222, 2.2945)
+			original := mustRead(t, source.Path())
+			withMaxEncodedBytes(t, int64(len(original)))
+			loaded, err := LoadImage(source, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dest := source
+			if operation == "save" {
+				err = SaveRotated(source, loaded.Frames[0])
+			} else {
+				dest = storage.NewFileURI(filepath.Join(t.TempDir(), "copy.jpg"))
+				err = Export(dest, loaded.Frames[0], source, ExportOptions{})
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !ReadMetadata(mustRead(t, dest.Path())).HasGPS {
+				t.Fatal("exact-limit source lost GPS metadata")
+			}
+		})
+	}
+}
+
+func TestReadMutationSourceBoundsStream(t *testing.T) {
+	const limit = 64
+	in := bytes.NewReader(bytes.Repeat([]byte{0xff}, 4096))
+	data, err := readMutationBytes(context.Background(), in, limit)
+	var tooLarge *InputTooLargeError
+	if !errors.As(err, &tooLarge) || data != nil {
+		t.Fatalf("growing stream = %d bytes, %v", len(data), err)
+	}
+	if consumed := in.Size() - int64(in.Len()); consumed != limit+1 {
+		t.Fatalf("read consumed %d bytes, want %d", consumed, limit+1)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	in = bytes.NewReader([]byte{0xff, 0xd8})
+	if _, err := readMutationBytes(ctx, in, limit); !errors.Is(err, context.Canceled) || in.Len() != 2 {
+		t.Fatalf("cancelled stream = %v, remaining %d bytes", err, in.Len())
+	}
+}

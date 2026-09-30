@@ -8,6 +8,12 @@
 
 #### Bugfix
 
+- [x] Bound Save Changes and JPEG Export secondary source reads by the encoded
+  input limit, including growth after stat. Save leaves oversized sources intact;
+  Export preserves pixel-only fallback. Local race, Store-tagged and static
+  checks pass; hosted qualification is pending on PR #75. See the
+  [verification record](plans/2026-09-30-secondary-jpeg-read-budget.md).
+
 - [x] Preserve broker cancellation during signal-source startup and retain a
   nonzero exit status when SIGTERM interrupts animated terminal help. Native
   XPC and terminal regressions pass; fresh hosted review evidence is retained
