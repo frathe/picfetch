@@ -88,6 +88,51 @@ func TestStepImage_SingleFileDropWalksFolderSiblings(t *testing.T) {
 
 func TestHandleKeyEvent_LeftRightWalkFolderSiblings(t *testing.T) {
 	for _, route := range []string{"picker", "drop", "os"} {
+		t.Run(route+"/multiple-selected-files", func(t *testing.T) {
+			if distribution.AppleAppStore {
+				t.Skip("synthetic bookmark requires non-Store resolver; native grants are qualified separately")
+			}
+			v := newTestViewer(t)
+			files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "c.jpg")
+			selected := make([]fyne.URI, 2)
+			for i, original := range files[:2] {
+				selected[i] = fileaccess.NewSelection(original, func(_ context.Context) (fileaccess.Record, error) {
+					return fileaccess.Record{URI: original.String(), Bookmark: []byte(original.Name())}, nil
+				}, func() {})
+			}
+			v.authorizeSiblingFolder = func(_ context.Context, inputs []fyne.URI) ([]fyne.URI, error) {
+				t.Error("selected files should not require additional folder consent")
+				return inputs, nil
+			}
+			switch route {
+			case "picker":
+				uitest.StubChooser(t, selected, nil)
+				v.openFileDialog()
+				settleChooser(t, v)
+			case "drop":
+				v.handleDrop(selected)
+			case "os":
+				v.openFilesFromOS(selected)
+			}
+			waitForScan(t, v)
+			waitForSort(t, v)
+			waitUntilLoaded(t, v)
+			if got := v.FileCount(); got != 2 {
+				t.Fatalf("selected image count = %d, want 2", got)
+			}
+			for _, step := range []struct {
+				key  fyne.KeyName
+				want string
+			}{{fyne.KeyRight, "b.jpg"}, {fyne.KeyLeft, "a.jpg"}} {
+				v.handleKeyEvent(&fyne.KeyEvent{Name: step.key})
+				waitUntilLoaded(t, v)
+				if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != step.want {
+					t.Fatalf("%s showing %q, want %s", step.key, got, step.want)
+				}
+			}
+		})
+	}
+	for _, route := range []string{"picker", "drop", "os"} {
 		for _, scoped := range []bool{false, true} {
 			name := route + "/ordinary"
 			if scoped {

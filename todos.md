@@ -32,6 +32,7 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Latest rebuilt E2E app is in `bin/apple-store-e2e-drop-navigation/`.
 - [x] Ronin confirmed native Open-dialog folder consent fixes navigation; extend the same consent to shared drop/Open With discovery with cancellation and replacement coverage.
 - [ ] Confirm the rebuilt shared-consent app with a single-file window drop and Open With.
+- [ ] Diagnose Ronin's multiple-file picker/drop navigation report; selected-file navigation passes the automated harness, packaged symptom needs clarification.
 - [x] Validate copyright/category metadata and reject quarantine attributes in local Store packages.
 - [ ] Finish GUI sandbox workflows, moved-folder relaunch, and physical Intel/minimum-OS validation.
 - [ ] Add the signed Store packaging route and validate the final artifact on Intel and Apple Silicon.

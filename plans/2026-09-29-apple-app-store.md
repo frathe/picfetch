@@ -1255,3 +1255,30 @@ the same eight documented unused-function false positives and no new findings.
 Final review covered consent ownership/currentness, no duplicate picker prompt,
 merge/replay exclusions, native cancellation and artifact provenance. Two reviews,
 zero agents. No Store submission or distribution-signing readiness is claimed.
+
+### Follow-up — native guard inventory and multiple-selection report
+
+75356d9 CI passed every Linux race partition, Linux native guards, both macOS
+architectures, validation, CodeQL and FOSSA. Windows passed the repaired path
+fixtures, then stopped because the Store inventory requires
+TestStoreManaged_MicrosoftStoreBuildIsTrue but the test was renamed to
+TestStoreManaged_StoreBuildIsTrue. Thin T0 fix: restore the explicit Microsoft
+name in the existing test; no production change. Store-tagged test discovery now
+selects that exact required name and scripts/nativeguards tests pass (0.455s).
+GoLand inspected the changed distribution test with no findings. Actual Windows
+confirmation awaits the next CI run. Zero agents, one review.
+
+Fresh 75356d9 Qodana post-suppression /qodana.sarif.json has nine unused-exported-
+function warnings: the eight previously recorded false positives plus
+filepicker.AuthorizeSiblingFolder, assigned in internal/ui/build.go:115. Rechecked
+all nine callers; none is unused. No new actionable finding or broad suppression.
+
+Ronin subsequently reported multiple-file Open-dialog/drop navigation still
+failing. A new focused diagnostic subcase in the existing Left/Right test opens
+two distinct selected-file bookmarks through picker/drop/OS; all three retain
+two images and navigate Right to b.jpg then Left to a.jpg (UI 0.793s). This does
+not reproduce the packaged-app report. Clarification is pending whether selected
+images themselves cannot be navigated or unselected folder siblings are missing.
+Do not widen multi-selection to whole-folder discovery without resolving that
+ambiguity. Latest E2E app remains unchanged; no fix is claimed. GoLand inspected
+the diagnostic test: only the existing exact-excluded duplicate fixture remains.
