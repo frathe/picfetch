@@ -21,6 +21,12 @@
 
 #### Internal
 
+- [x] Pin every action in the write-enabled release publication job to a
+  reviewed full commit. Preserve publisher inputs and signing gates; semantic
+  regressions reject mutable refs. Local validation and provenance are in the
+  [verification record](plans/2026-09-30-release-action-pins.md); hosted results
+  are retained on PR #75.
+
 - [x] Restrict release-workflow contents write to publication and disable
   credential persistence on release checkouts. Semantic policy guards preserve
   signing approval and reject permission/credential regressions. Local checks

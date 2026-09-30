@@ -390,6 +390,44 @@ func TestReleaseWorkflowPermissionBoundary(t *testing.T) {
 	}
 }
 
+func TestReleasePublicationActionsPinned(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow struct {
+		Jobs map[string]struct {
+			Steps []struct {
+				Uses string            `yaml:"uses"`
+				With map[string]string `yaml:"with"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(raw, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	pinned := regexp.MustCompile(`^[^@]+@[0-9a-f]{40}$`)
+	publishers := 0
+	for _, step := range workflow.Jobs["release"].Steps {
+		if step.Uses == "" {
+			continue
+		}
+		if !pinned.MatchString(step.Uses) {
+			t.Errorf("publication action must use an immutable full commit SHA: %s", step.Uses)
+		}
+		action, _, _ := strings.Cut(step.Uses, "@")
+		if strings.EqualFold(action, "softprops/action-gh-release") {
+			publishers++
+			if step.With["files"] != "dist/*" || step.With["body_path"] != ".github/release-notes.md" {
+				t.Error("release publisher lost its archive or release-note inputs")
+			}
+		}
+	}
+	if publishers != 1 {
+		t.Errorf("want exactly one release publisher, got %d", publishers)
+	}
+}
+
 func TestStandaloneArchivesRetainNotices(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", ".."))
 	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "release.yml"))
