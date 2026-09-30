@@ -80,6 +80,7 @@ func (v *viewer) startVisualSearch(reference string) {
 		return
 	}
 	var paths []string
+	var access []fyne.URI
 	seen := map[string]bool{}
 	collection := v.state.Observe()
 	for i := range collection.Count() {
@@ -87,6 +88,7 @@ func (v *viewer) startVisualSearch(reference string) {
 		if uri != nil && !seen[uri.Path()] {
 			seen[uri.Path()] = true
 			paths = append(paths, uri.Path())
+			access = append(access, uri)
 		}
 	}
 	origin := searchHost{v}.CaptureVisit()
@@ -96,7 +98,7 @@ func (v *viewer) startVisualSearch(reference string) {
 	after := v.explorer.Suspend()
 	v.explorer.Surface().Hide()
 	policy := v.searchCachePolicy()
-	if v.visualsearch.Start(searchui.StartRequest{Paths: paths, ReferencePath: reference, Cache: policy, After: after}) {
+	if v.visualsearch.Start(searchui.StartRequest{Paths: paths, Access: access, ReferencePath: reference, Cache: policy, After: after}) {
 		v.presentSearch(searchui.Visit{ReferencePath: reference})
 	} else {
 		v.browsing.detachSearch()

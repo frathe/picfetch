@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/filemanager"
 )
 
@@ -29,7 +30,7 @@ func (v *viewer) revealCurrentFile() {
 
 	// Capture the admitted choice now; later navigation must not retarget it.
 	source, _, _ := v.CurrentFile()
-	path := source.Path()
+	ctx := v.fileWork.ctx
 
 	// reveal is finished once this goroutine has fully run, error
 	// reporting included, so a test can wait for the whole operation
@@ -39,7 +40,13 @@ func (v *viewer) revealCurrentFile() {
 	go func() {
 		defer done()
 
-		if err := filemanager.Reveal(path); err != nil {
+		resolved, release, err := fileaccess.Acquire(ctx, source)
+		if err != nil {
+			v.reportRevealError(err)
+			return
+		}
+		defer release()
+		if err := filemanager.Reveal(resolved.Path()); err != nil {
 			v.reportRevealError(err)
 		}
 	}()

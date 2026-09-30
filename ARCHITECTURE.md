@@ -301,6 +301,11 @@ Its README records the libyuv/WASI source-provenance limits.
 checks full Xcode and caller-supplied Store signing prerequisites without changing
 credentials or uploading an artifact. `packaging/apple-app-store/README.md`
 records the experimental channel and outstanding signed qualification.
+`scripts/macstorestage` adapts verified runtime staging for native packaging.
+`scripts/macstorepackage` builds and validates universal ad-hoc bundles through
+`make apple-store-package-local`; its disposable thin derivatives run production
+workers through the Go driver in `scripts/macstorequalify`, without changing the
+original app or accessing an Apple account.
 
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image
 digests consumed by Makefile and the release/Store workflows.
@@ -780,19 +785,29 @@ restores/snapshots bookmark records, propagates selected directory grants to
 validated children and resolves an independent scope for each operation.
 `reader.go` holds the scope through the actual ReadCloser.Close; imaging's
 canonical read path uses it. `native_darwin.go` resolves explicit scopes in
-Apple Store builds; `native_other.go` preserves ordinary URI behavior.
+Apple Store builds and renews stale bookmarks while access is active;
+`native_other.go` preserves ordinary URI behavior. Acquisition returns renewed
+metadata without mutating previously captured records.
 `manifest.go` stores each distinct scope once while retaining every ordered
 source occurrence. Session and Favorite persistence validate the complete
 manifest against their saved membership before publishing restored sources.
 `selection.go` owns native selected URLs through admission, worker-side bookmark
 capture and exact-once release, including active cancellation and duplicate
-occurrences. The Darwin open picker captures native URL bookmarks on its tracked
+occurrences. On restored opening it also refreshes scoped paths/records on the
+worker, retaining unavailable entries for existing offline handling. The Darwin open picker captures native URL bookmarks on its tracked
 chooser worker; Open With/Dock selections use the collection worker. Folder scans
 pass captured directory authority to children. `destination.go` retains a native
 save URL without requiring an existing file; `ReleaseDestination` closes admission
 while active `Acquire` borrowers finish. Native save workers own this URI through
-export success, failure and cancellation. Window-drop capture, permission
-reselection, source versions and analysis transfer remain in the Apple Store plan.
+export success, failure and cancellation. Native window drops retain original URLs before GLFW flattens paths. Permission
+reselection and full source-version qualification remain in the Apple Store plan.
+`transfer.go` captures immutable URI authority in request contexts and owns
+ephemeral interprocess grants; `transfer_darwin.go` creates/resolves implicit
+Foundation bookmarks while original scopes remain active, with an unsupported
+platform pair. These grants are never persisted in sessions/Favorites. `stat.go` bounds source
+metadata reads with the same acquisition contract; preview versioning and file
+reconciliation retain authority before stat/alias checks. Root clipboard/reveal
+and deletion workers hold scopes through their native OS handoff.
 
 Image mutations acquire source/destination access before path resolution and hold
 it through serialized commit and cleanup; export metadata reads acquire their
@@ -821,7 +836,10 @@ descendants. The image worker lives inside the XPC service's `Contents/MacOS`.
 `scripts/macworkerqualify` builds an ad-hoc signed native fixture to exercise
 actual TCP/UDP denial, pipe transfer, cancellation, broker crash, group exit
 and implicit bookmark transfer from a separate app container.
-Source grant transport and final Store signing remain qualification work.
+Similarity `worker_access*.go` captures app/model/cache and exact source grants
+in the existing bounded request stream, retains parent scopes through process
+Wait and releases receiving scopes at worker exit. Explorer/search capture
+authority before leaving UI. Final Store signing remains qualification work.
 
 ### `internal/heic`
 
@@ -1164,6 +1182,7 @@ viewer's handler and flushes in the same critical section.
 |------|----------------|
 | `openwith.go` | The queue (`Deliver` / `SetHandler` / terminal `Stop`) and `URIsFromFileURLs`; pending native ownership is discarded at shutdown. |
 | `openwith_darwin.{go,h,m}` | `Install` / `DelegateRespondsToOpen` + the `application:openURLs:` / `application:openFiles:` graft; Apple Store deliveries retain original native URLs until worker capture or discard. |
+| `drop_darwin_store.go` / `drop_other.go` | Installs retained-NSURL drops on only the shown main Cocoa content view through a native per-instance subclass; other views and distribution channels keep Fyne handling. |
 | `openwith_notdarwin.go` | Both report false; other OSes use `argv`. |
 
 ### `internal/filescan`

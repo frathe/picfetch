@@ -8,14 +8,16 @@ package fileaccess
 #import <Foundation/Foundation.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
-static char *acquireBookmark(const void *bytes, size_t length, int directory, void **owner, char **failure) {
+static char *acquireBookmark(const void *bytes, size_t length, int directory, void **owner, void **renewed, int *renewedLength, char **failure) {
  @autoreleasepool {
   NSData *bookmark = [NSData dataWithBytes:bytes length:length];
   NSError *error = nil;
+  BOOL stale = NO;
   NSURL *url = [NSURL URLByResolvingBookmarkData:bookmark
    options:NSURLBookmarkResolutionWithSecurityScope | NSURLBookmarkResolutionWithoutUI
-   relativeToURL:nil bookmarkDataIsStale:NULL error:&error];
+   relativeToURL:nil bookmarkDataIsStale:&stale error:&error];
   if (!url || ![url startAccessingSecurityScopedResource]) {
    *failure = strdup(error ? error.description.UTF8String : "security-scoped source access denied");
    return NULL;
@@ -27,8 +29,24 @@ static char *acquireBookmark(const void *bytes, size_t length, int directory, vo
    *failure = strdup("security-scoped source type changed");
    return NULL;
   }
+  NSData *replacement = nil;
+  if (stale) {
+   replacement = [url bookmarkDataWithOptions:NSURLBookmarkCreationWithSecurityScope
+    includingResourceValuesForKeys:nil relativeToURL:nil error:&error];
+   if (!replacement || replacement.length == 0 || replacement.length > INT_MAX) {
+    [url stopAccessingSecurityScopedResource];
+    *failure = strdup(error ? error.description.UTF8String : "unable to renew security-scoped bookmark");
+    return NULL;
+   }
+  }
   char *path = strdup(url.fileSystemRepresentation);
   if (!path) { [url stopAccessingSecurityScopedResource]; return NULL; }
+  if (replacement) {
+   *renewed = malloc(replacement.length);
+   if (!*renewed) { free(path); [url stopAccessingSecurityScopedResource]; return NULL; }
+   memcpy(*renewed, replacement.bytes, replacement.length);
+   *renewedLength = (int)replacement.length;
+  }
   *owner = (__bridge_retained void *)url;
   return path;
  }
@@ -48,21 +66,23 @@ import (
 	"unsafe"
 )
 
-func resolveBookmark(_ context.Context, record Record) (string, func(), error) {
-	var owner unsafe.Pointer
+func resolveBookmark(_ context.Context, record Record) (resolution, func(), error) {
+	var owner, renewed unsafe.Pointer
+	var renewedLength C.int
 	var failure *C.char
 	directory := C.int(0)
 	if record.Directory {
 		directory = 1
 	}
-	path := C.acquireBookmark(unsafe.Pointer(&record.Bookmark[0]), C.size_t(len(record.Bookmark)), directory, &owner, &failure)
+	path := C.acquireBookmark(unsafe.Pointer(&record.Bookmark[0]), C.size_t(len(record.Bookmark)), directory, &owner, &renewed, &renewedLength, &failure)
 	defer C.free(unsafe.Pointer(path))
+	defer C.free(renewed)
 	defer C.free(unsafe.Pointer(failure))
 	if path == nil {
 		if failure != nil {
-			return "", nil, errors.New(C.GoString(failure))
+			return resolution{}, nil, errors.New(C.GoString(failure))
 		}
-		return "", nil, errors.New("unable to acquire security-scoped source")
+		return resolution{}, nil, errors.New("unable to acquire security-scoped source")
 	}
-	return C.GoString(path), func() { C.releaseBookmark(owner) }, nil
+	return resolution{path: C.GoString(path), bookmark: C.GoBytes(renewed, renewedLength)}, func() { C.releaseBookmark(owner) }, nil
 }

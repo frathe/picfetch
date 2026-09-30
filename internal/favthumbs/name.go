@@ -3,14 +3,16 @@
 package favthumbs
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
 	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // SubDir is the directory name, under a favorite, that holds previews.
@@ -45,7 +47,7 @@ func EntryName(src fyne.URI) (string, bool) {
 		return "", false
 	}
 
-	info, err := os.Stat(src.Path())
+	info, err := fileaccess.Stat(context.Background(), src)
 	if err != nil {
 		return "", false
 	}

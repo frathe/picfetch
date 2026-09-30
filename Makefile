@@ -66,7 +66,7 @@ COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 .PHONY: verify-build --skip-local-tests
 .PHONY: generate-updater-notices check-updater-notices generate-avif-notices check-avif-notices
 .PHONY: fossa-findings
-.PHONY: apple-store-preflight apple-worker-test
+.PHONY: apple-store-preflight apple-worker-test apple-store-package-local
 .PHONY: loc
 
 all: build
@@ -105,6 +105,9 @@ fossa-findings: ## Retrieve current FOSSA licensing findings (PR=61 or FOSSA_REV
 
 apple-worker-test: ## Qualify signed Mac XPC worker isolation and retirement with native fixtures
 	bash scripts/macworkerqualify/run.sh
+
+apple-store-package-local: install-fyne generate-tag-vectors ## Build an ad-hoc universal sandbox app for local qualification (see packaging/apple-app-store/README.md)
+	python3 scripts/macstorepackage/package.py
 
 apple-store-preflight: ## Check native Xcode and Mac App Store signing inputs (see packaging/apple-app-store/README.md)
 	bash scripts/apple-store-preflight.sh

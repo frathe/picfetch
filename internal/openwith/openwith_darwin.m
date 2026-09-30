@@ -290,3 +290,77 @@ void picfetchTestInvokeSelectedURLs(const char **urls, int n) {
 		deliverSelectedURLs(selected);
 	}
 }
+
+// The main view gets an instance-specific subclass. Other GLFW windows retain
+// their existing drag/drop handler, and no GLFW implementation is patched.
+static BOOL picfetchPerformDrop(id self, SEL selector, id<NSDraggingInfo> sender) {
+ @autoreleasepool {
+  NSDictionary *options = @{NSPasteboardURLReadingFileURLsOnlyKey:@YES};
+  NSArray<NSURL *> *urls = [sender.draggingPasteboard readObjectsForClasses:@[NSURL.class] options:options];
+  if (!urls.count) return NO;
+  deliverSelectedURLs(urls);
+  return YES;
+ }
+}
+
+static BOOL installDropView(id view) {
+ if (!view) return NO;
+ Class original = object_getClass(view);
+ SEL selector = @selector(performDragOperation:);
+ Method method = class_getInstanceMethod(original, selector);
+ if (!method) return NO;
+ if (method_getImplementation(method) == (IMP)picfetchPerformDrop) return YES;
+ NSString *name = [@"PicFetchScopedDrop_" stringByAppendingString:NSStringFromClass(original)];
+ Class subclass = NSClassFromString(name);
+ if (!subclass) {
+  subclass = objc_allocateClassPair(original, name.UTF8String, 0);
+  if (!subclass) return NO;
+  if (!class_addMethod(subclass, selector, (IMP)picfetchPerformDrop, method_getTypeEncoding(method))) {
+   objc_disposeClassPair(subclass); return NO;
+  }
+  objc_registerClassPair(subclass);
+ } else if (class_getSuperclass(subclass) != original ||
+            class_getMethodImplementation(subclass, selector) != (IMP)picfetchPerformDrop) {
+  return NO;
+ }
+ object_setClass(view, subclass);
+ return YES;
+}
+
+int picfetchInstallWindowDrop(uintptr_t pointer) {
+ @autoreleasepool {
+  NSWindow *window = (__bridge NSWindow *)(void *)pointer;
+  return installDropView(window.contentView);
+ }
+}
+
+// Private pasteboard and synthetic receiver: no visible window or desktop input.
+@interface PicFetchDropFixture : NSObject
+@property(nonatomic) int calls;
+- (BOOL)performDragOperation:(id)sender;
+@end
+@implementation PicFetchDropFixture
+- (BOOL)performDragOperation:(id)sender { self.calls++; return YES; }
+@end
+@interface PicFetchDragFixture : NSObject
+@property(nonatomic, strong) NSPasteboard *draggingPasteboard;
+@end
+@implementation PicFetchDragFixture
+@end
+
+int picfetchTestWindowDrop(char **path) {
+ @autoreleasepool {
+  PicFetchDropFixture *target = [PicFetchDropFixture new];
+  PicFetchDropFixture *other = [PicFetchDropFixture new];
+  if (!installDropView(target) || !installDropView(target)) return 1;
+  PicFetchDragFixture *drag = [PicFetchDragFixture new];
+  drag.draggingPasteboard = [NSPasteboard pasteboardWithUniqueName];
+  NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path[0]]];
+  if (![drag.draggingPasteboard writeObjects:@[url]]) return 2;
+  BOOL accepted = [target performDragOperation:drag];
+  [other performDragOperation:drag];
+  [drag.draggingPasteboard releaseGlobally];
+  if (!accepted || target.calls || other.calls != 1) return 3;
+  return 0;
+ }
+}

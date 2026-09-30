@@ -549,6 +549,9 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 						}
 					})
 					v.handleDrop(files)
+					if stage == "sort" {
+						settleScan(t, v)
+					}
 					select {
 					case <-entered:
 					case <-time.After(testTimeout):
@@ -892,6 +895,7 @@ func TestVisualSimilarityExplorer(t *testing.T) {
 					v.OpenFiles(files)
 				} else {
 					v.OpenFavorite("replacement-favorite", files)
+					settleScan(t, v)
 				}
 				select {
 				case <-entered:

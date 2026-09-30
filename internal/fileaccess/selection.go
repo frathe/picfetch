@@ -25,11 +25,14 @@ func NewSelection(uri fyne.URI, capture func(context.Context) (Record, error), r
 // NeedsCapture identifies selected URLs whose metadata must be captured off UI.
 func NeedsCapture(uri fyne.URI) bool { _, ok := uri.(*selectionURI); return ok }
 
-// CaptureSelected consumes selected input into immutable source URIs.
+// CaptureSelected consumes selected input and refreshes restored source metadata
+// on the opening worker. Unavailable sources retain their previous record for
+// the scanner's per-item/offline handling; cancellation aborts the opening.
 func CaptureSelected(ctx context.Context, files []fyne.URI) ([]fyne.URI, error) {
 	defer ReleaseSelected(files)
 	result := make([]fyne.URI, len(files))
 	captured := make(map[*selectionURI]fyne.URI)
+	refreshed := make(map[*sourceURI]fyne.URI)
 	for i, file := range files {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -40,6 +43,19 @@ func CaptureSelected(ctx context.Context, files []fyne.URI) ([]fyne.URI, error) 
 		selected, ok := file.(*selectionURI)
 		if !ok {
 			result[i] = file
+			if saved, scoped := file.(*sourceURI); scoped {
+				current, seen := refreshed[saved]
+				if !seen {
+					current = file
+					resolved, release, err := Acquire(ctx, saved)
+					if err == nil {
+						current = resolved
+						release()
+					}
+					refreshed[saved] = current
+				}
+				result[i] = current
+			}
 			continue
 		}
 		source, ok := captured[selected]
@@ -53,7 +69,10 @@ func CaptureSelected(ctx context.Context, files []fyne.URI) ([]fyne.URI, error) 
 		}
 		result[i] = source
 	}
-	return result, ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 var errSelectionClosed = errors.New("selected input is already consumed or closed")

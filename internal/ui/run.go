@@ -71,6 +71,9 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, prepared
 	// defers CLI drops until the event loop is running, as handleDrop
 	// touches widgets directly.
 	window.Show()
+	if !openwith.InstallWindowDrop(window) {
+		fyne.LogError("native window drop bridge unavailable", nil)
+	}
 	view.syncNativeMenuBar()
 	registerStartup(application, view, initial)
 	stopSignals := func() {}

@@ -64,7 +64,9 @@ else
 fi
 
 profile="${APPLE_STORE_PROFILE:-}"
-if [ -z "$profile" ] || [ ! -f "$profile" ]; then
+if [ -z "$profile" ] && [ "${APPLE_STORE_TESTFLIGHT:-0}" != 1 ]; then
+    printf 'No profile supplied; unrestricted Mac App Store entitlements may omit it. TestFlight always requires one.\n'
+elif [ -z "$profile" ] || [ ! -f "$profile" ]; then
     fail 'Set APPLE_STORE_PROFILE to the Mac App Store Connect provisioning profile for io.github.frathe.picfetch.'
 else
     printf 'Provisioning profile supplied; its signature, identity, expiry and entitlements still require artifact validation.\n'

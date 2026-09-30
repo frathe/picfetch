@@ -35,7 +35,11 @@ func (c Client) Search(ctx context.Context, search SearchRequest, queries <-chan
 	}
 	search.Paths = slices.Clone(search.Paths)
 	req := request{Assets: assets, MaxEncodedBytes: imaging.MaxEncodedBytes(), Search: &search}
-	req.captureHEIC(heic.FromContext(ctx))
+	release, err := c.captureAccess(ctx, &req)
+	if err != nil {
+		return err
+	}
+	defer release()
 	cmd := c.workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
 	return searchCommand(ctx, cmd, req, queries, emit)

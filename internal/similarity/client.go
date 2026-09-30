@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
 )
@@ -101,7 +102,8 @@ type Client struct {
 }
 
 type request struct {
-	Search                    *SearchRequest `json:",omitempty"`
+	Access                    []fileaccess.Transfer `json:",omitempty"`
+	Search                    *SearchRequest        `json:",omitempty"`
 	Assets                    string
 	FavoritesDir              string
 	GeneralAnalysisDir        string
@@ -136,7 +138,11 @@ func (c Client) Analyze(ctx context.Context, paths []string, controls <-chan Con
 		assets = defaultAssets(executable)
 	}
 	req := request{Assets: assets, FavoritesDir: c.FavoritesDir, GeneralAnalysisDir: c.GeneralAnalysisDir, GeneralAnalysisLimitBytes: c.GeneralAnalysisLimitBytes, DisableFavoriteCache: c.DisableFavoriteCache, Paths: paths, MaxEncodedBytes: imaging.MaxEncodedBytes(), AnalysisLimits: limits}
-	req.captureHEIC(heic.FromContext(ctx))
+	release, err := c.captureAccess(ctx, &req)
+	if err != nil {
+		return err
+	}
+	defer release()
 	cmd := c.workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
 	return analyzeCommand(ctx, cmd, req, controls, emit)
@@ -297,6 +303,11 @@ func runWorker() error {
 		err = req.AnalysisLimits.validateSourceCount(len(req.Paths))
 	}
 	if err == nil {
+		releaseAccess, accessErr := importWorkerAccess(ctx, req.Access)
+		if accessErr != nil {
+			return accessErr
+		}
+		defer releaseAccess()
 		imaging.SetMaxEncodedBytes(req.MaxEncodedBytes)
 		var release func()
 		ctx, release = workerHEICContext(ctx, req)

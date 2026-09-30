@@ -18,6 +18,7 @@ import (
 
 	"github.com/frathe/picfetch/internal/explorerpresets"
 	"github.com/frathe/picfetch/internal/explorertrial"
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/explorer"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -173,25 +174,36 @@ func TestFeatureOpenCopiesSourcesAndRejectsClosedDelivery(t *testing.T) {
 	queue := &uitest.UIQueue{}
 	started, release := make(chan struct{}), make(chan struct{})
 	var captured []string
-	provider := func(_ context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
+	uri, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///original.jpg", Bookmark: []byte("authority")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	access := []fyne.URI{uri}
+	var capturedURI fyne.URI
+	provider := func(ctx context.Context, paths []string, _ <-chan similarity.Control, emit func(similarity.Event)) error {
 		close(started)
 		<-release
 		captured = slices.Clone(paths)
+		capturedURI = fileaccess.SourceForPath(ctx, paths[0])
 		emit(similarity.Event{Complete: true, Successful: 1, Total: 1, Items: []similarity.Item{{Path: paths[0], Cohort: "a", Position: []float32{0, 0}}}})
 		return nil
 	}
 	f := explorer.NewFeature(host, explorer.Options{Analyze: provider, Queue: queue})
 	t.Cleanup(func() { f.Stop(); f.Settle() })
 	paths := []string{"/original.jpg"}
-	if !f.Open(explorer.OpenRequest{Sources: paths}) {
+	if !f.Open(explorer.OpenRequest{Sources: paths, Access: access}) {
 		t.Fatal("opening a prepared collection did not admit analysis")
 	}
 	<-started
 	paths[0] = "/replacement.jpg"
+	access[0] = nil
 	close(release)
 	f.Wait()
 	f.Close()
 	f.Settle()
+	if capturedURI != uri {
+		t.Fatal("captured source authority changed")
+	}
 	if !slices.Equal(captured, []string{"/original.jpg"}) {
 		t.Fatalf("analysis source snapshot changed with its caller: %v", captured)
 	}

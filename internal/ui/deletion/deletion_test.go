@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/trash"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -455,5 +456,27 @@ func TestShortcutHandler_RunsOnlyOnSecondaryCut(t *testing.T) {
 	handle(&fyne.ShortcutCut{Secondary: true})
 	if requests != 1 {
 		t.Errorf("requests = %d after Shift+Delete, want 1", requests)
+	}
+}
+
+func TestTrashRetainsAccessThroughNativeCompletion(t *testing.T) {
+	files := tempFiles(t, "scoped.jpg")
+	released := false
+	source := fileaccess.NewDestination(files[0], func() { released = true })
+	host := &fakeHost{files: []fyne.URI{source}}
+	c := newConfirmer(t, host)
+	uitest.StubTrashMove(t, func(_ string) error {
+		fileaccess.ReleaseDestination(source)
+		if released {
+			t.Error("source released during native Trash call")
+		}
+		return nil
+	})
+	c.Request()
+	c.setSelection(true)
+	c.confirmSelection()
+	c.Settle()
+	if !released {
+		t.Error("source access leaked after Trash completion")
 	}
 }

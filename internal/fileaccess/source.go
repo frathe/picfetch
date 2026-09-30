@@ -24,10 +24,15 @@ type Record struct {
 	Relative  string `json:"relative,omitempty"`
 }
 
+type resolution struct {
+	path     string
+	bookmark []byte
+}
+
 type sourceURI struct {
 	fyne.URI
 	record  Record
-	resolve func(context.Context, Record) (string, func(), error)
+	resolve func(context.Context, Record) (resolution, func(), error)
 }
 
 // FromRecord restores metadata without starting native access or inspecting disk.
@@ -126,13 +131,16 @@ func Acquire(ctx context.Context, uri fyne.URI) (fyne.URI, func(), error) {
 		release()
 		return nil, nil, err
 	}
-	resolved := root
+	resolved := root.path
 	if source.record.Relative != "" {
-		resolved = filepath.Join(root, filepath.FromSlash(source.record.Relative))
+		resolved = filepath.Join(root.path, filepath.FromSlash(source.record.Relative))
 	}
 	resolvedURI := storage.NewFileURI(resolved)
 	record := source.record
 	record.URI = resolvedURI.String()
+	if len(root.bookmark) != 0 {
+		record.Bookmark = append([]byte(nil), root.bookmark...)
+	}
 	return &sourceURI{URI: resolvedURI, record: record, resolve: source.resolve}, release, nil
 }
 

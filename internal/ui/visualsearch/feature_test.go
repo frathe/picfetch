@@ -8,6 +8,9 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/grid"
@@ -729,4 +732,34 @@ func TestVisualSearchCanceledSuccessorRetainsExternalRetirementBarrier(t *testin
 			t.Fatal("canceled successor admitted native work")
 		}
 	})
+}
+
+func TestVisualSearchRetainsSourceAuthorityAcrossProducerRestart(t *testing.T) {
+	uri, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///source.png", Bookmark: []byte("authority")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	captured := make(chan fyne.URI, 2)
+	host := &visitHost{}
+	f := visualsearch.New(host, visualsearch.Options{Queue: &uitest.UIQueue{}, Provider: func(ctx context.Context, req similarity.SearchRequest, _ <-chan similarity.SearchQuery, _ func(similarity.SearchEvent)) error {
+		captured <- fileaccess.SourceForPath(ctx, req.Paths[0])
+		<-ctx.Done()
+		return ctx.Err()
+	}})
+	t.Cleanup(func() { f.Stop(); f.Settle() })
+	access := []fyne.URI{uri}
+	if !f.Start(visualsearch.StartRequest{Paths: []string{uri.Path()}, ReferencePath: uri.Path(), Access: access}) {
+		t.Fatal("not started")
+	}
+	access[0] = nil
+	if got := <-captured; got != uri {
+		t.Fatal("source authority lost")
+	}
+	<-f.Suspend()
+	if !f.Explore(uri.Path()) {
+		t.Fatal("not restarted")
+	}
+	if got := <-captured; got != uri {
+		t.Fatal("restart lost captured authority")
+	}
 }

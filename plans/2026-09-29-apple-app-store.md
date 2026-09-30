@@ -744,3 +744,306 @@ Evidence: `.scratch/apple-app-store-runtime/` and
 validity is not Apple Distribution trust, provisioning or App Store approval.
 The full packaged app/XPC workers and Intel execution remain next qualification
 steps. Cost: 0 spawns, 2 inline review rounds; no repeated complete suite.
+
+### Next slice — reproducible local Store bundle
+
+Base `beb8491`; T4, T0 inline, Deep route; zero spawns/two reviews. Build an
+ad-hoc sandboxed universal app using pinned Fyne v1.7.2, both pinned runtime
+archives, current app metadata and native XPC components. Keep local qualification
+explicitly separate from Apple Distribution signing and submission. No new
+runtime dependencies or model-distribution decision; models remain optional data.
+
+Files: scripts/macstorestage Go archive adapter; scripts/macstorepackage Python
+orchestrator/validator and tests; Make entry point; packaging guide, architecture,
+requirements, todos and evidence. Contracts: fresh output only, explicit metadata
+(no source Build mutation), fixed app/XPC identifiers and sandbox entitlement
+sets, architecture-specific minimum OS, standard nested-code paths, upstream
+hashes before signing, complete upstream notices in Resources, deepest-first
+signing and strict final validation. Missing prerequisites fail before builds.
+
+Acceptance commands: Python packaging guard tests (bad entitlements, unexpected
+code/dependencies/architecture, wrong minima, edited resources); actual universal
+local build and strict code-signature readback; real HEIC worker probes through
+the packaged broker on arm64 and Rosetta where available; all existing archive
+staging guards, GoLand changed code inspections, make verify-build. Final package
+hash/manifest and build log retained in .scratch. No credential requirement for
+this local route; no distribution-ready or App Store acceptance claim.
+
+Apple TN3125 distinguishes unrestricted macOS entitlements from restricted
+profile-backed capabilities: TestFlight always requires a profile, but an
+ordinary Store Mac app without restricted entitlements may not. Correct the
+preflight/docs accordingly; do not assume every inherited helper needs a profile.
+
+Ronin's overnight instruction: continue autonomous implementation/testing, but
+make **no further commits** while Ronin is away because commits require Ronin's
+signature. Leave reviewed changes and evidence in the working tree for return.
+
+#### Packaging progress and dependent worker finding
+
+The universal arm64/x86_64 ad-hoc bundle builds and passes nested/outer signing,
+exact sandbox entitlements, architecture, dependency-path and deployment-minimum
+validation. Pinned Fyne requires a Go source in its working directory even with
+--executable; a staging-only stub satisfies it without changing FyneApp.toml.
+The first minimum-OS parser incorrectly included LC_BUILD_VERSION's linker tool
+version; the corrected parser distinguishes minos from the linker version.
+
+A disposable thin arm64 derivative retaining production worker code passes real
+HEIC 8/10-bit pixel probes through XPC. ONNX then fails EPERM reading model data
+in the outer app Resources. The service has its own bundle/container; shared
+bundle location alone does not confer authority. This is useful failing native
+acceptance evidence, not an ONNX pass. Continue the dependent T3 grant transport
+before declaring worker/package qualification complete.
+
+### Dependent slice — transient worker authority
+
+T3/T2, T0 inline, zero spawns/two review rounds. Preserve captured URI authority
+in Explorer/search request contexts. Main exports fresh implicit bookmarks only
+while source access is active; transfer exact source files, internal model/cache
+roots, and the immutable outer app needed for signature validation. Do not widen
+an external source to its parent or pass persistent app-scoped bookmarks to a
+different process. Main retains acquisitions until worker return; worker resolves
+and releases transferred scopes within its existing tracked process lifetime.
+Invalid/cancelled transfer refuses launch. No new goroutines or global test seams.
+
+Files: fileaccess transfer/context API with native build pair and tests; similarity
+request capture/import build pair and clients; Explorer/search captured request
+wiring; existing feature tests, architecture, qodana exclusions and evidence.
+Verification: scoped capture/release/cancellation guards, request serialization
+limits, existing client/search regressions, native packaged workers with real
+models/source/cache permissions, no-network checks, focused race/build/vet/IDE.
+Apple's Accessing files from the macOS App Sandbox documents options=0 implicit
+bookmark transfer across processes. Such grants convey the rights the OS permits;
+do not claim a read-only attenuation that the public implicit API does not offer.
+
+#### Local bundle / worker evidence (overnight, no commits)
+
+The local universal bundle passes full nested/outer strict signatures, exact
+sandbox entitlements, architecture/dependency/minimum-OS checks. Seven Python
+policy/artifact tests pass, including resource tampering, a validly re-signed
+network-enabled service, a hidden non-executable-bit Mach-O resource and a
+re-signed wrong deployment minimum. Both ONNX archives retain original checksums
+and notices before signing. Make target `apple-store-package-local` produces the
+same qualification layout and an external source/input/payload hash manifest.
+
+Production HEIC/analysis/search clients now transfer fresh implicit authority
+while retaining original source access until worker return. Disposable thin
+arm64 and x86_64/Rosetta derivatives of the bundle pass real 8/10-bit HEIC pixels,
+ONNX inference, private-container source/cache grants, cache reuse, retained
+search, actual TCP/UDP denial and worker retirement. The GUI is replaced only by
+a qualification driver; production worker/broker/service code is retained.
+This is not physical Intel/minimum-OS or complete GUI qualification.
+
+Affected Apple-tagged race suites pass: fileaccess 1.280s, similarity 38.031s,
+Explorer 4.309s and visualsearch 1.292s. Four deliberate Go overlays fail for
+premature release, flattened worker source, lost Explorer authority and lost
+search authority. GoLand inspected all new transfer code and changed feature
+code including warnings; shared client capture removed a confirmed duplication,
+and goimports corrected one import grouping. Seven signed artifact guards pass.
+
+Broader root UI tests exposed five legacy sort-admission waits that did not drain
+scanUI after the earlier scan-queue change. The diagnosing-bugs workflow narrowed
+the failure to scan completion queued before sort admission (other candidates:
+source wrapper loss, changed admission). Adding the existing settleScan barrier
+only to sort-stage fixtures makes the whole affected replacement/cancellation
+subgroup pass in 1.030s, without a production behavior change or sleeps.
+
+One qualification-driver build tried to replace an existing universal binary,
+which Go refused; disposable copies now unlink that main executable first.
+Explicit minimum-OS cgo flags also avoid reusing cache objects compiled for a
+newer deployment target. A format gate caught a deliberately faulty scratch
+overlay; formatting that fixture fixed the gate prerequisite. Final build/vet
+and complete root-group output remain tracked in /tmp/picfetch-store-* and
+/tmp/picfetch-worker-access-* until archived. No commit has been attempted since
+Ronin withdrew overnight signing authorization.
+
+### Next slice — OS handoff and source metadata scopes
+
+T2, T0 inline, zero spawns/two reviews. Acquire captured authority on existing
+workers before Trash serialization/native completion, clipboard file-reference
+publication and Finder handoff. Keep original confirmed Trash paths to preserve
+symlink semantics; never retarget a destructive action from a refreshed bookmark.
+Scope favorite-preview source stat calls and write reconciliation before alias
+resolution/version reads. Do not add desktop effects to unit tests: existing
+uitest OS stubs prove active scope and exact release; closed authority must
+refuse the native operation. Existing mutation/symlink and completion tests remain.
+Files: fileaccess metadata helper/test; root batch/reveal/filework and tests;
+delete feature and tests; favthumbs source-version helper/tests. Focused Apple
+and ordinary tests/race, negative guards, GoLand and final Make build checks.
+Wallpaper already writes an app-owned persistent PNG; native wallpaper and
+Finder/pasteboard integration still require separate signed GUI qualification.
+
+#### Handoff test evidence and GUI limitation
+
+Four new assertions failed before fixes: clipboard/Finder/Trash released native
+ownership during the OS call, and Favorite preview versioning stat-ed a closed
+source. After scoped acquisition, ordinary focused tests pass (root UI 5.300s,
+delete 0.451s, favthumbs 0.348s). Apple race checks pass in fileaccess, favthumbs
+and deletion. The broad root regex also selected the direct-distribution updater
+`TestApplyStagedUpdate_SavesNotesAndCallsApply`, which correctly cannot apply an
+update in an Apple Store build; rerun with the actual file-action test prefixes.
+Do not relax Store update policy. GoLand found a loop-defer warning in clipboard
+scope collection; one explicit reverse-release list replaces it, preserving the
+required simultaneous grants through pasteboard publication.
+
+Computer-use skill was read for full GUI/picker qualification. Its node_repl
+get_app_state call did not return after more than a minute and was terminated;
+no generated PicFetch app process was observed afterward. Native picker/GUI
+interaction is therefore unverified, not passed. Continue independent native
+fixtures and implementation; leave the inaccessible GUI check in the final list.
+
+### Next slice — native window-drop authority
+
+T2, T0 inline, zero spawns/two reviews. Fyne/GLFW converts dropped NSURLs to plain
+paths before the viewer sees them. Install a per-instance Cocoa content-view
+subclass only on the shown main window in Apple Store builds. Override its drop
+method to read native file URLs and deliver the existing retained-selection queue;
+other views and ordinary builds retain the original method. Preserve ordering,
+command admission, worker capture/discard and shutdown through the existing
+Open With path; no new queues/goroutines or permissions. The root callback ignores
+drop coordinates already. Native tests use synthetic objects/private pasteboards,
+not desktop input, to pin one delivery, ownership, repeated install and unaffected
+other views. Full real GLFW/picker/drop UI qualification stays unverified until
+the GUI tool is available. Files: openwith native bridge/build pair/test, root Run,
+architecture/qodana/evidence. Verify focused Darwin/Apple tests, builds, inspections.
+
+#### Window-drop and handoff completion
+
+Native drop ownership/repeated-install/isolation guard failed before the hook,
+then Apple openwith race passed (1.291s); ordinary build passed. Corrected Apple
+file-action root race passed (44.450s). GoLand inspected the new Go bridge/tests,
+root Run, clipboard release fix and qualifier code. One ordinary-build constant
+condition in Run is replaced by an unconditional platform dispatcher whose
+ordinary implementation is a successful no-op. Native Objective-C bridge remains
+covered by cgo compilation and native tests, not a GoLand Objective-C scan.
+
+### Next slice — refresh restored bookmark authority
+
+T2, T0 inline, zero spawns/two reviews. Resolution returns an operation-owned
+path plus optional renewed bookmark bytes. Native resolution checks Apple's
+stale flag and regenerates explicit app-scope data while access is active.
+Acquire returns new immutable metadata; it never mutates a captured source.
+The existing opening worker refreshes restored sources once per shared URI,
+releases access before delivery, preserves duplicate occurrences, and leaves
+unavailable sources intact for current per-item/offline handling. Cancellation
+still aborts the opening. Refreshed records follow existing session/Favorite
+serialization. No UI prompt or global mutable bookmark cache. Tests pin changed
+paths/bytes, directory-relative ownership, exact release, cancellation and
+unavailable fallback. Verify fileaccess race plus existing collection tests,
+Apple native compilation, vet and GoLand. Real moved-folder relaunch still needs
+signed native/GUI qualification.
+Apple API contract: https://developer.apple.com/documentation/foundation/nsurl/urlbyresolvingbookmarkdata:options:relativetourl:bookmarkdataisstale:error:
+
+#### Bookmark refresh verification
+
+The new opening guards first failed on stale authority and missing cancellation.
+After implementation, ordinary fileaccess race passed (1.365s); Apple
+fileaccess/openwith race passed (1.272s/1.275s). GoLand inspected source, selection,
+both native build pairs, source/transfer tests, Run and the ordinary drop bridge,
+including warnings; no findings remain. Persistence roundtrip coverage added
+before the final run. Scope renewal is operation-owned and copied before release;
+original records remain immutable. Offline failure leaves the entry unchanged,
+so it cannot silently replace a saved collection with only currently online files.
+The collection/opening regression group is running separately.
+
+### Next slice — submission facts and dependency privacy audit
+
+T5, T0 inline, zero spawns/two reviews. Record exact dependency evidence, service
+endpoints, draft listing/review notes and export-encryption facts. Do not publish
+or select legal questionnaire answers. Apple lists Abseil and Protobuf, including
+SDKs that repackage them; both ONNX notice files contain both components. The
+pinned runtime tarballs include Privacy.md but no xcprivacy manifest. Investigate
+exact upstream revisions and binary evidence before claiming SDK compliance.
+Any unresolved upstream manifests/signatures stay explicit release blockers.
+
+#### Submission records and remaining SDK artifact gap
+
+Prepared submission-draft.md and privacy-dependency-audit.md with explicit
+technical/account gates, not legal answers or a submission claim. Both runtime
+binaries confirm Abseil/Protobuf via symbols; exact upstream dependency versions
+match. Pinned tarballs lack xcprivacy files. Abseil's exact ARM-tag tree lists one,
+but content retrieval and recursive GitHub API requests failed/time out. Do not
+substitute default-branch or Objective-C Protobuf declarations without evidence.
+PRIVACY.md now covers Apple bundled-runtime delivery and optional note artwork.
+Collection/opening/Favorite Apple race regressions passed in 99.087s.
+
+### Next slice — production worker negative source grant
+
+T4, T0 inline, zero spawns/two reviews. Extend only the disposable qualification
+main/script. A Go build overlay removes source export from the parent, retaining
+app/model/cache grants and the unchanged production broker/service/image worker.
+The same private PNG must fail per-item with no successful inference. Without
+that overlay the refusal assertion must fail because the positive path succeeds.
+Run the final overlay on both native ARM and Intel under Rosetta, alongside the
+normal worker qualification. Do not ship the diagnostic flag or overlay.
+
+#### Final local checks and inspection disposition
+
+`make verify-build` passes after all production changes: format, pinned/generated
+assets, notice checks, vet and build. Full Apple-tagged vet and Windows/amd64
+no-cgo internal vet are clean. Apple race checks: fileaccess 1.269s, openwith
+cached from its passing current-code run, Help 28.138s. Collection/opening root
+race passed 99.087s. The latest universal artifact is
+`.scratch/apple-store-package/overnight-final/PicFetch.app`; its external manifest
+records the build source and every bundled file hash. It includes all production
+changes, unchanged version/build 1.1.11/477, both architectures and strict nested/
+outer code seals. Subsequent qualifier-only changes do not modify that app.
+
+GoLand inspection requested every one of 46 changed Go/Python/shell/native bridge
+code files with warnings enabled. Four production files showed duplicate-code
+weak warnings caused by deliberately faulty `.scratch` Go overlay copies.
+Renaming retained fixture payloads to `.fixture` and updating their overlay JSON
+removed those false comparisons; all four affected inspections and the final
+qualifier Go file are clean on reinspection. No production duplication suppression
+was added. Native code is additionally compiled into both architectures; an
+empty GoLand report is not a complete Objective-C/Qodana profile guarantee.
+The JSON reports are archived in `.scratch/apple-store-package/`.
+
+The first negative source fixture correctly hit the existing all-images-failed
+terminal error before a Complete event. It now uses an allowed bundle image as
+a control: the worker must initialize/infer successfully for that image and
+report an OS permission error for the private ungranted image. Removing the
+overlay makes the new assertion fail with two successful images, zero failures
+and two inferences, confirming the guard. No production policy was weakened.
+
+#### Final production worker and artifact results
+
+Latest universal app positive qualification passes native ARM and Intel under
+Rosetta: real HEIC pixels, ONNX inference, private source/cache access, cache reuse,
+retained search, TCP/UDP denial and orderly worker exit. Negative source-grant
+qualification passes both architectures: OS-denied private source plus successful
+allowed control image, with exactly one inference. JSON results:
+`overnight-workers.json` and `overnight-source-denial.json` in the scratch package
+directory. Signed-artifact/policy suite: seven tests pass (1.381s), including
+modified resource, re-signed network-enabled service, hidden Mach-O and minimum
+OS tampering. The required full-suite platform check still refuses this host's
+linux/aarch64 Docker daemon; no isolation test was skipped or policy relaxed.
+
+SDK manifests/signature provenance, native GUI interaction (unresponsive tool),
+physical Intel/minimum-OS runs and full native-amd64 CI remain unverified. The
+Store distribution signing/installer route cannot be qualified without matching
+identities/profile; the ad-hoc route remains deliberately non-submittable.
+GoLand fallback evidence is not fresh Qodana SARIF, CodeQL or a GitHub review.
+These gates precede the account/legal/submission checklist in submission-draft.md.
+
+Cost ledger for overnight continuation: all slices T0 inline, 0 spawns, two
+review rounds per implemented slice. Focused tests and native fixtures ran as
+recorded; final broad local build/vet passed. Full race suite unavailable on the
+selected Docker platform. No commits or pushes; HEAD remains beb8491 and Ronin's
+signing authorization is still withheld. Remaining work stays in todos.md.
+
+Final formatting and qualifier vet pass; Docker shard inventory passes with
+749 runnable root UI tests assigned across three shards. Shell syntax and Python
+compile checks pass. Evidence is archived under `.scratch/apple-store-package/logs/`;
+`overnight-source.json` fingerprints the uncommitted source and
+`overnight-worktree.patch` preserves its tracked diff. Human-only tasks remain
+last; no credentials, questionnaire answers, uploads, commits or release actions
+were attempted.
+
+### Commit and push authorization
+
+Ronin subsequently authorized committing and pushing the prepared work. Before
+staging, all 57 changed files matched the archived overnight source hashes, with
+no additional paths. Existing runtime test/inspection evidence therefore carries
+forward unchanged. Only this authorization record, the TODO entry and submission
+checklist were updated. Use the configured SSH commit signing; do not disable
+signing. Push the existing feature branch, without merging or releasing.

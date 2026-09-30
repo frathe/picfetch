@@ -22,13 +22,20 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Own native save destinations through export/mosaic cancellation, scope image mutations and metadata reads, and stage Apple Store atomic writes in a same-volume replacement directory.
 - [ ] Qualify persistent security-scoped permissions for opening, saved sessions, Favorites, writes and workers.
 - [x] Implement the Apple Store XPC worker boundary and qualify native fixture TCP/UDP denial, cancellation and broker crash on Apple Silicon.
-- [ ] Qualify real HEIC/ONNX execution and granted source/cache access through that worker boundary on both Mac architectures.
+- [x] Qualify real HEIC/ONNX execution and granted private source/cache access through that worker boundary on ARM and Intel under Rosetta.
 - [x] Validate post-sign Apple runtime code and outer bundle seals, use a shared Frameworks path for the app and worker, and qualify real arm64 CPU inference in a network-disabled sandbox fixture.
-- [ ] Bundle pinned native runtimes and notices, and validate signed Mach-O code without comparing its post-sign bytes with upstream archive hashes.
+- [x] Bundle both pinned native runtimes and notices in a universal ad-hoc app; validate signed Mach-O code, architecture/minimum OS, dependencies and nested/outer seals.
+- [x] Transfer exact source/model/cache and app-signature access to analysis workers; qualify real HEIC/ONNX, private source/cache access and reuse on ARM and Intel under Rosetta.
+- [x] Qualify retained visual search through production ARM/Intel-Rosetta workers; keep scopes through clipboard/Finder/Trash calls and source metadata reads.
+- [x] Capture native window-drop URLs before GLFW flattens paths; refresh restored moved/stale bookmarks with immutable persistence coverage.
+- [x] Verify production workers deny an ungranted private source while an allowed control image still completes inference, on ARM and Intel under Rosetta.
+- [ ] Finish GUI sandbox workflows, moved-folder relaunch, and physical Intel/minimum-OS validation.
 - [ ] Add the signed Store packaging route and validate the final artifact on Intel and Apple Silicon.
-- [ ] Complete privacy/dependency/export assessment, listing metadata and Apple submission validation.
+- [x] Prepare [listing/review notes and human-input checklist](packaging/apple-app-store/submission-draft.md); inventory privacy/network/export facts.
+- [ ] Resolve [ONNX listed-SDK privacy manifests/signature provenance](packaging/apple-app-store/privacy-dependency-audit.md), confirm final privacy/export answers and validate Apple submission.
 - [x] Enable the full Xcode compiler after local license acceptance.
-- [ ] Obtain developer Team ID, Store application/installer certificates and provisioning profile for final signed qualification.
+- [ ] Human inputs last: developer Team ID, Store application/installer certificates, TestFlight provisioning profile, App Store Connect record and final submission decisions.
+- [x] Ronin reauthorized signed commits and pushing the preparation branch after the overnight work.
 
 ## Deferred
 

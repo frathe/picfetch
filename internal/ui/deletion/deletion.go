@@ -22,6 +22,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/trash"
 	"github.com/frathe/picfetch/internal/ui/widgets"
@@ -256,9 +257,7 @@ func (c *Confirmer) performDelete() {
 			// The claim includes Save/Strip/Export so their atomic replacement
 			// cannot recreate a source after its successful move to Trash.
 			// Pass the original path to Trash: a symlink is itself the target.
-			err := imaging.WithFileMutation(c.ctx, t.URI.Path(), func() error {
-				return trash.Move(t.URI.Path())
-			})
+			err := trashWithAccess(c.ctx, t.URI)
 			if err != nil {
 				if firstErr == nil {
 					firstErr, firstFailed = err, t.URI.Name()
@@ -332,4 +331,15 @@ func ShortcutHandler(request func()) func(fyne.Shortcut) {
 			request()
 		}
 	}
+}
+
+// Keep the confirmed path: bookmark refresh must not redirect deletion to a
+// different name, and a selected symlink itself is the Trash target.
+func trashWithAccess(ctx context.Context, uri fyne.URI) error {
+	_, release, err := fileaccess.Acquire(ctx, uri)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return imaging.WithFileMutation(ctx, uri.Path(), func() error { return trash.Move(uri.Path()) })
 }

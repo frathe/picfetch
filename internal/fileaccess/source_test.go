@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 )
@@ -19,9 +20,9 @@ func TestSourceAcquireKeepsIndependentOperationLifetimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source.(*sourceURI).resolve = func(_ context.Context, _ Record) (string, func(), error) {
+	source.(*sourceURI).resolve = func(_ context.Context, _ Record) (resolution, func(), error) {
 		active.Add(1)
-		return "/moved/photo.jpg", func() { active.Add(-1) }, nil
+		return resolution{path: "/moved/photo.jpg"}, func() { active.Add(-1) }, nil
 	}
 	first, releaseFirst, err := Acquire(context.Background(), source)
 	if err != nil {
@@ -101,9 +102,9 @@ func TestReaderRetainsScopeUntilCloseAndRollsBackFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	var active atomic.Int32
-	source.(*sourceURI).resolve = func(_ context.Context, _ Record) (string, func(), error) {
+	source.(*sourceURI).resolve = func(_ context.Context, _ Record) (resolution, func(), error) {
 		active.Add(1)
-		return path, func() { active.Add(-1) }, nil
+		return resolution{path: path}, func() { active.Add(-1) }, nil
 	}
 	reader, err := Reader(context.Background(), source)
 	if err != nil {
@@ -135,8 +136,8 @@ func TestAcquiredDirectoryPropagatesMovedScopeToChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	directory.(*sourceURI).resolve = func(_ context.Context, _ Record) (string, func(), error) {
-		return "/moved", func() {}, nil
+	directory.(*sourceURI).resolve = func(_ context.Context, _ Record) (resolution, func(), error) {
+		return resolution{path: "/moved"}, func() {}, nil
 	}
 	resolved, release, err := Acquire(context.Background(), directory)
 	if err != nil {
@@ -189,12 +190,76 @@ func TestAcquireReleasesScopeWhenCancelledDuringResolution(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	released := 0
-	source.(*sourceURI).resolve = func(_ context.Context, _ Record) (string, func(), error) {
+	source.(*sourceURI).resolve = func(_ context.Context, _ Record) (resolution, func(), error) {
 		cancel()
-		return "/photo.jpg", func() { released++ }, nil
+		return resolution{path: "/photo.jpg"}, func() { released++ }, nil
 	}
 	uri, release, err := Acquire(ctx, source)
 	if !errors.Is(err, context.Canceled) || uri != nil || release != nil || released != 1 {
 		t.Fatalf("cancelled acquisition returned %v, %v; released %d", uri, err, released)
+	}
+}
+
+func TestOpeningRefreshesImmutableBookmarkOccurrences(t *testing.T) {
+	original, err := FromRecord(Record{URI: "file:///old/sub/photo.jpg", Bookmark: []byte("old"), Directory: true, Relative: "sub/photo.jpg"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls, released := 0, 0
+	renewed := []byte("renewed")
+	original.(*sourceURI).resolve = func(_ context.Context, record Record) (resolution, func(), error) {
+		calls++
+		if string(record.Bookmark) != "old" {
+			t.Fatal("captured input changed")
+		}
+		return resolution{path: "/moved", bookmark: renewed}, func() { released++ }, nil
+	}
+	opened, err := CaptureSelected(context.Background(), []fyne.URI{original, original})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := Snapshot(opened[0])
+	if record.URI != "file:///moved/sub/photo.jpg" || string(record.Bookmark) != "renewed" || record.Relative != "sub/photo.jpg" || !record.Directory {
+		t.Fatalf("opening retained stale authority: %+v", record)
+	}
+	if calls != 1 || released != 1 || opened[0] != opened[1] {
+		t.Fatalf("duplicate opening: calls %d, releases %d", calls, released)
+	}
+	manifest, err := Pack(context.Background(), opened)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := Unpack(context.Background(), manifest)
+	if err != nil || len(restored) != 2 || restored[1].String() != record.URI || string(Snapshot(restored[1]).Bookmark) != "renewed" {
+		t.Fatalf("renewed authority did not survive persistence: %v %v", restored, err)
+	}
+	renewed[0] = 'X'
+	if string(Snapshot(opened[0]).Bookmark) != "renewed" || string(Snapshot(original).Bookmark) != "old" || original.Path() != "/old/sub/photo.jpg" {
+		t.Fatal("renewal changed immutable metadata")
+	}
+}
+
+func TestOpeningPreservesUnavailableSourceButAbortsCancellation(t *testing.T) {
+	for _, cancelled := range []bool{false, true} {
+		source, err := FromRecord(Record{URI: "file:///offline/photo.jpg", Bookmark: []byte("saved")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		source.(*sourceURI).resolve = func(_ context.Context, _ Record) (resolution, func(), error) {
+			if cancelled {
+				cancel()
+			}
+			return resolution{}, nil, errors.New("offline")
+		}
+		opened, err := CaptureSelected(ctx, []fyne.URI{source})
+		cancel()
+		if cancelled {
+			if !errors.Is(err, context.Canceled) || opened != nil {
+				t.Fatalf("cancelled opening: %v %v", opened, err)
+			}
+		} else if err != nil || len(opened) != 1 || opened[0] != source {
+			t.Fatalf("lost offline source: %v %v", opened, err)
+		}
 	}
 }

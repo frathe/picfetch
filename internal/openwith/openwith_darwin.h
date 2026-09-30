@@ -10,6 +10,9 @@
 
 #ifndef PICFETCH_OPENWITH_DARWIN_H
 #define PICFETCH_OPENWITH_DARWIN_H
+#include <stdint.h>
+int picfetchInstallWindowDrop(uintptr_t window);
+int picfetchTestWindowDrop(char **path);
 
 // picfetchInstallOpenHandler grafts -application:openURLs: and
 // -application:openFiles: onto GLFW's application delegate class. Returns 1

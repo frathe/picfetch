@@ -1,6 +1,6 @@
 # PicFetch privacy policy
 
-Effective date: September 29, 2026
+Effective date: September 30, 2026
 
 PicFetch is a free and open-source desktop image viewer. It has no accounts,
 advertising, analytics, or telemetry. The PicFetch developer does not collect,
@@ -84,6 +84,14 @@ downloads only the model and processor configuration from Hugging Face (about
 372 MB); it does not download executable code from GitHub or place runtime DLLs
 in the model cache.
 
+The Mac App Store build includes the Apple Silicon and Intel ONNX Runtime
+libraries and their license notices inside its signed application bundle.
+Explorer setup downloads only model data and the processor configuration from
+Hugging Face (about 372 MB). The App Store delivers runtime code updates. Its
+analysis worker runs in a separate sandbox without network permission; the
+viewer transfers temporary access to the selected inputs and local model/cache
+files for the operation. Persistent file permissions remain on the device.
+
 On supported macOS and Linux systems, the operating system blocks the analysis
 worker's network access. On Windows 11, analysis runs in a normal local worker
 process with ONNX Runtime telemetry disabled. PicFetch does not configure an
@@ -91,6 +99,16 @@ operating-system network block for that Windows process. Its lack of a listening
 port does not prevent it from making outgoing connections; local processing and
 the telemetry opt-out are not a guarantee of network isolation. The Windows
 setup page explains this difference before analysis starts.
+
+## Release-note artwork
+
+Release notes are bundled with the app. If a displayed release note contains a
+remote image, PicFetch downloads that image while the note is open. The image
+host receives the requested URL, the device's IP address, and ordinary HTTP
+connection information. PicFetch does not attach local photos, metadata, or
+usage reports. Closing the notes cancels pending image work; requests already
+sent cannot be recalled. Release notes without remote images make no image
+requests.
 
 ## Voluntary community discussions
 

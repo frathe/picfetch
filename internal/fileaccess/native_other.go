@@ -10,10 +10,10 @@ import (
 	"fyne.io/fyne/v2/storage"
 )
 
-func resolveBookmark(_ context.Context, record Record) (string, func(), error) {
+func resolveBookmark(_ context.Context, record Record) (resolution, func(), error) {
 	uri, err := storage.ParseURI(record.URI)
 	if err != nil {
-		return "", nil, err
+		return resolution{}, nil, err
 	}
 	root := uri.Path()
 	if record.Relative != "" {
@@ -21,5 +21,5 @@ func resolveBookmark(_ context.Context, record Record) (string, func(), error) {
 			root = filepath.Dir(root)
 		}
 	}
-	return root, func() {}, nil
+	return resolution{path: root}, func() {}, nil
 }
