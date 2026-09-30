@@ -39,6 +39,9 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Validate copyright/category metadata and reject quarantine attributes in local Store packages.
 - [ ] Finish GUI sandbox workflows, moved-folder relaunch, and physical Intel/minimum-OS validation.
 - [x] Implement a separate Store distribution-signing/installer route with identity, profile and payload guards.
+- [x] Prepare a main-only CI candidate signing workflow with a separate temporary-Keychain signing job and Ronin's required approval environment.
+- [ ] Add the documented Apple CI environment secrets/variables and qualify the first approved hosted signing run after the workflow reaches main.
+- [ ] Prepare App Store Connect upload/TestFlight and release automation after signed-candidate and SDK/privacy qualification; keep submission/release decisions separate.
 - [ ] Run the signed route with real Apple certificates/profiles and validate the resulting candidate on the required distribution path and platform matrix.
 - [x] Prepare [listing/review notes](packaging/apple-app-store/submission-draft.md) and [ordered owner checklist](packaging/apple-app-store/ronin-checklist.md); inventory privacy/network/export facts.
 - [x] Preserve exact Abseil privacy manifests/license/provenance; verify original Microsoft runtime signatures before local re-signing.

@@ -84,6 +84,23 @@ installer trust and extracted payloads. The exact invocation is in the
 [packaging README](README.md). You do not need to assemble that command yourself.
 Keychain may ask you to approve signing. This work does not upload the app.
 
+## 4a. Enable CI signing with your approval gate
+
+- [ ] After the workflow reaches `main`, review the **apple-store-signing**
+  GitHub environment: required reviewer **frathe**, only the `main` branch,
+  administrator bypass disabled. Pico configured and checked these settings.
+- [ ] Export password-protected application and installer `.p12` files from
+  Keychain Access, including each matching private key, outside this repository.
+- [ ] Add the six environment secrets and three environment variables listed
+  in [CI signing setup](README.md#ci-candidate-signing-and-manual-approval).
+  This is the hosted-CI alternative to leaving all keys only on your Mac.
+- [ ] Start **Apple Store candidate** on `main`, review its build summary, and
+  approve the signing job. Pico can inspect the resulting candidate and logs.
+
+No App Store Connect API key is needed for this signing-only workflow. Upload
+credentials and release automation are later work. The first real approved CI
+signing run is still unverified; current tests use synthetic credential boundaries.
+
 ## 5. Create the App Store Connect app record
 
 - [ ] In App Store Connect, use Apps -> + -> New App, platform **macOS**.

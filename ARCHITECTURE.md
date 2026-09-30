@@ -317,6 +317,13 @@ payload. Profile field checks do not establish Apple's CMS/DER or submission
 acceptance. `test_distribution.py` covers policy and assembly, with opt-in native
 unsigned installer roundtrip and ad-hoc signature rejection guards. Neither route
 uploads or installs the result.
+`ci_sign.py` wraps distribution signing on GitHub-hosted Macs with temporary
+Keychain/profile ownership, sanitized subprocess boundaries and cleanup on
+failure/cancellation. `.github/workflows/apple-store.yml` gates a main-only manual
+candidate on reusable CI and native package checks, then requires the protected
+`apple-store-signing` environment before credentials enter a separate signing job.
+Its same-run artifact carries the exact clean source revision; only the installer
+and provenance are retained from signing. Account upload/release is separate.
 
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image
 digests consumed by Makefile and the release/Store workflows.

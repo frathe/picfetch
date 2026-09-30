@@ -263,3 +263,75 @@ publication. Portable policy tests run in CI; the native installer roundtrip
 uses an explicitly unsigned disposable installer and does not prove distribution
 signing. The remaining SDK/privacy, real certificate/profile, TestFlight and
 App Store submission gates remain open.
+
+## CI candidate signing and manual approval
+
+`.github/workflows/apple-store.yml` prepares signed candidates on demand. It runs
+only for `main` in `frathe/picfetch`, pins both checkouts to the dispatch revision,
+and requires the existing full CI gate. A credential-free hosted Mac builds the
+universal app from pinned runtime archives and runs native packaging guards.
+A separate hosted Mac downloads that same-run artifact and signs it only after
+the **apple-store-signing** environment is approved. No Apple upload, TestFlight
+invitation, App Review submission or automatic release is part of this workflow.
+The workflow must reach the default branch before GitHub exposes manual dispatch.
+
+The environment was configured on 2026-09-30 with **frathe** as required reviewer,
+a single `main` branch policy, and administrator bypass disabled. Self-review is
+allowed so Ronin can approve a run he started, matching the existing Microsoft
+signing workflow. Recheck these settings before adding credentials; merely
+naming an environment in YAML does not create its approval rules. GitHub documents
+[environment protection](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
+
+In repository Settings -> Environments -> **apple-store-signing**, add these
+**environment secrets** (not repository-wide secrets):
+
+| Secret | Value |
+|---|---|
+| `APPLE_STORE_APP_P12_BASE64` | Base64 of a password-protected `.p12` containing the Apple Distribution certificate and its private key |
+| `APPLE_STORE_APP_P12_PASSWORD` | Password for that application `.p12` |
+| `APPLE_STORE_INSTALLER_P12_BASE64` | Base64 of a password-protected `.p12` containing the Mac Installer Distribution certificate and its private key |
+| `APPLE_STORE_INSTALLER_P12_PASSWORD` | Password for that installer `.p12` |
+| `APPLE_STORE_PROFILE_BASE64` | Base64 of the app's Mac App Store Connect `.provisionprofile` |
+| `APPLE_STORE_WORKER_PROFILE_BASE64` | Base64 of the worker's Mac App Store Connect `.provisionprofile` |
+
+Add these **environment variables** in the same environment:
+
+| Variable | Value |
+|---|---|
+| `APPLE_STORE_TEAM_ID` | The 10-character Apple developer Team ID |
+| `APPLE_STORE_APP_IDENTITY` | Full uppercase 40-character SHA-1 of the application certificate |
+| `APPLE_STORE_INSTALLER_IDENTITY` | Full uppercase 40-character SHA-1 of the installer certificate |
+
+Export only the intended certificate/private-key pair for each `.p12` from
+Keychain Access. For hosted CI, those private keys must be available on the
+runner; the local-only signing route keeps them on your Mac instead. GitHub's
+[Apple signing guide](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications)
+describes password-protected certificate export and Base64 secrets. Base64 is an
+encoding, not encryption. Keep exports outside the repository and enter passwords
+through the secret UI. For example, upload one encoded file without printing it:
+
+```sh
+base64 -i /absolute/private/path/application.p12 | \
+  gh secret set APPLE_STORE_APP_P12_BASE64 --repo frathe/picfetch --env apple-store-signing
+```
+
+The wrapper generates its temporary Keychain password; no extra Keychain-password
+secret is needed. It imports only during the signing step, restricts key access
+to Apple signing tools, uses only that Keychain for identity lookup, and removes
+raw exports before calling the packager. It strips encoded credentials/passwords
+from the packager environment. Success, failure and handled cancellation restore
+the old search list and remove temporary credentials; `always()` retries cleanup.
+Hosted runner destruction covers an uncatchable kill. No private-key files or
+credential directory is uploaded or cached.
+
+After merging and configuring the inputs, select Actions -> **Apple Store
+candidate** -> Run workflow -> **main**. Review the build summary's source SHA
+and artifact hash, then approve the signing environment. Download
+`apple-store-signed-<sha>-<attempt>` for `PicFetch.pkg` and its provenance manifest.
+Signing refuses an artifact whose recorded source differs from the dispatch SHA
+or whose source was dirty. Installer payload checks then verify the actual files.
+
+Credential-free policy/lifecycle tests and workflow linting are available now.
+The first approved hosted run with real identities/profiles remains required to
+qualify noninteractive Keychain access, profile acceptance and distribution trust.
+The SDK/privacy, minimum-OS GUI and Apple submission gates remain unchanged.

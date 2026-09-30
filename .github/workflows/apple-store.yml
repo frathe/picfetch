@@ -1,0 +1,128 @@
+name: Apple Store candidate
+
+# Signing qualification only. Upload/TestFlight/release automation is separate.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-store-candidate
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: github.repository == 'frathe/picfetch' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: test
+    runs-on: macos-15
+    timeout-minutes: 60
+    outputs:
+      artifact-id: ${{ steps.qualified.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Download pinned runtime archives
+        # The packager checks exact size/hash and Microsoft code signatures.
+        run: |
+          curl --fail --location --retry 3 --proto '=https' --proto-redir '=https' \
+            https://github.com/microsoft/onnxruntime/releases/download/v1.29.0/onnxruntime-osx-arm64-1.29.0.tgz \
+            --output "$RUNNER_TEMP/onnx-arm64.tgz"
+          curl --fail --location --retry 3 --proto '=https' --proto-redir '=https' \
+            https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-osx-x86_64-1.23.2.tgz \
+            --output "$RUNNER_TEMP/onnx-amd64.tgz"
+      - name: Build and inspect universal sandbox app
+        env:
+          APPLE_STORE_OUTPUT_DIR: ${{ runner.temp }}/apple-store-qualified
+          APPLE_STORE_ARM64_ARCHIVE: ${{ runner.temp }}/onnx-arm64.tgz
+          APPLE_STORE_AMD64_ARCHIVE: ${{ runner.temp }}/onnx-amd64.tgz
+        run: make apple-store-package-local
+      - name: Run native packaging guards
+        env:
+          PICFETCH_TEST_MAC_APP_BUNDLE: ${{ runner.temp }}/apple-store-qualified/PicFetch.app
+        run: python3 -m unittest discover -s scripts/macstorepackage
+      - name: Archive qualification artifact and approval summary
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          tar -czf "$RUNNER_TEMP/apple-store-qualified.tgz" -C "$RUNNER_TEMP/apple-store-qualified" PicFetch.app manifest.json
+          {
+            echo '### Apple Store signing approval'
+            echo "Source revision: $SOURCE_SHA"
+            echo 'Full CI and native packaging guards passed for this candidate.'
+            echo 'Approve the apple-store-signing environment to sign this artifact.'
+            echo 'The signed installer is a qualification candidate. SDK/privacy and Apple acceptance remain open.'
+            echo 'This workflow does not upload to Apple or release the app.'
+            shasum -a 256 "$RUNNER_TEMP/apple-store-qualified.tgz"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        id: qualified
+        with:
+          name: apple-store-qualified-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/apple-store-qualified.tgz
+          retention-days: 7
+          if-no-files-found: error
+
+  sign:
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 30
+    # Required reviewer is Ronin (frathe); environment allows main only.
+    # Configure the environment before storing any signing secrets.
+    environment: apple-store-signing
+    env:
+      APPLE_STORE_TEAM_ID: ${{ vars.APPLE_STORE_TEAM_ID }}
+      APPLE_STORE_APP_IDENTITY: ${{ vars.APPLE_STORE_APP_IDENTITY }}
+      APPLE_STORE_INSTALLER_IDENTITY: ${{ vars.APPLE_STORE_INSTALLER_IDENTITY }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/apple-store-download
+      - name: Restore same-run qualification artifact
+        run: |
+          mkdir "$RUNNER_TEMP/apple-store-qualified"
+          tar -xzf "$RUNNER_TEMP/apple-store-download/apple-store-qualified.tgz" -C "$RUNNER_TEMP/apple-store-qualified"
+      - name: Sign with temporary Keychain
+        env:
+          APPLE_STORE_APP: ${{ runner.temp }}/apple-store-qualified/PicFetch.app
+          APPLE_STORE_SIGNED_OUTPUT_DIR: ${{ runner.temp }}/apple-store-signed
+          APPLE_STORE_APP_P12_BASE64: ${{ secrets.APPLE_STORE_APP_P12_BASE64 }}
+          APPLE_STORE_APP_P12_PASSWORD: ${{ secrets.APPLE_STORE_APP_P12_PASSWORD }}
+          APPLE_STORE_INSTALLER_P12_BASE64: ${{ secrets.APPLE_STORE_INSTALLER_P12_BASE64 }}
+          APPLE_STORE_INSTALLER_P12_PASSWORD: ${{ secrets.APPLE_STORE_INSTALLER_P12_PASSWORD }}
+          APPLE_STORE_PROFILE_BASE64: ${{ secrets.APPLE_STORE_PROFILE_BASE64 }}
+          APPLE_STORE_WORKER_PROFILE_BASE64: ${{ secrets.APPLE_STORE_WORKER_PROFILE_BASE64 }}
+        run: python3 scripts/macstorepackage/ci_sign.py
+      - name: Clean temporary credentials
+        if: ${{ always() }}
+        run: python3 scripts/macstorepackage/ci_sign.py --cleanup
+      - name: Upload verified candidate and provenance
+        uses: actions/upload-artifact@v7
+        with:
+          name: apple-store-signed-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/apple-store-signed/PicFetch.pkg
+            ${{ runner.temp }}/apple-store-signed/manifest.json
+          retention-days: 14
+          if-no-files-found: error

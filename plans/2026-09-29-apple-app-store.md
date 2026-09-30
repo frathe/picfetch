@@ -1463,3 +1463,93 @@ Ronin returned from lunch and explicitly authorized committing and pushing the
 current state. Updated the checklist/submission/todo status to end the pause.
 This handoff changes documentation only; local Markdown targets resolve and
 git diff --check passes. Runtime inspection/CI evidence remains at 62661a1.
+
+### CI signing preparation — contract (2026-09-30)
+
+Ronin requested preparing CI signing now. Deep continuation, T0 inline; zero
+spawns, two review rounds. Deliver a manually dispatched main-only workflow
+that gates on the existing CI, builds a universal qualification artifact without
+credentials, then signs it in a separate GitHub-hosted macOS job using the
+apple-store-signing environment. Upload only candidate installer/provenance;
+App Store upload, release triggers and account changes are out of scope.
+
+Task graph: credential lifecycle tests -> lifecycle implementation -> workflow
+and documentation -> final verification. Files: scripts/macstorepackage/ci_sign.py
+and test_ci_sign.py; .github/workflows/apple-store.yml; packaging README/checklist,
+architecture, todos and this evidence record. No runtime or dependency change.
+
+AC1: Reject missing/malformed secrets, non-hosted/non-main contexts and mismatched
+source provenance before importing keys. AC2: restrict imported keys to Apple
+signing tools; use a private temporary directory/Keychain, suppress secret-bearing
+command/error output, strip secrets from child packaging environment. AC3: restore
+Keychain search list and delete temporary secrets on success, partial import
+failure, signing failure and handled cancellation; retain a workflow always()
+cleanup fallback. Verify AC1–3 with python3 -m unittest discover -s
+scripts/macstorepackage; fake security/subprocess boundary, no actual private keys.
+Native keychain/signing acceptance remains a credential-dependent gate.
+
+AC4: workflow_dispatch only, fixed main revision, read-only repository permission,
+full reusable CI gate, separate build/sign jobs, environment-scoped secrets and
+explicit artifact paths. Verify actionlint plus focused workflow contract checks.
+AC5: list exact secrets/variables and owner setup order, distinguish candidate
+signing from SDK/TestFlight/release approval. Verify local documentation links,
+git diff --check, make fmt-check and GoLand inspections of all changed code/YAML.
+
+GitHub primary references checked: Installing an Apple certificate on macOS
+runners for Xcode development; Managing environments for deployment. Use hosted
+runner destruction as the final boundary after an uncatchable kill; restore and
+remove transient credentials proactively while the process can still run.
+No new dependencies or changes to the shipped dependency/license closure.
+
+CI signing verification and review (2026-09-30): Ronin explicitly requested
+manual approval like Microsoft signing, plus commit/push on completion. Created
+and read back GitHub environment apple-store-signing: required reviewer frathe
+(user 5739279), prevent_self_review=false to permit approving his own dispatch,
+can_admins_bypass=false, and exactly one deployment policy (branch main). No
+secrets/variables were installed and no signing run/upload was started. Existing
+Microsoft environments were read for reference and left unchanged.
+
+Lifecycle tests first failed on missing validation/import/cleanup; implementation
+then passed. Seven CI tests cover input/source rejection, private temporary
+storage, two tool-scoped imports, secret-free packaging environment, partial
+import/partition/signing failure, KeyboardInterrupt/SIGTERM cleanup, restore
+retry, sanitized native errors and the workflow approval/artifact contract.
+Full packaging suite with the existing native E2E artifact: 31 tests passed in
+9.833s. Later SIGTERM and artifact-ID additions pass the seven focused CI tests.
+Isolated mutations removing provenance, secret filtering, cleanup or manual
+approval, or enabling unrestricted key access, each fail the expected guard.
+No real private keys were used by these tests.
+
+A real tar create/extract roundtrip preserves every qualified app file hash,
+executable bit and manifest byte; the restored app passes native package and
+nested/outer signature verification. Existing test apps are unchanged. The
+workflow's build job emits the immutable artifact ID; signing downloads that ID,
+so failed-job reruns reuse the correct artifact and full reruns get distinct names.
+Both checkouts use github.sha and disable persisted Git credentials. Build/sign
+use separate hosted runners; credentials enter only the approved signing step.
+
+Official actionlint 1.7.12 (MIT, development-only; no shipped dependency change)
+was obtained from rhysd/actionlint's tagged release and matched its published
+SHA-256. The Go proxy route timed out; the release archive worked. Lint first
+caught runner.temp at job-env scope; moved those values to step-env scope and
+reran cleanly. ShellCheck was unavailable, so actionlint ran with -shellcheck=;
+all three multiline workflow shell blocks pass bash -n. Python setup uses the official
+MIT-licensed actions/setup-python v7 action with Python 3.12. Its execution/runtime
+dependencies stay on CI; no Python runtime or action code is packaged in PicFetch.
+
+GoLand inspected both Python files and the workflow, including weak warnings.
+Two initial python-version schema warnings were checked against upstream v7
+action.yml, which declares that input; a fresh GoLand scan then returned no
+findings without suppression. Final workflow and Python inspections are clean.
+Python sources parse under the 3.11 grammar; make fmt-check, local Markdown
+link checks and git diff --check pass. Two inline reviews, zero agents. Unchanged
+Go-runtime build/vet/race evidence carries forward from 62661a1; fresh CI follows
+the authorized push. Complete local Docker races remain unavailable on ARM.
+
+Limits: actual certificate/private-key import and noninteractive signing,
+App Store profile acceptance and hosted universal packaging remain unverified
+until the workflow reaches main and Ronin supplies the six environment secrets
+and three variables. The checklist now includes these inputs and the manual
+approval step. The workflow deliberately only retains a candidate .pkg and
+provenance; SDK privacy qualification, TestFlight upload and release automation
+remain open. No claim of release readiness follows from these tests.
