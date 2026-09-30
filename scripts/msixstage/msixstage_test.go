@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"github.com/frathe/picfetch/internal/imaging"
+
+	"go.yaml.in/yaml/v3"
 )
 
 func TestHEICStaticDeclarations(t *testing.T) {
@@ -317,6 +319,74 @@ func TestStoreListingAssets(t *testing.T) {
 		if cfg.Width < 1366 || cfg.Height < 768 {
 			t.Errorf("%s is %dx%d, below the Store desktop minimum", name, cfg.Width, cfg.Height)
 		}
+	}
+}
+
+func TestReleaseWorkflowPermissionBoundary(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow struct {
+		Permissions map[string]string `yaml:"permissions"`
+		Jobs        map[string]struct {
+			Permissions map[string]string `yaml:"permissions"`
+			Environment string            `yaml:"environment"`
+			Needs       yaml.Node         `yaml:"needs"`
+			Steps       []struct {
+				Uses string         `yaml:"uses"`
+				With map[string]any `yaml:"with"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(raw, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	if workflow.Permissions["contents"] != "read" {
+		t.Error("release workflow must default to contents read")
+	}
+	for scope, access := range workflow.Permissions {
+		if access == "write" {
+			t.Errorf("workflow default grants %s write", scope)
+		}
+	}
+	for name, job := range workflow.Jobs {
+		permissions := job.Permissions
+		if permissions == nil {
+			permissions = workflow.Permissions
+		}
+		for scope, access := range permissions {
+			if access == "write" && (name != "release" || scope != "contents") {
+				t.Errorf("job %s has unnecessary %s write authority", name, scope)
+			}
+		}
+		for _, step := range job.Steps {
+			action, _, _ := strings.Cut(step.Uses, "@")
+			if !strings.EqualFold(action, "actions/checkout") {
+				continue
+			}
+			// Both YAML booleans and literal string inputs are accepted by Actions.
+			persist := step.With["persist-credentials"]
+			if persist != false && persist != "false" {
+				t.Errorf("job %s checkout must explicitly disable persisted credentials", name)
+			}
+		}
+	}
+	publication, ok := workflow.Jobs["release"]
+	if !ok || publication.Permissions["contents"] != "write" {
+		t.Fatal("publication job must retain its explicit contents write grant")
+	}
+	var needs []string
+	if err := publication.Needs.Decode(&needs); err != nil {
+		t.Fatal(err)
+	}
+	for _, job := range []string{"build-macos", "build-cross", "sign-windows"} {
+		if !slices.Contains(needs, job) {
+			t.Errorf("publication lost required gate %s", job)
+		}
+	}
+	if workflow.Jobs["sign-windows"].Environment != "release-signing" {
+		t.Error("Windows signing lost its manual approval environment")
 	}
 }
 

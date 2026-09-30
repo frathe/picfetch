@@ -16,6 +16,12 @@
 
 #### Internal
 
+- [x] Restrict release-workflow contents write to publication and disable
+  credential persistence on release checkouts. Semantic policy guards preserve
+  signing approval and reject permission/credential regressions. Local checks
+  pass; final hosted review/CI evidence is retained on PR #75 and linked from
+  the [verification record](plans/2026-09-30-release-permissions.md).
+
 - [x] Add a three-second ASCII Trane turn and PicFetch wordmark to terminal
   `--help`, with plain piped output and a `make trane` developer preview.
   Verification and limitations: [turntable record](finished_refactorings/2026-09-30-trane-ascii.md).

@@ -53,6 +53,14 @@ a missing local installer fails instead of fetching another copy.
 
 ## Release flow
 
+The release workflow defaults to `contents: read`; only the final `release` job
+has `contents: write` to publish the approved artifacts. Build jobs and the
+reusable CI gate therefore cannot use their job token to modify repository
+contents or publish a release. All three checkouts in the release workflow use
+`persist-credentials: false`; publication authenticates with its job token
+through the release action. The protected signing environment remains the
+manual approval boundary for Certum credentials.
+
 1. A v* tag runs the normal reusable CI test gate.
 2. The Linux cross-build produces the two unsigned Windows ZIP artifacts.
 3. The sign-windows job waits for the protected release-signing environment,
