@@ -1120,13 +1120,14 @@ PNG image data (`CopyImage`) and file-reference lists (`CopyFiles`).
 
 ### `internal/filepicker`
 
-Native open chooser (`Choose`) and save panel (`ChooseSave`). Linux/macOS
+Native open chooser (`Choose`), sibling-folder authorization (`AuthorizeSiblingFolder`)
+and save panel (`ChooseSave`). Linux/macOS
 can pick folders; Windows is files-only.
 
 | File | Responsibility |
 |------|----------------|
-| `filepicker.go` | Typed `Choose` (URI list) / `ChooseSave` (one URI), strict native result decoding, Store single-file parent-consent validation, canonical-path Zenity framing and UTF-8 JSON PowerShell transport. |
-| `darwin.go` / `other.go` | `NSOpenPanel` / `NSSavePanel`, including explicit Store sibling-folder permission, with a shared NSURL-to-JSON transport / stubs; `darwin_test.go` exercises the actual native serializer. |
+| `filepicker.go` | Typed `Choose` (URI list) / `ChooseSave` (one URI), strict native result decoding, explicit `AuthorizeSiblingFolder` consent policy for shared collection discovery, canonical-path Zenity framing and UTF-8 JSON PowerShell transport. |
+| `darwin.go` / `other.go` | `NSOpenPanel` / `NSSavePanel`, including cancellable Store sibling-folder permission, with a shared NSURL-to-JSON transport / stubs; `darwin_test.go` exercises the actual native serializer. |
 | `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
 ### `internal/trash`

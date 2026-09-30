@@ -297,9 +297,24 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 		return
 	}
 
+	// Reserve the native prefix before starting the worker so chooser settlement
+	// never races a new WaitGroup admission. It ends before the directory scan.
+	needsConsent := protected && kind == discoverCollection && !merging && len(uris) == 1
+	authorize := v.authorizeSiblingFolder
+	if needsConsent {
+		v.openChooserWorkers.Add(1)
+	}
 	inputOwned = false
 	v.scanWorkers.Go(func() {
 		defer workerDone()
+		nativePending := needsConsent
+		finishNative := func() {
+			if nativePending {
+				nativePending = false
+				v.openChooserWorkers.Done()
+			}
+		}
+		defer finishNative()
 		selected := uris
 		defer fileaccess.ReleaseSelected(selected)
 		if protected {
@@ -311,6 +326,19 @@ func (v *viewer) openCollection(uris []fyne.URI, favoriteDir string, kind collec
 			uris = captured
 			inspectInput()
 		}
+		if needsConsent && expandSiblings && !fileaccess.Snapshot(uris[0]).Directory {
+			if !token.Current() {
+				v.scanUI.Do(func() { v.failSelectedInput(token, token.Context().Err(), scanDone) })
+				return
+			}
+			permitted, err := authorize(token.Context(), uris)
+			if err != nil {
+				v.scanUI.Do(func() { v.failSelectedInput(token, err, scanDone) })
+				return
+			}
+			uris = permitted
+		}
+		finishNative()
 		// token.Context() is what lets a superseded scan (a newer drop, or
 		// an explicit cancel - see cancelScan) stop walking the tree instead
 		// of racing storage.List calls to completion for a result nobody

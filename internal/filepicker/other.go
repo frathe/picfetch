@@ -3,6 +3,7 @@
 package filepicker
 
 import (
+	"context"
 	"errors"
 
 	"fyne.io/fyne/v2"
@@ -21,6 +22,6 @@ func chooseSaveDarwin(_ string) (fyne.URI, error) {
 	return nil, errors.New("the macOS save panel only exists in darwin builds")
 }
 
-func chooseSiblingFolderDarwin(_ string) (fyne.URI, error) {
+func chooseSiblingFolderDarwin(_ context.Context, _ string) (fyne.URI, error) {
 	return nil, errors.New("the macOS folder permission panel only exists in darwin builds")
 }

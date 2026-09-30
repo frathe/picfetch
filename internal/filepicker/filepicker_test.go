@@ -351,18 +351,19 @@ func TestScopedSelectionDecodesNativeURLExactlyOnce(t *testing.T) {
 }
 
 func TestAuthorizeSiblingFolderPreservesOpenedFileAndFolderAuthority(t *testing.T) {
-	source, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///photos/a.jpg", Bookmark: []byte("file")})
+	root := storage.NewFileURI(t.TempDir()).Path()
+	source, err := fileaccess.FromRecord(fileaccess.Record{URI: storage.NewFileURI(root + "/photos/a.jpg").String(), Bookmark: []byte("file")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	folder, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///photos", Bookmark: []byte("folder"), Directory: true})
+	folder, err := fileaccess.FromRecord(fileaccess.Record{URI: storage.NewFileURI(root + "/photos").String(), Bookmark: []byte("folder"), Directory: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	calls := 0
 	files, err := authorizeSiblingFolder([]fyne.URI{source}, func(path string) (fyne.URI, error) {
 		calls++
-		if path != "/photos" {
+		if path != root+"/photos" {
 			t.Fatalf("requested folder %q", path)
 		}
 		return folder, nil
@@ -377,11 +378,12 @@ func TestAuthorizeSiblingFolderPreservesOpenedFileAndFolderAuthority(t *testing.
 }
 
 func TestAuthorizeSiblingFolderCancellationAndInvalidGrants(t *testing.T) {
-	source, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///photos/a.jpg", Bookmark: []byte("file")})
+	root := storage.NewFileURI(t.TempDir()).Path()
+	source, err := fileaccess.FromRecord(fileaccess.Record{URI: storage.NewFileURI(root + "/photos/a.jpg").String(), Bookmark: []byte("file")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	folder, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///other", Bookmark: []byte("other"), Directory: true})
+	folder, err := fileaccess.FromRecord(fileaccess.Record{URI: storage.NewFileURI(root + "/other").String(), Bookmark: []byte("other"), Directory: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +391,7 @@ func TestAuthorizeSiblingFolderCancellationAndInvalidGrants(t *testing.T) {
 	if err != nil || len(cancelled) != 1 || cancelled[0] != source {
 		t.Fatalf("cancel lost original: %v %v", cancelled, err)
 	}
-	for _, invalid := range []fyne.URI{folder, source, storage.NewFileURI("/photos")} {
+	for _, invalid := range []fyne.URI{folder, source, storage.NewFileURI(root + "/photos")} {
 		if _, err := authorizeSiblingFolder([]fyne.URI{source}, func(_ string) (fyne.URI, error) { return invalid, nil }); err == nil {
 			t.Fatalf("accepted unrelated or unscoped folder: %v", invalid)
 		}
@@ -398,7 +400,7 @@ func TestAuthorizeSiblingFolderCancellationAndInvalidGrants(t *testing.T) {
 	if _, err := authorizeSiblingFolder([]fyne.URI{source}, func(_ string) (fyne.URI, error) { return nil, failure }); !errors.Is(err, failure) {
 		t.Fatalf("lost permission error: %v", err)
 	}
-	for _, files := range [][]fyne.URI{nil, {source, source}, {folder}, {storage.NewFileURI("/photos/a.jpg")}} {
+	for _, files := range [][]fyne.URI{nil, {source, source}, {folder}, {storage.NewFileURI(root + "/photos/a.jpg")}} {
 		result, err := authorizeSiblingFolder(files, func(_ string) (fyne.URI, error) { t.Fatal("unexpected permission panel"); return nil, nil })
 		if err != nil || !slices.Equal(result, files) {
 			t.Fatalf("changed selection: %v %v", result, err)

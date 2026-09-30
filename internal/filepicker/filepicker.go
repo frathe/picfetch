@@ -7,6 +7,7 @@
 package filepicker
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,13 +41,7 @@ var Choose = func() ([]fyne.URI, error) {
 	default:
 		out, err = chooseFilesLinux()
 	}
-	files, err := decodePickedPaths(out, err)
-	// The immutable channel differs between ordinary and Store builds.
-	//goland:noinspection GoBoolExpressions
-	if err != nil || !distribution.AppleAppStore {
-		return files, err
-	}
-	return authorizeSiblingFolder(files, chooseSiblingFolderDarwin)
+	return decodePickedPaths(out, err)
 }
 
 // ChooseSave returns exactly the destination confirmed by the native panel.
@@ -316,4 +311,25 @@ func authorizeSiblingFolder(files []fyne.URI, choose func(string) (fyne.URI, err
 		return nil, err
 	}
 	return []fyne.URI{child}, nil
+}
+
+// AuthorizeSiblingFolder optionally obtains explicit directory access for a
+// captured single-image input. Call on a tracked worker, after admission for
+// sibling discovery; saved collections and merge inputs do not need this grant.
+func AuthorizeSiblingFolder(ctx context.Context, files []fyne.URI) ([]fyne.URI, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// The channel is fixed at build time, independently of the host inspector.
+	//goland:noinspection GoBoolExpressions
+	if !distribution.AppleAppStore {
+		return files, nil
+	}
+	files, err := authorizeSiblingFolder(files, func(directory string) (fyne.URI, error) {
+		return chooseSiblingFolderDarwin(ctx, directory)
+	})
+	if cancelled := ctx.Err(); cancelled != nil {
+		return nil, cancelled
+	}
+	return files, err
 }

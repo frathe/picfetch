@@ -1205,3 +1205,53 @@ existing shard assignments remain exact. Source-local test duplication exclusion
 are unchanged. Final review: permission scope remains explicit, original image
 identity survives consent, cancellation does not widen access, and no production
 sandbox policy is relaxed. CI results for the next pushed commit remain pending.
+
+### User regression — dropped single files need the same folder consent
+
+Ronin confirmed the Open-dialog fix, then reproduced the same symptom with one
+file dropped on the dropzone. Extend consent at the shared collection-discovery
+boundary, after native URL capture and before sibling scan. This also covers OS
+Open With. Move consent out of Choose so there is no duplicate prompt. Ask only
+for a single protected image being expanded, excluding merge/replay/multiple/
+directory inputs. Preserve native permission code and the folder policy guards.
+
+T3 Deep continuation, T0 inline, zero spawns/two reviews. A per-viewer consent
+function is captured on UI; the existing scan worker owns capture/permission/scan.
+Reserve its native-prefix membership in openChooserWorkers on UI before launch;
+retire that prefix before scanning, including every early error. Context is checked
+before native presentation and after its return; the scan token still gates result
+delivery. No extra goroutine or blocking shutdown wait. Tests stub per-viewer
+native consent, never the real desktop. The root harness installs that stub and
+already cancels scans before draining native and scan workers. Verify the original
+Left/Right test through picker/drop/OS delivery with native selected-file records,
+plus cancellation/replacement and no prompts for merge/replay. Rebuild a new E2E
+artifact once focused race tests, Store native compile and GoLand pass.
+
+Shared-consent verification: picker/drop/OS selected-file tests initially failed
+with Right still showing a.jpg. All now pass with consent in the shared path.
+Focused race suite covering opening, discovery and lifetimes passed (UI 16.466s,
+filepicker 1.290s); Store-tagged picker passed (0.279s). Native-prefix worker counts
+are reserved on UI and retired before scanning; harness cancellation precedes
+both native and scan waits. Existing folder authority bypasses the prompt.
+GoLand inspected all eight changed production/harness/test files; only existing
+exact-excluded test duplication remains. `make verify-build` passes. The direct
+host shard check correctly exposed macOS-only tests absent from the Linux manifest;
+required `make check-test-shards` via Docker then passed all 750 tests/three shards.
+
+New universal E2E app: `bin/apple-store-e2e-drop-navigation/PicFetch.app`, with
+TESTING.md and manifest; ZIP and SHA-256 are beside its output directory. All 13
+artifact guards pass (3.228s), and ZIP extraction preserves all 24 file hashes and
+strict nested signatures. Earlier E2E artifacts remain untouched. User-facing
+Open-dialog navigation was confirmed by Ronin; live drop/Open With confirmation
+is pending for this newer bundle.
+
+The 38ec88e CI round passed both macOS architectures, the repaired Linux ui-3
+shard, CodeQL and validation. Windows showed the path fixtures still lacked a
+Windows volume; changing separators alone was insufficient. Both affected tests
+now derive absolute fixture roots from t.TempDir and compare fully qualified URI
+paths. Focused local race tests pass (filepicker 1.469s, similarity 1.520s); actual
+Windows confirmation remains pending the next CI round. Fresh Qodana has exactly
+the same eight documented unused-function false positives and no new findings.
+Final review covered consent ownership/currentness, no duplicate picker prompt,
+merge/replay exclusions, native cancellation and artifact provenance. Two reviews,
+zero agents. No Store submission or distribution-signing readiness is claimed.

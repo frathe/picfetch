@@ -171,6 +171,7 @@ static panelResult testSaveSelection(const char *path) {
 import "C"
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -300,9 +301,9 @@ func darwinSaveTransport(path string) (fyne.URI, error) {
 
 var _ = darwinSaveTransport
 
-// This optional second panel runs on the existing chooser worker. Its accepted
+// This optional panel runs on a tracked opening worker. Its accepted
 // native URL is captured before returning to the ordinary collection pipeline.
-func chooseSiblingFolderDarwin(directory string) (fyne.URI, error) {
+func chooseSiblingFolderDarwin(ctx context.Context, directory string) (fyne.URI, error) {
 	message := C.CString(lang.L("Allow access to this image's folder to browse its other images. Cancel to open only the selected image."))
 	defer C.free(unsafe.Pointer(message))
 	prompt := C.CString(lang.L("Allow Folder Access"))
@@ -310,7 +311,11 @@ func chooseSiblingFolderDarwin(directory string) (fyne.URI, error) {
 	path := C.CString(directory)
 	defer C.free(unsafe.Pointer(path))
 	var result C.panelResult
-	fyne.DoAndWait(func() { result = C.runSiblingFolderPanel(message, prompt, path) })
+	fyne.DoAndWait(func() {
+		if ctx.Err() == nil {
+			result = C.runSiblingFolderPanel(message, prompt, path)
+		}
+	})
 	out, err := decodeNativePanel(result, true)
 	if err != nil {
 		return nil, err

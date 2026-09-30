@@ -166,6 +166,7 @@ func newTestUIWithPolicy(t *testing.T, policy launch.Policy) (v *viewer, win fyn
 	v.slides.SetUIQueue(&uitest.UIQueue{})
 	v.exif.SetUIQueue(&uitest.UIQueue{})
 	v.fileWork.ui = &uitest.UIQueue{}
+	v.authorizeSiblingFolder = func(_ context.Context, files []fyne.URI) ([]fyne.URI, error) { return files, nil }
 	v.chooserUI = &uitest.UIQueue{}
 	v.scanUI = &uitest.UIQueue{}
 	v.clipboardWork.ui = &uitest.UIQueue{}

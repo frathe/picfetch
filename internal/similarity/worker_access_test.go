@@ -6,19 +6,21 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 func TestWorkerAccessCapturesExactPathsUntilRetirement(t *testing.T) {
-	source, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///photos/one.png", Bookmark: []byte("persistent")})
+	root := storage.NewFileURI(t.TempDir()).Path()
+	source, err := fileaccess.FromRecord(fileaccess.Record{URI: storage.NewFileURI(root + "/photos/one.png").String(), Bookmark: []byte("persistent")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := fileaccess.WithSources(context.Background(), []fyne.URI{source})
-	req := request{Assets: "/models", Paths: []string{source.Path(), source.Path()}, GeneralAnalysisDir: "/cache"}
+	req := request{Assets: root + "/models", Paths: []string{source.Path(), source.Path()}, GeneralAnalysisDir: root + "/cache"}
 	active := map[string]bool{}
-	release, err := captureWorkerAccess(ctx, &req, "/Applications/PicFetch.app", func(_ context.Context, uri fyne.URI) (fileaccess.Transfer, func(), error) {
+	release, err := captureWorkerAccess(ctx, &req, root+"/PicFetch.app", func(_ context.Context, uri fyne.URI) (fileaccess.Transfer, func(), error) {
 		path := uri.Path()
 		if path == source.Path() && uri != source {
 			t.Fatal("source authority flattened")
@@ -29,8 +31,8 @@ func TestWorkerAccessCapturesExactPathsUntilRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Fyne URI paths use slashes on Windows too.
-	want := []string{"/Applications/PicFetch.app", "/models/vision_model.onnx", "/models/preprocessor_config.json", "/photos/one.png", "/cache"}
+	// Use absolute host paths: Windows roots need a volume as well as slashes.
+	want := []string{root + "/PicFetch.app", root + "/models/vision_model.onnx", root + "/models/preprocessor_config.json", root + "/photos/one.png", root + "/cache"}
 	if len(req.Access) != len(want) {
 		t.Fatalf("unexpected grants: %+v", req.Access)
 	}
@@ -39,7 +41,7 @@ func TestWorkerAccessCapturesExactPathsUntilRetirement(t *testing.T) {
 			t.Fatalf("access lost: %s", path)
 		}
 	}
-	if active["/photos"] {
+	if active[root+"/photos"] {
 		t.Fatal("source expanded to parent")
 	}
 	release()

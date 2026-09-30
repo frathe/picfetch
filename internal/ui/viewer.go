@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -405,6 +406,9 @@ type viewer struct {
 	openChooserLifecycle requestlife.Owner
 	openChooserWorkers   sync.WaitGroup
 	openChooserClosed    bool
+
+	// Captured by an admitted scan before worker-side native folder consent.
+	authorizeSiblingFolder func(context.Context, []fyne.URI) ([]fyne.URI, error)
 
 	// reveal is begun by revealCurrentFile (reveal.go) and finished once
 	// that goroutine has fully run, error toast included - the same

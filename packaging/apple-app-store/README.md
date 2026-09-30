@@ -195,10 +195,12 @@ positive qualification. The overlay and diagnostic driver are never shipped.
 
 ## Single-image folder navigation
 
-In the Store Open dialog, choosing one image now offers a second native folder
-permission panel. Confirm **Allow Folder Access** for the image's containing
-folder to enable Left/Right browsing. The selected image remains the initial
-image; siblings retain the confirmed directory bookmark for later access.
-Cancel opens only the selected image. Folder and multiple-file selections do not
-show this extra panel. Finder/Open With and drag/drop do not yet offer equivalent
-folder consent; opening a folder explicitly remains the available route there.
+Opening a single image in the Store build offers a native folder permission panel
+when sibling discovery needs a wider grant. This shared path covers the Open
+dialog, window drops and Open With/Dock delivery. Confirm **Allow Folder Access**
+for the containing folder to enable Left/Right browsing. The selected image stays
+on screen initially; siblings retain the confirmed directory bookmark.
+Cancel opens only the selected image. Existing directory grants, folders,
+multiple-file selections, saved-collection replay and merge additions do not
+request this extra permission. A replaced or cancelled opening discards late
+permission results. Native presentation is tracked without blocking shutdown.

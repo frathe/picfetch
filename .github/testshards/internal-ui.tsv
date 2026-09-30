@@ -5,7 +5,7 @@
 # baseline-run: 34627413846
 # baseline-attempts: 1
 # weights: single CI attempt; projected test sums, not measured shard runtimes
-# ui-1: 270 entries, 470.520s projected weight sum
+# ui-1: 271 entries, 470.520s projected weight sum
 # ui-2: 255 entries, 470.530s projected weight sum
 # ui-3: 224 entries, 504.870s projected weight sum
 # rebalance: 27 whole-test moves; slowest projected sum within 5% of mean
@@ -234,6 +234,7 @@ TestShowExifWindow_OpensAndRaisesSameWindow	ui-1
 TestShowImage_StartsLoadLifecycle	ui-1
 TestShow_ResetsZoomOnNavigation	ui-1
 TestShutdownStopsPictureFrameWithQueuedAdvance	ui-1
+TestSiblingFolderConsentLifecycle	ui-1
 TestSlideInterval_DefaultsBeforePictureFrameModeEverRuns	ui-1
 TestStartWindowPosPolling_TestDriverGetsNoopStop	ui-1
 TestStartup_LoadsSavedSecondaryWindowGeometry	ui-1
