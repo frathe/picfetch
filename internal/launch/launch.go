@@ -280,7 +280,7 @@ func Usage() string {
 	for _, s := range flagSpecs {
 		b.WriteString(fmt.Sprintf("  %-*s  %s\n", width, flagLabel(s), s.help))
 	}
-	b.WriteString(fmt.Sprintf("  %-*s  %s\n", width, "--help", "print this help and exit"))
+	b.WriteString(fmt.Sprintf("  %-*s  %s\n", width, "--help", "show help and exit (Ctrl+C skips terminal animation)"))
 
 	b.WriteString("\nFlags may appear anywhere among the paths, and -flag reads the same as\n")
 	b.WriteString("--flag. Use -- to end flag parsing, for a path that starts with a dash.\n")

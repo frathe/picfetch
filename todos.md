@@ -10,6 +10,10 @@
 
 #### Internal
 
+- [x] Add a three-second ASCII Trane turn and PicFetch wordmark to terminal
+  `--help`, with plain piped output and a `make trane` developer preview.
+  Verification and limitations: [turntable record](finished_refactorings/2026-09-30-trane-ascii.md).
+
 ## Open
 
 ### Mac App Store preparation

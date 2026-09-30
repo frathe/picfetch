@@ -27,6 +27,19 @@ policy enters UI composition before preferences/session access. It loads embedde
 Help's offline Licenses and Privacy policy windows before startup. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
 
+### `scripts/traneascii`
+
+Developer preview of the production console help, reached through `make trane`.
+`main.go` joins `launch.Usage` to `consolehelp.Write` without linking the desktop.
+
+### `internal/consolehelp`
+
+`Write` renders one eased, three-second ASCII Trane turn above terminal help,
+then leaves a front portrait and PicFetch wordmark. `render.go` owns the original
+ellipsoid sculpture and depth-tested lighting; `help.go` owns fitting, wrapping,
+signals and terminal restoration. Build-tagged terminal files enable/restore
+Windows VT mode. Pipes, small terminals and `TERM=dumb` receive plain usage.
+
 ### `scripts/historymovie`
 
 Development-only Git history films, reached through `make movie` and

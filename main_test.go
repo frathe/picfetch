@@ -315,8 +315,8 @@ func TestLaunchArgs_HelpPrintsUsageAndExits(t *testing.T) {
 	if len(paths) != 0 {
 		t.Errorf("paths = %q, want none", paths)
 	}
-	if !strings.Contains(stdout.String(), "--slideshow") {
-		t.Errorf("stdout = %q, want the usage text", stdout.String())
+	if stdout.String() != launch.Usage() {
+		t.Errorf("stdout = %q, want unchanged plain usage without terminal controls", stdout.String())
 	}
 	if stderr.String() != "" {
 		t.Errorf("stderr = %q, want nothing", stderr.String())

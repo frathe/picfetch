@@ -20,6 +20,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/consolehelp"
 	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/launch"
@@ -97,7 +98,10 @@ func launchArgs(args []string, stdout, stderr io.Writer) (paths []string, opts l
 	paths, opts, err := launch.Parse(args)
 	switch {
 	case errors.Is(err, launch.ErrHelp):
-		_, _ = io.WriteString(stdout, launch.Usage())
+		if err := consolehelp.Write(stdout, launch.Usage()); err != nil {
+			_, _ = fmt.Fprintf(stderr, "picfetch: %v\n", err)
+			return nil, launch.Options{}, 1
+		}
 
 		return nil, launch.Options{}, 0
 	case err != nil:

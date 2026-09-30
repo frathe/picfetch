@@ -178,6 +178,10 @@ location-map-qualify: build ## Collect native macOS Location Map evidence from e
 location-map-check-evidence: build ## Validate native evidence against this build and the explicit expected image count
 	go run ./scripts/locationmapqualify check -evidence "$(LOCATION_MAP_EVIDENCE)" -images "$(LOCATION_MAP_EXPECTED_IMAGES)" -binary "$(BIN_DIR)/$(BIN_NAME)"
 
+.PHONY: trane
+trane: ## Preview the app's animated Trane console help (one turn; Ctrl+C skips)
+	go run -tags "$(APP_TAGS)" ./scripts/traneascii
+
 MOVIE_SECONDS ?= 180
 MOVIE_DIR ?= .scratch/history-movies
 export MOVIE_SECONDS MOVIE_DIR
