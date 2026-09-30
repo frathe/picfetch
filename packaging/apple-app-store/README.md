@@ -143,7 +143,8 @@ The builder compiles arm64 and x86_64 app/broker/service binaries, stages both
 pinned native libraries and complete upstream notices, verifies the original libraries against Microsoft's Apple-anchored signing
 identity, retains Abseil's exact privacy declaration/license/provenance resource,
 signs nested code before the app, and validates exact entitlements, native dependency paths, architecture,
-minimum OS and code/resource seals. ARM requires macOS 14.0 and Intel 13.4.
+minimum OS, copyright/category metadata and code/resource seals. Final validation
+rejects quarantine attributes on the app or any nested item without changing them. ARM requires macOS 14.0 and Intel 13.4.
 Deployment flags are explicit cgo cache inputs. Fyne metadata writes happen in a
 temporary directory; the repository build number is unchanged. The output includes
 `PicFetch.app` and a JSON manifest containing source/diff evidence and file hashes.
@@ -191,3 +192,13 @@ broker/service/helper unchanged, and requires the private source to fail with an
 OS permission error while an allowed bundle source still completes inference.
 Run it with the same `--app`, `--models` and a separate `--result` output as the
 positive qualification. The overlay and diagnostic driver are never shipped.
+
+## Single-image folder navigation
+
+In the Store Open dialog, choosing one image now offers a second native folder
+permission panel. Confirm **Allow Folder Access** for the image's containing
+folder to enable Left/Right browsing. The selected image remains the initial
+image; siblings retain the confirmed directory bookmark for later access.
+Cancel opens only the selected image. Folder and multiple-file selections do not
+show this extra panel. Finder/Open With and drag/drop do not yet offer equivalent
+folder consent; opening a folder explicitly remains the available route there.

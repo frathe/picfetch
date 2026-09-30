@@ -40,7 +40,13 @@ var Choose = func() ([]fyne.URI, error) {
 	default:
 		out, err = chooseFilesLinux()
 	}
-	return decodePickedPaths(out, err)
+	files, err := decodePickedPaths(out, err)
+	// The immutable channel differs between ordinary and Store builds.
+	//goland:noinspection GoBoolExpressions
+	if err != nil || !distribution.AppleAppStore {
+		return files, err
+	}
+	return authorizeSiblingFolder(files, chooseSiblingFolderDarwin)
 }
 
 // ChooseSave returns exactly the destination confirmed by the native panel.
@@ -286,4 +292,28 @@ func decodeScopedSelection(out []byte) ([]fyne.URI, error) {
 		files[i] = source
 	}
 	return files, nil
+}
+
+// authorizeSiblingFolder keeps the opened file while attaching only a separately
+// selected parent directory's authority. Cancelling leaves file-only access.
+func authorizeSiblingFolder(files []fyne.URI, choose func(string) (fyne.URI, error)) ([]fyne.URI, error) {
+	if len(files) != 1 || !fileaccess.HasScope(files[0]) || fileaccess.Snapshot(files[0]).Directory {
+		return files, nil
+	}
+	parent := storage.NewFileURI(filepath.Dir(files[0].Path()))
+	folder, err := choose(parent.Path())
+	if err != nil {
+		return nil, err
+	}
+	if folder == nil {
+		return files, nil
+	}
+	if !fileaccess.HasScope(folder) || !fileaccess.Snapshot(folder).Directory || filepath.Clean(folder.Path()) != filepath.Clean(parent.Path()) {
+		return nil, errors.New("folder access does not match the selected image's parent")
+	}
+	child, err := fileaccess.Child(folder, files[0])
+	if err != nil {
+		return nil, err
+	}
+	return []fyne.URI{child}, nil
 }

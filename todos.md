@@ -29,6 +29,9 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Qualify retained visual search through production ARM/Intel-Rosetta workers; keep scopes through clipboard/Finder/Trash calls and source metadata reads.
 - [x] Capture native window-drop URLs before GLFW flattens paths; refresh restored moved/stale bookmarks with immutable persistence coverage.
 - [x] Verify production workers deny an ungranted private source while an allowed control image still completes inference, on ARM and Intel under Rosetta.
+- [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Rebuilt E2E app is in `bin/apple-store-e2e-folder-navigation/`.
+- [ ] Confirm the native folder-consent interaction E2E; extend explicit folder consent to Finder/Open With and drag/drop.
+- [x] Validate copyright/category metadata and reject quarantine attributes in local Store packages.
 - [ ] Finish GUI sandbox workflows, moved-folder relaunch, and physical Intel/minimum-OS validation.
 - [ ] Add the signed Store packaging route and validate the final artifact on Intel and Apple Silicon.
 - [x] Prepare [listing/review notes and human-input checklist](packaging/apple-app-store/submission-draft.md); inventory privacy/network/export facts.

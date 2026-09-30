@@ -20,3 +20,7 @@ func chooseFilesDarwin() ([]byte, error) {
 func chooseSaveDarwin(_ string) (fyne.URI, error) {
 	return nil, errors.New("the macOS save panel only exists in darwin builds")
 }
+
+func chooseSiblingFolderDarwin(_ string) (fyne.URI, error) {
+	return nil, errors.New("the macOS folder permission panel only exists in darwin builds")
+}

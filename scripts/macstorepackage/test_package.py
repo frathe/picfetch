@@ -86,6 +86,43 @@ class SignedArtifactGuards(unittest.TestCase):
         with self.assertRaises(subprocess.CalledProcessError):
             package.verify_upstream_library(runtime, self.env)
 
+    def test_resigned_missing_submission_metadata_is_refused(self):
+        path = self.app / "Contents/Info.plist"
+        original = package.plistlib.loads(path.read_bytes())
+        for key in ("NSHumanReadableCopyright", "LSApplicationCategoryType"):
+            for value in (None, "unexpected"):
+                with self.subTest(key=key, value=value):
+                    data = original.copy()
+                    data["NSHumanReadableCopyright"] = "Copyright (c) 2026 Florian Rathe"
+                    data["LSApplicationCategoryType"] = "public.app-category.photography"
+                    if value is None:
+                        del data[key]
+                    else:
+                        data[key] = value
+                    package.write_plist(path, data)
+                    self.sign(self.app, "app")
+                    package.run("codesign", "--verify", "--deep", "--strict", self.app)
+                    with self.assertRaisesRegex(ValueError, "submission metadata"):
+                        package.verify(self.app, self.env)
+
+    def test_quarantined_bundle_is_refused_without_mutation(self):
+        metadata = self.app / "Contents/Info.plist"
+        data = package.plistlib.loads(metadata.read_bytes())
+        data["NSHumanReadableCopyright"] = "Copyright (c) 2026 Florian Rathe"
+        package.write_plist(metadata, data)
+        self.sign(self.app, "app")
+        for path in (self.app, self.app / "Contents/Resources",
+                     self.app / "Contents/Resources/LICENSE"):
+            with self.subTest(path=path):
+                attribute = "0081;00000000;PicFetchTest;"
+                package.run("xattr", "-w", "com.apple.quarantine", attribute, path)
+                try:
+                    with self.assertRaisesRegex(ValueError, "quarantine"):
+                        package.verify(self.app, self.env)
+                    self.assertEqual(package.run("xattr", "-p", "com.apple.quarantine", path, capture=True).decode().strip(), attribute)
+                finally:
+                    package.run("xattr", "-d", "com.apple.quarantine", path)
+
     def test_resigned_privacy_change_is_refused(self):
         package.stage_privacy(Path(__file__).resolve().parents[2], self.app / "Contents")
         resource = self.app / "Contents/Resources/AbseilPrivacy.bundle/Contents/Resources/PrivacyInfo.xcprivacy"

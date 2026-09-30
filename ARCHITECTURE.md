@@ -1125,8 +1125,8 @@ can pick folders; Windows is files-only.
 
 | File | Responsibility |
 |------|----------------|
-| `filepicker.go` | Typed `Choose` (URI list) / `ChooseSave` (one URI), strict native result decoding, canonical-path Zenity framing and UTF-8 JSON PowerShell transport. |
-| `darwin.go` / `other.go` | `NSOpenPanel` / `NSSavePanel` with a shared NSURL-to-JSON transport / stubs; `darwin_test.go` exercises the actual native serializer. |
+| `filepicker.go` | Typed `Choose` (URI list) / `ChooseSave` (one URI), strict native result decoding, Store single-file parent-consent validation, canonical-path Zenity framing and UTF-8 JSON PowerShell transport. |
+| `darwin.go` / `other.go` | `NSOpenPanel` / `NSSavePanel`, including explicit Store sibling-folder permission, with a shared NSURL-to-JSON transport / stubs; `darwin_test.go` exercises the actual native serializer. |
 | `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
 ### `internal/trash`

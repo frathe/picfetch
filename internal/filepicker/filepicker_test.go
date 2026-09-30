@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/distribution"
@@ -345,6 +346,62 @@ func TestScopedSelectionDecodesNativeURLExactlyOnce(t *testing.T) {
 		restored, err := fileaccess.FromRecord(fileaccess.Snapshot(selected[0]))
 		if err != nil || restored.Path() != path {
 			t.Fatalf("persistent URI decoded twice: %v, %v", restored, err)
+		}
+	}
+}
+
+func TestAuthorizeSiblingFolderPreservesOpenedFileAndFolderAuthority(t *testing.T) {
+	source, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///photos/a.jpg", Bookmark: []byte("file")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///photos", Bookmark: []byte("folder"), Directory: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	files, err := authorizeSiblingFolder([]fyne.URI{source}, func(path string) (fyne.URI, error) {
+		calls++
+		if path != "/photos" {
+			t.Fatalf("requested folder %q", path)
+		}
+		return folder, nil
+	})
+	if err != nil || calls != 1 || len(files) != 1 {
+		t.Fatalf("files=%v calls=%d err=%v", files, calls, err)
+	}
+	record := fileaccess.Snapshot(files[0])
+	if files[0].String() != source.String() || !record.Directory || record.Relative != "a.jpg" || string(record.Bookmark) != "folder" {
+		t.Fatalf("selected file lost folder authority: %+v", record)
+	}
+}
+
+func TestAuthorizeSiblingFolderCancellationAndInvalidGrants(t *testing.T) {
+	source, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///photos/a.jpg", Bookmark: []byte("file")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///other", Bookmark: []byte("other"), Directory: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelled, err := authorizeSiblingFolder([]fyne.URI{source}, func(_ string) (fyne.URI, error) { return nil, nil })
+	if err != nil || len(cancelled) != 1 || cancelled[0] != source {
+		t.Fatalf("cancel lost original: %v %v", cancelled, err)
+	}
+	for _, invalid := range []fyne.URI{folder, source, storage.NewFileURI("/photos")} {
+		if _, err := authorizeSiblingFolder([]fyne.URI{source}, func(_ string) (fyne.URI, error) { return invalid, nil }); err == nil {
+			t.Fatalf("accepted unrelated or unscoped folder: %v", invalid)
+		}
+	}
+	failure := errors.New("native permission failure")
+	if _, err := authorizeSiblingFolder([]fyne.URI{source}, func(_ string) (fyne.URI, error) { return nil, failure }); !errors.Is(err, failure) {
+		t.Fatalf("lost permission error: %v", err)
+	}
+	for _, files := range [][]fyne.URI{nil, {source, source}, {folder}, {storage.NewFileURI("/photos/a.jpg")}} {
+		result, err := authorizeSiblingFolder(files, func(_ string) (fyne.URI, error) { t.Fatal("unexpected permission panel"); return nil, nil })
+		if err != nil || !slices.Equal(result, files) {
+			t.Fatalf("changed selection: %v %v", result, err)
 		}
 	}
 }

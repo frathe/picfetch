@@ -3,7 +3,6 @@ package similarity
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -30,7 +29,8 @@ func TestWorkerAccessCapturesExactPathsUntilRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/Applications/PicFetch.app", filepath.Join("/models", "vision_model.onnx"), filepath.Join("/models", "preprocessor_config.json"), "/photos/one.png", "/cache"}
+	// Fyne URI paths use slashes on Windows too.
+	want := []string{"/Applications/PicFetch.app", "/models/vision_model.onnx", "/models/preprocessor_config.json", "/photos/one.png", "/cache"}
 	if len(req.Access) != len(want) {
 		t.Fatalf("unexpected grants: %+v", req.Access)
 	}

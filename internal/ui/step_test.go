@@ -8,6 +8,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -82,18 +84,42 @@ func TestStepImage_SingleFileDropWalksFolderSiblings(t *testing.T) {
 }
 
 func TestHandleKeyEvent_LeftRightWalkFolderSiblings(t *testing.T) {
-	v := newTestViewer(t)
-	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
-	dropAndWait(t, v, files[0])
-	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
-	waitUntilLoaded(t, v)
-	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "b.jpg" {
-		t.Fatalf("Right showing %q, want b.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
-	}
-	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyLeft})
-	waitUntilLoaded(t, v)
-	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "a.jpg" {
-		t.Fatalf("Left showing %q, want a.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
+	for _, scoped := range []bool{false, true} {
+		name := "ordinary"
+		if scoped {
+			name = "authorized-folder"
+		}
+		t.Run(name, func(t *testing.T) {
+			v := newTestViewer(t)
+			files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
+			selected := files[0]
+			if scoped {
+				if distribution.AppleAppStore {
+					t.Skip("synthetic bookmark requires non-Store resolver; native grants are qualified separately")
+				}
+				var err error
+				selected, err = fileaccess.FromRecord(fileaccess.Record{URI: selected.String(), Bookmark: []byte("folder"), Directory: true, Relative: selected.Name()})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			uitest.StubChooser(t, []fyne.URI{selected}, nil)
+			v.openFileDialog()
+			settleChooser(t, v)
+			waitForScan(t, v)
+			waitForSort(t, v)
+			waitUntilLoaded(t, v)
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+			waitUntilLoaded(t, v)
+			if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "b.jpg" {
+				t.Fatalf("Right showing %q, want b.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
+			}
+			v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyLeft})
+			waitUntilLoaded(t, v)
+			if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "a.jpg" {
+				t.Fatalf("Left showing %q, want a.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
+			}
+		})
 	}
 }
 

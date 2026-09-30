@@ -269,6 +269,8 @@ func TestHEICUnavailableFiles(t *testing.T) {
 				case <-time.After(testTimeout):
 					t.Fatal("pending HEIC check blocked traversal before later supported files")
 				}
+				// Traversal observed the JPEG; its earlier UI progress is queued.
+				v.scanUI.Drain()
 				if got := v.scanOp.label.Text; got != "Scanning... 1 images" {
 					t.Fatalf("supported-file progress while checking = %q", got)
 				}

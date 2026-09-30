@@ -92,6 +92,38 @@ static panelResult runOpenPanel(const char *message) {
 	return retainSelection(panel.URLs);
 }
 
+// Only the matching folder can be confirmed. Navigating elsewhere never grants
+// broader authority to the selected image through our result transport.
+@interface PicFetchSiblingFolderDelegate : NSObject <NSOpenSavePanelDelegate>
+@property(nonatomic, strong) NSURL *folder;
+@end
+@implementation PicFetchSiblingFolderDelegate
+- (BOOL)panel:(id)sender validateURL:(NSURL *)url error:(NSError **)error {
+ (void)sender; (void)error;
+ return [url.URLByStandardizingPath isEqual:self.folder.URLByStandardizingPath];
+}
+@end
+
+static panelResult runSiblingFolderPanel(const char *message, const char *prompt, const char *directory) {
+ NSOpenPanel *panel = [NSOpenPanel openPanel];
+ NSURL *folder = [NSURL fileURLWithPath:[NSString stringWithUTF8String:directory] isDirectory:YES];
+ __attribute__((objc_precise_lifetime)) PicFetchSiblingFolderDelegate *delegate = [PicFetchSiblingFolderDelegate new];
+ delegate.folder = folder;
+ panel.delegate = delegate;
+ panel.message = [NSString stringWithUTF8String:message];
+ panel.prompt = [NSString stringWithUTF8String:prompt];
+ panel.canChooseFiles = NO;
+ panel.canChooseDirectories = YES;
+ panel.allowsMultipleSelection = NO;
+ panel.canCreateDirectories = NO;
+ panel.directoryURL = folder;
+ NSModalResponse response = [panel runModal];
+ panel.delegate = nil;
+ if (response == NSModalResponseCancel) return (panelResult){0, NULL};
+ if (response != NSModalResponseOK) return (panelResult){-1, NULL};
+ return retainSelection(panel.URLs);
+}
+
 // runSavePanel shows an app-modal NSSavePanel pre-filled with name, opened
 // on dir. Same main-thread requirement as runOpenPanel above;
 // chooseSaveDarwin guarantees it the same way. No allowedContentTypes is
@@ -267,3 +299,31 @@ func darwinSaveTransport(path string) (fyne.URI, error) {
 }
 
 var _ = darwinSaveTransport
+
+// This optional second panel runs on the existing chooser worker. Its accepted
+// native URL is captured before returning to the ordinary collection pipeline.
+func chooseSiblingFolderDarwin(directory string) (fyne.URI, error) {
+	message := C.CString(lang.L("Allow access to this image's folder to browse its other images. Cancel to open only the selected image."))
+	defer C.free(unsafe.Pointer(message))
+	prompt := C.CString(lang.L("Allow Folder Access"))
+	defer C.free(unsafe.Pointer(prompt))
+	path := C.CString(directory)
+	defer C.free(unsafe.Pointer(path))
+	var result C.panelResult
+	fyne.DoAndWait(func() { result = C.runSiblingFolderPanel(message, prompt, path) })
+	out, err := decodeNativePanel(result, true)
+	if err != nil {
+		return nil, err
+	}
+	if string(out) == "null" {
+		return nil, nil
+	}
+	folders, err := decodeScopedSelection(out)
+	if err != nil {
+		return nil, err
+	}
+	if len(folders) != 1 {
+		return nil, errors.New("folder permission panel returned multiple selections")
+	}
+	return folders[0], nil
+}

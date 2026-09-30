@@ -6,8 +6,10 @@ import (
 	"context"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2/storage"
 
@@ -198,6 +200,36 @@ func TestInvokeOpenURLs_BuffersWhenNoHandlerIsInstalledYet(t *testing.T) {
 }
 
 func TestNativeSelectedURLCaptureKeepsOriginalAuthority(t *testing.T) {
+
+	// Go's Intel linker leaves test binaries unsigned. Foundation needs a signing
+	// identity for an app-scoped bookmark, even outside App Sandbox. Exercise the
+	// same test in a signed disposable copy instead of skipping native capture.
+	if os.Getenv("PICFETCH_TEST_SIGNED_BOOKMARK") != "1" {
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(executable)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture := filepath.Join(t.TempDir(), "bookmark.test")
+		if err := os.WriteFile(fixture, data, 0700); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+		defer cancel()
+		sign := exec.CommandContext(ctx, "/usr/bin/codesign", "--force", "--sign", "-", "--identifier", "io.github.frathe.picfetch.bookmark-tests", fixture)
+		if out, err := sign.CombinedOutput(); err != nil {
+			t.Fatalf("sign fixture: %v\n%s", err, out)
+		}
+		child := exec.CommandContext(ctx, fixture, "-test.run=^TestNativeSelectedURLCaptureKeepsOriginalAuthority$", "-test.v")
+		child.Env = append(os.Environ(), "PICFETCH_TEST_SIGNED_BOOKMARK=1")
+		if out, err := child.CombinedOutput(); err != nil {
+			t.Fatalf("signed bookmark fixture: %v\n%s", err, out)
+		}
+		return
+	}
 	delivered := captureDelivered(t)
 	path := filepath.Join(t.TempDir(), "chosen café.jpg")
 	if err := os.WriteFile(path, []byte("fixture"), 0600); err != nil {

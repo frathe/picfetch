@@ -30,6 +30,10 @@ ENTITLEMENTS = {
 APP_ID = "io.github.frathe.picfetch"
 TARGETS = {"arm64": ("arm64", "14.0"), "amd64": ("x86_64", "13.4")}
 TAGS = "no_emoji,nodynamic,appleappstore"
+SUBMISSION_METADATA = {
+    "NSHumanReadableCopyright": "Copyright (c) 2026 Florian Rathe",
+    "LSApplicationCategoryType": "public.app-category.photography",
+}
 # Reviewed exact upstream declarations; changes require a source/license audit.
 PRIVACY_FILES = {
     'PrivacyInfo.xcprivacy': 'f232217ae9edf2ab6a541a28eff50cfe05303c2b4756fff95cca72eccbc3b898',
@@ -132,6 +136,9 @@ def native_check(path, architectures, minima, env):
 
 
 def verify(app, env):
+    attributes = run("xattr", "-r", app, capture=True, env=env)
+    if any(line.rsplit(b": ", 1)[-1] == b"com.apple.quarantine" for line in attributes.splitlines()):
+        raise ValueError("bundle contains com.apple.quarantine; rebuild from unquarantined inputs")
     contents = app / "Contents"
     service = contents / "XPCServices" / (APP_ID + ".worker.xpc")
     roles = {app: "app", service: "service",
@@ -146,6 +153,9 @@ def verify(app, env):
         raise ValueError("unexpected app identity")
     if plist.get("LSMinimumSystemVersionByArchitecture") != {a: m for a, m in TARGETS.values()}:
         raise ValueError("unexpected per-architecture deployment minimum")
+    for key, expected in SUBMISSION_METADATA.items():
+        if plist.get(key) != expected:
+            raise ValueError(f"unexpected submission metadata: {key}")
     verify_privacy(contents)
     expected_code = {contents / "MacOS/PicFetch", contents / "MacOS/picfetch-worker-client",
                      service / "Contents/MacOS/worker", service / "Contents/MacOS/picfetch-image-worker"}
@@ -248,7 +258,7 @@ def build(args):
         info = plistlib.loads((contents / "Info.plist").read_bytes())
         info.update({"LSMinimumSystemVersion": "13.4",
                      "LSMinimumSystemVersionByArchitecture": {a: m for a, m in TARGETS.values()},
-                     "LSApplicationCategoryType": "public.app-category.photography"})
+                     **SUBMISSION_METADATA})
         write_plist(contents / "Info.plist", info)
         (contents / "Frameworks").mkdir()
         for arch in TARGETS:

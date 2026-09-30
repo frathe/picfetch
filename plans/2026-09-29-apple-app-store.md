@@ -1122,3 +1122,86 @@ includes preserved upstream notice bytes and both provenance records. All eleven
 native packaging tests pass (1.753s). Portable invocation passes five tests with
 six explicit native skips. The CI workflow inspection is clean. All current
 local gates passed before staging; full native-amd64 CI is pending the draft PR.
+
+### Continuation — submission metadata and quarantine guards
+
+Draft PR #75 now runs CI, CodeQL and Qodana against cd063e9. T4 Standard slice,
+T0 inline, zero spawns/two reviews. Inspecting the built app found the required
+NSHumanReadableCopyright key absent. Final validation also omitted quarantine
+attributes. Apple preparation/upload requirements were rechecked 2026-09-30.
+Use the existing LICENSE copyright line and photography category; validate both
+in the final plist. Reject quarantine on the app root, nested directories or files
+without mutating the inspected app or clearing downloaded user files.
+Files: existing package.py/test_package.py, packaging README, todos and this record.
+Seam: existing final signed-artifact validator. AC: re-signed missing/changed
+metadata and quarantined copies fail; a fresh universal package passes all native
+packaging tests. Run the Python suite, Make package target and GoLand inspections.
+The user-facing f0565d1 E2E artifact remains unchanged. Distribution signing and
+submission remain separate gates; this slice does not need account credentials.
+
+### User regression — single-image Open dialog cannot navigate siblings
+
+Ronin reproduced in the ad-hoc Store app using PicFetch's Open dialog. A temporary
+Go overlay on the existing Left/Right UI test changes only the input to a
+file-scoped record: `go test -tags no_emoji,nodynamic -overlay
+.scratch/apple-store-package/sibling-repro-overlay.json ./internal/ui -run
+'^TestHandleKeyEvent_LeftRightWalkFolderSiblings$' -count=1` fails: Right still
+shows a.jpg, expected b.jpg. Changing only that record to captured folder authority
+passes. The picker captures a single file grant; Parent correctly refuses to
+broaden it. Keyboard handling and retained directory propagation work.
+
+T3 Deep continuation, T0 inline, zero spawns/two reviews. Add an explicit native
+folder grant after single-file selection in the Store Open dialog, preserving the
+selected image as the initial image. Cancellation keeps the original file; no
+parent access is manufactured from a path. Multiple selections/directories and
+non-Store channels retain current behavior. Native UI work stays in the existing
+tracked chooser and capture remains on its worker. Filepicker behavior tests cover
+accept/cancel/wrong-folder and multi-file cases; existing Left/Right test adds a
+scoped-folder chooser case. Test native transport, focused Go race suites, locale
+parity, Make package and signed guards, then GoLand. Build a fresh E2E app without
+overwriting the original. Finder/Drop entry-point folder consent remains a
+separate open workflow; do not silently claim this Open-dialog fix covers it.
+
+### CI follow-up at cd063e9
+
+PR #75's first run passed CodeQL, validation, Linux native/non-UI/ui-2, ARM native
+and FOSSA. Three failures have concrete causes: Windows worker-access expected
+backslashes even though Fyne URI paths use slashes; the HEIC progress test observed
+worker traversal before draining scanUI; Intel's unsigned Go test binary could
+not retrieve Foundation's app-scope key. The latter reproduced locally under
+Rosetta, then passed with the identical binary ad-hoc signed. T0 inline fixes
+only these test assumptions: URI-form expected paths, drain already-submitted
+progress, and run the bookmark test in a signed disposable self-copy (no skip).
+Verify focused race tests plus unsigned Intel parent invoking its signed child;
+CI must still rerun on actual Windows/Linux/Intel. No production sandbox changes.
+
+Qodana post-suppression `/qodana.sarif.json` reports eight unused-function warnings.
+Each has live callers: Stat (favthumbs/name.go and ui/filework.go), NeedsCapture
+(ui/drop.go), HasScope (favstore and ui/drop.go), Export (worker_access_darwin.go),
+Import (worker_access.go), CurrentRuntimeDirectory (similarity/assets.go and native
+worker launch), InstallWindowDrop and Stop (ui/run.go). These are cross-package/
+platform analysis false positives, not removable code. The `/start/` SARIF is
+baseline output and must not overwrite the actual result. Keep the warnings and
+these exact dispositions visible; no broad unused-code exclusion is introduced.
+
+Folder-consent policy, cancellation, wrong/unscoped directory, native picker,
+Apple-tagged picker and ordinary/authorized-folder Left/Right tests pass. English/
+German locale parity passes. Universal test app is `bin/apple-store-e2e-folder-navigation/PicFetch.app`
+and its matching ZIP/hash are beside the output directory. All 13 signed artifact
+guards pass (3.231s). The app's manifest records the exact working tree used;
+subsequent changes are inspection comments/test fixes/docs, not runtime behavior.
+The native live permission panel still needs Ronin's E2E confirmation; original
+f0565d1 app is untouched. GoLand inspected all seven changed packaging/picker/UI
+files. Existing test duplication remains covered by exact qodana.yaml test
+exclusions; immutable distribution-channel condition has a narrow documented
+GoBoolExpressions suppression. No other findings in that scope.
+
+Focused race verification passed: similarity 1.427s, openwith 2.665s, root UI
+7.655s. Unsigned Intel parent now runs the real signed child guard successfully
+(0.64s), preserving native capture assertions. GoLand reinspection of all three
+CI test fixes and the picker condition suppression is clean. `make verify-build`
+passes; native package suite is 13/13. No top-level root UI test was added, so
+existing shard assignments remain exact. Source-local test duplication exclusions
+are unchanged. Final review: permission scope remains explicit, original image
+identity survives consent, cancellation does not widen access, and no production
+sandbox policy is relaxed. CI results for the next pushed commit remain pending.
