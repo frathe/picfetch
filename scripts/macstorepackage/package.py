@@ -1,7 +1,8 @@
 """Build and validate an ad-hoc, universal Apple Store qualification app.
 
-This route has no distribution signing or upload mode. Apple account credentials
-are unnecessary; the result cannot be submitted as an App Store release.
+This local route needs no Apple account credentials and cannot be submitted as
+an App Store release. distribution.py consumes a qualified app for separate
+distribution signing; neither route uploads artifacts.
 """
 import argparse
 import hashlib
@@ -50,8 +51,8 @@ def check_dependencies(paths):
             raise ValueError(f"non-system native dependency: {path}")
 
 
-def check_entitlements(role, actual):
-    if actual != ENTITLEMENTS[role]:
+def check_entitlements(role, actual, expected=None):
+    if actual != (ENTITLEMENTS if expected is None else expected)[role]:
         raise ValueError(f"unexpected {role} entitlements: {actual}")
 
 
@@ -135,7 +136,7 @@ def native_check(path, architectures, minima, env):
         check_dependencies("\n".join(dependencies))
 
 
-def verify(app, env):
+def verify(app, env, expected_entitlements=None):
     attributes = run("xattr", "-r", app, capture=True, env=env)
     if any(line.rsplit(b": ", 1)[-1] == b"com.apple.quarantine" for line in attributes.splitlines()):
         raise ValueError("bundle contains com.apple.quarantine; rebuild from unquarantined inputs")
@@ -146,7 +147,7 @@ def verify(app, env):
              service / "Contents/MacOS/picfetch-image-worker": "helper"}
     for path, role in roles.items():
         data = run("codesign", "-d", "--entitlements", ":-", path, capture=True, env=env)
-        check_entitlements(role, plistlib.loads(data))
+        check_entitlements(role, plistlib.loads(data), expected_entitlements)
         run("codesign", "--verify", "--strict", path, env=env)
     plist = plistlib.loads((contents / "Info.plist").read_bytes())
     if plist.get("CFBundleIdentifier") != APP_ID or plist.get("CFBundleExecutable") != "PicFetch":

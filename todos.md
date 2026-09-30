@@ -32,10 +32,14 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Latest rebuilt E2E app is in `bin/apple-store-e2e-drop-navigation/`.
 - [x] Ronin confirmed native Open-dialog folder consent fixes navigation; extend the same consent to shared drop/Open With discovery with cancellation and replacement coverage.
 - [ ] Confirm the rebuilt shared-consent app with a single-file window drop and Open With.
-- [ ] Diagnose Ronin's multiple-file picker/drop navigation report; selected-file navigation passes the automated harness, packaged symptom needs clarification.
+- [x] Ronin confirmed multiple-file picker/drop navigation must remain within the selected images; folder sibling discovery applies only to single-file inputs. Automated selection coverage passes.
+- [x] Persist explicit sibling-folder approvals in app preferences and validate/reuse bookmarks on fresh single-image opens; keep renewal, cancellation and selection guards.
+- [x] Ronin confirmed persistent folder approvals work across real quit/relaunch in `bin/apple-store-e2e-persistent-folders/PicFetch.app`.
+- [ ] Confirm moved-folder bookmark reuse in the persistent-folder test app; automated coverage passes, live moved-folder testing remains open.
 - [x] Validate copyright/category metadata and reject quarantine attributes in local Store packages.
 - [ ] Finish GUI sandbox workflows, moved-folder relaunch, and physical Intel/minimum-OS validation.
-- [ ] Add the signed Store packaging route and validate the final artifact on Intel and Apple Silicon.
+- [x] Implement a separate Store distribution-signing/installer route with identity, profile and payload guards.
+- [ ] Run the signed route with real Apple certificates/profiles and validate the resulting candidate on the required distribution path and platform matrix.
 - [x] Prepare [listing/review notes and human-input checklist](packaging/apple-app-store/submission-draft.md); inventory privacy/network/export facts.
 - [x] Preserve exact Abseil privacy manifests/license/provenance; verify original Microsoft runtime signatures before local re-signing.
 - [ ] Resolve remaining [Protobuf/ONNX privacy coverage and SDK validation](packaging/apple-app-store/privacy-dependency-audit.md), confirm final privacy/export answers and validate Apple submission.

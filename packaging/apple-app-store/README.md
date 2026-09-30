@@ -68,13 +68,14 @@ Run the read-only prerequisite check:
 APPLE_STORE_TEAM_ID=YOURTEAMID \
 APPLE_STORE_TESTFLIGHT=1 \
 APPLE_STORE_PROFILE=/absolute/path/PicFetch.provisionprofile \
+APPLE_STORE_WORKER_PROFILE=/absolute/path/PicFetchWorker.provisionprofile \
 make apple-store-preflight
 ```
 
 It uses `/Applications/Xcode.app/Contents/Developer` without changing the system
 developer-directory selection. Override `APPLE_STORE_DEVELOPER_DIR` for another
 full Xcode installation. It checks for Store application and installer signing
-identities with private keys. `APPLE_STORE_TESTFLIGHT=1` requires a profile file;
+identities with private keys. `APPLE_STORE_TESTFLIGHT=1` requires app and XPC worker profile files for this route;
 without TestFlight, an app using only unrestricted macOS entitlements may omit
 a profile, per [Apple TN3125](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles).
 It does not install credentials, access an Apple account, upload a package or
@@ -122,7 +123,7 @@ Required inputs:
    authorization separately; this preparation does not publish anything.
 
 The local target below is explicitly an ad-hoc qualification route; distribution
-signing, installer packaging and submission validation are still separate work. A successful prerequisite check cannot
+real distribution signing and submission validation are still separate qualification work. A successful prerequisite check cannot
 substitute for signed sandbox or submission evidence.
 
 
@@ -199,8 +200,64 @@ Opening a single image in the Store build offers a native folder permission pane
 when sibling discovery needs a wider grant. This shared path covers the Open
 dialog, window drops and Open With/Dock delivery. Confirm **Allow Folder Access**
 for the containing folder to enable Left/Right browsing. The selected image stays
-on screen initially; siblings retain the confirmed directory bookmark.
+on screen initially; siblings retain the confirmed directory bookmark. The folder
+approval is also saved in app preferences and reused for fresh single-image opens,
+including after quitting and relaunching. Saved bookmarks are resolved and checked
+before use; moved/stale bookmarks are refreshed. An unavailable or unusable grant
+falls back to the permission panel. Earlier test builds did not keep this separate
+approval history, so approve each folder once in the new build.
 Cancel opens only the selected image. Existing directory grants, folders,
 multiple-file selections, saved-collection replay and merge additions do not
 request this extra permission. A replaced or cancelled opening discards late
 permission results. Native presentation is tracked without blocking shutdown.
+
+
+## Distribution-signed candidate packaging
+
+`make apple-store-package-signed` consumes a qualified local app and creates a
+fresh output directory containing a signed app, `PicFetch.pkg` and provenance
+manifest. It does not upload or install anything and does not modify the input
+app. This tooling is implemented; a real Store-signed run still needs credentials
+and remains unverified. Continue using `apple-store-package-local` for direct E2E
+runs: Store distribution signatures are intended for Apple's distribution path.
+
+```sh
+APPLE_STORE_APP=/absolute/path/local-output/PicFetch.app \
+APPLE_STORE_SIGNED_OUTPUT_DIR=/absolute/path/fresh-store-candidate \
+APPLE_STORE_TEAM_ID=YOURTEAMID \
+APPLE_STORE_APP_IDENTITY=APPLICATION_CERTIFICATE_SHA1 \
+APPLE_STORE_INSTALLER_IDENTITY=INSTALLER_CERTIFICATE_SHA1 \
+APPLE_STORE_TESTFLIGHT=1 \
+APPLE_STORE_PROFILE=/absolute/path/PicFetch.provisionprofile \
+APPLE_STORE_WORKER_PROFILE=/absolute/path/PicFetchWorker.provisionprofile \
+make apple-store-package-signed
+```
+
+Identity selectors are full uppercase SHA-1 certificate fingerprints from
+Keychain's valid identity inventory. The application identity must be Apple
+Distribution or 3rd Party Mac Developer Application; the installer identity must
+be 3rd Party Mac Developer Installer, both for the chosen Team. Private keys stay
+in Keychain; only public certificate bytes are read for fingerprint comparison.
+No private-key export or Apple-account login is performed.
+
+This route requires explicit app (`io.github.frathe.picfetch`) and XPC worker
+(`io.github.frathe.picfetch.worker`) profiles when TestFlight is requested.
+Without TestFlight, these bundles' unrestricted sandbox claims may omit profiles.
+Inherited helpers retain only sandbox/inherit and have no profiles. Supplied
+profiles are copied as immutable bytes, decoded with `security cms`, and checked
+for macOS, exact identifier/prefix, Team, validity, distribution scope and the
+selected certificate. These checks are diagnostics; profile plist structure is
+not a stable API or authoritative proof of CMS/DER acceptance. Apple's validation
+remains required. See [TN3125](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles)
+and [manual distribution signing](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac/).
+
+Code is signed inside-out and checked against the Apple anchor, selected leaf
+certificate, Team and code identifier. The installer uses `productbuild
+--component` targeting `/Applications`. `pkgutil` checks its signature and the selected leaf certificate's SHA-256 fingerprint, then
+expands it without installation; the sole app payload must match the verified
+signed app in bytes and executable permissions. A missing or mismatched input
+qualification manifest, existing output directory or failed validation stops
+publication. Portable policy tests run in CI; the native installer roundtrip
+uses an explicitly unsigned disposable installer and does not prove distribution
+signing. The remaining SDK/privacy, real certificate/profile, TestFlight and
+App Store submission gates remain open.

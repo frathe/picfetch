@@ -137,6 +137,7 @@ exclude:
       - "internal/filemanager/filemanager_test.go"
       - "internal/filepicker/darwin_test.go"
       - "internal/filepicker/filepicker_test.go"
+      - "internal/filepicker/folders_test.go"
       - "internal/filepicker/windows_test.go"
       - "internal/filescan/authority_test.go"
       - "internal/filescan/filescan_test.go"

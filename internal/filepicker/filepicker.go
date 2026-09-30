@@ -7,7 +7,6 @@
 package filepicker
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -311,25 +310,4 @@ func authorizeSiblingFolder(files []fyne.URI, choose func(string) (fyne.URI, err
 		return nil, err
 	}
 	return []fyne.URI{child}, nil
-}
-
-// AuthorizeSiblingFolder optionally obtains explicit directory access for a
-// captured single-image input. Call on a tracked worker, after admission for
-// sibling discovery; saved collections and merge inputs do not need this grant.
-func AuthorizeSiblingFolder(ctx context.Context, files []fyne.URI) ([]fyne.URI, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	// The channel is fixed at build time, independently of the host inspector.
-	//goland:noinspection GoBoolExpressions
-	if !distribution.AppleAppStore {
-		return files, nil
-	}
-	files, err := authorizeSiblingFolder(files, func(directory string) (fyne.URI, error) {
-		return chooseSiblingFolderDarwin(ctx, directory)
-	})
-	if cancelled := ctx.Err(); cancelled != nil {
-		return nil, cancelled
-	}
-	return files, err
 }

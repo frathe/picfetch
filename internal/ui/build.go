@@ -112,7 +112,7 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		updateExecutable: os.Executable,
 	}
 
-	view.authorizeSiblingFolder = filepicker.AuthorizeSiblingFolder
+	view.authorizeSiblingFolder = filepicker.NewFolderAuthorizer(application.Preferences()).AuthorizeSiblingFolder
 	view.chooserUI = fyneChooserQueue{}
 	view.scanUI = fyneChooserQueue{}
 	view.osInputs.queue = fyneChooserQueue{}

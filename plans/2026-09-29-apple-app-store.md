@@ -1277,8 +1277,138 @@ Ronin subsequently reported multiple-file Open-dialog/drop navigation still
 failing. A new focused diagnostic subcase in the existing Left/Right test opens
 two distinct selected-file bookmarks through picker/drop/OS; all three retain
 two images and navigate Right to b.jpg then Left to a.jpg (UI 0.793s). This does
-not reproduce the packaged-app report. Clarification is pending whether selected
-images themselves cannot be navigated or unselected folder siblings are missing.
-Do not widen multi-selection to whole-folder discovery without resolving that
-ambiguity. Latest E2E app remains unchanged; no fix is claimed. GoLand inspected
-the diagnostic test: only the existing exact-excluded duplicate fixture remains.
+not reproduce the packaged-app report. Ronin clarified that the reported behavior
+was reaching the selection boundaries and confirmed it is intentional: multiple
+inputs must browse only the selected images, while a single-file open/drop may
+discover folder siblings. Close this report as expected behavior; preserve the
+selection-size and Left/Right coverage. No production change or rebuilt artifact
+is needed for this report. Focused navigation race tests also passed (UI 6.128s).
+GoLand inspected the diagnostic test: only the existing exact-excluded duplicate
+fixture remains. This clarification supersedes the earlier pending diagnosis.
+
+### Persistent sibling-folder approval — implementation contract
+
+Request: reuse explicit folder approvals across fresh single-image opens and app
+launches. Preserve multiple-selection/merge/replay behavior. Deep continuation,
+T0 inline, zero spawns, two reviews; no dependency, entitlement or UI string change.
+Apple's Accessing files from the macOS App Sandbox documentation confirms stored
+security-scoped bookmarks require explicit resolution/start/stop on later use.
+Existing fileaccess.Acquire already renews stale bookmarks and balances scopes.
+
+Task: add per-viewer filepicker.FolderAuthorizer backed by app preferences;
+resolve saved directory bookmarks on the existing scan worker before prompting,
+require the resolved directory to match the requested parent, save renewed data,
+and persist only validated explicit folder consent. Invalid/missing/offline grants
+fall back to the existing panel; cancellation must not publish a new grant.
+Never infer permission from a matching pathname alone. Keep native scopes bounded
+and no native work under the preference lock. Filepicker owns the grant preference
+as part of native input authorization, independently of transient session data.
+
+Files: filepicker folder authorizer + tests, UI build wiring, architecture index,
+exact Qodana test exclusion, evidence/todos/docs. Tests: a new authorizer instance
+with persisted preferences suppresses the second prompt; unrelated/failed/moved
+bookmarks, renewal, cancelled consent and multi-selection retain their contracts.
+Verify focused picker/UI race tests, Store compile, GoLand changed files,
+make verify-build and fresh universal Store test package/13 artifact guards.
+Physical relaunch confirmation remains a user E2E check. Full native-amd64 race
+suite remains CI-owned because the local Docker daemon is ARM.
+
+Persistent approval verification: the new-authorizer test first failed with two
+prompts instead of one, then passed after persistence/reuse. Tests cover distinct
+images across authorizer lifetimes, explicit selection identity, balanced scopes,
+moved and renewed bookmarks, wrong resolved folders, revoked/offline/malformed
+records, file-only grants, cancellation during lookup/panel, and multi-selection.
+Renewal tests exposed duplicate trailing-slash records from deriving a folder
+back from its child; fixed by persisting the validated native folder directly.
+Isolated Go overlay mutations disabling folder matching and renewal persistence
+both fail their targeted guards. Overlays are scratch-only .fixture files.
+
+Focused race results: filepicker 1.546s; root navigation/consent lifecycle 8.518s.
+Store-tagged filepicker 0.364s. make verify-build passed formatting, notice checks,
+vet and build. GoLand inspected all four changed code files including weak
+warnings; corrected import ordering and reinspected the two new files cleanly.
+The exact folders_test.go Qodana exclusion is added; no root top-level tests were
+added, so the existing shard manifest remains unchanged. Two inline reviews,
+zero agents. No new runtime/model dependency or entitlement; existing notices
+and SDK/privacy release gates remain unchanged.
+
+Fresh universal bundle: bin/apple-store-e2e-persistent-folders/PicFetch.app;
+ZIP/SHA256 beside the output directory, TESTING.md and source manifest inside it.
+All 13 signed-artifact guards pass (3.179s); all 24 ZIP payload hashes match the
+manifest. Existing E2E bundles preserved. Native relaunch/moved-folder UI evidence
+remains pending Ronin; unit tests simulate native resolution. Previous builds do
+not have a separate stored approval history, so one initial approval per folder
+is expected in this build. Current runtime change remains uncommitted; previous
+Secretive documentation signing was refused, and the earlier b98d848 push ended
+with an SSH disconnect. Latest remote remains 75356d9; no fresh CI pass is claimed
+for this change. The completed local package includes the uncommitted sources
+and records their hashes explicitly.
+
+User E2E confirmation (2026-09-30): Ronin tested the persistent-folder build
+and reported "Awesome yes it works perfectly!" in response to the requested
+quit/relaunch check. Persistent approval reuse across an actual app relaunch is
+confirmed. This does not establish moved-folder behavior, which remains a
+separate live qualification item. No further runtime changes were needed.
+
+### Distribution packaging tooling — contract and limits
+
+Deep continuation, T0 inline, zero spawns/two reviews. Add a separate
+make apple-store-package-signed route consuming an already-qualified local app
+and writing only a fresh output directory. Never change the E2E bundle, upload,
+install credentials, or install the output. Reuse existing native/entitlement/
+privacy verification and retain the input manifest/hash evidence.
+
+Select explicit valid application/installer identities for the requested Team;
+reject wrong-role, absent or ambiguous identities. Decode supplied profiles with
+security cms and diagnose macOS platform, exact app ID/prefix, Team, expiry,
+distribution-only scope and allowed signing certificate. Profile plist inspection
+is a local diagnostic, not proof of Apple's CMS/DER acceptance. Require app and
+XPC profiles for this route's TestFlight option; keep inherited helpers unprofiled
+with their exact sandbox/inherit entitlements. Sign inside-out, verify every code
+item against the Apple anchor, selected leaf fingerprint and Team, then create a
+productbuild --component /Applications installer. Validate installer signature
+and expand it to check that its payload matches the signed app exactly.
+
+Primary references (2026-09-30): Apple TN3125 (profiles, macOS exceptions, profile
+location) and Creating distribution-signed code for macOS (manual signing and
+nested code), plus installed productbuild/pkgutil/codesign manuals. These are
+version-sensitive build diagnostics. Existing SDK privacy gaps remain release
+gates regardless of signing success.
+
+Files: scripts/macstorepackage distribution module/tests, narrow package.py
+verification parameter, Make target, CI portable-test discovery, architecture,
+README/todos/evidence. Verify portable policy tests, real native unsigned installer
+payload roundtrip and negative guards, existing 13 artifact guards, GoLand
+inspections and Make checks. Missing certificates/profiles prevent a true signed
+artifact test; record that boundary rather than substitute ad-hoc evidence.
+
+Distribution-tooling verification (2026-09-30): policy tests initially failed with
+13 missing-validation assertions. Completed policy/assembly tests cover wrong
+identity role/Team/certificate, wildcard/wrong app IDs, legacy App ID prefixes,
+expired/future/development profiles, exact helper/service claims, immutable
+profile snapshots, TestFlight profile requirements, installer leaf fingerprint,
+wrong destinations/scripts/extra or changed payloads and signing order. New
+portable tests are included in CI discovery. No Apple credentials are read by
+those tests; command assembly uses explicit mocks and is not signing evidence.
+
+Actual native productbuild --component/pkgutil --expand-full roundtrip of the
+persistent-folder test app passed; extracted files and executable permissions
+match and codesign --verify --deep --strict still passes. The disposable installer
+was unsigned and never installed. A real ad-hoc artifact fails the new
+Apple-anchored distribution identity requirement as expected. Full native/portable
+packaging suite: 24 tests, 10.002s, all passed. Python scripts parse with the 3.11
+grammar; make fmt-check and Make target dry-run pass. Prior unchanged Go runtime
+build/vet/race evidence carries forward from the persistent-approval section.
+
+GoLand inspected distribution.py, test_distribution.py, package.py, Makefile and
+CI YAML with no findings; final changed Python files were reinspected cleanly.
+Review added exact installer certificate SHA-256 comparison after pkgutil trust
+validation, immutable profile decoding/embedding, and input-to-staged file
+comparison before signing. Two reviews, zero agents. Preflight's TestFlight
+check was aligned to require separate app/worker profiles; shell syntax passes.
+Xcode 27.0 is available, but this invocation has no configured Team ID or either
+TestFlight profile. Certificate availability is not established without the Team
+input. Therefore real distribution signing, profile CMS/DER acceptance, installer
+trust output against actual certificates, TestFlight and Apple SDK/privacy review
+remain unverified. No distribution artifact, upload or installation was performed.
+The user-confirmed local E2E app is unchanged by this tooling work.

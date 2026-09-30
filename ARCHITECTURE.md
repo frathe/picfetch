@@ -309,6 +309,14 @@ original app or accessing an Apple account. The package builder also verifies an
 stages exact upstream Abseil privacy/license/provenance inputs from
 `packaging/apple-app-store/privacy/abseil` into a macOS resource bundle; final
 artifact validation refuses missing or changed declarations even after re-signing.
+`distribution.py`, through `make apple-store-package-signed`, consumes a qualified
+local app without modifying it. It checks explicit Store identities and profile
+fields, signs inside-out with exact per-role claims, verifies Apple-anchored code
+identities, builds a component installer and checks its signature and expanded
+payload. Profile field checks do not establish Apple's CMS/DER or submission
+acceptance. `test_distribution.py` covers policy and assembly, with opt-in native
+unsigned installer roundtrip and ad-hoc signature rejection guards. Neither route
+uploads or installs the result.
 
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image
 digests consumed by Makefile and the release/Store workflows.
@@ -1120,13 +1128,14 @@ PNG image data (`CopyImage`) and file-reference lists (`CopyFiles`).
 
 ### `internal/filepicker`
 
-Native open chooser (`Choose`), sibling-folder authorization (`AuthorizeSiblingFolder`)
+Native open chooser (`Choose`), persistent sibling-folder authorization (`FolderAuthorizer.AuthorizeSiblingFolder`)
 and save panel (`ChooseSave`). Linux/macOS
 can pick folders; Windows is files-only.
 
 | File | Responsibility |
 |------|----------------|
-| `filepicker.go` | Typed `Choose` (URI list) / `ChooseSave` (one URI), strict native result decoding, explicit `AuthorizeSiblingFolder` consent policy for shared collection discovery, canonical-path Zenity framing and UTF-8 JSON PowerShell transport. |
+| `filepicker.go` | Typed `Choose` (URI list) / `ChooseSave` (one URI), strict native result decoding, explicit folder consent policy for shared collection discovery, canonical-path Zenity framing and UTF-8 JSON PowerShell transport. |
+| `folders.go` | Per-viewer `FolderAuthorizer` stores explicit sibling-folder bookmarks in app preferences; resolves and validates saved grants on tracked opening workers, refreshes moved/stale authority, and falls back to native consent. Native scopes are bounded, and preference locks never cover native calls. |
 | `darwin.go` / `other.go` | `NSOpenPanel` / `NSSavePanel`, including cancellable Store sibling-folder permission, with a shared NSURL-to-JSON transport / stubs; `darwin_test.go` exercises the actual native serializer. |
 | `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 

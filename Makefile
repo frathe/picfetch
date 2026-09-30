@@ -66,7 +66,7 @@ COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 .PHONY: verify-build --skip-local-tests
 .PHONY: generate-updater-notices check-updater-notices generate-avif-notices check-avif-notices
 .PHONY: fossa-findings
-.PHONY: apple-store-preflight apple-worker-test apple-store-package-local
+.PHONY: apple-store-preflight apple-worker-test apple-store-package-local apple-store-package-signed
 .PHONY: loc
 
 all: build
@@ -108,6 +108,9 @@ apple-worker-test: ## Qualify signed Mac XPC worker isolation and retirement wit
 
 apple-store-package-local: install-fyne generate-tag-vectors ## Build an ad-hoc universal sandbox app for local qualification (see packaging/apple-app-store/README.md)
 	python3 scripts/macstorepackage/package.py
+
+apple-store-package-signed: ## Sign a qualified Store app and package a candidate installer (requires Apple credentials)
+	python3 scripts/macstorepackage/distribution.py
 
 apple-store-preflight: ## Check native Xcode and Mac App Store signing inputs (see packaging/apple-app-store/README.md)
 	bash scripts/apple-store-preflight.sh

@@ -63,14 +63,24 @@ else
     fi
 fi
 
-profile="${APPLE_STORE_PROFILE:-}"
-if [ -z "$profile" ] && [ "${APPLE_STORE_TESTFLIGHT:-0}" != 1 ]; then
-    printf 'No profile supplied; unrestricted Mac App Store entitlements may omit it. TestFlight always requires one.\n'
-elif [ -z "$profile" ] || [ ! -f "$profile" ]; then
-    fail 'Set APPLE_STORE_PROFILE to the Mac App Store Connect provisioning profile for io.github.frathe.picfetch.'
-else
-    printf 'Provisioning profile supplied; its signature, identity, expiry and entitlements still require artifact validation.\n'
-fi
+for role in app worker; do
+    if [ "$role" = app ]; then
+        profile="${APPLE_STORE_PROFILE:-}"
+        variable=APPLE_STORE_PROFILE
+        identifier=io.github.frathe.picfetch
+    else
+        profile="${APPLE_STORE_WORKER_PROFILE:-}"
+        variable=APPLE_STORE_WORKER_PROFILE
+        identifier=io.github.frathe.picfetch.worker
+    fi
+    if [ -z "$profile" ] && [ "${APPLE_STORE_TESTFLIGHT:-0}" != 1 ]; then
+        printf 'No %s profile supplied; unrestricted Mac App Store entitlements may omit it. This TestFlight route requires both bundle profiles.\n' "$role"
+    elif [ -z "$profile" ] || [ ! -f "$profile" ]; then
+        fail "Set $variable to the Mac App Store Connect provisioning profile for $identifier."
+    else
+        printf '%s provisioning profile supplied; identity, expiry, entitlements and Apple acceptance remain to be validated.\n' "$role"
+    fi
+done
 
 if [ "$failures" -ne 0 ]; then
     printf '%s preparation inputs remain unresolved.\n' "$failures" >&2

@@ -43,7 +43,7 @@ jobs:
       - name: Check Apple Store packaging policy
         # Portable policy/resource tests run here; signed native artifact guards
         # require a locally built macOS bundle and are qualified separately.
-        run: python3 -m unittest discover -s scripts/macstorepackage -p test_package.py
+        run: python3 -m unittest discover -s scripts/macstorepackage
 
       - name: Check search review controls
         run: |
