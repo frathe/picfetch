@@ -15,3 +15,5 @@ This repository uses a single-context domain-documentation layout. See `agent-do
 ### Branch safety
 
 Keep any branch whose name contains `website` or `webpage` (case-insensitive) separate from `main`; publish it independently and never merge it into `main`.
+
+The public site generator lives in [frathe/frathe.github.io](https://github.com/frathe/frathe.github.io). This `website` branch stays only until crawlers stop requesting https://frathe.github.io/picfetch/.
