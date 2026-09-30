@@ -32,7 +32,8 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [ ] Finish GUI sandbox workflows, moved-folder relaunch, and physical Intel/minimum-OS validation.
 - [ ] Add the signed Store packaging route and validate the final artifact on Intel and Apple Silicon.
 - [x] Prepare [listing/review notes and human-input checklist](packaging/apple-app-store/submission-draft.md); inventory privacy/network/export facts.
-- [ ] Resolve [ONNX listed-SDK privacy manifests/signature provenance](packaging/apple-app-store/privacy-dependency-audit.md), confirm final privacy/export answers and validate Apple submission.
+- [x] Preserve exact Abseil privacy manifests/license/provenance; verify original Microsoft runtime signatures before local re-signing.
+- [ ] Resolve remaining [Protobuf/ONNX privacy coverage and SDK validation](packaging/apple-app-store/privacy-dependency-audit.md), confirm final privacy/export answers and validate Apple submission.
 - [x] Enable the full Xcode compiler after local license acceptance.
 - [ ] Human inputs last: developer Team ID, Store application/installer certificates, TestFlight provisioning profile, App Store Connect record and final submission decisions.
 - [x] Ronin reauthorized signed commits and pushing the preparation branch after the overnight work.

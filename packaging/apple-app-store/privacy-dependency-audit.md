@@ -25,23 +25,45 @@ Apple's [listed-SDK requirements](https://developer.apple.com/support/third-part
 include Abseil and Protobuf and cover SDKs repackaging them. Binary dependencies
 also have SDK-signature requirements. **The current local bundle is not cleared
 for this gate.** Neither pinned runtime archive contains an `.xcprivacy` file;
-its `Privacy.md` is explanatory text, not an Apple privacy manifest. An ad-hoc
-app signature is not evidence of upstream SDK provenance or distribution trust.
+its `Privacy.md` is explanatory text, not an Apple privacy manifest.
 
-The [Abseil 20250814.0 tree](https://github.com/abseil/abseil-cpp/tree/20250814.0)
-lists a PrivacyInfo.xcprivacy file. Retrieving exact manifest files and recursive
-source trees failed in this environment (GitHub API timeouts; research-browser
-cache/fetch failures). A newer default-branch manifest is not silently substituted
-for an exact pinned dependency. The Protobuf CocoaPods manifest packaging found
-in current upstream is specifically for its Objective-C runtime; it does not by
-itself qualify the older C++ runtime in these ONNX binaries.
+Both exact Abseil manifests are now retained in
+[privacy/abseil](privacy/abseil/provenance.json). The authenticated GitHub read API
+succeeded where the earlier research-browser/raw requests failed. Versions
+20250512.0 and 20250814.0 contain identical bytes, git blob
+`3ff4a9d98b13eafdc813fb5394796afd6cb8486b`, SHA-256
+`f232217ae9edf2ab6a541a28eff50cfe05303c2b4756fff95cca72eccbc3b898`.
+Their upstream Apache-2.0 LICENSE files are also identical. The builder preserves
+the declaration, license and provenance once in
+`Contents/Resources/AbseilPrivacy.bundle/Contents/Resources`; the surrounding
+resource bundle has macOS BNDL metadata. It checks pinned hashes before staging
+and during artifact validation, including validly re-signed app tampering. This
+retains Abseil's declaration; it does not declare PicFetch or ONNX as collecting
+no data and does not establish Apple's acceptance of the completed SDK assembly.
 
-Next technical work: obtain and hash manifests for the exact shipped components,
-verify their applicable declarations and intended bundle placement, and resolve
-upstream binary-signature provenance or use a reproducible, reviewed source build.
-Then validate the final package through Apple's tools. Do not invent empty
-manifests or infer compliance from an archive's license notice. This is an
-external-artifact/research blocker, not a request to remove Similarity Explorer.
+The complete, non-truncated Protobuf v21.12 source tree contains no privacy
+manifest. Current upstream CocoaPods manifest packaging is specifically for its
+Objective-C runtime; it does not by itself qualify the older C++ runtime in
+these ONNX binaries. No replacement declaration has been invented or copied
+from another version. Protobuf/ONNX manifest coverage and final Apple validation
+remain open.
+
+Original dylibs from both pinned archives have Developer ID Application
+signatures from Microsoft Corporation, Team `UBF8T346G9`, identifier
+`libonnxruntime.1`. Before replacing them with local test signatures, packaging
+now verifies strict/all-architecture code integrity with an Apple-anchored
+requirement for that exact Team and identifier. The output manifest records the
+verified identity, requirement and original library SHA-256 per architecture.
+An otherwise valid ad-hoc signature fails this check. This closes the previously
+unverified input-identity step; it does not establish final Store distribution
+trust or substitute for Apple's SDK/submission validation.
+
+Next technical work: obtain an applicable declaration for the pinned Protobuf
+C++/ONNX assembly, or qualify a reviewed source build/new runtime with complete
+privacy artifacts. Then validate final manifest placement and SDK requirements
+with Apple's tooling. Source builds/upgrades require renewed license review,
+architecture/minimum-OS, model, performance and sandbox qualification. Keep
+Similarity Explorer available while resolving this release gate.
 
 The native libraries live in Contents/Frameworks. Complete runtime LICENSE,
 ThirdPartyNotices.txt and Privacy.md files live under versioned directories in
@@ -79,7 +101,13 @@ select answers or claim that every optional request is exempt from disclosure.
 
 The app privacy policy now explains Apple bundled runtime delivery, temporary
 worker access and conditional release-note image requests. The public policy
-URL must be rechecked after these uncommitted changes are published.
+URL must be rechecked after the preparation branch reaches the public main branch.
+
+The pinned ONNX 1.29.0 privacy documentation warns that an API-only opt-out may
+follow initialization events. `internal/similarity/encoder.go` already sets
+`ORT_DISABLE_TELEMETRY=1` before loading the runtime and also disables telemetry
+through the API before session creation. The worker network sandbox is a separate
+verified protection; no opt-out code change was necessary.
 
 ## Verification boundaries
 

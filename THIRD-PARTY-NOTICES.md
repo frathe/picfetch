@@ -5742,6 +5742,16 @@ retains the complete upstream `LICENSE`, `ThirdPartyNotices.txt`, and
 library in the eventual Store bundle; PicFetch's source license does not replace
 the runtime's component licenses. Signed Store packaging remains under qualification.
 
+The local Mac App Store packaging route also retains the unmodified Abseil
+privacy manifest supplied by both Abseil 20250512.0 (Intel runtime) and 20250814.0
+(Apple Silicon runtime). These identical declarations are distributed once in
+`Contents/Resources/AbseilPrivacy.bundle`, alongside their Apache-2.0 license
+and exact source/version/hash provenance. Sources:
+https://github.com/abseil/abseil-cpp/blob/20250512.0/PrivacyInfo.xcprivacy
+https://github.com/abseil/abseil-cpp/blob/20250814.0/PrivacyInfo.xcprivacy
+The retained manifest does not cover PicFetch, Protobuf or other ONNX components;
+remaining SDK manifest and signature requirements are still under qualification.
+
 Intel macOS setup retains the complete upstream `LICENSE`,
 `ThirdPartyNotices.txt` and `Privacy.md` beside
 `onnxruntime-osx-x86_64-1.23.2/lib/libonnxruntime.1.23.2.dylib`.

@@ -305,7 +305,10 @@ records the experimental channel and outstanding signed qualification.
 `scripts/macstorepackage` builds and validates universal ad-hoc bundles through
 `make apple-store-package-local`; its disposable thin derivatives run production
 workers through the Go driver in `scripts/macstorequalify`, without changing the
-original app or accessing an Apple account.
+original app or accessing an Apple account. The package builder also verifies and
+stages exact upstream Abseil privacy/license/provenance inputs from
+`packaging/apple-app-store/privacy/abseil` into a macOS resource bundle; final
+artifact validation refuses missing or changed declarations even after re-signing.
 
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image
 digests consumed by Makefile and the release/Store workflows.

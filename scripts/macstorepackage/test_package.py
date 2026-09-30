@@ -13,6 +13,30 @@ spec.loader.exec_module(package)
 
 
 class PackagingPolicy(unittest.TestCase):
+    def test_missing_privacy_resource_is_refused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "Abseil privacy"):
+                package.verify_privacy(Path(folder))
+
+    def test_privacy_resource_preserves_upstream_bytes_and_refuses_changes(self):
+        repo = Path(__file__).resolve().parents[2]
+        upstream = repo / "packaging/apple-app-store/privacy/abseil"
+        with tempfile.TemporaryDirectory() as folder:
+            contents = Path(folder)
+            package.stage_privacy(repo, contents)
+            package.verify_privacy(contents)
+            resources = contents / "Resources/AbseilPrivacy.bundle/Contents/Resources"
+            for name in ("PrivacyInfo.xcprivacy", "LICENSE", "provenance.json"):
+                self.assertEqual((resources / name).read_bytes(), (upstream / name).read_bytes())
+                original = (resources / name).read_bytes()
+                (resources / name).write_bytes(original + b"changed")
+                with self.assertRaisesRegex(ValueError, "Abseil privacy"):
+                    package.verify_privacy(contents)
+                (resources / name).write_bytes(original)
+            declaration = package.plistlib.loads((resources / "PrivacyInfo.xcprivacy").read_bytes())
+            self.assertIs(declaration["NSPrivacyTracking"], False)
+            self.assertEqual(declaration["NSPrivacyCollectedDataTypes"], [])
+
     def test_dependency_paths(self):
         package.check_dependencies("/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation\n/usr/lib/libSystem.B.dylib")
         for path in ("/opt/homebrew/lib/libfoo.dylib", "@rpath/libfoo.dylib", "libfoo.dylib"):
@@ -55,6 +79,23 @@ class SignedArtifactGuards(unittest.TestCase):
         entitlement = Path(self.directory.name) / "entitlements.plist"
         package.write_plist(entitlement, package.ENTITLEMENTS[role])
         package.run("codesign", "--force", "--sign", "-", "--entitlements", entitlement, path)
+
+    def test_ad_hoc_runtime_cannot_claim_upstream_identity(self):
+        runtime = self.app / "Contents/Frameworks/libonnxruntime.1.29.0.dylib"
+        package.run("codesign", "--verify", "--strict", runtime)
+        with self.assertRaises(subprocess.CalledProcessError):
+            package.verify_upstream_library(runtime, self.env)
+
+    def test_resigned_privacy_change_is_refused(self):
+        package.stage_privacy(Path(__file__).resolve().parents[2], self.app / "Contents")
+        resource = self.app / "Contents/Resources/AbseilPrivacy.bundle/Contents/Resources/PrivacyInfo.xcprivacy"
+        declaration = package.plistlib.loads(resource.read_bytes())
+        declaration["NSPrivacyTracking"] = True
+        package.write_plist(resource, declaration)
+        self.sign(self.app, "app")
+        package.run("codesign", "--verify", "--deep", "--strict", self.app)
+        with self.assertRaisesRegex(ValueError, "Abseil privacy"):
+            package.verify(self.app, self.env)
 
     def test_edited_resource_breaks_seal(self):
         with (self.app / "Contents/Resources/LICENSE").open("a") as target:

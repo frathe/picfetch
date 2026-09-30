@@ -30,6 +30,14 @@ ENTITLEMENTS = {
 APP_ID = "io.github.frathe.picfetch"
 TARGETS = {"arm64": ("arm64", "14.0"), "amd64": ("x86_64", "13.4")}
 TAGS = "no_emoji,nodynamic,appleappstore"
+# Reviewed exact upstream declarations; changes require a source/license audit.
+PRIVACY_FILES = {
+    'PrivacyInfo.xcprivacy': 'f232217ae9edf2ab6a541a28eff50cfe05303c2b4756fff95cca72eccbc3b898',
+    'LICENSE': 'c79a7fea0e3cac04cd43f20e7b648e5a0ff8fa5344e644b0ee09ca1162b62747',
+    'provenance.json': 'dc61cbd210161cb9cea8b0dda99d446147ab9def03e739ffe224d63588dbb576'}
+PRIVACY_INFO = {"CFBundleIdentifier": APP_ID + ".abseil-privacy",
+                "CFBundleName": "AbseilPrivacy", "CFBundleVersion": "1",
+                "CFBundlePackageType": "BNDL"}
 
 
 def check_dependencies(paths):
@@ -70,6 +78,44 @@ def write_plist(path, data):
     path.write_bytes(plistlib.dumps(data, sort_keys=True))
 
 
+def check_privacy_files(resources):
+    for name, expected in PRIVACY_FILES.items():
+        path = resources / name
+        if not path.is_file() or path.is_symlink() or digest(path) != expected:
+            raise ValueError(f"missing or changed Abseil privacy input: {name}")
+
+
+def verify_privacy(contents):
+    bundle = contents / "Resources/AbseilPrivacy.bundle/Contents"
+    check_privacy_files(bundle / "Resources")
+    try:
+        actual = plistlib.loads((bundle / "Info.plist").read_bytes())
+    except (OSError, ValueError) as error:
+        raise ValueError("invalid Abseil privacy bundle metadata") from error
+    if actual != PRIVACY_INFO:
+        raise ValueError("unexpected Abseil privacy bundle metadata")
+
+
+def stage_privacy(repo, contents):
+    source = repo / "packaging/apple-app-store/privacy/abseil"
+    check_privacy_files(source)
+    bundle = contents / "Resources/AbseilPrivacy.bundle/Contents"
+    resources = bundle / "Resources"
+    resources.mkdir(parents=True, exist_ok=True)
+    for name in PRIVACY_FILES:
+        shutil.copyfile(source / name, resources / name)
+    write_plist(bundle / "Info.plist", PRIVACY_INFO)
+    verify_privacy(contents)
+
+
+def verify_upstream_library(path, env):
+    team, identifier = "UBF8T346G9", "libonnxruntime.1"
+    requirement = f'=anchor apple generic and certificate leaf[subject.OU] = "{team}" and identifier "{identifier}"'
+    run("codesign", "--verify", "--strict", "--all-architectures", "-R", requirement, path, env=env)
+    return {"team": team, "identifier": identifier, "requirement": requirement,
+            "sha256_before_resigning": digest(path)}
+
+
 def native_check(path, architectures, minima, env):
     actual = run("xcrun", "lipo", "-archs", path, env=env, capture=True).decode().strip()
     for arch in architectures:
@@ -100,6 +146,7 @@ def verify(app, env):
         raise ValueError("unexpected app identity")
     if plist.get("LSMinimumSystemVersionByArchitecture") != {a: m for a, m in TARGETS.values()}:
         raise ValueError("unexpected per-architecture deployment minimum")
+    verify_privacy(contents)
     expected_code = {contents / "MacOS/PicFetch", contents / "MacOS/picfetch-worker-client",
                      service / "Contents/MacOS/worker", service / "Contents/MacOS/picfetch-image-worker"}
     for path in expected_code:
@@ -161,9 +208,13 @@ def build(args):
         stage = Path(temporary)
         runtime = stage / "runtime"
         # Verify all downloaded code before spending time compiling the application.
+        upstream_signatures = {}
         for arch, archive in archives.items():
             run("go", "run", "-tags", TAGS, "./scripts/macstorestage", "-arch", arch,
                 "-archive", archive, "-out", runtime / arch, cwd=repo, env=env)
+            extracted = next((runtime / arch).iterdir())
+            library = next((extracted / "lib").glob("*.dylib"))
+            upstream_signatures[arch] = verify_upstream_library(library, env)
         for arch, (native, minimum) in TARGETS.items():
             archdir = stage / arch
             archdir.mkdir()
@@ -210,6 +261,7 @@ def build(args):
                 shutil.copyfile(extracted / name, notices / name)
         for name in ("LICENSE", "THIRD-PARTY-NOTICES.md", "PRIVACY.md"):
             shutil.copyfile(repo / name, contents / "Resources" / name)
+        stage_privacy(repo, contents)
         for role, entitlements in ENTITLEMENTS.items():
             write_plist(stage / (role + ".plist"), entitlements)
         for library in (contents / "Frameworks").iterdir():
@@ -223,6 +275,7 @@ def build(args):
                     "version": details["Version"], "build": details["Build"],
                     "source": run("git", "rev-parse", "HEAD", cwd=repo, capture=True).decode().strip(),
                     "archives": {arch: digest(path) for arch, path in archives.items()},
+                    "upstream_signatures": upstream_signatures,
                     "source_diff_sha256": hashlib.sha256(run("git", "diff", "--binary", "HEAD", cwd=repo, capture=True)).hexdigest(),
                     "dirty": bool(run("git", "status", "--porcelain", cwd=repo, capture=True)),
                     "untracked_sources": {name: digest(repo / name) for name in run("git", "ls-files", "--others", "--exclude-standard", cwd=repo, capture=True).decode().splitlines() if (repo / name).is_file()},

@@ -102,14 +102,16 @@ requires the developer to determine the applicable documentation; see
 
 ## Technical gates before account work
 
-- Resolve the listed-SDK privacy manifest/signature gap in the bundled ONNX
-  closure; see the audit. Keep source/version and notice delivery evidence.
+- Resolve the remaining Protobuf/ONNX privacy manifest coverage and final SDK
+  validation. Abseil declarations and pre-sign Microsoft identity checks are now
+  implemented; see the audit for source/version and notice delivery evidence.
 - Qualify the final signed GUI: picker, Finder/Dock/window drops, restart,
   Favorites, moved and unavailable sources, Save/export, overwrite, Trash,
   clipboard, Finder reveal and wallpaper. Scope renewal has unit/race coverage;
   moved-folder relaunch and final UI behavior remain unverified.
-- Finish negative grant/cancellation tests against the production worker and
-  qualify real Intel hardware and both declared minimum OS versions.
+- Negative source-grant tests pass on ARM and Intel under Rosetta. Finish full
+  application cancellation/reopen testing and qualify real Intel hardware and
+  both declared minimum OS versions.
 - Run the full native Linux/amd64 CI suite, CodeQL and fresh post-suppression
   Qodana analysis. ARM Docker emulation cannot replace the isolation gate.
 - Complete the Store certificate signing and productbuild route; validate the

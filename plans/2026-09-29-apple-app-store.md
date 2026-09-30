@@ -1047,3 +1047,78 @@ no additional paths. Existing runtime test/inspection evidence therefore carries
 forward unchanged. Only this authorization record, the TODO entry and submission
 checklist were updated. Use the configured SSH commit signing; do not disable
 signing. Push the existing feature branch, without merging or releasing.
+
+### Continuation — exact SDK privacy inputs and retained Abseil resource
+
+T5/T4, T0 inline, zero spawns/two reviews. GitHub's authenticated read API now
+retrieves both exact Abseil manifests (20250512.0 and 20250814.0): same git blob
+3ff4a9d98b13eafdc813fb5394796afd6cb8486b. Protobuf v21.12's complete non-truncated
+source tree has no privacy manifest. Preserve exact upstream bytes, license and
+source/version/hash provenance; do not substitute a current Protobuf manifest.
+Package the identical Abseil declaration once in a macOS resource bundle, retaining
+flat ONNX libraries and existing runtime admission. Validate its exact content
+before signing and when inspecting a final app; signed-but-altered/missing resource
+must fail. This supplies the known declaration, not an App Store acceptance claim:
+Protobuf/ONNX declarations and upstream binary provenance still need resolution.
+Files: packaging/apple-app-store/privacy/abseil inputs; package.py/test_package.py;
+notices/README/audit/todos/evidence. Test existing packaging boundary first with
+missing/changed manifest, then real signed artifact tampering. Verify Python suite,
+new universal package, strict seals, worker regression and GoLand. The user's
+f0565d1 E2E bundle remains untouched.
+
+Pinned 1.29.0 Privacy.md was checked for its initialization-event warning.
+Encoder already sets ORT_DISABLE_TELEMETRY=1 before dlopen and also invokes the
+API opt-out before creating a session; no telemetry code change is needed.
+
+#### Upstream runtime signature finding
+
+Original versioned runtime dylibs extracted from the pinned archives both carry
+Developer ID Application signatures from Microsoft Corporation, Team UBF8T346G9,
+identifier libonnxruntime.1 (ARM timestamp 2026-08-12; Intel 2025-10-22). Debug and
+test dylibs in the archive are not the shipped payload and are excluded. Add a
+pre-sign guard after existing archive verification: native codesign strict/all-
+architecture validation with Apple anchor, exact Team and identifier. Only then
+may the local packager replace that signature. A valid ad-hoc signature must fail
+this upstream provenance check. Keep post-sign app/nested seal validation separate.
+Existing packaging tests are the agreed seam; add one native negative guard and
+verify original libraries as positive fixtures. Preserve both signature records
+in the build manifest. This establishes input provenance, not final Store trust.
+
+#### Privacy/provenance implementation evidence
+
+Missing-resource and staged-byte tests failed before implementation. The native
+signed-artifact guard also failed when an altered Abseil declaration was re-signed
+but final validation omitted the privacy check; it now rejects that artifact.
+The upstream identity guard failed before implementation on a valid ad-hoc dylib;
+strict Apple-anchor/Team/identifier checks now reject it and accept both original
+Microsoft-signed libraries. codesign inline requirements require the leading '=';
+positive fixtures exposed and corrected an initial command syntax error.
+
+Eleven packaging tests pass (1.884s). A fresh universal package with the retained
+resources and original signature records built successfully at
+`.scratch/apple-store-package/privacy-provenance/PicFetch.app`. The preceding
+resource-identical app passed production HEIC/ONNX/cache/retained-search/network
+qualification on native ARM and Intel under Rosetta. The later change only adds
+pre-sign identity verification/manifest records; it changes no worker code or
+resource content. GoLand inspected both Python code files including weak warnings;
+no findings. Reinspection follows the small provenance addition before commit.
+The older f0565d1 E2E app/ZIP given to Ronin is untouched.
+
+The final Make notice check caught normalized CRLF inside unrelated retained
+updater license blocks. Restored those original bytes and limited the notice
+change to the new ten-line Abseil paragraph. `make verify-build` then passed,
+including the reviewed updater-source notice test. No license text was removed.
+Both changed Python files were reinspected after the provenance guard; no findings.
+
+Add the existing portable packaging policy/resource suite to CI's Ubuntu
+validation job (five runnable tests; six macOS signed-artifact tests explicitly
+skip without an artifact). Native eleven-test evidence remains a separate local
+gate. This small workflow addition is within T4/T5, zero spawns/two reviews.
+A draft PR will activate full native Linux/amd64 tests, CodeQL and Qodana; it does
+not mark the unfinished Store release ready or authorize a merge/submission.
+
+Final artifact at `.scratch/apple-store-package/privacy-final/PicFetch.app`
+includes preserved upstream notice bytes and both provenance records. All eleven
+native packaging tests pass (1.753s). Portable invocation passes five tests with
+six explicit native skips. The CI workflow inspection is clean. All current
+local gates passed before staging; full native-amd64 CI is pending the draft PR.

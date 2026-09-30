@@ -140,8 +140,9 @@ make apple-store-package-local
 ```
 
 The builder compiles arm64 and x86_64 app/broker/service binaries, stages both
-pinned native libraries and complete upstream notices, signs nested code before
-the app, and validates exact entitlements, native dependency paths, architecture,
+pinned native libraries and complete upstream notices, verifies the original libraries against Microsoft's Apple-anchored signing
+identity, retains Abseil's exact privacy declaration/license/provenance resource,
+signs nested code before the app, and validates exact entitlements, native dependency paths, architecture,
 minimum OS and code/resource seals. ARM requires macOS 14.0 and Intel 13.4.
 Deployment flags are explicit cgo cache inputs. Fyne metadata writes happen in a
 temporary directory; the repository build number is unchanged. The output includes
@@ -179,9 +180,10 @@ window drops or every OS file handoff.
 
 [Submission draft](submission-draft.md) contains listing copy, review steps,
 screenshot plans and the human-input checklist. [Dependency/privacy audit](privacy-dependency-audit.md)
-records a remaining release blocker: both pinned ONNX binaries include Apple-listed
-SDKs, but their archives contain no Apple privacy manifests. Local sandbox and
-signature checks do not clear that submission requirement.
+records the remaining Protobuf/ONNX privacy coverage and submission validation
+gap. Exact Abseil manifests are retained separately and verified during packaging,
+and original Microsoft runtime identities are checked before local re-signing.
+These input checks do not clear all Apple submission requirements.
 
 The worker qualifier also supports `--deny-source`. It compiles only its test
 parent with a Go overlay omitting source grants, keeps the packaged production
