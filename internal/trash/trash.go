@@ -125,26 +125,16 @@ func moveWindows(path string) error {
 	}
 	script := `Add-Type -AssemblyName Microsoft.VisualBasic
 try {
-	[Microsoft.VisualBasic.FileIO.FileSystem]::` + method + `("` + escapePowerShellPath(path) + `", 'OnlyErrorDialogs', 'SendToRecycleBin')
+	[Microsoft.VisualBasic.FileIO.FileSystem]::` + method + `($env:PICFETCH_TRASH_PATH, 'OnlyErrorDialogs', 'SendToRecycleBin')
 } catch {
 	[Console]::Error.WriteLine($_.Exception.Message)
 	exit 1
 }`
 
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	// Keep the selected path out of PowerShell source, including smart quotes.
+	cmd.Env = append(cmd.Environ(), "PICFETCH_TRASH_PATH="+path)
 	hideConsoleWindow(cmd)
 	_, err = runTrashCommand(cmd)
 	return err
-}
-
-// escapePowerShellPath escapes path for embedding inside a double-quoted
-// PowerShell string literal. Windows paths can't contain a literal " (an
-// illegal filename character there), so unlike filepicker's
-// powerShellEscape this only needs to guard PowerShell's own
-// metacharacters: ` (its escape character) and $ (variable interpolation) -
-// both of which are legal in a Windows filename, unlike the app-generated
-// temp paths clipboard.go/filepicker.go embed the same way.
-func escapePowerShellPath(path string) string {
-	path = strings.ReplaceAll(path, "`", "``")
-	return strings.ReplaceAll(path, "$", "`$")
 }

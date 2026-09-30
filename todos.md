@@ -1,5 +1,12 @@
 # PicFetch — TODOs
 
+## Security verification pending
+
+- [ ] Qualify the Windows Export/Trash path-transport fix with native Windows
+  guards and the native Linux/amd64 full suite. The implementation, portable
+  regressions, focused race tests and local inspections are complete; see
+  [verification record](plans/2026-09-30-windows-path-transport.md).
+
 ## Done
 
 ### What's Changed

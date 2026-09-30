@@ -184,17 +184,16 @@ func chooseSaveWindows(suggestedPath string) ([]byte, error) {
 }
 
 // buildPowerShellSaveCmd builds that dialog's script. The suggested path is
-// embedded whole and split by PowerShell's own [System.IO.Path], not by Go's
+// passed as environment data and split by PowerShell's [System.IO.Path], not Go's
 // filepath: this function's test runs on whatever machine builds the module,
 // where a `C:\...` path is one long base name to filepath.Dir. Letting the
 // platform that will actually run the script do its own splitting keeps the
 // two from disagreeing.
 func buildPowerShellSaveCmd(suggestedPath string) *exec.Cmd {
-	escaped := powerShellEscape(suggestedPath)
 	script := `Add-Type -AssemblyName System.Windows.Forms
 $dlg = New-Object System.Windows.Forms.SaveFileDialog
-$dlg.FileName = "` + escaped + `"
-$dlg.InitialDirectory = [System.IO.Path]::GetDirectoryName("` + escaped + `")
+$dlg.FileName = $env:PICFETCH_SAVE_PATH
+$dlg.InitialDirectory = [System.IO.Path]::GetDirectoryName($env:PICFETCH_SAVE_PATH)
 $dlg.OverwritePrompt = $true
 $dlg.Title = "` + powerShellEscape(lang.L("Export image")) + `"
 if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
@@ -203,6 +202,8 @@ if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
 	script = powerShellPickerScript(script)
 
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	// Path values are data, including PowerShell smart-quote delimiters.
+	cmd.Env = append(cmd.Environ(), "PICFETCH_SAVE_PATH="+suggestedPath)
 	hideConsoleWindow(cmd)
 	return cmd
 }

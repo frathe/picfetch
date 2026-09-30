@@ -1,13 +1,16 @@
 package trash
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMoveLinux_PrefersGio(t *testing.T) {
@@ -201,7 +204,7 @@ func TestMoveWindows_BuildsExpectedScript(t *testing.T) {
 				"SendToRecycleBin",
 				"catch",
 				"exit 1",
-				path,
+				"$env:PICFETCH_TRASH_PATH",
 			} {
 				if !strings.Contains(gotScript, want) {
 					t.Errorf("script does not contain %q:\n%s", want, gotScript)
@@ -214,39 +217,57 @@ func TestMoveWindows_BuildsExpectedScript(t *testing.T) {
 	}
 }
 
-// TestMoveWindows_EscapesPathMetacharacters guards a real difference from
-// clipboard.go's copyImageWindows/filepicker.go's chooseFilesWindows: those
-// embed only app-generated temp paths or a UI label, but this path is an
-// arbitrary dropped file's path, which - unlike a Windows path with a
-// literal " (illegal, so never a concern) - can legally contain ` and $,
-// both special inside a PowerShell double-quoted string.
-func TestMoveWindows_EscapesPathMetacharacters(t *testing.T) {
+// Exercise real file/directory admission, but intercept the OS mutation.
+func TestMoveWindows_PathIsData(t *testing.T) {
 	origRun := runTrashCommand
 	t.Cleanup(func() { runTrashCommand = origRun })
-
-	var gotScript string
-	runTrashCommand = func(cmd *exec.Cmd) ([]byte, error) {
-		for i, a := range cmd.Args {
-			if a == "-Command" && i+1 < len(cmd.Args) {
-				gotScript = cmd.Args[i+1]
+	t.Setenv("PICFETCH_TRASH_PATH", "inherited stale target")
+	t.Setenv("PICFETCH_TRASH_ENV_CONTROL", "preserved")
+	for _, directory := range []bool{false, true} {
+		var baseline []string
+		for _, name := range []string{
+			"ordinary.jpg",
+			"“;Write-Output INJECTED;#”.jpg",
+			"”);Write-Output INJECTED;#“.jpg",
+			"$dollar`tick; (brackets) 'single' ‘curly’.jpg",
+			"café 東京 😀 [1]=100%.jpg",
+		} {
+			path := filepath.Join(t.TempDir(), name)
+			if directory {
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(path, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			runTrashCommand = func(cmd *exec.Cmd) ([]byte, error) {
+				calls++
+				if baseline == nil {
+					baseline = slices.Clone(cmd.Args)
+				}
+				if !slices.Equal(cmd.Args, baseline) || strings.Contains(strings.Join(cmd.Args, "\n"), path) {
+					t.Error("target path changed executable PowerShell source")
+				}
+				env := cmd.Environ()
+				if !slices.Contains(env, "PICFETCH_TRASH_PATH="+path) || slices.Contains(env, "PICFETCH_TRASH_PATH=inherited stale target") {
+					t.Error("child environment lost or replaced the exact target path")
+				}
+				if !slices.Contains(env, "PICFETCH_TRASH_ENV_CONTROL=preserved") {
+					t.Error("unrelated environment was lost")
+				}
+				return nil, nil
+			}
+			if err := moveWindows(path); err != nil {
+				t.Fatal(err)
+			}
+			if calls != 1 {
+				t.Fatalf("command calls = %d, want 1", calls)
+			}
+			if os.Getenv("PICFETCH_TRASH_PATH") != "inherited stale target" {
+				t.Fatal("parent environment changed")
 			}
 		}
-		return nil, nil
-	}
-
-	path := filepath.Join(t.TempDir(), "$weird`file.jpg")
-	if err := os.WriteFile(path, nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := moveWindows(path); err != nil {
-		t.Fatalf("moveWindows() error = %v", err)
-	}
-
-	if !strings.Contains(gotScript, "`$weird") {
-		t.Errorf("script does not escape $ in the path:\n%s", gotScript)
-	}
-	if !strings.Contains(gotScript, "``file") {
-		t.Errorf("script does not escape ` in the path:\n%s", gotScript)
 	}
 }
 
@@ -274,10 +295,64 @@ func TestMoveWindows_ReturnsCommandError(t *testing.T) {
 	}
 }
 
-func TestEscapePowerShellPath(t *testing.T) {
-	got := escapePowerShellPath("C:\\a$b`c")
-	want := "C:\\a`$b``c"
-	if got != want {
-		t.Errorf("escapePowerShellPath() = %q, want %q", got, want)
+// Replace only the native deletion sink with a recorder. PowerShell parses the
+// production command and receives the real child environment; no file is moved.
+func TestWindowsTrashTransport_PathIsData(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("requires Windows PowerShell")
+	}
+	origRun := runTrashCommand
+	t.Cleanup(func() { runTrashCommand = origRun })
+	for _, directory := range []bool{false, true} {
+		for _, name := range []string{"ordinary.jpg", "”);Write-Output INJECTED;#“ $dollar`tick ‘quote’ 東京.jpg"} {
+			path := filepath.Join(t.TempDir(), name)
+			if directory {
+				if err := os.Mkdir(path, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(path, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			runTrashCommand = func(cmd *exec.Cmd) ([]byte, error) {
+				script := cmd.Args[len(cmd.Args)-1]
+				if strings.Count(script, "[Microsoft.VisualBasic.FileIO.FileSystem]::") != 1 {
+					t.Fatal("missing recycle seam")
+				}
+				script = strings.Replace(script, "[Microsoft.VisualBasic.FileIO.FileSystem]::", "[PicFetchTrashProbe]::", 1)
+				prefix := `[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+Add-Type @'
+using System;
+public class PicFetchTrashProbe {
+ public static void DeleteFile(string path, string ui, string recycle) { Record(path, ui, recycle, "file"); }
+ public static void DeleteDirectory(string path, string ui, string recycle) { Record(path, ui, recycle, "directory"); }
+ private static void Record(string path, string ui, string recycle, string kind) {
+  if (ui != "OnlyErrorDialogs" || recycle != "SendToRecycleBin" || kind != Environment.GetEnvironmentVariable("PICFETCH_TRASH_TEST_KIND")) { throw new Exception("recycle contract changed"); }
+  Console.Write(path);
+ }
+}
+'@
+`
+				kind := "file"
+				if directory {
+					kind = "directory"
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+				defer cancel()
+				run := exec.CommandContext(ctx, cmd.Path, append(cmd.Args[1:len(cmd.Args)-1], prefix+script)...)
+				run.Env = append(cmd.Environ(), "PICFETCH_TRASH_TEST_KIND="+kind)
+				run.SysProcAttr = cmd.SysProcAttr
+				out, err := run.Output()
+				if err == nil && string(out) != path {
+					t.Errorf("recycle received %q, want %q", out, path)
+				}
+				return out, err
+			}
+			if err := moveWindows(path); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Fatalf("test touched native trash: %v", err)
+			}
+		}
 	}
 }

@@ -166,13 +166,44 @@ func TestBuildPowerShellSaveCmd(t *testing.T) {
 
 	for _, want := range []string{
 		"SaveFileDialog",
-		"holiday.png",
-		`C:\photos`,
+		"$env:PICFETCH_SAVE_PATH",
 		"$dlg.OverwritePrompt = $true",
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("script does not contain %q:\n%s", want, script)
 		}
+	}
+}
+
+// Path bytes must survive transport without becoming executable script text.
+func TestBuildPowerShellSaveCmd_PathIsData(t *testing.T) {
+	t.Setenv("PICFETCH_SAVE_PATH", "inherited stale suggestion")
+	t.Setenv("PICFETCH_PICKER_ENV_CONTROL", "preserved")
+	baseline := buildPowerShellSaveCmd(`C:\photos\ordinary.jpg`).Args
+	for _, path := range []string{
+		`C:\photos\ordinary.jpg`,
+		`C:\photos\“;Write-Output INJECTED;#”.jpg`,
+		`C:\photos\”;Write-Output INJECTED;#“.jpg`,
+		"C:\\photos\\$dollar`tick; (brackets) 'single' ‘curly’.jpg",
+		`C:\photos\café 東京 😀 [1]=100%.jpg`,
+		`\\server\share\ spaced name .jpg`,
+	} {
+		t.Run(path, func(t *testing.T) {
+			cmd := buildPowerShellSaveCmd(path)
+			if !slices.Equal(cmd.Args, baseline) || strings.Contains(strings.Join(cmd.Args, "\n"), path) {
+				t.Fatal("suggested path changed executable PowerShell source")
+			}
+			env := cmd.Environ()
+			if !slices.Contains(env, "PICFETCH_SAVE_PATH="+path) || slices.Contains(env, "PICFETCH_SAVE_PATH=inherited stale suggestion") {
+				t.Fatal("child environment lost or replaced the exact suggested path")
+			}
+			if !slices.Contains(env, "PICFETCH_PICKER_ENV_CONTROL=preserved") {
+				t.Fatal("unrelated inherited environment was lost")
+			}
+			if os.Getenv("PICFETCH_SAVE_PATH") != "inherited stale suggestion" {
+				t.Fatal("parent environment changed")
+			}
+		})
 	}
 }
 
