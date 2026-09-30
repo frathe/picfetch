@@ -100,7 +100,7 @@ export questionnaire has been assessed for the actual shipped closure. Apple
 requires the developer to determine the applicable documentation; see
 [export compliance](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance/).
 
-## Technical gates before account work
+## Technical gates before submission
 
 - Resolve the remaining Protobuf/ONNX privacy manifest coverage and final SDK
   validation. Abseil declarations and pre-sign Microsoft identity checks are now
@@ -114,16 +114,24 @@ requires the developer to determine the applicable documentation; see
   both declared minimum OS versions.
 - Run the full native Linux/amd64 CI suite, CodeQL and fresh post-suppression
   Qodana analysis. ARM Docker emulation cannot replace the isolation gate.
-- Complete the Store certificate signing and productbuild route; validate the
-  profile when supplied and inspect the final installer payload. Ad-hoc tests
-  cannot establish distribution trust or App Store acceptance.
+- Run the implemented `make apple-store-package-signed` route with real Apple
+  identities/profiles and qualify its candidate. Portable policy and native
+  unsigned-installer payload tests pass; they cannot establish distribution
+  trust or App Store acceptance.
 
 ## Human inputs last
 
-1. Signed Git commits and pushing the preparation branch were reauthorized by
-   Ronin after the overnight work; submission/release still require a separate decision.
+Follow [Ronin's ordered checklist](ronin-checklist.md) for account setup,
+signing inputs, remaining E2E checks and submission decisions. Account setup can
+proceed while Pico resolves the technical gates above.
+
+1. Signed commit `62661a1` was pushed before Ronin's lunch break. He
+   reauthorized committing and pushing the current documentation after returning;
+   submission/release still require a separate decision.
 2. Supply the developer Team ID and Store app/installer signing identities with
-   their private keys. TestFlight also needs a matching provisioning profile.
+   their private keys in Keychain. This TestFlight route also needs separate
+   profiles for `io.github.frathe.picfetch` and `io.github.frathe.picfetch.worker`;
+   see the packaging README for the exact command and input names.
 3. Create or select the App Store Connect record for `io.github.frathe.picfetch`.
 4. Confirm legal contact, seller/trader status, age rating, pricing, availability,
    privacy questionnaire and encryption/export answers from the prepared facts.

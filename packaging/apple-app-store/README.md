@@ -11,6 +11,8 @@ and evidence. [Apple requirements](../../docs/apple-app-store-requirements-2026-
 records current primary sources and distinguishes native macOS requirements
 from mobile-platform privacy rules.
 
+For the remaining owner actions, follow [Ronin's ordered checklist](ronin-checklist.md).
+
 ## Build policy
 
 Use `no_emoji,nodynamic,appleappstore` for this macOS channel. Do not combine

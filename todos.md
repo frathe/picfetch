@@ -29,7 +29,7 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Qualify retained visual search through production ARM/Intel-Rosetta workers; keep scopes through clipboard/Finder/Trash calls and source metadata reads.
 - [x] Capture native window-drop URLs before GLFW flattens paths; refresh restored moved/stale bookmarks with immutable persistence coverage.
 - [x] Verify production workers deny an ungranted private source while an allowed control image still completes inference, on ARM and Intel under Rosetta.
-- [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Latest rebuilt E2E app is in `bin/apple-store-e2e-drop-navigation/`.
+- [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Latest E2E app is in `bin/apple-store-e2e-persistent-folders/`.
 - [x] Ronin confirmed native Open-dialog folder consent fixes navigation; extend the same consent to shared drop/Open With discovery with cancellation and replacement coverage.
 - [ ] Confirm the rebuilt shared-consent app with a single-file window drop and Open With.
 - [x] Ronin confirmed multiple-file picker/drop navigation must remain within the selected images; folder sibling discovery applies only to single-file inputs. Automated selection coverage passes.
@@ -40,12 +40,13 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [ ] Finish GUI sandbox workflows, moved-folder relaunch, and physical Intel/minimum-OS validation.
 - [x] Implement a separate Store distribution-signing/installer route with identity, profile and payload guards.
 - [ ] Run the signed route with real Apple certificates/profiles and validate the resulting candidate on the required distribution path and platform matrix.
-- [x] Prepare [listing/review notes and human-input checklist](packaging/apple-app-store/submission-draft.md); inventory privacy/network/export facts.
+- [x] Prepare [listing/review notes](packaging/apple-app-store/submission-draft.md) and [ordered owner checklist](packaging/apple-app-store/ronin-checklist.md); inventory privacy/network/export facts.
 - [x] Preserve exact Abseil privacy manifests/license/provenance; verify original Microsoft runtime signatures before local re-signing.
 - [ ] Resolve remaining [Protobuf/ONNX privacy coverage and SDK validation](packaging/apple-app-store/privacy-dependency-audit.md), confirm final privacy/export answers and validate Apple submission.
 - [x] Enable the full Xcode compiler after local license acceptance.
-- [ ] Human inputs last: developer Team ID, Store application/installer certificates, TestFlight provisioning profile, App Store Connect record and final submission decisions.
-- [x] Ronin reauthorized signed commits and pushing the preparation branch after the overnight work.
+- [ ] Human inputs last: developer Team ID, Store application/installer certificates, separate app/worker TestFlight provisioning profiles, App Store Connect record and final submission decisions.
+- [x] Signed and pushed `62661a1`; full platform/race CI and CodeQL passed. Fresh Qodana SARIF has eight reviewed false positives and no actionable findings.
+- [x] Ronin returned from lunch on 2026-09-30 and explicitly reauthorized committing and pushing the current state.
 
 ## Deferred
 

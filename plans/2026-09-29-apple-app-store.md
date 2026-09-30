@@ -1412,3 +1412,54 @@ input. Therefore real distribution signing, profile CMS/DER acceptance, installe
 trust output against actual certificates, TestFlight and Apple SDK/privacy review
 remain unverified. No distribution artifact, upload or installation was performed.
 The user-confirmed local E2E app is unchanged by this tooling work.
+
+### Lunch-break handoff and latest CI — 2026-09-30
+
+Signed commit 62661a19291e5f936dc02751b88914158c50beaa was pushed before
+Ronin requested the lunch-break commit pause. This supersedes earlier local-only
+status in this chronological record. No further commits are authorized until
+Ronin returns and authorizes them. The existing E2E app remains unchanged.
+
+All three runs completed successfully on exactly that revision:
+
+- [CI 36697931823](https://github.com/frathe/picfetch/actions/runs/36697931823):
+  validation, all four native Linux/amd64 race shards, Linux native guards,
+  Windows tests, and both macOS architecture native guards passed.
+- [CodeQL 36697931680](https://github.com/frathe/picfetch/actions/runs/36697931680):
+  Go and Actions analysis passed.
+- [Qodana 36697931732](https://github.com/frathe/picfetch/actions/runs/36697931732):
+  scan completed; post-suppression /qodana.sarif.json contains eight findings.
+  Reviewed the actual report in .scratch/apple-store-package/qodana-62661a1/,
+  not the pre-suppression CSV or start baseline. All are known
+  GoUnusedExportedFunction false positives: fileaccess.Stat, NeedsCapture,
+  HasScope, Export, Import; macbundle.CurrentRuntimeDirectory;
+  openwith.InstallWindowDrop and Stop. Rechecked current callers in ui,
+  favthumbs, favstore and similarity. The former global folder-authorizer warning
+  disappeared after the per-instance change. No actionable finding or broad
+  suppression added. The Qodana for Go annotation check is neutral, not a report
+  with zero findings.
+
+This is platform/native-guard evidence, not physical minimum-OS GUI or Apple
+submission acceptance. No fresh GitHub Codex code review was requested, so no
+new clean bot-review claim is made. Local changed-code GoLand evidence above
+still applies; this continuation changes documentation only.
+
+A separate read-only security find-identity inventory found zero valid Store
+application and zero valid Store installer identities with private keys in the
+accessible Keychain. Only aggregate counts were retained. This establishes the
+local credential gap, not the state of Ronin's Apple membership or identities
+held elsewhere. Xcode installation/license work is already complete.
+
+Created packaging/apple-app-store/ronin-checklist.md with ordered account,
+identifier, certificate and two-profile setup; a handoff back to Pico for actual
+signing; remaining live E2E/platform checks; owner listing decisions; and separate
+upload/review/release decisions. Checked Apple primary guidance for current
+portal terminology and linked it in the checklist. Updated README, submission
+draft and todos to point to it and reflect the commit pause. SDK privacy closure
+remains an explicitly technical responsibility; no declaration or Apple approval
+was invented to make the handoff appear complete.
+
+Ronin returned from lunch and explicitly authorized committing and pushing the
+current state. Updated the checklist/submission/todo status to end the pause.
+This handoff changes documentation only; local Markdown targets resolve and
+git diff --check passes. Runtime inspection/CI evidence remains at 62661a1.
