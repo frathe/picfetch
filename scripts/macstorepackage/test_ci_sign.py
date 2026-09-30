@@ -3,6 +3,7 @@ import base64
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -138,6 +139,16 @@ class CICredentials(unittest.TestCase):
 
 
 class CIWorkflow(unittest.TestCase):
+    def test_candidate_actions_use_immutable_commits(self):
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/apple-store.yml').read_text()
+        actions = re.findall(r'^\s*(?:-\s+)?uses:\s*(\S+)', workflow, re.MULTILINE)
+        self.assertTrue(actions)
+        for action in actions:
+            if action == './.github/workflows/ci.yml':
+                continue
+            with self.subTest(action=action):
+                self.assertRegex(action, r'^actions/[a-z-]+@[0-9a-f]{40}$')
+
     def test_signing_requires_main_ci_build_and_environment_approval(self):
         workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/apple-store.yml').read_text()
         self.assertEqual(workflow.split('on:\n', 1)[1].split('\npermissions:', 1)[0].strip(),

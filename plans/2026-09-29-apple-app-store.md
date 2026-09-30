@@ -1641,3 +1641,47 @@ adjacent testing notes remain valid. Its 31 package guards passed (9.612s), and
 all 24 ZIP payload hashes match the manifest. Full Windows confirmation and a
 fresh code/security review follow this correction's push. Lead-only Thin fix,
 zero agents; one inline review. No dependency or permission changes.
+
+### PR #75 security follow-up — immutable action references
+
+Security review at 71fd577 reported advisory P2 4144350716: mutable action tags
+in the signing job permit future retargeting before the secret-consuming step.
+Confirmed. Pin every external action in both candidate-build and signing jobs;
+the credential-free build also supplies the executable artifact that gets signed.
+Keep the main-only gate, environment approval, exact artifact ID and cleanup.
+The same-repository reusable CI workflow is already bound to this source commit.
+Existing weekly GitHub Actions Dependabot configuration covers pin updates.
+
+On 2026-09-30 the official actions repositories resolved the existing major tags
+to these commits, each with GitHub API commit verification reported valid:
+
+| Action | Existing tag | Immutable commit |
+| --- | --- | --- |
+| actions/checkout | v7 | 3d3c42e5aac5ba805825da76410c181273ba90b1 |
+| actions/setup-go | v7 | b7ad1dad31e06c5925ef5d2fc7ad053ef454303e |
+| actions/setup-python | v7 | 5fda3b95a4ea91299a34e894583c3862153e4b97 |
+| actions/upload-artifact | v7 | 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a |
+| actions/download-artifact | v8 | 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c |
+
+Exact upstream sources are https://github.com/actions/<name>/commit/<commit>
+from this table. Each pinned LICENSE is MIT; action.yml uses bundled Node 24
+JavaScript entrypoints, not composite actions with further mutable action refs.
+These unchanged CI-only dependencies and their bundled dependencies stay on
+hosted runners; no action code enters the app or adds shipped notice obligations.
+Pinning freezes the selected release; it is not an exhaustive upstream code audit.
+
+A workflow policy regression first rejected all eight floating references, then
+passed after pinning. All eight CI tests and all 32 native/portable packaging
+checks pass (9.560s). actionlint 1.7.12 passes with ShellCheck unavailable as
+previously recorded; shell bodies are unchanged. GoLand inspected the test and
+workflow including weak warnings. Initial action-input warnings were checked
+against the exact pinned action.yml files; a fresh inspection is clean without
+suppression. Standard continuation, lead-only fix/review, zero agents. Full CI,
+CodeQL, fresh Qodana SARIF and another code/security review follow the push.
+
+At 0ecfaf6 both native macOS guard artifacts explicitly report the moved-source
+analyzer test passing (ARM 0.44s, Intel 1.49s). All Linux race partitions, native
+Linux/macOS, validation and CodeQL pass. Fresh Qodana SARIF contains the same
+eight validated false positives. Windows first attempt hit the unchanged
+clipboard PowerShell test deadline at 30.01s; only the failed Windows job was
+rerun with original assertions/timeouts. Its result remains on the PR CI run.
