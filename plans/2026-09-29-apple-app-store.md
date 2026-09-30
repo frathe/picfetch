@@ -1609,3 +1609,35 @@ current callers. Codex's security review at da2df0c completed without findings;
 the code review's two P2 findings are addressed by this pending fix. After push,
 reply and resolve both threads, then request another code/security review of the
 new head. Older clean gates do not count as completion of this requested loop.
+
+### PR #75 follow-up — development worker fixture admission
+
+Signed/pushed 71fd577 fixes both confirmed review findings. Both threads were
+answered with regression evidence and resolved; the fresh code review on that
+commit reports no findings. Security review is pending. Its CodeQL checks pass;
+Qodana's post-suppression SARIF identifies exactly eight unused-export false
+positives, each verified against production callers (including filesort's scoped Stat call).
+Both macOS architectures and Linux native guards pass. Latest gate status and
+final review evidence are retained on PR #75; this record does not predeclare a
+clean final round.
+
+Windows Store CI exposed a test-fixture mismatch in TestWorkerMovedSourceAnalyzer:
+the unbundled Go test executable cannot load native code from development assets
+under Store policy. The error names the missing runtime beside the test executable;
+it is unrelated to source mapping. Restrict this opt-in subprocess fixture to
+ordinary builds, where it can launch its actual worker with verified pinned assets.
+Store-tagged TestWorkerAccessMovedSourcesKeepCollectionIdentity still exercises
+both Analyze/Search serialization, resolved reads, preview, retained queries,
+version validation and grant lifetime. Existing packaged worker/network guards
+and Store runtime-admission tests remain unchanged.
+
+Focused ordinary worker/access race tests with pinned assets pass (2.695s),
+including the actual analyzer child. With the same development environment set,
+Apple Store-tagged access and download-policy tests pass (0.329s); only the
+unbundled subprocess fixture skips explicitly. GoLand inspected the changed test
+including weak warnings with no findings. This is a test-only follow-up with no
+application change: the fresh bin/apple-store-e2e-review-fixes/PicFetch.app and
+adjacent testing notes remain valid. Its 31 package guards passed (9.612s), and
+all 24 ZIP payload hashes match the manifest. Full Windows confirmation and a
+fresh code/security review follow this correction's push. Lead-only Thin fix,
+zero agents; one inline review. No dependency or permission changes.

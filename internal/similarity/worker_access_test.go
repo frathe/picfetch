@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/uitest"
 )
@@ -197,6 +198,12 @@ func TestWorkerAccessMovedSourcesKeepCollectionIdentity(t *testing.T) {
 }
 
 func TestWorkerMovedSourceAnalyzer(t *testing.T) {
+	// This fixture launches the Go test executable with development assets.
+	// Store workers require an installed package's runtime and native broker.
+	//goland:noinspection GoBoolExpressions
+	if distribution.StoreManaged {
+		t.Skip("requires an ordinary worker executable; Store workers need a packaged fixture")
+	}
 	assets := os.Getenv("PICFETCH_SIMILARITY_ASSETS")
 	if assets == "" {
 		t.Skip("requires pinned native analysis assets")

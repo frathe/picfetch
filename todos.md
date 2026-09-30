@@ -29,7 +29,7 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Qualify retained visual search through production ARM/Intel-Rosetta workers; keep scopes through clipboard/Finder/Trash calls and source metadata reads.
 - [x] Capture native window-drop URLs before GLFW flattens paths; refresh restored moved/stale bookmarks with immutable persistence coverage.
 - [x] Verify production workers deny an ungranted private source while an allowed control image still completes inference, on ARM and Intel under Rosetta.
-- [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Latest E2E app is in `bin/apple-store-e2e-persistent-folders/`.
+- [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Latest E2E app is in `bin/apple-store-e2e-review-fixes/`.
 - [x] Ronin confirmed native Open-dialog folder consent fixes navigation; extend the same consent to shared drop/Open With discovery with cancellation and replacement coverage.
 - [ ] Confirm the rebuilt shared-consent app with a single-file window drop and Open With.
 - [x] Ronin confirmed multiple-file picker/drop navigation must remain within the selected images; folder sibling discovery applies only to single-file inputs. Automated selection coverage passes.
@@ -37,7 +37,7 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Ronin confirmed persistent folder approvals work across real quit/relaunch in `bin/apple-store-e2e-persistent-folders/PicFetch.app`.
 - [ ] Confirm moved-folder bookmark reuse in the persistent-folder test app; automated coverage passes, live moved-folder testing remains open.
 - [x] Fix PR #75 findings: acquire source authority for metadata sorting and map analysis/search file I/O to resolved bookmark locations while preserving collection/cache identities.
-- [ ] Finish the requested PR #75 review loop: fresh clean Codex code/security review and native CI on the latest fix commit.
+- [ ] Finish the requested [PR #75 review loop](https://github.com/frathe/picfetch/pull/75): final review/CI evidence lives on the PR. Code review is clean at `71fd577`; verify the subsequent development-fixture correction on Windows and obtain fresh code/security review.
 - [x] Validate copyright/category metadata and reject quarantine attributes in local Store packages.
 - [ ] Finish GUI sandbox workflows, moved-folder relaunch, and physical Intel/minimum-OS validation.
 - [x] Implement a separate Store distribution-signing/installer route with identity, profile and payload guards.
