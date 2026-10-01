@@ -119,9 +119,23 @@ for the source head; its root Qodana SARIF
 has exact `3eafe3d` provenance and the same eleven assessed unused-export false
 positives as `4b238da`. A fresh code/security-focused review, latest-head CI and
 post-suppression Qodana assessment remain required for the follow-up commit.
+The fresh code review of `c8fd4df` reports no findings:
+https://github.com/frathe/picfetch/pull/75#issuecomment-5935121517.
+Its root post-suppression Qodana SARIF (artifact 11175007949) has exact c8fd4df
+provenance and the same eleven assessed unused-export false positives; real
+production callers were rechecked. CodeQL passes with no open PR alerts. Full
+hosted tests and the separate security-focused round were still finishing when
+this documentation update was prepared; final latest-head review/CI evidence is
+tracked on PR #75. Documentation-only updates carry the unchanged-code inspection
+and focused-test evidence at c8fd4df; fresh latest-head hosted gates remain required.
+
 Ronin supplied a FOSSA CSV export after dashboard access required onboarding.
-It identifies active denied issue 21375863, ODbL-1.0, for the root PicFetch package
-at exact 3eafe3d under Standard Bundle Distribution; matching paths are absent.
-No dependency/version or database asset was added. The new license-reference
-documentation is the likely cause, pending matched-file confirmation. Do not
-count the license gate as passed or silently broaden its policy.
+It identifies denied issue 21375863 for the root PicFetch package at exact 3eafe3d
+under Standard Bundle Distribution. The export has no paths; Ronin confirmed the
+sole match is `packaging/apple-app-store/map-attribution-research-2026-10-01.md`.
+This is our own research citing the map-data license, without an OSM database or
+third-party code. No dependency/version or database asset was added. Ronin added
+this documentation-reference false positive to FOSSA's ignore list. Record and
+scope: `docs/fossa-license-ci-2026-09-26.md`. The earlier GitHub status predates
+that disposition; verify a fresh scan before calling the license gate passed.
+This does not waive OSM attribution, tile-service obligations or Store qualification.

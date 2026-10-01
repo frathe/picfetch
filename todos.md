@@ -96,8 +96,9 @@
   Fyne-X's cache-bypassing renderer with an owned viewport renderer; end-to-end
   expiry regression and view-lifecycle tests pass. Review follow-up fixes expired
   pixels after failed validation and retires one-shot results when the view changes;
-  regressions and weak-inclusive inspections pass. FOSSA license assessment and
-  fresh latest-head reviews/CI remain pending. New signed candidate, native
+  regressions and weak-inclusive inspections pass. Ronin ignored the confirmed
+  FOSSA research-reference false positive; review/CI evidence is tracked on PR #75.
+  New signed candidate, native
   visual confirmation and broader qualification remain pending. See
   `plans/2026-10-01-map-cache-rights.md`; do not mark Store compliance passed.
 
