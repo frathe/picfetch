@@ -37,7 +37,9 @@ Developer preview of the production console help, reached through `make trane`.
 `Write` renders one eased, three-second ASCII Trane turn above terminal help,
 then leaves a front portrait and PicFetch wordmark. `render.go` owns the original
 ellipsoid sculpture and depth-tested lighting; `help.go` owns fitting, wrapping,
-signals and terminal restoration. Build-tagged terminal files enable/restore
+signals and terminal restoration. `resolution.go` owns the fixed-size screenshot picker; its build-tagged readers
+poll without detached stdin workers, so interruption restores raw mode.
+Build-tagged terminal files enable/restore
 Windows VT mode. Pipes, small terminals and `TERM=dumb` receive plain usage.
 
 ### `scripts/historymovie`
@@ -1066,6 +1068,17 @@ on screen). `realdrag_test.go` replays recorded title-bar drags.
 | `detector.go` | Ring buffer, idle gap, one-shot `armed` latch. |
 | `analyse.go` | Centroid, accumulated angle, sign consistency, radius-vs-angle fit. |
 
+### `internal/screenshots`
+
+`app.go` decorates the application before viewer/feature construction for a
+fixed-size launch. Every app-owned window contains natural content minimums and
+suppresses programmatic resize/fullscreen requests, while forwarding native and
+desktop position/topmost operations. Show converts whole-window physical pixels
+through winpos's native chrome/backing metrics into Fyne content coordinates.
+`app_test.go` covers main and secondary windows, content replacement and reopen.
+`startup.go` captures original persisted geometry in the launch override so these
+windows never replace standing geometry during screenshot sessions.
+
 ### `internal/winpos`
 
 Fyne has no position getter and no move event. `Get` reads the native
@@ -1079,10 +1092,10 @@ pollers across close/reopen for `WaitForTracking`.
 
 | File | Responsibility |
 |------|----------------|
-| `winpos.go` | `Get`, `Set`, `Maximize`, `Unmaximize`. |
+| `winpos.go` | `Get`, `Set`, `Maximize`, `Unmaximize`, `ScreenshotContentSize`; fixed windows reject maximize/restore. |
 | `poll.go` | `PollAt` / `Poll` / `Poller` / `PollInterval` / `GestureInterval`; per-call native-read/dispatch seam and cancellation-aware acknowledgement. |
 | `tracker.go` | `Tracker` atomics: `Store` / `Get` / `Capture` / `Restore`. |
-| `darwin.go` / `windows.go` / `linux.go` / `other.go` | Platform position + maximize. Linux/Wayland: `Get` reports `ok=false`. |
+| `darwin.go` / `windows.go` / `linux.go` / `other.go` | Platform position, maximize and screenshot chrome/backing metrics. Linux/Wayland: `Get` reports `ok=false`. |
 
 OS integrations (`clipboard`, `displays`, `filemanager`, `filepicker`, `trash`,
 `wallpaper`) use
@@ -1244,7 +1257,7 @@ against the `preferences.SortBy*` vocabulary. No Fyne import.
 
 | File | Responsibility |
 |------|----------------|
-| `launch.go` | `Options`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
+| `launch.go` | `Options`, `Resolution`, `ScreenshotResolutions`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
 | `policy.go` | Explicit immutable `Policy`, `UpdatePermission` and storage selection, independent of trial resources and offline prerequisites. |
 | `preparation.go` | Per-launch prerequisite/reservation operations and `Prepared`, the single evidence owner; partial acquisition and finalization preserve joined errors and retained evidence. |
 

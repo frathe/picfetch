@@ -135,6 +135,13 @@ func productionStartup() startupOps {
 	return startupOps{
 		heicWorker:       heic.WorkerMain,
 		similarityWorker: similarity.WorkerMain,
+		selectResolution: func(out io.Writer) (launch.Resolution, error) {
+			size, err := consolehelp.SelectResolution(os.Stdin, out)
+			if err == nil {
+				_, err = fmt.Fprintf(out, "Screenshot size: %d x %dpx\n", size.Width, size.Height)
+			}
+			return size, err
+		},
 		installOpenWith: func() {
 			// Cocoa caches delegate selectors during glfw.Init. Installation
 			// belongs before app construction. False is normal off macOS.

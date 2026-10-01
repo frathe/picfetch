@@ -6,6 +6,11 @@
 
 #### New Features
 
+- [ ] Fixed screenshot window mode: four console-selected physical pixel sizes,
+  constrained mode transitions and preserved saved geometry. Local native Retina
+  measurements pass; review/CI and fresh App Store test package remain pending.
+  See [plan and evidence](plans/2026-10-01-fixed-size-mode.md).
+
 #### Bugfix
 
 - [x] Bound Save Changes and JPEG Export secondary source reads by the encoded

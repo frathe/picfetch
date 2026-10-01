@@ -1,13 +1,17 @@
 package consolehelp
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/frathe/picfetch/internal/launch"
 )
 
 func TestOneTurnExitsAndLeavesPortraitAboveHelp(t *testing.T) {
@@ -198,6 +202,42 @@ func TestAnimationSignalsRestoreTerminal(t *testing.T) {
 			}
 			if !strings.HasSuffix(out.String(), "\x1b[?25h\x1b[?1049l"+usage) {
 				t.Fatal("signal did not restore cursor/screen and ordinary help")
+			}
+		})
+	}
+}
+
+func TestResolutionPicker(t *testing.T) {
+	for _, tc := range []struct {
+		keys      string
+		index     int
+		cancelled bool
+	}{
+		{keys: "\r", index: 0}, {keys: "\x1b[B\n", index: 1},
+		{keys: "\x1b[B\x1b[B\r", index: 2}, {keys: "\x1b[A\r", index: 3},
+		{keys: "\x1bOB\x1bOA\r", index: 0}, {keys: "\x03", cancelled: true},
+		{keys: "\x04", cancelled: true},
+	} {
+		t.Run(fmt.Sprintf("%q", tc.keys), func(t *testing.T) {
+			var out bytes.Buffer
+			input := strings.NewReader(tc.keys)
+			size, err := pickResolution(&out, func() (byte, bool, error) { b, err := input.ReadByte(); return b, err == nil, err }, nil)
+			if tc.cancelled {
+				if err == nil {
+					t.Fatal("cancelled picker launched")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := launch.ScreenshotResolutions()[tc.index]; size != want {
+				t.Fatalf("size=%v want=%v", size, want)
+			}
+			for _, label := range []string{"1280 x 800px", "1440 x 900px", "2560 x 1600px", "2880 x 1800px"} {
+				if !strings.Contains(out.String(), label) {
+					t.Fatalf("missing %s", label)
+				}
 			}
 		})
 	}

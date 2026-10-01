@@ -113,6 +113,11 @@ func buildTestStartupViewer(t *testing.T, application fyne.App) (*viewer, fyne.W
 
 func newTestUIWithPolicy(t *testing.T, policy launch.Policy) (v *viewer, win fyne.Window, closed func() bool) {
 	t.Helper()
+	return newTestUIWithLaunchOptions(t, policy, launch.Options{})
+}
+
+func newTestUIWithLaunchOptions(t *testing.T, policy launch.Policy, opts launch.Options) (v *viewer, win fyne.Window, closed func() bool) {
+	t.Helper()
 
 	// Reassert the shared app as the current one before building: the
 	// persistence tests construct their own app, and Fyne makes whichever
@@ -136,7 +141,7 @@ func newTestUIWithPolicy(t *testing.T, policy launch.Policy) (v *viewer, win fyn
 	}
 
 	var err error
-	v, win, err = buildStartupViewer(testApp, policy, testLaunchStorage(t))
+	v, win, err = buildStartupViewerForLaunch(testApp, policy, testLaunchStorage(t), opts)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -42,7 +42,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, prepared
 		return launch.ErrInvalidPolicy
 	}
 	trial := prepared.ExplorerTrial()
-	view, window, err := buildStartupViewer(application, policy, ordinaryLaunchStorage)
+	view, window, err := buildStartupViewerForLaunch(application, policy, ordinaryLaunchStorage, opts)
 	if err != nil {
 		return err
 	}

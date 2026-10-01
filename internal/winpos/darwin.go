@@ -48,12 +48,37 @@ static void unzoomIfZoomed(uintptr_t nsWindowPtr) {
 		[window zoom:nil];
 	}
 }
+
+static void screenshotContentSize(uintptr_t nsWindowPtr, int width, int height,
+                                 double *contentWidth, double *contentHeight) {
+	NSWindow *window = (__bridge NSWindow *)(void *)nsWindowPtr;
+	window.styleMask &= ~NSWindowStyleMaskResizable;
+	window.collectionBehavior = (window.collectionBehavior & ~NSWindowCollectionBehaviorFullScreenPrimary)
+		| NSWindowCollectionBehaviorFullScreenNone;
+	[window standardWindowButton:NSWindowZoomButton].enabled = NO;
+	NSRect target = window.frame;
+	target.size = NSMakeSize(width / window.backingScaleFactor, height / window.backingScaleFactor);
+	NSRect content = [window contentRectForFrameRect:target];
+	*contentWidth = content.size.width;
+	*contentHeight = content.size.height;
+}
 */
 import "C"
 
 import (
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver"
 )
+
+func platformScreenshotContentSize(ctx any, width, height int) (fyne.Size, bool) {
+	mac, ok := ctx.(driver.MacWindowContext)
+	if !ok || mac.NSWindow == 0 {
+		return fyne.Size{}, false
+	}
+	var contentWidth, contentHeight C.double
+	C.screenshotContentSize(C.uintptr_t(mac.NSWindow), C.int(width), C.int(height), &contentWidth, &contentHeight)
+	return fyne.NewSize(float32(contentWidth), float32(contentHeight)), true
+}
 
 func platformPosition(ctx any) (x, y int, ok bool) {
 	mac, isMac := ctx.(driver.MacWindowContext)

@@ -61,6 +61,9 @@ func Set(win fyne.Window, x, y int) {
 // platform-specific files. A no-op wherever there's no native handle to
 // reach (the fyne test driver, Wayland, mobile, wasm).
 func Maximize(win fyne.Window) {
+	if win.FixedSize() {
+		return
+	}
 	native, isNative := win.(driver.NativeWindow)
 	if !isNative {
 		return
@@ -83,6 +86,9 @@ func Maximize(win fyne.Window) {
 // minimized windows stay untouched; this does not restore from the taskbar.
 // A no-op wherever there's no native handle to reach, same as Maximize.
 func Unmaximize(win fyne.Window) {
+	if win.FixedSize() {
+		return
+	}
 	native, isNative := win.(driver.NativeWindow)
 	if !isNative {
 		return
@@ -90,4 +96,14 @@ func Unmaximize(win fyne.Window) {
 	native.RunNative(func(ctx any) {
 		platformUnmaximize(ctx)
 	})
+}
+
+// ScreenshotContentSize locks native resizing and converts whole-window pixel
+// dimensions to native content coordinates, accounting for chrome and Retina.
+// The caller must Show first and divide by Canvas.Scale before Fyne Resize.
+func ScreenshotContentSize(win fyne.Window, width, height int) (size fyne.Size, ok bool) {
+	if native, supported := win.(driver.NativeWindow); supported {
+		native.RunNative(func(ctx any) { size, ok = platformScreenshotContentSize(ctx, width, height) })
+	}
+	return size, ok
 }

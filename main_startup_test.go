@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -288,5 +289,40 @@ func startupObservations(calls *[]string) startupOps {
 			*calls = append(*calls, "run")
 			return nil
 		},
+	}
+}
+
+func TestFixedSizeStartup(t *testing.T) {
+	for _, cancelled := range []bool{false, true} {
+		t.Run(fmt.Sprint(cancelled), func(t *testing.T) {
+			var calls []string
+			ops := startupObservations(&calls)
+			failure := errors.New("selection cancelled")
+			picked := launch.Resolution{Width: 1440, Height: 900}
+			ops.selectResolution = func(_ io.Writer) (launch.Resolution, error) {
+				calls = append(calls, "picker")
+				if cancelled {
+					return launch.Resolution{}, failure
+				}
+				return picked, nil
+			}
+			ops.run = func(_ fyne.App, _ []fyne.URI, opts launch.Options, _ *launch.Prepared) error {
+				calls = append(calls, "run")
+				if opts.FixedSize == nil || *opts.FixedSize != picked {
+					t.Fatalf("missing selected size: %+v", opts)
+				}
+				return nil
+			}
+			code, err := runStartup([]string{"-fixed-size-mode"}, io.Discard, io.Discard, ops)
+			if cancelled {
+				if code != 1 || !errors.Is(err, failure) || !slices.Equal(calls, []string{"heic", "similarity", "picker"}) {
+					t.Fatalf("cancel: %d %v %v", code, err, calls)
+				}
+				return
+			}
+			if code != 0 || err != nil || slices.Index(calls, "picker") != 2 || slices.Index(calls, "picker") > slices.Index(calls, "app") {
+				t.Fatalf("startup: %d %v %v", code, err, calls)
+			}
+		})
 	}
 }

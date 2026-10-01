@@ -107,6 +107,7 @@ exclude:
       - "internal/clipboard/copyfiles_windows_test.go"
       - "internal/completion/completion_test.go"
       - "internal/consolehelp/help_test.go"
+      - "internal/screenshots/app_test.go"
       - "internal/decodepool/decodepool_test.go"
       - "internal/displays/displays_test.go"
       - "internal/displays/xrandr_test.go"
