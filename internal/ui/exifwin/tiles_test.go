@@ -107,6 +107,7 @@ func TestTileFetcherHTTPFreshness(t *testing.T) {
 
 func TestTileFetcherResponseDelay(t *testing.T) {
 	body := tilePNG(t)
+	maximumFreshness := (time.Duration(1<<63-1) / time.Second) * time.Second
 	for _, status := range []int{http.StatusOK, http.StatusNotModified} {
 		for _, date := range []string{"", "invalid", time.Unix(1700000000, 0).UTC().Format(http.TimeFormat)} {
 			for _, policy := range []struct {
@@ -118,6 +119,8 @@ func TestTileFetcherResponseDelay(t *testing.T) {
 				{"9223372036854775807", "10", 0},
 				{"9223372036854775808", "10", 0},
 				{"99999999999999999999", "10", 0},
+				{"4", "9223372036854775808", maximumFreshness - 6*time.Second},
+				{"99999999999999999999", "99999999999999999999", 0},
 			} {
 				t.Run(fmt.Sprintf("%d/date=%s/age=%s/max-age=%s", status, date, policy.age, policy.maxAge), func(t *testing.T) {
 					now := time.Unix(1700000000, 0).UTC()
@@ -146,6 +149,7 @@ func TestTileFetcherResponseDelay(t *testing.T) {
 
 func TestTileCacheFreshnessRules(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
+	maximumFreshness := (time.Duration(1<<63-1) / time.Second) * time.Second
 	for _, testCase := range []struct {
 		name    string
 		header  http.Header
@@ -185,7 +189,15 @@ func TestTileCacheFreshnessRules(t *testing.T) {
 		{"precedence", http.Header{"Cache-Control": {"max-age=10"}, "Expires": {now.Add(time.Hour).Format(http.TimeFormat)}}, 10 * time.Second, false},
 		{"no-cache", http.Header{"Cache-Control": {"max-age=60, no-cache"}}, 0, false},
 		{"no-store", http.Header{"Cache-Control": {"no-store, max-age=60"}}, time.Minute, true},
-		{"overflow", http.Header{"Cache-Control": {"max-age=9223372036854775807"}}, 0, false},
+		{"max-age int64 limit", http.Header{"Cache-Control": {"max-age=9223372036854775807"}}, maximumFreshness, false},
+		{"max-age duration overflow", http.Header{"Cache-Control": {"max-age=9223372037"}}, maximumFreshness, false},
+		{"max-age overflow boundary", http.Header{"Cache-Control": {"max-age=9223372036854775808"}}, maximumFreshness, false},
+		{"max-age long decimal overflow", http.Header{"Cache-Control": {"max-age=" + strings.Repeat("9", 200)}}, maximumFreshness, false},
+		{"quoted max-age overflow", http.Header{"Cache-Control": {`max-age="99999999999999999999"`}}, maximumFreshness, false},
+		{"overflowing max-age with age", http.Header{"Cache-Control": {"max-age=99999999999999999999"}, "Age": {"20"}}, maximumFreshness - 20*time.Second, false},
+		{"overflowing max-age and age", http.Header{"Cache-Control": {"max-age=99999999999999999999"}, "Age": {"99999999999999999999"}}, 0, false},
+		{"overflowing malformed max-age", http.Header{"Cache-Control": {"max-age=99999999999999999999x"}}, 0, false},
+		{"overflowing signed max-age", http.Header{"Cache-Control": {"max-age=+99999999999999999999"}}, 0, false},
 		{"old age", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"9223372036854775807"}}, 0, false},
 		{"age overflow boundary", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"9223372036854775808"}}, 0, false},
 		{"age overflow decimal", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"99999999999999999999"}}, 0, false},

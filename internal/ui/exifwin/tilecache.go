@@ -97,10 +97,10 @@ func cacheTile(data []byte, previous, response http.Header, requested, now time.
 			maxAgeSeen = true
 			invalidDigit := strings.IndexFunc(directive.argument, func(value rune) bool { return value < '0' || value > '9' }) >= 0
 			seconds, err := strconv.ParseInt(directive.argument, 10, 64)
-			if err != nil || invalidDigit || seconds < 0 || seconds > int64((1<<63-1)/time.Second) {
+			if invalidDigit || seconds < 0 || (err != nil && !errors.Is(err, strconv.ErrRange)) {
 				noCache = true
 			} else {
-				lifetime = time.Duration(seconds) * time.Second
+				lifetime = time.Duration(min(seconds, int64((1<<63-1)/time.Second))) * time.Second
 			}
 		}
 	}

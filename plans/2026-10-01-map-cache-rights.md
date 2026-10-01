@@ -372,3 +372,19 @@ FOSSA checks passed. Its fresh root post-suppression Qodana SARIF (artifact
 e2ca161, no new actionable findings; the summary is neutral. Fresh code and
 separate security-focused rounds plus exact-head hosted gates remain required
 for the overflow fix. Final outcomes are tracked on PR #75.
+
+## Max-age overflow follow-up
+
+Fresh bb0f77b code review discussion_r4160293859 confirmed that valid digit-only
+max-age overflow was treated as immediately stale instead of saturating under
+RFC 9111 section 1.2.2. Six freshness cases and six delayed 200/304 cases failed
+before the fix. Valid nonnegative max-age values now accept positive ParseInt
+ErrRange and clamp before seconds-to-duration conversion, using the same upper
+bound as Age. Malformed/signed/negative and repeated max-age still require
+revalidation; combined overflowing Age and max-age remains stale. Coverage spans
+int64 and duration limits, the first int64 overflow, 200-digit and quoted values,
+existing age subtraction and delayed 200/304 responses. Both map feature race
+suites and focused vet pass; GoLand weak-inclusive inspections of tilecache.go
+and tiles_test.go report no findings. Zero delegates and no dependency/worker/new
+file changes. Fresh code/security rounds and exact-head hosted gates remain
+required; final evidence is tracked on PR #75.

@@ -111,7 +111,8 @@
   is rejected. Hidden Location transitions now retire viewport pixels and claims.
   HTTP/grammar, hide/reopen and delayed-response freshness regressions pass.
   Queued foreground pixels are purgeable on retirement; callbacks retain only keys.
-  Positive Age overflow now saturates; freshness and delayed 200/304 regressions pass.
+  Positive Age and valid max-age overflow now saturate; freshness and delayed
+  200/304 regressions pass.
   FOSSA passed on c89c74d after the ignore; fresh review gates are pending.
   New signed candidate, native
   visual confirmation and broader qualification remain pending. See
