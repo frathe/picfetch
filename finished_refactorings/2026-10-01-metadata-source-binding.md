@@ -110,7 +110,8 @@ a deferral. No OS atomic compare-and-swap guarantee is added by these guards.
 The final documentation review at 2e392a9 identified active-directory placement
 and stale historical gate wording. This completed record is now archived under
 finished_refactorings, with todo links updated and earlier snapshots labeled or
-reconciled. Application code and the qualified test package remain unchanged.
+reconciled. Application code and the qualified test package were unchanged by
+that documentation update. Later source follow-ups are qualified separately below.
 Fresh review and CI results for subsequent documentation revisions are posted
 in PR #75; original local code evidence retains its analyzed revision above.
 
@@ -178,7 +179,8 @@ GoLand inspected save.go and mutations_test.go including weak warnings; save.go
 has no findings. The existing WriteResult error-path warning in mutations_test.go
 is covered by the exact GoDfaErrorMayBeNotNil exclusion: a value result retains
 meaningful Committed even on error. No timeouts or new actionable warnings.
-Latest-head code/security review and hosted gates remain pending after this fix.
+At that fix snapshot, latest-head code/security review and hosted gates were
+pending; their completed results are recorded below.
 
 Requalified with the portable staging observer replaced by the private writer:
 focused imaging races and actual Store-tagged imaging/EXIF tests pass, and
@@ -186,3 +188,47 @@ disabling the content comparison still reproduces the equal-length overwrite.
 The per-file GoLand result is unchanged (only the assessed/excluded value-result
 warning); final build/vet checks pass. The earlier Store test failure is not
 claimed as a pass. No test or isolation case is skipped.
+
+### Current source qualification at 3453f1b
+
+All source follow-ups are committed/pushed at
+3453f1bed2ed448355f7d66edd1ebeff73b9a880. The
+[fresh code review](https://github.com/frathe/picfetch/pull/75#issuecomment-5930654642)
+and [separate security-focused round](https://github.com/frathe/picfetch/pull/75#issuecomment-5930759320)
+report no findings. The latter uses the advertised regular review trigger with
+a security scope; it is not claimed as a separate named security scanner. All
+20 historical threads have dispositions, including confirmed final source-content
+checking in 3453f1b and the legacy confirmation expectation corrected in 63382e7.
+[Full CI](https://github.com/frathe/picfetch/actions/runs/36857299096),
+[CodeQL](https://github.com/frathe/picfetch/actions/runs/36857299056) and FOSSA
+pass; current PR CodeQL alerts are empty.
+[Qodana](https://github.com/frathe/picfetch/actions/runs/36857299114) artifact
+11160590347 has this exact revision in post-suppression SARIF: eleven prior
+unused-export false positives remain, with checked production callers. No new
+results; ReadAndProbeSnapshot is no longer reported. There are no actionable
+findings. Original per-file local inspection profiles/revisions remain stated,
+including the loader IDE-tag limitation and configured exact test exclusions.
+
+Refreshed universal ad-hoc sandbox bundle: version 1.1.11, build 483,
+bin/apple-store-e2e-2026-10-01-3453f1b/PicFetch.app. The packager validates
+signatures, entitlements, architectures, deployment minima, dependencies,
+privacy/notices and seals; all 24 manifest payload hashes were independently
+checked. Source/worktree provenance is in the adjacent manifest. The preserved
+working-tree packaging metadata supplies build 483. No merge, submission or
+distribution signing occurred.
+
+The exact refreshed native app starts in 1280x800 mode and its consent panel
+opens at the correct new generated fixture folder with spaces. The exact folder
+can be selected. Automatic approval review rejected clicking Allow Folder Access
+because explicit permission for this specific app/test folder is required. User
+approval has been requested; that refreshed approval-button smoke check remains
+unverified until permission arrives. The earlier full approval/button/cancel/
+sibling reuse/relaunch and measured captures remain qualified at f36f1ca;
+consent and sizing source is unchanged since its recorded fixes. Actual mixed-
+monitor movement and direct Finder drag retain their qualification limits.
+
+This completion change is documentation only. It carries current unchanged-code
+inspection/build/package evidence at 3453f1b. Fresh reviews, CodeQL, configured
+post-suppression Qodana and full CI for the documentation head are recorded in
+PR #75 before the loop is declared complete; no duplicate broad local race run.
+Filesystem CAS is not claimed and traversal budgets remain deferred hardening.

@@ -178,7 +178,8 @@ is still unqualified.
 The final documentation review at 2e392a9 identified active-directory placement
 and stale historical gate wording. This completed record is now archived under
 finished_refactorings, with todo links updated and earlier snapshots labeled or
-reconciled. Application code and the qualified test package remain unchanged.
+reconciled. Application code and the qualified test package were unchanged by
+that documentation update. Later source follow-ups are qualified separately below.
 Fresh review and CI results for subsequent documentation revisions are posted
 in PR #75; original local code evidence retains its analyzed revision above.
 
@@ -242,3 +243,23 @@ Logs: /private/tmp/picfetch-native-picker-order-{red,race}.log,
 /private/tmp/picfetch-native-order-negative.log and
 /private/tmp/picfetch-review-three-fixes-{race,store,verify}.log.
 Latest-head review/CI evidence and the refreshed package follow through PR #75.
+
+### Current source qualification at 3453f1b
+
+Latest source 3453f1bed2ed448355f7d66edd1ebeff73b9a880 has clean fresh code
+and security-focused reviews, all 20 thread dispositions, full platform/race CI,
+CodeQL (no open PR alerts), FOSSA and assessed final Qodana SARIF (eleven
+previous unused-export false positives, no new/actionable findings). Original
+local inspection profiles/revisions and their loader IDE-tag limit are retained.
+The refreshed universal sandbox test app is version 1.1.11, build 483:
+bin/apple-store-e2e-2026-10-01-3453f1b/PicFetch.app. Packaging guards and all
+24 manifest payload hashes pass. No merge or distribution submission occurred.
+
+In this exact app, the panel opens at the correct new fixture folder and the
+exact folder can be selected. Automatic approval review requires explicit user
+permission for this app/test folder before clicking Allow Folder Access; that
+extra smoke check is pending. Original full consent/capture qualification above
+remains source-specific at f36f1ca; native consent/sizing source is unchanged.
+See [current shared qualification and gate links](2026-10-01-metadata-source-binding.md#current-source-qualification-at-3453f1b).
+Final documentation-head reviews and hosted checks are tracked in PR #75,
+carrying unchanged-code evidence at its recorded revision.

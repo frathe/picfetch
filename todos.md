@@ -13,12 +13,14 @@
 
 #### Bugfix
 
-- [ ] Finish PR #75 follow-up review: the three earlier fixes and corrected
-  legacy clean-source expectation are committed/pushed. Thread 4154911230 now
-  adds bounded source content verification before removal's final rename, with
-  red/negative regressions and passing focused races, Store tests, build/vet and
-  GoLand. Fresh latest-head code/security review, hosted CI and a refreshed
-  App Store test package remain pending.
+- [x] Complete PR #75 source follow-ups: all fixes are committed/pushed and
+  all 20 threads have dispositions. Fresh code/security-focused reviews, full
+  hosted CI, CodeQL and assessed Qodana pass at 3453f1b. Universal Store test
+  build 483 is refreshed and its 24 payload hashes verified. The new native
+  approval-button smoke check awaits explicit test-folder access permission;
+  original complete folder/capture qualification remains source-specific.
+  Final documentation-head review/checks are tracked in PR #75.
+  See [current qualification](finished_refactorings/2026-10-01-metadata-source-binding.md).
 
 - [x] Preserve unsuccessful termination when SIGTERM arrives during animated
   help restoration; independent signal buffers protect SIGTERM from repeated
