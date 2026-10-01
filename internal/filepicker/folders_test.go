@@ -95,7 +95,10 @@ func TestSavedFolderApprovalValidation(t *testing.T) {
 				}
 				return nil, nil
 			}
-			authorizer.acquire = func(_ context.Context, _ fyne.URI) (fyne.URI, func(), error) {
+			authorizer.acquire = func(_ context.Context, uri fyne.URI) (fyne.URI, func(), error) {
+				if !fileaccess.Snapshot(uri).Directory {
+					return uri, func() {}, nil
+				}
 				if scenario == "revoked" || scenario == "cancel-panel" {
 					return nil, nil, errors.New("revoked")
 				}
@@ -161,5 +164,39 @@ func TestSavedFolderApprovalValidation(t *testing.T) {
 				t.Fatal("unsuccessful or cancelled authorization changed saved grants")
 			}
 		})
+	}
+}
+
+func TestSiblingApprovalUsesResolvedImageParent(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	old, current := t.TempDir(), t.TempDir()
+	source := folderFixture(t, filepath.Join(old, "photo.jpg"), false)
+	resolved := folderFixture(t, filepath.Join(current, "photo.jpg"), false)
+	folder := folderFixture(t, current, true)
+	authorizer := NewFolderAuthorizer(app.Preferences())
+	active := 0
+	authorizer.acquire = func(_ context.Context, uri fyne.URI) (fyne.URI, func(), error) {
+		if uri != source {
+			t.Fatal("unexpected source acquisition")
+		}
+		active++
+		return resolved, func() { active-- }, nil
+	}
+	authorizer.choose = func(_ context.Context, directory string) (fyne.URI, error) {
+		if directory != current {
+			t.Fatalf("permission panel starts at stale folder %q; want %q", directory, current)
+		}
+		if active != 1 {
+			t.Fatal("source resolution authority ended before folder selection")
+		}
+		return folder, nil
+	}
+	got, err := authorizer.authorize(context.Background(), []fyne.URI{source})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("authorization %v, %v", got, err)
+	}
+	if got[0].Path() != resolved.Path() || fileaccess.Snapshot(got[0]).Relative != "photo.jpg" || active != 0 {
+		t.Fatalf("lost resolved selection or scope release: %v active=%d", got, active)
 	}
 }

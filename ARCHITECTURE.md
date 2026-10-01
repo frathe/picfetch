@@ -1169,8 +1169,8 @@ can pick folders; Windows is files-only.
 | File | Responsibility |
 |------|----------------|
 | `filepicker.go` | Typed `Choose` (URI list) / `ChooseSave` (one URI), strict native result decoding, explicit folder consent policy for shared collection discovery, canonical-path Zenity framing and UTF-8 JSON PowerShell transport. |
-| `folders.go` | Per-viewer `FolderAuthorizer` stores explicit sibling-folder bookmarks in app preferences; resolves and validates saved grants on tracked opening workers, refreshes moved/stale authority, and falls back to native consent. Native scopes are bounded, and preference locks never cover native calls. |
-| `darwin.go` / `other.go` | `NSOpenPanel` / `NSSavePanel`, including cancellable Store sibling-folder permission, with a shared NSURL-to-JSON transport / stubs; `darwin_test.go` exercises the actual native serializer. |
+| `folders.go` | Per-viewer `FolderAuthorizer` stores explicit sibling-folder bookmarks in app preferences; resolves the selected image before suggesting its current parent, validates saved grants on tracked opening workers, refreshes moved/stale authority, and falls back to native consent. Native scopes are bounded, and preference locks never cover native calls. |
+| `darwin.go` / `other.go` | Completion-based `NSOpenPanel` / `NSSavePanel`, including Store sibling-folder permission. Native setup returns immediately to Fyne; the existing chooser worker waits for completion and owns selected URLs through NSURL-to-JSON transport / stubs. `darwin_test.go` exercises the actual native serializer. |
 | `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
 ### `internal/trash`

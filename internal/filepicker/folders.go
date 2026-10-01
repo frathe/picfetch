@@ -45,6 +45,17 @@ func (a *FolderAuthorizer) authorize(ctx context.Context, files []fyne.URI) ([]f
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// A persisted file bookmark can now name a different path. Resolve its
+	// current identity before suggesting or comparing a parent folder; the
+	// recorded path is an index, never the authority for a new grant.
+	if len(files) == 1 && fileaccess.HasScope(files[0]) && !fileaccess.Snapshot(files[0]).Directory {
+		resolved, release, err := a.acquire(ctx, files[0])
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+		files = []fyne.URI{resolved}
+	}
 	var approved fyne.URI
 	permitted, err := authorizeSiblingFolder(files, func(directory string) (fyne.URI, error) {
 		if folder, err := a.recall(ctx, directory); folder != nil || err != nil {

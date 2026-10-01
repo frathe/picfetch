@@ -28,7 +28,7 @@ static char *serializePanelURLs(NSArray<NSURL *> *urls, int scopes, char **failu
 				*failure = strdup(error ? error.description.UTF8String : "selected URL bookmark capture failed");
 				return NULL;
 			}
-			[paths addObject:@{@"uri":url.absoluteString,
+			[paths addObject:@{@"uri":url.filePathURL.absoluteString,
 				@"bookmark":[bookmark base64EncodedStringWithOptions:0], @"directory":directory}];
 		} else {
 			[paths addObject:url.path];
@@ -51,12 +51,12 @@ static char *roundTripPanelPaths(const char *input) {
 	}
 }
 
-// runOpenPanel shows an app-modal NSOpenPanel that allows files, folders,
+// beginOpenPanel shows an asynchronous NSOpenPanel that allows files, folders,
 // and multi-select all at once - a combination none of AppleScript's
 // Standard Additions pickers offer. Must be called on the main thread (an
 // AppKit requirement); chooseFilesDarwin below guarantees that. Returns
 // retained URLs or an explicit cancellation/failure state. Serialization runs
-// on the chooser worker after the modal panel closes.
+// on the chooser worker after the panel completes.
 typedef struct {
 	int state; // 0 cancellation, 1 selected URLs, -1 native failure.
 	void *urls;
@@ -79,17 +79,57 @@ static char *serializeSelection(panelResult result, int scopes, char **failure) 
 	}
 }
 
-static panelResult runOpenPanel(const char *message) {
+// The Fyne dispatcher must return while the remote panel processes events.
+// A tracked chooser worker waits for this request; UI never waits on its semaphore.
+@interface PicFetchPanelRequest : NSObject
+@property(nonatomic, strong) NSSavePanel *panel;
+@property(nonatomic, strong) id panelDelegate;
+@property(nonatomic, strong) NSArray<NSURL *> *urls;
+@property(nonatomic, strong) dispatch_semaphore_t done;
+@property(nonatomic) int state;
+@end
+@implementation PicFetchPanelRequest
+@end
+
+static void *beginPanel(NSSavePanel *panel, id delegate) {
+ PicFetchPanelRequest *request = [PicFetchPanelRequest new];
+ request.panel = panel;
+ request.panelDelegate = delegate;
+ request.done = dispatch_semaphore_create(0);
+ void *owner = (__bridge_retained void *)request;
+ [panel beginWithCompletionHandler:^(NSModalResponse response) {
+  request.state = response == NSModalResponseCancel ? 0 : -1;
+  if (response == NSModalResponseOK) {
+   NSArray<NSURL *> *urls = [panel isKindOfClass:NSOpenPanel.class] ? ((NSOpenPanel *)panel).URLs : (panel.URL ? @[panel.URL] : @[]);
+   request.urls = [urls copy];
+   request.state = urls.count ? 1 : -1;
+  }
+  panel.delegate = nil;
+  request.panel = nil;
+  request.panelDelegate = nil;
+  dispatch_semaphore_signal(request.done);
+ }];
+ return owner;
+}
+
+static panelResult waitForPanel(void *owner) {
+ if (!owner) return (panelResult){0, NULL};
+ @autoreleasepool {
+  PicFetchPanelRequest *request = (__bridge_transfer PicFetchPanelRequest *)owner;
+  dispatch_semaphore_wait(request.done, DISPATCH_TIME_FOREVER);
+  if (request.state != 1) return (panelResult){request.state, NULL};
+  return retainSelection(request.urls);
+ }
+}
+
+static void *beginOpenPanel(const char *message) {
 	NSOpenPanel *panel = [NSOpenPanel openPanel];
 	panel.message = [NSString stringWithUTF8String:message];
 	panel.canChooseFiles = YES;
 	panel.canChooseDirectories = YES;
 	panel.allowsMultipleSelection = YES;
 
-	NSModalResponse response = [panel runModal];
-	if (response == NSModalResponseCancel) return (panelResult){0, NULL};
-	if (response != NSModalResponseOK) return (panelResult){-1, NULL};
-	return retainSelection(panel.URLs);
+	return beginPanel(panel, nil);
 }
 
 // Only the matching folder can be confirmed. Navigating elsewhere never grants
@@ -104,10 +144,10 @@ static panelResult runOpenPanel(const char *message) {
 }
 @end
 
-static panelResult runSiblingFolderPanel(const char *message, const char *prompt, const char *directory) {
+static void *beginSiblingFolderPanel(const char *message, const char *prompt, const char *directory) {
  NSOpenPanel *panel = [NSOpenPanel openPanel];
  NSURL *folder = [NSURL fileURLWithPath:[NSString stringWithUTF8String:directory] isDirectory:YES];
- __attribute__((objc_precise_lifetime)) PicFetchSiblingFolderDelegate *delegate = [PicFetchSiblingFolderDelegate new];
+ PicFetchSiblingFolderDelegate *delegate = [PicFetchSiblingFolderDelegate new];
  delegate.folder = folder;
  panel.delegate = delegate;
  panel.message = [NSString stringWithUTF8String:message];
@@ -117,20 +157,16 @@ static panelResult runSiblingFolderPanel(const char *message, const char *prompt
  panel.allowsMultipleSelection = NO;
  panel.canCreateDirectories = NO;
  panel.directoryURL = folder;
- NSModalResponse response = [panel runModal];
- panel.delegate = nil;
- if (response == NSModalResponseCancel) return (panelResult){0, NULL};
- if (response != NSModalResponseOK) return (panelResult){-1, NULL};
- return retainSelection(panel.URLs);
+ return beginPanel(panel, delegate);
 }
 
-// runSavePanel shows an app-modal NSSavePanel pre-filled with name, opened
-// on dir. Same main-thread requirement as runOpenPanel above;
+// beginSavePanel shows an asynchronous NSSavePanel pre-filled with name, opened
+// on dir. Same main-thread requirement as beginOpenPanel above;
 // chooseSaveDarwin guarantees it the same way. No allowedContentTypes is
 // set: the format is already decided by which "Export as…" item the user
 // picked, and constraining the panel would only stop them naming the file
-// whatever they want. Returns the same retained-URL contract as runOpenPanel.
-static panelResult runSavePanel(const char *message, const char *dir, const char *name) {
+// whatever they want. Returns the same retained-URL contract as beginOpenPanel.
+static void *beginSavePanel(const char *message, const char *dir, const char *name) {
 	NSSavePanel *panel = [NSSavePanel savePanel];
 	panel.message = [NSString stringWithUTF8String:message];
 	panel.nameFieldStringValue = [NSString stringWithUTF8String:name];
@@ -139,10 +175,7 @@ static panelResult runSavePanel(const char *message, const char *dir, const char
 		panel.directoryURL = [NSURL fileURLWithPath:[NSString stringWithUTF8String:dir] isDirectory:YES];
 	}
 
-	NSModalResponse response = [panel runModal];
-	if (response == NSModalResponseCancel) return (panelResult){0, NULL};
-	if (response != NSModalResponseOK) return (panelResult){-1, NULL};
-	return retainSelection(panel.URL ? @[panel.URL] : @[]);
+	return beginPanel(panel, nil);
 }
 // The destination may not exist; retaining the original URL preserves its
 // implicit save permission without inspecting or bookmarking a nonexistent file.
@@ -198,20 +231,19 @@ import (
 // auto-dismissed on the first click, when that click tried and failed to
 // activate osascript. A panel owned by this app - a regular, frontmost GUI
 // app - has neither problem, and is how every native app shows this
-// dialog. AppKit requires the panel on the main thread, which on darwin is
-// exactly Fyne's UI thread, hence the fyne.DoAndWait hop; the UI behind
-// the panel freezes for the duration, which is what app-modal means. That
-// also means this must never be called *from* the UI goroutine (DoAndWait
-// would deadlock) - production only reaches it via the viewer's
-// openFileDialog background goroutine. Cancellation emits JSON null; successful
-// paths use structured transport, while other modal responses are errors.
+// dialog. AppKit panel setup and completion run on the native main thread.
+// Only setup uses fyne.DoAndWait: keeping a runModal call inside Fyne's
+// dispatcher stalls remote-panel updates on current macOS. The tracked chooser
+// worker waits for native completion, then serializes the retained native URLs.
+// Never call this from UI: setup and worker completion must remain independent.
+// Cancellation emits JSON null; successful paths use structured transport.
 func chooseFilesDarwin() ([]byte, error) {
 	cMsg := C.CString(lang.L("Open images"))
 	defer C.free(unsafe.Pointer(cMsg))
 
-	var result C.panelResult
-	fyne.DoAndWait(func() { result = C.runOpenPanel(cMsg) })
-	return decodeNativePanel(result, distribution.AppleAppStore)
+	var request unsafe.Pointer
+	fyne.DoAndWait(func() { request = C.beginOpenPanel(cMsg) })
+	return decodeNativePanel(C.waitForPanel(request), distribution.AppleAppStore)
 }
 
 // chooseSaveDarwin is chooseFilesDarwin's save-panel twin, in-process and
@@ -228,8 +260,9 @@ func chooseSaveDarwin(suggestedPath string) (fyne.URI, error) {
 	cName := C.CString(filepath.Base(suggestedPath))
 	defer C.free(unsafe.Pointer(cName))
 
-	var result C.panelResult
-	fyne.DoAndWait(func() { result = C.runSavePanel(cMsg, cDir, cName) })
+	var request unsafe.Pointer
+	fyne.DoAndWait(func() { request = C.beginSavePanel(cMsg, cDir, cName) })
+	result := C.waitForPanel(request)
 	if distribution.AppleAppStore {
 		return decodeNativeSavePanel(result)
 	}
@@ -310,13 +343,13 @@ func chooseSiblingFolderDarwin(ctx context.Context, directory string) (fyne.URI,
 	defer C.free(unsafe.Pointer(prompt))
 	path := C.CString(directory)
 	defer C.free(unsafe.Pointer(path))
-	var result C.panelResult
+	var request unsafe.Pointer
 	fyne.DoAndWait(func() {
 		if ctx.Err() == nil {
-			result = C.runSiblingFolderPanel(message, prompt, path)
+			request = C.beginSiblingFolderPanel(message, prompt, path)
 		}
 	})
-	out, err := decodeNativePanel(result, true)
+	out, err := decodeNativePanel(C.waitForPanel(request), true)
 	if err != nil {
 		return nil, err
 	}

@@ -13,6 +13,11 @@
 
 #### Bugfix
 
+- [ ] Restore Store folder consent: native panels complete without blocking the
+  Fyne dispatcher; moved file bookmarks suggest the current parent. Sandbox
+  confirmation/cancel and local regressions pass; hosted review is pending.
+  See [regression evidence](plans/2026-10-01-folder-access-regression.md).
+
 - [x] Bound Save Changes and JPEG Export secondary source reads by the encoded
   input limit, including growth after stat. Save leaves oversized sources intact;
   Export preserves pixel-only fallback. Local race, Store-tagged and static
