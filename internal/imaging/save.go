@@ -414,7 +414,7 @@ func StripJPEGMetadata(u fyne.URI) error {
 // StripJPEGMetadataContext serializes the source read as well as its rewrite.
 func StripJPEGMetadataContext(ctx context.Context, u fyne.URI) (WriteResult, error) {
 	return writeWithAccess(ctx, u, false, func(path string) (bool, error) {
-		return stripJPEGMetadata(ctx, path, nil)
+		return stripJPEGMetadata(ctx, path, nil, writeFileContextChecked)
 	})
 }
 
@@ -424,10 +424,14 @@ func StripJPEGMetadataVerified(ctx context.Context, u fyne.URI, expected SourceV
 	if !expected.Valid() {
 		return WriteResult{}, ErrSourceChanged
 	}
-	return writeWithAccess(ctx, u, false, func(path string) (bool, error) { return stripJPEGMetadata(ctx, path, &expected) })
+	return writeWithAccess(ctx, u, false, func(path string) (bool, error) {
+		return stripJPEGMetadata(ctx, path, &expected, writeFileContextChecked)
+	})
 }
 
-func stripJPEGMetadata(ctx context.Context, path string, expected *SourceVersion) (bool, error) {
+type checkedFileWriter func(context.Context, string, os.FileMode, func(io.Writer) error, func() error) error
+
+func stripJPEGMetadata(ctx context.Context, path string, expected *SourceVersion, write checkedFileWriter) (bool, error) {
 	data, info, err := readJPEGRemovalSourceVersion(ctx, path)
 	if err != nil {
 		return false, err
@@ -443,21 +447,54 @@ func stripJPEGMetadata(ctx context.Context, path string, expected *SourceVersion
 		return false, nil
 	}
 
+	digest := sha256.Sum256(data)
 	check := func() error {
-		current, err := os.Stat(path)
-		if err != nil {
-			return err
-		}
-		if !os.SameFile(info, current) || current.Size() != info.Size() || !current.ModTime().Equal(info.ModTime()) {
-			return ErrSourceChanged
-		}
-		return nil
+		return checkJPEGRemovalSource(ctx, path, info, digest)
 	}
-	err = writeFileContextChecked(ctx, path, info.Mode().Perm(), func(w io.Writer) error {
+	err = write(ctx, path, info.Mode().Perm(), func(w io.Writer) error {
 		_, err := w.Write(p.output)
 		return err
 	}, check)
 	return err == nil, err
+}
+
+// checkJPEGRemovalSource streams the current bytes before replacement without
+// retaining another full source buffer. This is a final check, not filesystem CAS.
+func checkJPEGRemovalSource(ctx context.Context, path string, original os.FileInfo, digest SourceDigest) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	unchanged := func(current os.FileInfo) bool {
+		return os.SameFile(original, current) && current.Size() == original.Size() && current.ModTime().Equal(original.ModTime())
+	}
+	current, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if !unchanged(current) {
+		return ErrSourceChanged
+	}
+	hash := sha256.New()
+	n, err := io.Copy(hash, contextRead{ctx: ctx, in: io.LimitReader(f, original.Size()+1)})
+	if err != nil {
+		return err
+	}
+	if n != original.Size() || !bytes.Equal(hash.Sum(nil), digest[:]) {
+		return ErrSourceChanged
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	current, err = os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !unchanged(current) {
+		return ErrSourceChanged
+	}
+	return nil
 }
 
 func readJPEGRemovalSourceVersion(ctx context.Context, path string) ([]byte, os.FileInfo, error) {

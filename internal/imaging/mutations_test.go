@@ -28,6 +28,68 @@ type heldMutationPixels struct {
 	entered, release chan struct{}
 }
 
+func TestMetadataRemovalRechecksSourceAtCommit(t *testing.T) {
+	for _, change := range []string{"unchanged", "rewritten", "replaced"} {
+		t.Run(change, func(t *testing.T) {
+			source := uitest.TempGPSJPEGURI(t, "source.jpg", 8, 4, 48.858222, 2.2945)
+			data, _, version, err := ReadAndProbeSnapshot(context.Background(), source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			intervening := bytes.Clone(data)
+			if change == "rewritten" {
+				intervening[len(intervening)-1] ^= 1
+			}
+			var stagedPath string
+			write := func(ctx context.Context, path string, perm os.FileMode, encode func(io.Writer) error, check func() error) error {
+				return writeFileContextChecked(ctx, path, perm, func(w io.Writer) error {
+					stagedPath = w.(contextWrite).out.(*os.File).Name()
+					if err := encode(w); err != nil {
+						return err
+					}
+					if change == "unchanged" {
+						return nil
+					}
+					target := source.Path()
+					if change == "replaced" {
+						target = filepath.Join(filepath.Dir(target), "replacement.jpg")
+					}
+					if err := os.WriteFile(target, intervening, 0o600); err != nil {
+						return err
+					}
+					if err := os.Chtimes(target, version.info.ModTime(), version.info.ModTime()); err != nil {
+						return err
+					}
+					if change == "replaced" {
+						return os.Rename(target, source.Path())
+					}
+					return nil
+				}, check)
+			}
+			committed, err := stripJPEGMetadata(context.Background(), source.Path(), &version, write)
+			if stagedPath == "" {
+				t.Fatal("test did not reach the staged commit boundary")
+			}
+			if change == "unchanged" {
+				if err != nil || !committed {
+					t.Fatalf("unchanged source: committed=%v, %v", committed, err)
+				}
+				return
+			}
+			if !errors.Is(err, ErrSourceChanged) || committed {
+				t.Fatalf("changed source: committed=%v, %v", committed, err)
+			}
+			after, err := os.ReadFile(source.Path())
+			if err != nil || !bytes.Equal(after, intervening) {
+				t.Fatalf("refusal changed intervening bytes: %v", err)
+			}
+			if _, err := os.Stat(stagedPath); !os.IsNotExist(err) {
+				t.Fatalf("refusal left staging file: %v", err)
+			}
+		})
+	}
+}
+
 func TestFileMutationCancellationLeavesOriginalBytes(t *testing.T) {
 	for _, when := range []string{"before admission", "during encoding", "before rename"} {
 		t.Run(when, func(t *testing.T) {

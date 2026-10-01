@@ -149,3 +149,40 @@ GoLand Project inspection of exifwin/exifwin_test.go included weak warnings.
 Six duplicate fragments match the existing exact qodana.yaml exclusion; no new
 actionable issues or timeouts. No new test files or shard assignments.
 Latest-head hosted CI and fresh review still follow this test-only correction.
+
+### Subsequent review fix: final source content check
+
+Thread 4154911230 at reviewed fa21e17 confirmed that an in-place equal-length
+rewrite with restored modification time could bypass the final metadata-only
+check and be overwritten by removal derived from the older bytes. The final
+pre-rename check now streams a bounded current source digest, verifies opened
+identity/size/time, and checks the path identity/size/time again after hashing.
+The reader is bounded to the originally admitted size plus one byte and uses
+context cancellation, without retaining another full source buffer. Both verified
+and compatibility removal use this guard. A later external mutation between the
+final observation and rename remains possible; filesystem compare-and-swap is
+not claimed. No authority or dependency changes.
+
+TestMetadataRemovalRechecksSourceAtCommit deterministically changes the source
+after staging through its private operation writer, without a mutable package seam.
+It covers unchanged success, equal-length rewritten bytes with restored time,
+and replaced identity with identical bytes. It was red before the fix and again
+with the content comparison disabled; restored source passes. Refusal preserves
+intervening bytes and removes staging files. Focused imaging races, full affected
+EXIF package races and make verify-build pass. An initial Store-tagged
+regression run found a test assumption about sibling staging incompatible with
+the native private replacement directory. The operation writer seam now captures
+its own staging write on either platform; requalification follows below. Logs: /private/tmp/picfetch-final-content-{red,negative,
+race,exif-race,store,verify}.log.
+GoLand inspected save.go and mutations_test.go including weak warnings; save.go
+has no findings. The existing WriteResult error-path warning in mutations_test.go
+is covered by the exact GoDfaErrorMayBeNotNil exclusion: a value result retains
+meaningful Committed even on error. No timeouts or new actionable warnings.
+Latest-head code/security review and hosted gates remain pending after this fix.
+
+Requalified with the portable staging observer replaced by the private writer:
+focused imaging races and actual Store-tagged imaging/EXIF tests pass, and
+disabling the content comparison still reproduces the equal-length overwrite.
+The per-file GoLand result is unchanged (only the assessed/excluded value-result
+warning); final build/vet checks pass. The earlier Store test failure is not
+claimed as a pass. No test or isolation case is skipped.

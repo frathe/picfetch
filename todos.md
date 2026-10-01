@@ -13,11 +13,12 @@
 
 #### Bugfix
 
-- [ ] Finish PR #75 follow-up review: all three fixes are committed/pushed and
-  threads 4154549312, 4154549317, 4154549323 are resolved. CI exposed a legacy
-  clean-source success expectation, now corrected to refusal; full local EXIF
-  races, Store tests and GoLand pass. Fresh latest-head code/security review,
-  hosted CI and a refreshed App Store test package remain pending.
+- [ ] Finish PR #75 follow-up review: the three earlier fixes and corrected
+  legacy clean-source expectation are committed/pushed. Thread 4154911230 now
+  adds bounded source content verification before removal's final rename, with
+  red/negative regressions and passing focused races, Store tests, build/vet and
+  GoLand. Fresh latest-head code/security review, hosted CI and a refreshed
+  App Store test package remain pending.
 
 - [x] Preserve unsuccessful termination when SIGTERM arrives during animated
   help restoration; independent signal buffers protect SIGTERM from repeated
