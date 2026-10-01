@@ -13,6 +13,11 @@
 
 #### Bugfix
 
+- [ ] Bind confirmed metadata removal to inspected file identity and contents;
+  bind exported metadata to displayed source bytes, including cache and Save.
+  Local regressions/race/Store checks pass; latest hosted review is pending.
+  See [source-binding evidence](plans/2026-10-01-metadata-source-binding.md).
+
 - [ ] Restore Store folder consent: native panels complete without blocking the
   Fyne dispatcher; moved file bookmarks suggest the current parent. Sandbox
   confirmation/cancel and local regressions pass; hosted review is pending.
@@ -97,6 +102,13 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Ronin returned from lunch on 2026-09-30 and explicitly reauthorized committing and pushing the current state.
 
 ## Deferred
+
+### Recursive scan work budget
+
+- [ ] Count examined files/directories and batch directory enumeration, including
+  rejected files and empty trees. Codex priority advice (PR #75 thread 4148307910)
+  treats this as deferrable availability hardening of user-selected trees;
+  image admission limits, cancellation and cycle protection already remain.
 
 <!--
 Inactive pause record, retained for reuse after Ronin authorizes another CI

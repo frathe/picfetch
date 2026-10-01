@@ -2,6 +2,7 @@ package uitest
 
 import (
 	"io"
+	"os"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -73,6 +74,14 @@ type uriReader struct {
 }
 
 func (r uriReader) URI() fyne.URI { return r.u }
+
+// Stat preserves identity when the controlled factory returns a real descriptor.
+func (r uriReader) Stat() (os.FileInfo, error) {
+	if f, ok := r.ReadCloser.(interface{ Stat() (os.FileInfo, error) }); ok {
+		return f.Stat()
+	}
+	return nil, os.ErrInvalid
+}
 
 // ReadCloser supplies controlled read/close effects without replacing a global
 // storage function. Tests own synchronization and wait for completion before

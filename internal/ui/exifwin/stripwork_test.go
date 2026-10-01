@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image/color"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,8 +15,10 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/imaging"
+	"github.com/frathe/picfetch/internal/ui/widgets"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -27,10 +30,10 @@ func TestMetadataRemovalLeavesQueuedWindowInputResponsive(t *testing.T) {
 		w.Show()
 		w.Settle()
 		entered, release := make(chan struct{}), make(chan struct{})
-		w.stripFile = func(ctx context.Context, u fyne.URI) (imaging.WriteResult, error) {
+		w.stripFile = func(ctx context.Context, u fyne.URI, version imaging.SourceVersion) (imaging.WriteResult, error) {
 			close(entered)
 			<-release
-			return imaging.StripJPEGMetadataContext(ctx, u)
+			return imaging.StripJPEGMetadataVerified(ctx, u, version)
 		}
 		actions := make(chan func(), 2)
 		uiDone := make(chan struct{})
@@ -78,16 +81,16 @@ func TestMetadataRemovalCancellationDistinguishesCommittedDiskChanges(t *testing
 				w.Show()
 				w.Settle()
 				entered, release := make(chan struct{}), make(chan struct{})
-				w.stripFile = func(ctx context.Context, u fyne.URI) (imaging.WriteResult, error) {
+				w.stripFile = func(ctx context.Context, u fyne.URI, version imaging.SourceVersion) (imaging.WriteResult, error) {
 					var result imaging.WriteResult
 					var err error
 					if committed {
-						result, err = imaging.StripJPEGMetadataContext(ctx, u)
+						result, err = imaging.StripJPEGMetadataVerified(ctx, u, version)
 					}
 					close(entered)
 					<-release
 					if !committed {
-						result, err = imaging.StripJPEGMetadataContext(ctx, u)
+						result, err = imaging.StripJPEGMetadataVerified(ctx, u, version)
 					}
 					return result, err
 				}
@@ -169,7 +172,7 @@ func TestMetadataRemovalBusyErrorDeliveryAndRetry(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
 	var calls atomic.Int32
-	w.stripFile = func(_ context.Context, _ fyne.URI) (imaging.WriteResult, error) {
+	w.stripFile = func(_ context.Context, _ fyne.URI, _ imaging.SourceVersion) (imaging.WriteResult, error) {
 		calls.Add(1)
 		once.Do(func() { close(entered) })
 		<-release
@@ -205,7 +208,7 @@ func TestMetadataRemovalBusyErrorDeliveryAndRetry(t *testing.T) {
 	if w.StripButton().Disabled() {
 		t.Error("failed removal cannot be retried")
 	}
-	w.stripFile = imaging.StripJPEGMetadataContext
+	w.stripFile = imaging.StripJPEGMetadataVerified
 	w.performStrip(source)
 	w.Settle()
 	if len(host.toasts) != 2 || host.after != 1 {
@@ -213,5 +216,79 @@ func TestMetadataRemovalBusyErrorDeliveryAndRetry(t *testing.T) {
 	}
 	if northHolds(w.north, w.stripBar) {
 		t.Error("successful retry left removal in the panel")
+	}
+}
+
+func TestMetadataRemovalBindsConfirmedSource(t *testing.T) {
+	for _, change := range []string{"unchanged link", "retargeted link", "identical replacement", "changed bytes", "refreshed while confirming"} {
+		t.Run(change, func(t *testing.T) {
+			app, host := gpsApp(t)
+			source, _ := host.DisplayedFile()
+			original := readWindowFile(t, source)
+			private := filepath.Join(t.TempDir(), "private.jpg")
+			privateBytes := uitest.GPSJPEG(t, 8, 4, -33.856, 151.215)
+			if change == "identical replacement" {
+				privateBytes = bytes.Clone(original)
+			}
+			if err := os.WriteFile(private, privateBytes, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if change == "unchanged link" || change == "retargeted link" {
+				link := filepath.Join(filepath.Dir(source.Path()), "selected.jpg")
+				if err := os.Symlink(source.Path(), link); err != nil {
+					t.Skipf("symlink unavailable: %v", err)
+				}
+				source = storage.NewFileURI(link)
+				host.current = func() (fyne.URI, bool) { return source, true }
+			}
+			w := newTestWindow(t, app, host)
+			w.Show()
+			w.Settle()
+			t.Cleanup(func() { w.Window().Close(); w.Settle() })
+			w.StripButton().OnTapped()
+			panel := w.Window().Canvas().Focused().(*widgets.ChoicePanel)
+			switch change {
+			case "retargeted link":
+				if err := os.Remove(source.Path()); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(private, source.Path()); err != nil {
+					t.Fatal(err)
+				}
+			case "identical replacement":
+				if err := os.Rename(private, source.Path()); err != nil {
+					t.Fatal(err)
+				}
+				private = source.Path()
+			case "changed bytes", "refreshed while confirming":
+				if err := os.WriteFile(source.Path(), privateBytes, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				private = source.Path()
+			}
+			if change == "refreshed while confirming" {
+				w.Refresh()
+				w.Settle()
+			}
+			panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+			panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+			w.Settle()
+			if change == "unchanged link" {
+				if host.after != 1 || !imaging.ReadMetadata(readWindowFile(t, source)).Empty() {
+					t.Fatal("unchanged symlink source cannot be stripped")
+				}
+			} else {
+				got, err := os.ReadFile(private)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(got, privateBytes) || host.after != 0 {
+					t.Fatal("confirmation mutated a replacement source")
+				}
+				if len(host.toasts) != 1 {
+					t.Fatalf("missing refusal: %v", host.toasts)
+				}
+			}
+		})
 	}
 }

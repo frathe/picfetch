@@ -31,6 +31,7 @@ type Snapshot struct {
 	Rotation             int
 	Vector, Animated     bool
 	Duration             time.Duration
+	Digest               imaging.SourceDigest
 	FileSize             int64
 	HasEXIF, Preview     bool
 }
@@ -163,7 +164,7 @@ func (f *Feature) present(source fyne.URI, loaded *imaging.LoadedImage, transiti
 	f.clearVector()
 	id := Identity{Source: source, Revision: f.revision}
 	f.snapshot = Snapshot{Requested: id, Displayed: id, Vector: loaded.Vector != nil,
-		Animated: len(loaded.Frames) > 1, FileSize: loaded.FileSize, HasEXIF: loaded.HasEXIF, Preview: loaded.Preview}
+		Animated: len(loaded.Frames) > 1, FileSize: loaded.FileSize, HasEXIF: loaded.HasEXIF, Preview: loaded.Preview, Digest: loaded.Digest}
 	if f.snapshot.Animated {
 		for _, delay := range loaded.Delays {
 			f.snapshot.Duration += delay

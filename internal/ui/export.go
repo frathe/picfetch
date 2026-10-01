@@ -131,7 +131,10 @@ func (v *viewer) exportAs(ext string) {
 	if !ok {
 		return
 	}
-	req := exportRequest{ext: ext, opts: v.exportOptions.Options(), source: capture.Identity.Source, pixels: capture.Pixels, choose: filepicker.ChooseSave, write: v.fileWork.export}
+	opts := v.exportOptions.Options()
+	opts.VerifySource = true
+	opts.SourceDigest = capture.Digest
+	req := exportRequest{ext: ext, opts: opts, source: capture.Identity.Source, pixels: capture.Pixels, choose: filepicker.ChooseSave, write: v.fileWork.export}
 
 	// chooser is shared with openFileDialog's own goroutine rather than
 	// given a twin of its own: it means "the native file dialog

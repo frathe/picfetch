@@ -118,17 +118,18 @@ type Window struct {
 	// see tiles.go for why the widget's own fetching can't be left to it.
 	// warming and warmGen track the prefetch that fills the first view,
 	// warm is the completion.Signal tests wait on - see internal/completion.
-	tiles       *tileFetcher
-	warming     bool
-	warmGen     int
-	warm        completion.Signal
-	warmWorkers sync.WaitGroup
-	ui          UIQueue
-	stopped     bool
-	stripFile   func(context.Context, fyne.URI) (imaging.WriteResult, error)
-	stripWork   stripMutation
-	metadata    metadataRead
-	heic        *heic.Capability
+	tiles         *tileFetcher
+	warming       bool
+	warmGen       int
+	warm          completion.Signal
+	warmWorkers   sync.WaitGroup
+	ui            UIQueue
+	stopped       bool
+	stripFile     func(context.Context, fyne.URI, imaging.SourceVersion) (imaging.WriteResult, error)
+	stripWork     stripMutation
+	metadata      metadataRead
+	sourceVersion imaging.SourceVersion
+	heic          *heic.Capability
 
 	onClosed func()
 }
@@ -144,7 +145,7 @@ func New(application fyne.App, host Host) *Window {
 		host:      host,
 		tiles:     newTileFetcher(osmTiles, nil),
 		ui:        fyneQueue{},
-		stripFile: imaging.StripJPEGMetadataContext,
+		stripFile: imaging.StripJPEGMetadataVerified,
 	}
 
 	// The panel is read against the photo it describes, so it floats above
@@ -353,12 +354,13 @@ func (w *Window) requestStrip() {
 		return
 	}
 
+	version := w.sourceVersion
 	if w.showConfirm(confirmation{
 		title:      lang.L("Remove Metadata?"),
 		message:    fmt.Sprintf(lang.L("Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Image data and essential orientation/color instructions are preserved without recompression. This cannot be undone."), u.Name()),
 		action:     lang.L("Remove Metadata"),
 		importance: widget.DangerImportance,
-		onConfirm:  func() { w.performStrip(u) },
+		onConfirm:  func() { w.performStripVersion(u, version) },
 		onCancel:   func() { w.pending = nil },
 		onClosed:   func() { w.pending = nil },
 	}) == nil {

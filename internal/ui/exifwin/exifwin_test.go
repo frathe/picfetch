@@ -936,7 +936,7 @@ func TestJPEGMetadataRemovalUI(t *testing.T) {
 		defer w.Window().Close()
 		// Exercise error delivery through the existing per-window mutation
 		// boundary without making the UI test allocate a large image.
-		w.stripFile = func(_ context.Context, _ fyne.URI) (imaging.WriteResult, error) {
+		w.stripFile = func(_ context.Context, _ fyne.URI, _ imaging.SourceVersion) (imaging.WriteResult, error) {
 			return imaging.WriteResult{}, imaging.ErrJPEGMetadataMemory
 		}
 		if _, found := absolutePos(w.Window().Content(), w.StripButton()); !found {

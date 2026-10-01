@@ -17,6 +17,7 @@ import (
 // WriteResult distinguishes an accomplished replacement from cancelled work.
 // Cancelling presentation after Committed became true cannot undo the file.
 type WriteResult struct {
+	Digest    SourceDigest // exact bytes encoded by this process, never a path reread
 	Path      string
 	Committed bool
 }

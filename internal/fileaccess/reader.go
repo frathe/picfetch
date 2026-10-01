@@ -2,6 +2,7 @@ package fileaccess
 
 import (
 	"context"
+	"os"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -33,4 +34,13 @@ type scopedReader struct {
 func (r *scopedReader) Close() error {
 	r.once.Do(func() { r.err = r.URIReadCloser.Close(); r.release() })
 	return r.err
+}
+
+// Stat exposes identity from the same open descriptor, never a second path lookup.
+// Non-file storage readers cannot supply a filesystem mutation identity.
+func (r *scopedReader) Stat() (os.FileInfo, error) {
+	if f, ok := r.URIReadCloser.(interface{ Stat() (os.FileInfo, error) }); ok {
+		return f.Stat()
+	}
+	return nil, os.ErrInvalid
 }

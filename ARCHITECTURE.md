@@ -930,6 +930,7 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 | File | Responsibility |
 |------|----------------|
 | `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` admits foreground images even over budget; generation-bound `CacheWriter.AddIfRoom` admits display preloads only into remaining space without eviction or promotion. `RefreshIfRoom` lets Favorite warming replace stale keys, dropping only that key if the replacement cannot fit. `AddIfFits` keeps its existing individual-size gate and may evict. `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
+| `sourceversion.go` | Descriptor identity plus encoded-byte SHA-256 snapshots for confirmed JPEG removal; display/cache digests bind export metadata to decoded pixels. |
 | `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `CaptureDateContext` (cancellable metadata reads), `DecodeLoaded` (pixels), `DecodeRecord` (complete full-cache facts), `LoadImage`, `IsSupportedImage`, `SupportedExtensions`, `MaxEncodedBytes` / `InputTooLargeError`. |
 | `heic.go` | Canonical native HEIC probe/pixels, independent output validation, `ReadMetadataContext` and worker pixel budget. No image decoder is globally registered. |
 | `recognized.go` | Static `RecognizedExtensions` for package declarations and portable format rules, distinct from unconditional runtime `SupportedExtensions`. |

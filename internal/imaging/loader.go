@@ -11,6 +11,7 @@ package imaging
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"image"
 	_ "image/jpeg" // registers JPEG with image.Decode
@@ -96,6 +97,7 @@ func IsSupportedImage(u fyne.URI) bool {
 type LoadedImage struct {
 	Frames   []image.Image
 	Delays   []time.Duration // parallel to Frames; unused when len(Frames) == 1
+	Digest   SourceDigest    // encoded source of these pixels, retained through cache hits
 	FileSize int64           // raw byte count read by ReadAndProbe, for the info overlay
 
 	// Vector is the parsed source of an SVG, retained so the app can
@@ -357,6 +359,10 @@ func ReadAndProbe(ctx context.Context, u fyne.URI) (data []byte, bounds image.Re
 	if err != nil {
 		return nil, image.Rectangle{}, err
 	}
+	return probeSource(ctx, data)
+}
+
+func probeSource(ctx context.Context, data []byte) ([]byte, image.Rectangle, error) {
 	if heic.IsData(data) {
 		result, readErr := readHEIC(ctx, data, false)
 		if readErr != nil {
@@ -471,6 +477,7 @@ func DecodeRecord(ctx context.Context, data []byte, maxAnimBytes int64) (*Loaded
 		return nil, err
 	}
 	loaded.FileSize = int64(len(data))
+	loaded.Digest = sha256.Sum256(data)
 	if !heic.IsData(data) {
 		loaded.HasEXIF = !ReadMetadata(data).Empty()
 	}
