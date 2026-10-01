@@ -132,11 +132,14 @@ The refreshed universal sandbox test app is version 1.1.11, build 483:
 bin/apple-store-e2e-2026-10-01-3453f1b/PicFetch.app. Packaging guards and all
 24 manifest payload hashes pass. No merge or distribution submission occurred.
 
-In this exact app, the panel opens at the correct new fixture folder and the
-exact folder can be selected. Automatic approval review requires explicit user
-permission for this app/test folder before clicking Allow Folder Access; that
-extra smoke check is pending. Original full consent/capture qualification above
-remains source-specific at f36f1ca; native consent/sizing source is unchanged.
+In this exact app, the panel opens at the correct new generated fixture folder.
+After an initial automatic approval rejection, Ronin explicitly approved that
+app/test folder. Clicking the real approval button closes the panel and admits
+both images; Right reaches the sibling and the grant survives complete quit/
+relaunch without another panel. Both processes exit 0. No approval check remains
+blocked. Original cancellation/Return/capture qualification above remains
+source-specific at f36f1ca; native consent/sizing source is unchanged. The padded
+Sky app-state image is not used as proof of refreshed exact capture dimensions.
 See [current shared qualification and gate links](2026-10-01-metadata-source-binding.md#current-source-qualification-at-3453f1b).
 Final documentation-head reviews and hosted checks are tracked in PR #75,
 carrying unchanged-code evidence at its recorded revision.

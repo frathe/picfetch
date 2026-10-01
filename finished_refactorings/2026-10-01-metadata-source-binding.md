@@ -217,15 +217,20 @@ checked. Source/worktree provenance is in the adjacent manifest. The preserved
 working-tree packaging metadata supplies build 483. No merge, submission or
 distribution signing occurred.
 
-The exact refreshed native app starts in 1280x800 mode and its consent panel
-opens at the correct new generated fixture folder with spaces. The exact folder
-can be selected. Automatic approval review rejected clicking Allow Folder Access
-because explicit permission for this specific app/test folder is required. User
-approval has been requested; that refreshed approval-button smoke check remains
-unverified until permission arrives. The earlier full approval/button/cancel/
-sibling reuse/relaunch and measured captures remain qualified at f36f1ca;
-consent and sizing source is unchanged since its recorded fixes. Actual mixed-
-monitor movement and direct Finder drag retain their qualification limits.
+The exact refreshed native app starts with -fixed-size-mode=1280x800. Its
+consent panel opens at the correct new generated fixture folder with spaces.
+Automatic approval review first rejected clicking Allow Folder Access because
+specific app/folder permission was required. Ronin then explicitly approved the
+exact generated test folder; the retry selected it and clicked the real button.
+The panel closes and first.jpg loads as 1/2; Right reaches second.jpg as 2/2.
+A complete quit (exit 0), relaunch with the same flag and native Open With load
+first.jpg as 1/2 without another permission panel; the second quit also exits 0.
+Logs: /private/tmp/picfetch-store-final-3453f1b-{run,relaunch}.log. No native
+approval check remains blocked. The earlier cancellation/Return approval and
+measured captures remain qualified at f36f1ca, with consent/sizing source
+unchanged. Sky's refreshed app-state image has padded dimensions and is not used
+as exact window-capture proof. Actual mixed-monitor movement and direct Finder
+drag retain their qualification limits.
 
 This completion change is documentation only. It carries current unchanged-code
 inspection/build/package evidence at 3453f1b. Fresh reviews, CodeQL, configured

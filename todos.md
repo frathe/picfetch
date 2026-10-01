@@ -16,9 +16,10 @@
 - [x] Complete PR #75 source follow-ups: all fixes are committed/pushed and
   all 20 threads have dispositions. Fresh code/security-focused reviews, full
   hosted CI, CodeQL and assessed Qodana pass at 3453f1b. Universal Store test
-  build 483 is refreshed and its 24 payload hashes verified. The new native
-  approval-button smoke check awaits explicit test-folder access permission;
-  original complete folder/capture qualification remains source-specific.
+  build 483 is refreshed and its 24 payload hashes verified. Native folder
+  approval/button, sibling browsing and grant persistence after full relaunch
+  pass with Ronin's explicit test-folder permission. Original cancellation/
+  capture qualification remains source-specific.
   Final documentation-head review/checks are tracked in PR #75.
   See [current qualification](finished_refactorings/2026-10-01-metadata-source-binding.md).
 
