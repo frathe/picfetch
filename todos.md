@@ -15,9 +15,9 @@
 
 - [ ] Finish PR #75 follow-up review: independent help signal delivery, native
   installation before the picker, and verified clean-source removal are fixed
-  locally. Focused races, Store tests, build/vet and GoLand pass. SSH signing
-  currently blocks commits/pushes; fresh code/security review, CI and a refreshed
-  App Store test package still follow. Threads 4154549312, 4154549317, 4154549323.
+  locally. Focused races, Store tests, build/vet and GoLand pass. Fix commits are
+  being pushed; fresh code/security review, CI and a refreshed App Store test
+  package still follow. Threads 4154549312, 4154549317, 4154549323.
 
 - [x] Preserve unsuccessful termination when SIGTERM arrives during animated
   help restoration; independent signal buffers protect SIGTERM from repeated

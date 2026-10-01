@@ -32,6 +32,8 @@ func runStartup(args []string, stdout, stderr io.Writer, ops startupOps) (code i
 	if ops.heicWorker() || ops.similarityWorker() {
 		return 0, nil
 	}
+	// Install the native delegate before terminal interaction or Fyne/GLFW.
+	ops.installOpenWith()
 	if opts.FixedSizeMode && opts.FixedSize == nil {
 		selected, selectionErr := ops.selectResolution(stdout)
 		if selectionErr != nil {
@@ -39,8 +41,6 @@ func runStartup(args []string, stdout, stderr io.Writer, ops startupOps) (code i
 		}
 		opts.FixedSize = &selected
 	}
-	// The native delegate must be installed before Fyne/GLFW initialization.
-	ops.installOpenWith()
 	policy, err := ops.capture(opts)
 	if err != nil {
 		return 1, err

@@ -300,6 +300,9 @@ func TestFixedSizeStartup(t *testing.T) {
 			failure := errors.New("selection cancelled")
 			picked := launch.Resolution{Width: 1440, Height: 900}
 			ops.selectResolution = func(_ io.Writer) (launch.Resolution, error) {
+				if !slices.Equal(calls, []string{"heic", "similarity", "native"}) {
+					t.Errorf("native handling must precede picker interaction: %v", calls)
+				}
 				calls = append(calls, "picker")
 				if cancelled {
 					return launch.Resolution{}, failure
@@ -315,12 +318,12 @@ func TestFixedSizeStartup(t *testing.T) {
 			}
 			code, err := runStartup([]string{"-fixed-size-mode"}, io.Discard, io.Discard, ops)
 			if cancelled {
-				if code != 1 || !errors.Is(err, failure) || !slices.Equal(calls, []string{"heic", "similarity", "picker"}) {
+				if code != 1 || !errors.Is(err, failure) || !slices.Equal(calls, []string{"heic", "similarity", "native", "picker"}) {
 					t.Fatalf("cancel: %d %v %v", code, err, calls)
 				}
 				return
 			}
-			if code != 0 || err != nil || slices.Index(calls, "picker") != 2 || slices.Index(calls, "picker") > slices.Index(calls, "app") {
+			if code != 0 || err != nil || slices.Index(calls, "picker") != 3 || slices.Index(calls, "picker") > slices.Index(calls, "app") {
 				t.Fatalf("startup: %d %v %v", code, err, calls)
 			}
 		})

@@ -22,7 +22,8 @@ Task graph: 1 -> 2 -> 3 -> 4. All tasks owned by T0 inline.
 
 1. CLI and console: `launch.Resolution`, four value presets, flag parsing,
    optional `=WIDTHxHEIGHT` for scripts, raw terminal selection with restoration
-   and cancellation before desktop effects. Files: internal/launch, consolehelp,
+   and cancellation before app creation or storage opens. Files: internal/launch,
+   consolehelp,
    main startup and existing tests. Verify focused parser, picker and startup
    tests with `go test -tags no_emoji,nodynamic ./internal/launch ./internal/consolehelp .`.
 2. Window constraint: application decorator in internal/screenshots routes all
@@ -222,3 +223,22 @@ again broke successful skips and SIGTERM reporting, then restoration passed.
 Focused console races and GoLand Project inspections of help.go/help_test.go
 (errorsOnly=false, zero findings/timeouts) pass. Latest hosted evidence is
 recorded through the ongoing PR #75 review loop; no new dependency or test file.
+
+### Subsequent review fix: native installation before picker
+
+Thread 4154549317 confirmed that picker interaction preceded native installation,
+contrary to the startup contract. The bridge now installs immediately after
+private-worker dispatch, before terminal selection; policy/storage/app effects
+still follow an accepted selection. The existing startup test asserts installation
+inside the picker and checks cancellation stops before capture/prepare/app. Both
+accepted and cancelled cases failed before the fix and with the old order restored
+for a negative check, then passed. Private-worker early exits remain covered.
+
+Focused startup races, actual appleappstore-tagged startup tests, and the combined
+make verify-build pass. GoLand Project inspections of main_startup.go and
+main_startup_test.go include weak warnings and report no findings/timeouts. No
+new test files or root UI tests; original exact exclusions remain applicable.
+Logs: /private/tmp/picfetch-native-picker-order-{red,race}.log,
+/private/tmp/picfetch-native-order-negative.log and
+/private/tmp/picfetch-review-three-fixes-{race,store,verify}.log.
+Latest-head review/CI evidence and the refreshed package follow through PR #75.
