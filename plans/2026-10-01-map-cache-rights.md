@@ -256,3 +256,34 @@ no new root UI test, package, dependency or worker was added. Zero delegates.
 Fresh code/security rounds and exact-head hosted gates remain required after
 this fix. Final review-loop outcomes are tracked on PR #75; Store qualification
 remains a separate open item.
+
+## Cache directive grammar and Vary follow-up
+
+The fresh 1a7941a code round reported discussion_r4158356565 (quoted commas),
+discussion_r4158356579 (repeated Expires) and discussion_r4158356588 (Vary: *).
+Quoted extension text could inject a fake max-age into the comma splitter, and
+Vary wildcard metadata was discarded: both defects reproduced before fixing.
+The repeated Expires report is rejected: RFC 9111 section 4.2.1 permits selecting
+the first occurrence, which Header.Get does. The new positive regression keeps
+that explicitly allowed policy; source comments record the reason.
+
+New cachecontrol.go validates tokens, quoted strings and quoted-pairs, splitting
+only outside quotes. Joined repeated Cache-Control fields preserve quoted state;
+malformed grammar is non-storable. Vary metadata is retained within the existing
+16 KiB header bound, and wildcard responses use non-storable single-view delivery.
+HTTP request-count/validator tests cover Vary: *; freshness cases cover embedded
+fake directives, escaped quotes/backslashes, a real following max-age, malformed
+extensions and wildcard lists. Both feature map race suites and focused vet pass.
+GoLand inspected all three changed Go files, weak warnings included: no findings.
+make verify-build passes formatting/configuration/notice checks, full vet and build.
+ARCHITECTURE.md now distinguishes the shared 16 MiB LRU budget from viewport
+pixels and indexes the new grammar helper and captured-session renderer retirement.
+
+No dependency/version, copied implementation, new test file, UI string or worker
+was added. Existing exact tiles_test.go duplication exclusion remains applicable.
+Zero delegates. Fresh code review is required after both fixes and the rejection,
+then a separate security-focused round and exact-head hosted gates. Final outcomes
+are tracked on PR #75. Standards evidence: RFC 9111 sections
+[4.2.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.1),
+[4.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1) and
+[5.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2).

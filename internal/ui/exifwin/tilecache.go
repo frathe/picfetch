@@ -33,7 +33,7 @@ func tileWeight(entry *cachedTile) int64 {
 func cacheTile(data []byte, previous, response http.Header, now time.Time) *cachedTile {
 	header := make(http.Header)
 	size := 0
-	for _, name := range []string{"Cache-Control", "Expires", "Date", "Age", "ETag", "Last-Modified"} {
+	for _, name := range []string{"Cache-Control", "Expires", "Date", "Age", "ETag", "Last-Modified", "Vary"} {
 		values, exists := response[http.CanonicalHeaderKey(name)]
 		if !exists && name != "Date" && name != "Age" {
 			values = previous.Values(name)
@@ -58,6 +58,7 @@ func cacheTile(data []byte, previous, response http.Header, now time.Time) *cach
 	lifetime := 7 * 24 * time.Hour
 	if _, present := header["Expires"]; present {
 		lifetime = 0
+		// RFC 9111 section 4.2.1 permits the first repeated Expires value.
 		if expires, err := http.ParseTime(header.Get("Expires")); err == nil {
 			if dateErr == nil {
 				lifetime = expires.Sub(date)
@@ -66,31 +67,35 @@ func cacheTile(data []byte, previous, response http.Header, now time.Time) *cach
 			}
 		}
 	}
-	noCache, maxAgeSeen := false, false
-	for _, value := range header.Values("Cache-Control") {
-		for _, directive := range strings.Split(value, ",") {
-			name, argument, _ := strings.Cut(strings.TrimSpace(directive), "=")
-			switch strings.ToLower(strings.TrimSpace(name)) {
-			case "no-store":
+	for _, value := range header.Values("Vary") {
+		for _, field := range strings.Split(value, ",") {
+			if strings.TrimSpace(field) == "*" {
 				entry.noStore = true
-			case "no-cache":
+			}
+		}
+	}
+	directives, valid := parseCacheControl(strings.Join(header.Values("Cache-Control"), ","))
+	noCache, maxAgeSeen := !valid, false
+	if !valid {
+		entry.noStore = true
+	}
+	for _, directive := range directives {
+		switch directive.name {
+		case "no-store":
+			entry.noStore = true
+		case "no-cache":
+			noCache = true
+		case "max-age":
+			if maxAgeSeen {
 				noCache = true
-			case "max-age":
-				if maxAgeSeen {
-					noCache = true
-				}
-				maxAgeSeen = true
-				argument = strings.TrimSpace(argument)
-				if len(argument) >= 2 && argument[0] == '"' && argument[len(argument)-1] == '"' {
-					argument = argument[1 : len(argument)-1]
-				}
-				invalidDigit := strings.IndexFunc(argument, func(value rune) bool { return value < '0' || value > '9' }) >= 0
-				seconds, err := strconv.ParseInt(argument, 10, 64)
-				if err != nil || invalidDigit || seconds < 0 || seconds > int64((1<<63-1)/time.Second) {
-					noCache = true
-				} else {
-					lifetime = time.Duration(seconds) * time.Second
-				}
+			}
+			maxAgeSeen = true
+			invalidDigit := strings.IndexFunc(directive.argument, func(value rune) bool { return value < '0' || value > '9' }) >= 0
+			seconds, err := strconv.ParseInt(directive.argument, 10, 64)
+			if err != nil || invalidDigit || seconds < 0 || seconds > int64((1<<63-1)/time.Second) {
+				noCache = true
+			} else {
+				lifetime = time.Duration(seconds) * time.Second
 			}
 		}
 	}
