@@ -287,3 +287,16 @@ are tracked on PR #75. Standards evidence: RFC 9111 sections
 [4.2.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.1),
 [4.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1) and
 [5.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2).
+
+## Equals-boundary grammar follow-up
+
+The fresh e72ef05 code review reported confirmed discussion_r4158768254:
+trimming name/argument boundaries accepted whitespace around the equals sign,
+contrary to the strict cache-directive grammar policy. The parser now preserves
+those boundaries for token/quoted-value validation, while retaining legal outer
+list whitespace. Four malformed boundary cases failed before the fix; five
+space/tab and quoted-argument cases pass afterward. Both map feature race suites
+and focused vet pass. GoLand inspected the final cachecontrol.go and tiles_test.go
+with weak warnings included: no findings. Zero delegates. Latest-head fresh
+code/security reviews and hosted gates remain required, with final evidence on
+PR #75.

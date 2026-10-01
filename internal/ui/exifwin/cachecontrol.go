@@ -43,13 +43,12 @@ func parseCacheControl(value string) ([]cacheDirective, bool) {
 			continue
 		}
 		name, argument, hasValue := strings.Cut(part, "=")
-		name = strings.Trim(name, " \t")
 		if !cacheToken(name) {
 			return nil, false
 		}
 		if hasValue {
 			var valid bool
-			argument, valid = cacheArgument(strings.Trim(argument, " \t"))
+			argument, valid = cacheArgument(argument)
 			if !valid {
 				return nil, false
 			}
