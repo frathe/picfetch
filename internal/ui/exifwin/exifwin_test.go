@@ -650,6 +650,65 @@ func TestThemedMapNoStoreDirectDeliveryIsSingleUse(t *testing.T) {
 	}
 }
 
+func TestThemedMapQueuedDeliveryRetiresRenderer(t *testing.T) {
+	app, host := testApp(t)
+	defer app.Quit()
+	red := uitest.EncodePNG(t, tileSize, tileSize, color.NRGBA{R: 230, A: 255})
+	blue := uitest.EncodePNG(t, tileSize, tileSize, color.NRGBA{B: 230, A: 255})
+	var replaced atomic.Bool
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		body := red
+		if replaced.Load() {
+			body = blue
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	w.buildLocation()
+	view := w.locationMap
+	view.Resize(fyne.NewSize(256, 256))
+	_ = view.draw(256, 256)
+	w.tiles.Wait() // Leave the first renderer's red results queued on UI.
+	test.WidgetRenderer(view).Destroy()
+	replaced.Store(true)
+	_ = view.draw(256, 256) // Recreate claims for the same URLs before draining.
+	w.Settle()
+	_ = view.draw(256, 256)
+	if len(view.frame) != 4 {
+		t.Fatal("recreated renderer did not receive all current tiles")
+	}
+	for _, tile := range view.frame {
+		if got := color.NRGBAModel.Convert(tile.pixels.At(0, 0)).(color.NRGBA); got != (color.NRGBA{B: 230, A: 255}) {
+			t.Fatal("old queued pixels replaced the recreated renderer's current tiles")
+		}
+	}
+}
+
+func TestThemedMapRetiredRendererCannotInvalidateReplacement(t *testing.T) {
+	app, host := testApp(t)
+	defer app.Quit()
+	body := tilePNG(t)
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	w.buildLocation()
+	old := w.locationMap
+	old.Resize(fyne.NewSize(256, 256))
+	_ = old.draw(256, 256)
+	w.tiles.Wait()
+	w.buildLocation() // Restart the shared fetcher for a replacement map session.
+	current := w.locationMap
+	current.Resize(fyne.NewSize(256, 256))
+	_ = current.draw(256, 256)
+	w.tiles.Wait()
+	test.WidgetRenderer(old).Destroy()
+	w.Settle()
+	if len(current.frame) != 4 {
+		t.Fatal("retired renderer invalidated its replacement's queued delivery")
+	}
+}
+
 func TestThemedMapQueuedDeliveryRetiresHiddenView(t *testing.T) {
 	app, host := testApp(t)
 	defer app.Quit()

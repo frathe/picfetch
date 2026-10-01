@@ -240,6 +240,7 @@ func (renderer *mapRenderer) Layout(size fyne.Size) {
 func (renderer *mapRenderer) MinSize() fyne.Size           { return renderer.owner.MinSize() }
 func (renderer *mapRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{renderer.root} }
 func (renderer *mapRenderer) Destroy() {
+	renderer.owner.tiles.retireView(renderer.owner.session)
 	renderer.owner.frame = nil
 	renderer.owner.requested = nil
 }

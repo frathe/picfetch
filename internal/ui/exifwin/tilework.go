@@ -20,6 +20,19 @@ type tileJob struct {
 func (f *tileFetcher) advanceView() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.advanceViewLocked()
+}
+
+// retireView ends renderer delivery only while its session still owns the fetcher.
+func (f *tileFetcher) retireView(ctx context.Context) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if ctx == f.ctx {
+		f.advanceViewLocked()
+	}
+}
+
+func (f *tileFetcher) advanceViewLocked() {
 	f.viewVersion++
 	f.ready.Purge()
 	for _, job := range f.queue {

@@ -207,3 +207,25 @@ exifwin_test.go), weak warnings included: no actionable findings, only the same
 six existing excluded fixture duplicates. Zero delegates. Fresh code/security
 rounds and all exact-head hosted gates are required again after this fix; final
 review-loop evidence is tracked on PR #75.
+
+## Renderer retirement ownership follow-up
+
+The fresh 68d89d6 code review reported confirmed discussion_r4158045732: a
+queued result from a destroyed renderer could satisfy a new boolean claim for
+the same URL and discard the replacement result. TestThemedMapQueuedDeliveryRetiresRenderer
+reproduces this without draining old UI callbacks first: red retired tiles win
+over newer blue tiles before the fix. Renderer Destroy now advances the delivery
+view version before clearing claims. Retirement checks its captured session under
+the fetcher mutex, so a late Destroy from an old map cannot invalidate a replacement
+session using the same fetcher. TestThemedMapRetiredRendererCannotInvalidateReplacement
+failed for unconditional retirement and passes with that ownership check.
+
+Both map feature race suites and focused vet pass after the final correction.
+GoLand inspected all three changed Go files (map.go, tilework.go,
+exifwin_test.go), including weak warnings: no actionable findings. Eight
+fixture-duplication warnings are assessed as intentional independent test setup
+(the previous six and two new setup fragments in replacement/hide tests); all
+are covered by the existing exact exifwin_test.go Qodana duplication exclusion.
+No production suppression or broad exclusion was introduced. Zero delegates.
+Fresh latest-head code/security rounds and hosted CI/CodeQL/Qodana/FOSSA checks
+remain required; final outcomes are tracked on PR #75.
