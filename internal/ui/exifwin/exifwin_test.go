@@ -955,7 +955,7 @@ func TestJPEGMetadataRemovalUI(t *testing.T) {
 			t.Fatal("memory refusal changed the source or notified a successful removal")
 		}
 	})
-	t.Run("source becomes clean before confirmation", func(t *testing.T) {
+	t.Run("source becomes clean before confirmation is refused", func(t *testing.T) {
 		app := test.NewApp()
 		plain := uitest.EncodeJPEG(t, 8, 8, color.White)
 		u := storage.NewFileURI(uitest.WriteTempFile(t, "cleaned.jpg", append(bytes.Clone(plain), []byte("fixture trailer")...)))
@@ -972,11 +972,14 @@ func TestJPEGMetadataRemovalUI(t *testing.T) {
 		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
 		w.Settle()
-		if host.after != 0 || len(host.toasts) != 0 {
-			t.Fatalf("no-op reported removal: after=%d toasts=%v", host.after, host.toasts)
+		if host.after != 0 || len(host.toasts) != 1 || !strings.Contains(host.toasts[0], removalErrorText(imaging.ErrSourceChanged)) {
+			t.Fatalf("changed clean source was not refused: after=%d toasts=%v", host.after, host.toasts)
+		}
+		if !bytes.Equal(plain, readWindowFile(t, u)) {
+			t.Fatal("refusal changed the clean source")
 		}
 		if _, found := absolutePos(w.Window().Content(), w.StripButton()); found {
-			t.Fatal("stale action remains after no-op")
+			t.Fatal("stale action remains after source-change refusal")
 		}
 	})
 

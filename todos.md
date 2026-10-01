@@ -13,11 +13,11 @@
 
 #### Bugfix
 
-- [ ] Finish PR #75 follow-up review: independent help signal delivery, native
-  installation before the picker, and verified clean-source removal are fixed
-  locally. Focused races, Store tests, build/vet and GoLand pass. Fix commits are
-  being pushed; fresh code/security review, CI and a refreshed App Store test
-  package still follow. Threads 4154549312, 4154549317, 4154549323.
+- [ ] Finish PR #75 follow-up review: all three fixes are committed/pushed and
+  threads 4154549312, 4154549317, 4154549323 are resolved. CI exposed a legacy
+  clean-source success expectation, now corrected to refusal; full local EXIF
+  races, Store tests and GoLand pass. Fresh latest-head code/security review,
+  hosted CI and a refreshed App Store test package remain pending.
 
 - [x] Preserve unsuccessful termination when SIGTERM arrives during animated
   help restoration; independent signal buffers protect SIGTERM from repeated

@@ -134,3 +134,18 @@ No added test file/shard/exclusion or dependency changes. Logs:
 /private/tmp/picfetch-review-three-fixes-{race,store,verify}.log.
 Original f36f1ca package evidence above remains source-specific; latest review
 and hosted gates are recorded through PR #75 before refreshing the test package.
+
+### Hosted CI follow-up: legacy clean-source expectation
+
+At fa21e17, hosted non-UI race job 110345447844 found the older
+TestJPEGMetadataRemovalUI case still expecting success when the inspected JPEG
+was rewritten clean during confirmation. This expectation predates source binding.
+The case now requires one refusal message, no committed-source notification,
+unchanged clean bytes and removal of the stale action after reinspection.
+Application code is unchanged. The full EXIF package race run and affected actual
+appleappstore-tagged tests pass; logs are
+/private/tmp/picfetch-clean-refusal-{exif-race,store}.log.
+GoLand Project inspection of exifwin/exifwin_test.go included weak warnings.
+Six duplicate fragments match the existing exact qodana.yaml exclusion; no new
+actionable issues or timeouts. No new test files or shard assignments.
+Latest-head hosted CI and fresh review still follow this test-only correction.
