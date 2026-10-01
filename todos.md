@@ -104,6 +104,8 @@
   bypasses the one-shot LRU; renderer-recreation single-use regression passes.
   Renderer retirement also advances the delivery version under captured-session
   ownership; queued old pixels and late old-renderer teardown regressions pass.
+  Invalid Expires and malformed/repeated max-age now require revalidation;
+  freshness and conditional-request regressions pass.
   FOSSA passed on c89c74d after the ignore; fresh review gates are pending.
   New signed candidate, native
   visual confirmation and broader qualification remain pending. See

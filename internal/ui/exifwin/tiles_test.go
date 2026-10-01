@@ -29,14 +29,26 @@ func tilePNG(t *testing.T) []byte {
 }
 
 func TestTileFetcherHTTPFreshness(t *testing.T) {
-	for _, directive := range []string{"max-age=60", "no-cache", "no-store"} {
-		t.Run(directive, func(t *testing.T) {
+	for _, scenario := range []struct {
+		name           string
+		header         http.Header
+		fresh, noStore bool
+	}{
+		{"max-age=60", http.Header{"Cache-Control": {"max-age=60"}}, true, false},
+		{"no-cache", http.Header{"Cache-Control": {"no-cache"}}, false, false},
+		{"no-store", http.Header{"Cache-Control": {"no-store"}}, false, true},
+		{"invalid expires", http.Header{"Expires": {"0"}}, false, false},
+		{"invalid expires overridden", http.Header{"Expires": {"0"}, "Cache-Control": {"max-age=60"}}, true, false},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
 			body := tilePNG(t)
 			var requests atomic.Int32
 			var conditional atomic.Bool
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 				count := requests.Add(1)
-				writer.Header().Set("Cache-Control", directive)
+				for name, values := range scenario.header {
+					writer.Header()[name] = append([]string(nil), values...)
+				}
 				writer.Header().Set("ETag", `"tile"`)
 				writer.Header().Set("Date", time.Unix(1700000000, 0).UTC().Format(http.TimeFormat))
 				if count > 1 && request.Header.Get("If-None-Match") == `"tile"` {
@@ -74,7 +86,7 @@ func TestTileFetcherHTTPFreshness(t *testing.T) {
 			readTile()
 			readTile()
 			want := int32(2)
-			if directive == "max-age=60" {
+			if scenario.fresh {
 				want = 1
 			}
 			if requests.Load() != want {
@@ -85,7 +97,7 @@ func TestTileFetcherHTTPFreshness(t *testing.T) {
 			if requests.Load() != want+1 {
 				t.Fatal("expired tile was reused without validation")
 			}
-			if conditional.Load() != (directive != "no-store") {
+			if conditional.Load() == scenario.noStore {
 				t.Fatal("validator retention does not match cache policy")
 			}
 		})
@@ -101,10 +113,19 @@ func TestTileCacheFreshnessRules(t *testing.T) {
 		noStore bool
 	}{
 		{"fallback", http.Header{}, 7 * 24 * time.Hour, false},
+		{"quoted max-age", http.Header{"Cache-Control": {`max-age="60"`}}, time.Minute, false},
 		{"max-age with age", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"20"}}, 40 * time.Second, false},
 		{"apparent age", http.Header{"Cache-Control": {"max-age=60"}, "Date": {now.Add(-30 * time.Second).Format(http.TimeFormat)}}, 30 * time.Second, false},
 		{"expires", http.Header{"Date": {now.Format(http.TimeFormat)}, "Expires": {now.Add(time.Hour).Format(http.TimeFormat)}}, time.Hour, false},
 		{"expired", http.Header{"Expires": {now.Add(-time.Hour).Format(http.TimeFormat)}}, 0, false},
+		{"zero expires", http.Header{"Expires": {"0"}}, 0, false},
+		{"invalid expires", http.Header{"Expires": {"not a date"}}, 0, false},
+		{"empty expires", http.Header{"Expires": {""}}, 0, false},
+		{"invalid expires overridden", http.Header{"Cache-Control": {"max-age=60"}, "Expires": {"0"}}, time.Minute, false},
+		{"repeated max-age", http.Header{"Cache-Control": {"max-age=0, max-age=60"}}, 0, false},
+		{"repeated max-age fields", http.Header{"Cache-Control": {"max-age=10", "max-age=60"}}, 0, false},
+		{"signed max-age", http.Header{"Cache-Control": {"max-age=+60"}}, 0, false},
+		{"malformed quoted max-age", http.Header{"Cache-Control": {`max-age="60""`}}, 0, false},
 		{"precedence", http.Header{"Cache-Control": {"max-age=10"}, "Expires": {now.Add(time.Hour).Format(http.TimeFormat)}}, 10 * time.Second, false},
 		{"no-cache", http.Header{"Cache-Control": {"max-age=60, no-cache"}}, 0, false},
 		{"no-store", http.Header{"Cache-Control": {"no-store, max-age=60"}}, time.Minute, true},

@@ -229,3 +229,30 @@ are covered by the existing exact exifwin_test.go Qodana duplication exclusion.
 No production suppression or broad exclusion was introduced. Zero delegates.
 Fresh latest-head code/security rounds and hosted CI/CodeQL/Qodana/FOSSA checks
 remain required; final outcomes are tracked on PR #75.
+
+## Invalid freshness metadata follow-up
+
+The fresh 2e971e8 code round is clean (issuecomment-5936227565). Its exact-head
+Qodana artifact 11179112321 has the same eleven assessed unused-export false
+positives; all three FOSSA statuses and CodeQL pass. Hosted tests were still
+finishing when the separate security-focused review reported confirmed
+discussion_r4158179845: Expires: 0, invalid dates and empty Expires were treated
+as missing and received the seven-day fallback. Presence now selects explicit
+expiration; parse failure yields zero freshness, while valid max-age still takes
+precedence. [RFC 9111 section 5.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3)
+supports this distinction. Related parser cases were confirmed against
+[section 4.2.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.1): repeated
+max-age, signed values and malformed quote pairs now require revalidation rather
+than allowing a later directive or permissive parsing to extend freshness.
+
+Seven new TestTileCacheFreshnessRules cases failed before the fix. Additional
+positive cases preserve quoted valid max-age, missing-header fallback and
+max-age precedence. TestTileFetcherHTTPFreshness now checks real conditional
+requests and 304 delivery for Expires: 0 and its valid max-age override. Both map
+feature race suites and focused vet pass. GoLand inspected both changed Go files
+(tilecache.go and tiles_test.go), weak warnings included, and reinspected the
+final integration test: no findings. Existing test exclusions cover the files;
+no new root UI test, package, dependency or worker was added. Zero delegates.
+Fresh code/security rounds and exact-head hosted gates remain required after
+this fix. Final review-loop outcomes are tracked on PR #75; Store qualification
+remains a separate open item.

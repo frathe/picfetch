@@ -56,14 +56,17 @@ func cacheTile(data []byte, previous, response http.Header, now time.Time) *cach
 		age = max(age, now.Sub(date))
 	}
 	lifetime := 7 * 24 * time.Hour
-	if expires, err := http.ParseTime(header.Get("Expires")); err == nil {
-		if dateErr == nil {
-			lifetime = expires.Sub(date)
-		} else {
-			lifetime = expires.Sub(now)
+	if _, present := header["Expires"]; present {
+		lifetime = 0
+		if expires, err := http.ParseTime(header.Get("Expires")); err == nil {
+			if dateErr == nil {
+				lifetime = expires.Sub(date)
+			} else {
+				lifetime = expires.Sub(now)
+			}
 		}
 	}
-	noCache := false
+	noCache, maxAgeSeen := false, false
 	for _, value := range header.Values("Cache-Control") {
 		for _, directive := range strings.Split(value, ",") {
 			name, argument, _ := strings.Cut(strings.TrimSpace(directive), "=")
@@ -73,8 +76,17 @@ func cacheTile(data []byte, previous, response http.Header, now time.Time) *cach
 			case "no-cache":
 				noCache = true
 			case "max-age":
-				seconds, err := strconv.ParseInt(strings.Trim(strings.TrimSpace(argument), `"`), 10, 64)
-				if err != nil || seconds < 0 || seconds > int64((1<<63-1)/time.Second) {
+				if maxAgeSeen {
+					noCache = true
+				}
+				maxAgeSeen = true
+				argument = strings.TrimSpace(argument)
+				if len(argument) >= 2 && argument[0] == '"' && argument[len(argument)-1] == '"' {
+					argument = argument[1 : len(argument)-1]
+				}
+				invalidDigit := strings.IndexFunc(argument, func(value rune) bool { return value < '0' || value > '9' }) >= 0
+				seconds, err := strconv.ParseInt(argument, 10, 64)
+				if err != nil || invalidDigit || seconds < 0 || seconds > int64((1<<63-1)/time.Second) {
 					noCache = true
 				} else {
 					lifetime = time.Duration(seconds) * time.Second
