@@ -143,3 +143,15 @@ Sky app-state image is not used as proof of refreshed exact capture dimensions.
 See [current shared qualification and gate links](2026-10-01-metadata-source-binding.md#current-source-qualification-at-3453f1b).
 Final documentation-head reviews and hosted checks are tracked in PR #75,
 carrying unchanged-code evidence at its recorded revision.
+
+### Canonical checklist reconciliation
+
+Thread 4155247830 found the tracked Open With confirmation checklist still open
+after this qualification. The PR inventory now marks controlled Open With
+approval/button/sibling/relaunch qualification complete and leaves only the
+single-file window-drop check open in that tracked item; the current local app
+path is refreshed. Ronin's separate working-tree acceptance and Copy Image
+release-blocker edits are preserved and excluded from this review-fix commit.
+This is a documentation-only inventory correction; compiled source and native
+inspection/package evidence remain at 3453f1b. Fresh review and hosted gates
+follow the disposition.

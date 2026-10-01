@@ -93,9 +93,10 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Qualify retained visual search through production ARM/Intel-Rosetta workers; keep scopes through clipboard/Finder/Trash calls and source metadata reads.
 - [x] Capture native window-drop URLs before GLFW flattens paths; refresh restored moved/stale bookmarks with immutable persistence coverage.
 - [x] Verify production workers deny an ungranted private source while an allowed control image still completes inference, on ARM and Intel under Rosetta.
-- [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Latest E2E app is in `bin/apple-store-e2e-review-fixes/`.
+- [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Current qualified local test app is in `bin/apple-store-e2e-2026-10-01-3453f1b/`.
 - [x] Ronin confirmed native Open-dialog folder consent fixes navigation; extend the same consent to shared drop/Open With discovery with cancellation and replacement coverage.
-- [ ] Confirm the rebuilt shared-consent app with a single-file window drop and Open With.
+- [x] Qualify native Open With in refreshed Store build 483 at 3453f1b: exact-folder approval/button, sibling browsing and full quit/relaunch grant reuse pass.
+- [ ] Confirm a single-file window drop in the refreshed shared-consent test app; the tracked controlled qualification above exercises native Open With.
 - [x] Ronin confirmed multiple-file picker/drop navigation must remain within the selected images; folder sibling discovery applies only to single-file inputs. Automated selection coverage passes.
 - [x] Persist explicit sibling-folder approvals in app preferences and validate/reuse bookmarks on fresh single-image opens; keep renewal, cancellation and selection guards.
 - [x] Ronin confirmed persistent folder approvals work across real quit/relaunch in `bin/apple-store-e2e-persistent-folders/PicFetch.app`.
