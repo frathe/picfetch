@@ -67,3 +67,8 @@ normal GLFW event polling on UI and the following Open request waiting only on
 its tracked worker, so no post-Save native-modal deadlock is present. Remembered
 native reuse remains unverified until capture service recovers.
 Latest-head hosted gates and the fresh deliverable package remain pending.
+
+Windows CI at d402f38 exposed a test assertion comparing URI forward slashes to
+native TempDir backslashes. The raw native-guards artifact confirms both paths
+name the correct resolved `002` folder. The assertion now compares filepath.Clean
+values; no production behavior changed. Fresh Windows CI must verify the correction.

@@ -184,7 +184,7 @@ func TestSiblingApprovalUsesResolvedImageParent(t *testing.T) {
 		return resolved, func() { active-- }, nil
 	}
 	authorizer.choose = func(_ context.Context, directory string) (fyne.URI, error) {
-		if directory != current {
+		if filepath.Clean(directory) != filepath.Clean(current) {
 			t.Fatalf("permission panel starts at stale folder %q; want %q", directory, current)
 		}
 		if active != 1 {
