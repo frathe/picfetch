@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	"image/draw"
 	"image/png"
 	"io"
 	"log"
@@ -141,7 +143,8 @@ func (t *tileLogFilter) Write(p []byte) (int, error) {
 type tileFetcher struct {
 	template string
 	base     http.RoundTripper
-	cache    *imaging.ByteCache[[]byte]
+	cache    *imaging.ByteCache[*cachedTile]
+	ready    *imaging.ByteCache[*cachedTile]
 
 	mu       sync.Mutex
 	inflight map[string]*tileJob
@@ -177,7 +180,8 @@ func newTileFetcher(template string, base http.RoundTripper) *tileFetcher {
 	return &tileFetcher{
 		template: template,
 		base:     base,
-		cache:    imaging.NewByteCache(int64(tileBudget), func(b []byte) int64 { return int64(len(b)) }),
+		cache:    imaging.NewByteCache(int64(tileBudget/2), tileWeight),
+		ready:    imaging.NewByteCache(int64(tileBudget/2), tileWeight),
 		inflight: make(map[string]*tileJob),
 		ctx:      ctx, cancel: cancel, changed: make(chan struct{}),
 		failed: make(map[string]time.Time),
@@ -215,15 +219,28 @@ func (f *tileFetcher) Pending() int {
 // anything it doesn't have with errTilePending after starting the real
 // download in the background.
 func (f *tileFetcher) RoundTrip(req *http.Request) (*http.Response, error) {
-	url := req.URL.String()
-
-	if b, ok := f.cache.Get(url); ok {
-		return tileResponse(req, b), nil
+	if entry := f.displayTile(req.URL.String()); entry != nil {
+		return tileResponse(req, entry.data), nil
 	}
+	return nil, errTilePending
+}
+
+func (f *tileFetcher) displayTile(url string) *cachedTile {
+	f.mu.Lock()
+	if entry, ok := f.ready.Get(url); ok {
+		f.ready.Remove(url)
+		f.mu.Unlock()
+		return entry
+	}
+	if entry, ok := f.cache.Get(url); ok && f.now().Before(entry.expires) {
+		f.mu.Unlock()
+		return entry
+	}
+	f.mu.Unlock()
 
 	_, _ = f.submit(f.session(), url, true)
 
-	return nil, errTilePending
+	return nil
 }
 
 // tileResponse wraps cached tile bytes as the 200 response the widget's
@@ -240,13 +257,24 @@ func tileResponse(req *http.Request, b []byte) *http.Response {
 	}
 }
 
-func (f *tileFetcher) get(ctx context.Context, url string) ([]byte, error) {
+func (f *tileFetcher) get(ctx context.Context, url string) (*cachedTile, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Set("User-Agent", userAgent)
+	f.mu.Lock()
+	previous, _ := f.cache.Get(url)
+	f.mu.Unlock()
+	if previous != nil {
+		if value := previous.header.Get("ETag"); value != "" {
+			req.Header.Set("If-None-Match", value)
+		}
+		if value := previous.header.Get("Last-Modified"); value != "" {
+			req.Header.Set("If-Modified-Since", value)
+		}
+	}
 
 	client := &http.Client{Transport: f.base, Timeout: tileTimeout}
 
@@ -255,14 +283,22 @@ func (f *tileFetcher) get(ctx context.Context, url string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode == http.StatusNotModified && previous != nil {
+		entry := cacheTile(previous.data, previous.header, res.Header, f.now())
+		entry.pixels = previous.pixels
+		return entry, nil
+	}
 
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("tile server returned %s", res.Status)
 	}
 
-	data, err := io.ReadAll(io.LimitReader(res.Body, maxTileBytes))
+	data, err := io.ReadAll(io.LimitReader(res.Body, maxTileBytes+1))
 	if err != nil {
 		return nil, err
+	}
+	if len(data) > maxTileBytes {
+		return nil, errors.New("tile response exceeds size limit")
 	}
 
 	config, err := png.DecodeConfig(bytes.NewReader(data))
@@ -274,7 +310,14 @@ func (f *tileFetcher) get(ctx context.Context, url string) ([]byte, error) {
 		return nil, fmt.Errorf("tile dimensions are %dx%d, want %dx%d", config.Width, config.Height, tileSize, tileSize)
 	}
 
-	return data, nil
+	pixels, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	entry := cacheTile(data, nil, res.Header, f.now())
+	entry.pixels = image.NewNRGBA(image.Rect(0, 0, tileSize, tileSize))
+	draw.Draw(entry.pixels, entry.pixels.Bounds(), pixels, pixels.Bounds().Min, draw.Src)
+	return entry, nil
 }
 
 // neighborhood is the tile URLs within prefetchRadius of the tile holding

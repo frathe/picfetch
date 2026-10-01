@@ -554,11 +554,11 @@ Apache License
 License: BSD-3-Clause
 Source: https://github.com/fyne-io/fyne-x/blob/master/LICENSE
 
-Used for the `Map` widget behind the EXIF window's location view. The map
-tiles it renders are served by [OpenStreetMap](https://openstreetmap.org)
+Used for marker values in the EXIF window's owned location renderer. The map
+tiles are served by [OpenStreetMap](https://openstreetmap.org)
 and are © OpenStreetMap contributors, available under the
-[Open Database License](https://www.openstreetmap.org/copyright); the widget
-displays that attribution itself, in the corner of every map it draws.
+[Open Database License](https://www.openstreetmap.org/copyright); both map
+surfaces display contributor attribution linked directly to that license page.
 
 ```
 BSD 3-Clause License

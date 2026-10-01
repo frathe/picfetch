@@ -168,6 +168,15 @@ Use the [submission draft](submission-draft.md) and
 
 ## 8. Approve TestFlight upload once technical gates are resolved
 
+**Map fix follow-up, 2026-10-01:** The working tree now has HTTP-aware EXIF tile
+caching, an owned renderer that does not bypass expiry through Fyne-X's global
+cache, and direct OSM license links on both map surfaces. Focused race tests,
+renderer expiry/lifecycle checks, vet and native build pass; GoLand found no new
+actionable issues. The full native-amd64 Docker gate cannot run on this ARM daemon.
+The already delivered build 483 does not contain these changes. A new signed
+candidate and native/TestFlight map retest are still needed. No rights declaration
+was saved and no replacement build was uploaded. See the map-cache plan.
+
 - [ ] Review Pico's signed-candidate report and authorize an upload to App Store
   Connect/TestFlight, including who should be invited to test.
 - [ ] Install the delivered build and confirm the final E2E results.

@@ -4,6 +4,7 @@ package locationmap
 import (
 	"context"
 	"image"
+	"net/url"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -124,9 +125,10 @@ func New(host Host, options Options) *Feature {
 	// Border may resize its center before asking for MinSize. Fyne 2.8's
 	// Clip constructor defers BaseWidget initialization until that query.
 	clipped.ExtendBaseWidget(clipped)
+	licenseURL := &url.URL{Scheme: "https", Host: "www.openstreetmap.org", Path: "/copyright"}
 	content := container.NewBorder(container.NewHBox(widget.NewLabel(lang.L("Location Map")),
 		widget.NewButton(lang.L("Fit All"), func() { f.surface.fit(); host.Unfocus() }),
-		widget.NewButton(lang.L("Back to Viewer"), host.LeaveLocationMap)), container.NewVBox(f.preparation, f.status, widget.NewLabel(lang.L("© OpenStreetMap contributors"))), nil, nil, clipped)
+		widget.NewButton(lang.L("Back to Viewer"), host.LeaveLocationMap)), container.NewVBox(f.preparation, f.status, widget.NewHyperlink(lang.L("© OpenStreetMap contributors"), licenseURL)), nil, nil, clipped)
 	f.overlay = container.NewStack(widgets.NewThemedRectangle(theme.ColorNameBackground), content)
 	f.overlay.Hide()
 	return f

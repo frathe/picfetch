@@ -48,6 +48,7 @@ func (f *tileFetcher) Stop() {
 
 func (f *tileFetcher) cancelLocked() {
 	f.cancel()
+	f.ready.Purge()
 	for _, job := range f.queue {
 		if f.inflight[job.url] == job {
 			delete(f.inflight, job.url)
@@ -72,7 +73,7 @@ func (f *tileFetcher) changedLocked() {
 func (f *tileFetcher) submit(ctx context.Context, url string, foreground bool) (*tileJob, <-chan struct{}) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.stopped || ctx.Err() != nil || f.cache.Contains(url) {
+	if f.stopped || ctx.Err() != nil || f.ready.Contains(url) || freshTileLocked(f, url) {
 		return nil, nil
 	}
 	if job := f.inflight[url]; job != nil && job.ctx.Err() == nil {
@@ -110,7 +111,7 @@ func (f *tileFetcher) runWorker() {
 		f.changedLocked()
 		f.mu.Unlock()
 
-		var data []byte
+		var data *cachedTile
 		err := job.ctx.Err()
 		if err == nil {
 			data, err = f.get(job.ctx, job.url)
@@ -119,7 +120,7 @@ func (f *tileFetcher) runWorker() {
 	}
 }
 
-func (f *tileFetcher) releaseJob(job *tileJob, data []byte, err error) {
+func (f *tileFetcher) releaseJob(job *tileJob, data *cachedTile, err error) {
 	f.mu.Lock()
 	current := job.ctx.Err() == nil && f.inflight[job.url] == job
 	if f.inflight[job.url] == job {
@@ -127,7 +128,13 @@ func (f *tileFetcher) releaseJob(job *tileJob, data []byte, err error) {
 	}
 	if current {
 		if err == nil {
-			f.cache.Add(job.url, data)
+			f.cache.Remove(job.url)
+			if !data.noStore {
+				f.cache.AddIfFits(job.url, data)
+			}
+			if data.noStore || !f.now().Before(data.expires) {
+				f.ready.AddIfFits(job.url, data)
+			}
 			delete(f.failed, job.url)
 		} else {
 			f.expireFailuresLocked()

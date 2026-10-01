@@ -6,12 +6,14 @@ import (
 	"encoding/binary"
 	"image/color"
 	"image/png"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -449,12 +451,15 @@ func TestLocationMapTheme(t *testing.T) {
 	w.ToggleLocation()
 	waitForWarm(t, w)
 	var raster *canvas.Raster
+	var attribution bool
 	var walk func(fyne.CanvasObject)
 	walk = func(object fyne.CanvasObject) {
 		if !object.Visible() {
 			return
 		}
 		switch object := object.(type) {
+		case *widget.Hyperlink:
+			attribution = object.Text == lang.L("© OpenStreetMap contributors") && object.URL != nil && object.URL.String() == "https://www.openstreetmap.org/copyright"
 		case *canvas.Raster:
 			raster = object
 		case *fyne.Container:
@@ -468,11 +473,28 @@ func TestLocationMapTheme(t *testing.T) {
 		}
 	}
 	walk(w.Location())
+	if !attribution {
+		t.Fatal("map attribution must link directly to the OSM license")
+	}
 	if raster == nil {
 		t.Fatal("expanded location has no visible map raster")
 	}
 	w.Window().Canvas().Capture()
 	w.Settle()
+	t.Run("expiry reaches the renderer", func(t *testing.T) {
+		for range 4 {
+			_ = raster.Generator(256, 256)
+			w.tiles.Wait()
+		}
+		beforeExpiry := server.count()
+		w.tiles.now = func() time.Time { return time.Now().Add(8 * 24 * time.Hour) }
+		_ = raster.Generator(256, 256)
+		w.tiles.Wait()
+		if server.count() == beforeExpiry {
+			t.Fatal("map renderer bypasses expired tile validation")
+		}
+		w.tiles.now = time.Now
+	})
 	before := server.count()
 	for _, mode := range []appearance.Mode{appearance.Light, appearance.Dark, appearance.Light, appearance.Dark} {
 		appearance.Apply(app, mode)
@@ -489,6 +511,70 @@ func TestLocationMapTheme(t *testing.T) {
 		if server.count() != before {
 			t.Fatal("EXIF theme switch downloaded tiles again")
 		}
+	}
+}
+
+func TestThemedMapViewCacheLifetime(t *testing.T) {
+	for _, directive := range []string{"no-store", "no-cache", "max-age=60"} {
+		t.Run(directive, func(t *testing.T) {
+			app := test.NewApp()
+			defer app.Quit()
+			body := tilePNG(t)
+			var requests atomic.Int32
+			fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {directive}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+			}))
+			defer func() { fetcher.Stop(); fetcher.Wait() }()
+			view := newThemedMap(fetcher)
+			view.Resize(fyne.NewSize(256, 256))
+			view.PanToLatLon(0, 0)
+			for range 3 {
+				_ = view.draw(256, 256)
+				fetcher.Wait()
+			}
+			before := requests.Load()
+			if before == 0 || len(view.frame) == 0 {
+				t.Fatal("map did not load visible tiles")
+			}
+			for range 4 {
+				_ = view.draw(256, 256)
+				fetcher.Wait()
+			}
+			if requests.Load() != before {
+				t.Fatal("repainting the current display triggered a request loop")
+			}
+			view.Hide()
+			fetcher.Cancel()
+			_ = view.draw(256, 256)
+			fetcher.Wait()
+			if len(view.frame) != 0 || requests.Load() != before {
+				t.Fatal("hidden/cancelled view retained or requested display tiles")
+			}
+			fetcher.Restart()
+			view.Show()
+			_ = view.draw(256, 256)
+			fetcher.Wait()
+			if (requests.Load() > before) != (directive != "max-age=60") {
+				t.Fatal("reopening did not honor the HTTP cache policy")
+			}
+			centerX, centerY := view.centerX, view.centerY
+			view.ZoomIn()
+			view.ZoomOut()
+			if view.zoom != mapZoom || view.centerX != centerX || view.centerY != centerY {
+				t.Fatal("zoom moved the camera center")
+			}
+			view.Zoom(19)
+			view.ZoomIn()
+			if view.zoom != 19 {
+				t.Fatal("zoom escaped the provider limit")
+			}
+			view.PanToLatLon(90, 180)
+			view.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(-1000, 1000)})
+			if view.centerX < 0 || view.centerX >= 1 || view.centerY < 0 || view.centerY > 1 {
+				t.Fatal("pan escaped world bounds")
+			}
+		})
 	}
 }
 

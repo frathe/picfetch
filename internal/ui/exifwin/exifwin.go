@@ -381,7 +381,7 @@ func (w *Window) requestStrip() {
 func (w *Window) buildLocation() {
 	w.tiles.Restart()
 	w.observeTiles(w.warmGen)
-	w.locationMap = newThemedMap(w.tiles.template, w.tiles.client())
+	w.locationMap = newThemedMap(w.tiles)
 
 	spinner := widget.NewProgressBarInfinite()
 	w.loading = container.NewCenter(container.NewVBox(widget.NewLabel(lang.L("Loading map…")), spinner))

@@ -555,8 +555,14 @@ or supply a human verdict.
 maps. It wraps immutable source pixels, without another pixel cache, reversing
 luminance and softening chroma in dark mode; light mode restores originals.
 It reads resolved theme colors so both forced and system appearance work.
-EXIF's `themedMap` adapter in `exifwin/map.go` wraps the pinned Fyne-X map raster
-generator, leaving controls, markers, HTTP and caches unchanged.
+EXIF's `themedMap` in `exifwin/map.go` owns its viewport raster, pan/zoom controls,
+photo marker and direct OSM license link. It never uses Fyne-X's global decoded
+tile cache; only the existing marker-value interface remains. `tilecache.go`
+retains HTTP freshness and validators under the tile fetcher's byte budget.
+Workers decode bounded tiles; the renderer holds only current-view pixels,
+revalidates expired reusable entries and drops frame state across view/session
+changes. No-cache/no-store responses can finish the current display without
+revalidation loops, but cannot be reused across subsequent view sessions.
 Shared `widgets.NewThemedRectangle` uses a paint-time theme color for plain
 canvas backgrounds, avoiding construction-time color snapshots in map chrome.
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,124 @@ func tilePNG(t *testing.T) []byte {
 	t.Helper()
 
 	return uitest.EncodePNG(t, tileSize, tileSize, color.RGBA{R: 1, G: 2, B: 3, A: 255})
+}
+
+func TestTileFetcherHTTPFreshness(t *testing.T) {
+	for _, directive := range []string{"max-age=60", "no-cache", "no-store"} {
+		t.Run(directive, func(t *testing.T) {
+			body := tilePNG(t)
+			var requests atomic.Int32
+			var conditional atomic.Bool
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				count := requests.Add(1)
+				writer.Header().Set("Cache-Control", directive)
+				writer.Header().Set("ETag", `"tile"`)
+				writer.Header().Set("Date", time.Unix(1700000000, 0).UTC().Format(http.TimeFormat))
+				if count > 1 && request.Header.Get("If-None-Match") == `"tile"` {
+					conditional.Store(true)
+					writer.WriteHeader(http.StatusNotModified)
+					return
+				}
+				_, _ = writer.Write(body)
+			}))
+			defer server.Close()
+			fetcher := newTileFetcher(server.URL+"/%d/%d/%d.png", server.Client().Transport)
+			defer func() { fetcher.Stop(); fetcher.Wait() }()
+			now := time.Unix(1700000000, 0)
+			fetcher.now = func() time.Time { return now }
+			request, err := http.NewRequest(http.MethodGet, server.URL+"/1/0/0.png", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			readTile := func() {
+				t.Helper()
+				response, requestErr := fetcher.RoundTrip(request)
+				if errors.Is(requestErr, errTilePending) {
+					fetcher.Wait()
+					response, requestErr = fetcher.RoundTrip(request)
+				}
+				if requestErr != nil {
+					t.Fatal(requestErr)
+				}
+				data, readErr := io.ReadAll(response.Body)
+				_ = response.Body.Close()
+				if readErr != nil || !bytes.Equal(data, body) {
+					t.Fatal("tile delivery lost pixels")
+				}
+			}
+			readTile()
+			readTile()
+			want := int32(2)
+			if directive == "max-age=60" {
+				want = 1
+			}
+			if requests.Load() != want {
+				t.Fatalf("requests = %d, want %d", requests.Load(), want)
+			}
+			now = now.Add(2 * time.Minute)
+			readTile()
+			if requests.Load() != want+1 {
+				t.Fatal("expired tile was reused without validation")
+			}
+			if conditional.Load() != (directive != "no-store") {
+				t.Fatal("validator retention does not match cache policy")
+			}
+		})
+	}
+}
+
+func TestTileCacheFreshnessRules(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	for _, testCase := range []struct {
+		name    string
+		header  http.Header
+		fresh   time.Duration
+		noStore bool
+	}{
+		{"fallback", http.Header{}, 7 * 24 * time.Hour, false},
+		{"max-age with age", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"20"}}, 40 * time.Second, false},
+		{"apparent age", http.Header{"Cache-Control": {"max-age=60"}, "Date": {now.Add(-30 * time.Second).Format(http.TimeFormat)}}, 30 * time.Second, false},
+		{"expires", http.Header{"Date": {now.Format(http.TimeFormat)}, "Expires": {now.Add(time.Hour).Format(http.TimeFormat)}}, time.Hour, false},
+		{"expired", http.Header{"Expires": {now.Add(-time.Hour).Format(http.TimeFormat)}}, 0, false},
+		{"precedence", http.Header{"Cache-Control": {"max-age=10"}, "Expires": {now.Add(time.Hour).Format(http.TimeFormat)}}, 10 * time.Second, false},
+		{"no-cache", http.Header{"Cache-Control": {"max-age=60, no-cache"}}, 0, false},
+		{"no-store", http.Header{"Cache-Control": {"no-store, max-age=60"}}, time.Minute, true},
+		{"overflow", http.Header{"Cache-Control": {"max-age=9223372036854775807"}}, 0, false},
+		{"old age", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"9223372036854775807"}}, 0, false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			entry := cacheTile([]byte("tile"), nil, testCase.header, now)
+			if entry.expires.Sub(now) != testCase.fresh || entry.noStore != testCase.noStore {
+				t.Fatalf("freshness = %v, no-store = %t", entry.expires.Sub(now), entry.noStore)
+			}
+		})
+	}
+	previous := http.Header{"Cache-Control": {"max-age=60"}, "Etag": {`"old"`}, "Last-Modified": {now.Add(-time.Hour).Format(http.TimeFormat)}}
+	entry := cacheTile([]byte("tile"), previous, http.Header{"Cache-Control": {"max-age=120"}, "Etag": {`"new"`}}, now)
+	if entry.header.Get("ETag") != `"new"` || entry.header.Get("Last-Modified") != previous.Get("Last-Modified") || entry.expires.Sub(now) != 2*time.Minute {
+		t.Fatal("304 did not merge validators and replace freshness")
+	}
+	oversize := cacheTile([]byte("tile"), nil, http.Header{"Etag": {strings.Repeat("x", 17*1024)}}, now)
+	if !oversize.noStore || tileWeight(oversize) != 4 {
+		t.Fatal("oversized metadata escaped the cache bound")
+	}
+}
+
+func TestTileFetcherNoStoreDeliveryClearedOnCancel(t *testing.T) {
+	body := tilePNG(t)
+	fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	defer func() { fetcher.Stop(); fetcher.Wait() }()
+	job, _ := fetcher.submit(fetcher.session(), "https://tiles.invalid/1/0/0.png", true)
+	<-job.done
+	if fetcher.cache.Len() != 0 || fetcher.ready.Len() != 1 {
+		t.Fatal("no-store result must only await its pending delivery")
+	}
+	fetcher.Cancel()
+	if fetcher.ready.Len() != 0 {
+		t.Fatal("cancel retained no-store delivery")
+	}
 }
 
 func pngWithDimensions(t *testing.T, width, height int) []byte {

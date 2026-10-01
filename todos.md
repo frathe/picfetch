@@ -86,6 +86,18 @@
 
 ### Mac App Store preparation
 
+- [ ] Resolve OSM tile-service compliance before confirming Content Rights:
+  Original EXIF tile caching discarded HTTP freshness metadata and did not guarantee the
+  alternative seven-day retention. Assess fixed neighborhood warming against
+  permitted modest look-ahead and make on-map license access unambiguous.
+  See `packaging/apple-app-store/map-content-rights-research-2026-10-01.md`
+  and the accompanying attribution research. Ronin authorized the fix; transport
+  freshness and license links are implemented. After scope approval, replaced
+  Fyne-X's cache-bypassing renderer with an owned viewport renderer; end-to-end
+  expiry regression and view-lifecycle tests pass. New signed candidate, native
+  visual confirmation and broader qualification remain pending. See
+  `plans/2026-10-01-map-cache-rights.md`; do not mark Store compliance passed.
+
 Preserve the full feature set. Active plan: [Mac App Store preparation](plans/2026-09-29-apple-app-store.md).
 
 - [x] Add an immutable Apple Store channel, localized update/repair messages, verified pre-sign runtime staging and a read-only developer-input preflight.
