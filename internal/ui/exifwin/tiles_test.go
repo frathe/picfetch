@@ -116,6 +116,8 @@ func TestTileFetcherResponseDelay(t *testing.T) {
 				{"4", "5", 0},
 				{"4", "10", 4 * time.Second},
 				{"9223372036854775807", "10", 0},
+				{"9223372036854775808", "10", 0},
+				{"99999999999999999999", "10", 0},
 			} {
 				t.Run(fmt.Sprintf("%d/date=%s/age=%s/max-age=%s", status, date, policy.age, policy.maxAge), func(t *testing.T) {
 					now := time.Unix(1700000000, 0).UTC()
@@ -185,6 +187,11 @@ func TestTileCacheFreshnessRules(t *testing.T) {
 		{"no-store", http.Header{"Cache-Control": {"no-store, max-age=60"}}, time.Minute, true},
 		{"overflow", http.Header{"Cache-Control": {"max-age=9223372036854775807"}}, 0, false},
 		{"old age", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"9223372036854775807"}}, 0, false},
+		{"age overflow boundary", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"9223372036854775808"}}, 0, false},
+		{"age overflow decimal", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"99999999999999999999"}}, 0, false},
+		{"age overflow long decimal", http.Header{"Cache-Control": {"max-age=60"}, "Age": {strings.Repeat("9", 200)}}, 0, false},
+		{"age overflow fallback", http.Header{"Age": {"99999999999999999999"}}, 0, false},
+		{"negative age overflow", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"-99999999999999999999"}}, time.Minute, false},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			entry := cacheTile([]byte("tile"), nil, testCase.header, now, now)

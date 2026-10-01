@@ -1,6 +1,7 @@
 package exifwin
 
 import (
+	"errors"
 	"image"
 	"net/http"
 	"strconv"
@@ -48,7 +49,8 @@ func cacheTile(data []byte, previous, response http.Header, requested, now time.
 	}
 	entry := &cachedTile{data: data, header: header, received: now}
 	age := time.Duration(0)
-	if seconds, err := strconv.ParseInt(header.Get("Age"), 10, 64); err == nil && seconds > 0 {
+	// ParseInt returns saturated seconds on positive range overflow.
+	if seconds, err := strconv.ParseInt(header.Get("Age"), 10, 64); seconds > 0 && (err == nil || errors.Is(err, strconv.ErrRange)) {
 		age = time.Duration(min(seconds, int64((1<<63-1)/time.Second))) * time.Second
 	}
 	// Include transport/body/decode delay conservatively; saturate before adding.

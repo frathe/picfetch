@@ -350,3 +350,25 @@ Ronin requested a nightly stop after this round. Finish this fix, push, and run
 one final review round covering code and security plus latest-head hosted gates;
 record any new findings for tomorrow rather than starting another implementation
 cycle. Final review/check outcomes are recorded on PR #75.
+
+## Resumed loop: Age overflow follow-up
+
+Ronin resumed the loop after the nightly stop. The daf05af review reported
+confirmed discussion_r4159328887: a positive Age value beyond int64 was ignored
+as zero. Four freshness cases and twelve delayed 200/304 cases failed before the
+fix. cacheTile now accepts ParseInt's positive saturated result on ErrRange and
+applies the existing duration clamp; negative/malformed values retain their prior
+handling. Coverage includes the first value above int64, a large decimal, a
+200-digit decimal, heuristic fallback and a negative-overflow control. Both map
+feature race suites and focused vet pass. GoLand inspected tilecache.go and
+tiles_test.go with weak warnings included: no findings. Zero delegates; no new
+worker, dependency, test file or UI string. Existing exact test exclusion applies.
+[RFC 9111 section 1.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2)
+requires saturation on delta-seconds overflow.
+
+Pre-fix daf05af hosted CI and CodeQL passed with no open PR alerts; all three
+FOSSA checks passed. Its fresh root post-suppression Qodana SARIF (artifact
+11186506995) contains the same eleven validated unused-export false positives as
+e2ca161, no new actionable findings; the summary is neutral. Fresh code and
+separate security-focused rounds plus exact-head hosted gates remain required
+for the overflow fix. Final outcomes are tracked on PR #75.
