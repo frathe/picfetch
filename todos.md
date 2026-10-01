@@ -110,6 +110,7 @@
   Vary wildcard responses are non-storable; malformed equals-boundary whitespace
   is rejected. Hidden Location transitions now retire viewport pixels and claims.
   HTTP/grammar, hide/reopen and delayed-response freshness regressions pass.
+  Queued foreground pixels are purgeable on retirement; callbacks retain only keys.
   FOSSA passed on c89c74d after the ignore; fresh review gates are pending.
   New signed candidate, native
   visual confirmation and broader qualification remain pending. See

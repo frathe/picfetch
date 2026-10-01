@@ -327,3 +327,26 @@ weak warnings included: no findings. Existing exact test exclusion applies;
 zero delegates and no dependency/worker changes. Fresh code/security rounds and
 exact-head hosted gates remain required, recorded on PR #75. Calculation evidence:
 [RFC 9111 section 4.2.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.3).
+
+## Queued pixel retirement follow-up and nightly stop
+
+The separate e2ca161 security-focused round confirmed discussion_r4159197495:
+queued callbacks retained decoded pixels after view retirement. A real foreground
+regression held 64 generations undrained through hide/cancel/stop/renderer destroy;
+all four failed with approximately 64-70 MiB retained. Foreground completion now
+publishes minimal pixels to the fetcher's mutex-protected current-view delivery
+store, one result per visible foreground URL claim. Queued callbacks carry only
+context/version/key and take the current result once after UI admission. View
+advance, cancellation, stop and detached delivery purge the store immediately;
+old callbacks cannot take a later generation's same-URL result. No UI acknowledgement
+wait is added: workers still finish before test queue drain. The existing large
+viewport/eviction/single-use/renderer ABA cases remain passing, including 128 tiles.
+Both map feature race suites and focused vet pass. GoLand inspected map.go,
+tiles.go, tilework.go and exifwin_test.go with weak warnings included: no runtime
+findings and the same eight intentional fixture duplicates covered by the exact
+test exclusion. ARCHITECTURE.md records the purgeable delivery store. Zero delegates.
+
+Ronin requested a nightly stop after this round. Finish this fix, push, and run
+one final review round covering code and security plus latest-head hosted gates;
+record any new findings for tomorrow rather than starting another implementation
+cycle. Final review/check outcomes are recorded on PR #75.

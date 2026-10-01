@@ -53,12 +53,16 @@ func newThemedMap(tiles *tileFetcher) *themedMap {
 }
 
 // bindTileDelivery preserves foreground pixels until UI consumes them, independently
-// of the encoded-byte LRUs. Each claim owns one decoded tile, never response bytes.
+// of the encoded-byte LRUs. UI callbacks retain only keys into the purgeable store.
 func (viewWidget *themedMap) bindTileDelivery(queue UIQueue) {
 	viewWidget.ui = queue
-	viewWidget.tiles.setOnTile(func(ctx context.Context, version uint64, address string, tile displayedTile) {
+	viewWidget.tiles.setOnTile(func(ctx context.Context, version uint64, address string) {
 		queue.Do(func() {
-			if ctx.Err() != nil || ctx != viewWidget.session || version != viewWidget.tiles.captureView() || !viewWidget.requested[address] {
+			if ctx.Err() != nil || ctx != viewWidget.session || !viewWidget.requested[address] {
+				return
+			}
+			tile, current := viewWidget.tiles.takeDisplayTile(ctx, version, address)
+			if !current {
 				return
 			}
 			delete(viewWidget.requested, address)

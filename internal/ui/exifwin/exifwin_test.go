@@ -736,6 +736,59 @@ func TestThemedMapQueuedDeliveryRetiresHiddenView(t *testing.T) {
 	}
 }
 
+func TestThemedMapRetirementReleasesQueuedPixels(t *testing.T) {
+	for _, transition := range []string{"hide", "cancel", "stop", "destroy"} {
+		t.Run(transition, func(t *testing.T) {
+			app, host := testApp(t)
+			defer app.Quit()
+			body := tilePNG(t)
+			newFetcher := func() *tileFetcher {
+				return newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+					return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+				}))
+			}
+			w := newTestWindow(t, app, host)
+			w.tiles = newFetcher()
+			w.buildLocation()
+			view := w.locationMap
+			runtime.GC()
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			for range 64 {
+				_ = view.draw(256, 256)
+				w.tiles.Wait() // Retire each generation without draining any UI callbacks.
+				switch transition {
+				case "hide":
+					view.Hide()
+					view.Show()
+				case "cancel":
+					w.tiles.Cancel()
+					w.tiles.Restart()
+				case "stop":
+					w.tiles.Stop()
+					w.tiles = newFetcher()
+					w.buildLocation()
+					view = w.locationMap
+				case "destroy":
+					test.WidgetRenderer(view).Destroy()
+				}
+			}
+			if w.ui.(*uitest.UIQueue).Len() < 64 {
+				t.Fatal("setup: retired completions were not held in the UI queue")
+			}
+			runtime.GC()
+			runtime.ReadMemStats(&after)
+			if retained := int64(after.HeapAlloc) - int64(before.HeapAlloc); retained > 24*1024*1024 {
+				t.Fatalf("retired UI callbacks retained %d bytes, want less than 24 MiB", retained)
+			}
+			w.Settle()
+			if len(view.frame) != 0 {
+				t.Fatal("retired queued delivery revived map pixels")
+			}
+		})
+	}
+}
+
 func TestThemedMapPaddedViewportMemory(t *testing.T) {
 	app, host := testApp(t)
 	defer app.Quit()

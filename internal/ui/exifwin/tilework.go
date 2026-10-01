@@ -35,6 +35,7 @@ func (f *tileFetcher) retireView(ctx context.Context) {
 func (f *tileFetcher) advanceViewLocked() {
 	f.viewVersion++
 	f.ready.Purge()
+	clear(f.deliveries)
 	for _, job := range f.queue {
 		if f.inflight[job.url] == job {
 			delete(f.inflight, job.url)
@@ -81,6 +82,7 @@ func (f *tileFetcher) Stop() {
 func (f *tileFetcher) cancelLocked() {
 	f.cancel()
 	f.ready.Purge()
+	clear(f.deliveries)
 	for _, job := range f.queue {
 		if f.inflight[job.url] == job {
 			delete(f.inflight, job.url)
@@ -173,7 +175,7 @@ func (f *tileFetcher) releaseJob(job *tileJob, data *cachedTile, err error) {
 			if !data.noStore {
 				f.cache.AddIfFits(job.url, data)
 			}
-			// Direct foreground delivery already owns decoded pixels until UI
+			// The current delivery store owns decoded pixels until UI
 			// consumes them. Keep one-shot responses only for cache-only consumers.
 			if (data.noStore || !f.now().Before(data.expires)) && (!job.foreground || f.onTile == nil) {
 				f.ready.AddIfFits(job.url, data)
@@ -195,19 +197,22 @@ func (f *tileFetcher) releaseJob(job *tileJob, data *cachedTile, err error) {
 		}
 	}
 	pending, onChange, onTile := f.currentPendingLocked(), f.onChange, f.onTile
-	var tile displayedTile
-	if err == nil && data != nil {
-		tile = displayPixels(data)
-	}
 	if !current || !job.foreground {
 		onChange = nil
 		onTile = nil
+	}
+	if onTile != nil {
+		var tile displayedTile
+		if err == nil && data != nil {
+			tile = displayPixels(data)
+		}
+		f.deliveries[job.url] = tile
 	}
 	f.changedLocked()
 	f.mu.Unlock()
 
 	if onTile != nil {
-		onTile(job.ctx, job.viewVersion, job.url, tile)
+		onTile(job.ctx, job.viewVersion, job.url)
 	}
 	if onChange != nil {
 		onChange(pending)

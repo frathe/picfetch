@@ -561,9 +561,11 @@ tile cache; only the existing marker-value interface remains. `tilecache.go`
 retains bounded HTTP freshness, validators and Vary metadata; `cachecontrol.go`
 parses directive tokens and quoted strings. The two LRUs share a 16 MiB budget
 including encoded bytes, headers and normalized decoded tiles. Foreground pixels
-reach EXIF's UIQueue independently of eviction; viewport/queued claims retain
-only decoded pixels and minimal freshness fields, separately bounded by visible
-URL demand. The renderer revalidates expired reusable entries and retires frame
+remain in a purgeable current-view delivery store independently of eviction;
+EXIF's UIQueue carries only claim keys. Viewport and delivery state retain only
+decoded pixels and minimal freshness fields, separately bounded by current visible
+URL demand. View/session retirement purges undelivered pixels before UI drains.
+The renderer revalidates expired reusable entries and retires frame
 state and delivery versions across view changes and renderer destruction, checking
 captured session ownership before retiring shared work. No-cache/no-store and
 Vary-wildcard responses can finish the current display without revalidation loops,

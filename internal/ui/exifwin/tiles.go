@@ -146,11 +146,14 @@ type tileFetcher struct {
 	cache    *imaging.ByteCache[*cachedTile]
 	ready    *imaging.ByteCache[*cachedTile]
 
-	mu          sync.Mutex
-	inflight    map[string]*tileJob
-	failed      map[string]time.Time
-	onChange    func(pending int)
-	onTile      func(context.Context, uint64, string, displayedTile)
+	mu       sync.Mutex
+	inflight map[string]*tileJob
+	failed   map[string]time.Time
+	onChange func(pending int)
+	onTile   func(context.Context, uint64, string)
+	// deliveries holds one decoded result per current foreground viewport claim.
+	// Retirement purges pixels; queued UI callbacks retain only the claim key.
+	deliveries  map[string]displayedTile
 	ctx         context.Context
 	cancel      context.CancelFunc
 	stopped     bool
@@ -186,8 +189,9 @@ func newTileFetcher(template string, base http.RoundTripper) *tileFetcher {
 		ready:    imaging.NewByteCache(int64(tileBudget/2), tileWeight),
 		inflight: make(map[string]*tileJob),
 		ctx:      ctx, cancel: cancel, changed: make(chan struct{}),
-		failed: make(map[string]time.Time),
-		now:    time.Now,
+		failed:     make(map[string]time.Time),
+		deliveries: make(map[string]displayedTile),
+		now:        time.Now,
 	}
 }
 
@@ -207,12 +211,27 @@ func (f *tileFetcher) SetOnChange(fn func(pending int)) {
 	f.onChange = fn
 }
 
-// setOnTile delivers minimal foreground display values from tracked workers.
+// setOnTile signals foreground result claims from tracked workers.
 // The consumer must marshal delivery onto UI and recheck its context and view.
-func (f *tileFetcher) setOnTile(fn func(context.Context, uint64, string, displayedTile)) {
+func (f *tileFetcher) setOnTile(fn func(context.Context, uint64, string)) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.onTile = fn
+	if fn == nil {
+		clear(f.deliveries)
+	}
+}
+
+// takeDisplayTile transfers a current claim's pixels once, after UI admission.
+func (f *tileFetcher) takeDisplayTile(ctx context.Context, version uint64, address string) (displayedTile, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if ctx.Err() != nil || ctx != f.ctx || version != f.viewVersion {
+		return displayedTile{}, false
+	}
+	tile, exists := f.deliveries[address]
+	delete(f.deliveries, address)
+	return tile, exists
 }
 
 // Pending counts current queued and active jobs for the loading indicator.
