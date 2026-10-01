@@ -432,6 +432,9 @@ func stripJPEGMetadata(ctx context.Context, path string, expected *SourceVersion
 	if err != nil {
 		return false, err
 	}
+	if expected != nil && !expected.matches(data, info) {
+		return false, ErrSourceChanged
+	}
 	p, err := prepareJPEGRemoval(ctx, data)
 	if err != nil {
 		return false, err
@@ -440,9 +443,6 @@ func stripJPEGMetadata(ctx context.Context, path string, expected *SourceVersion
 		return false, nil
 	}
 
-	if expected != nil && !expected.matches(data, info) {
-		return false, ErrSourceChanged
-	}
 	check := func() error {
 		current, err := os.Stat(path)
 		if err != nil {

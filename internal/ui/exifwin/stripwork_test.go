@@ -220,7 +220,7 @@ func TestMetadataRemovalBusyErrorDeliveryAndRetry(t *testing.T) {
 }
 
 func TestMetadataRemovalBindsConfirmedSource(t *testing.T) {
-	for _, change := range []string{"unchanged link", "retargeted link", "identical replacement", "changed bytes", "refreshed while confirming"} {
+	for _, change := range []string{"unchanged link", "retargeted link", "identical replacement", "changed bytes", "clean replacement", "refreshed while confirming"} {
 		t.Run(change, func(t *testing.T) {
 			app, host := gpsApp(t)
 			source, _ := host.DisplayedFile()
@@ -229,6 +229,12 @@ func TestMetadataRemovalBindsConfirmedSource(t *testing.T) {
 			privateBytes := uitest.GPSJPEG(t, 8, 4, -33.856, 151.215)
 			if change == "identical replacement" {
 				privateBytes = bytes.Clone(original)
+			}
+			if change == "clean replacement" {
+				privateBytes = readWindowFile(t, uitest.TempJPEGURI(t, "clean.jpg", 8, 4, color.White))
+				if inspection := imaging.InspectJPEGMetadata(context.Background(), privateBytes); inspection.State != imaging.JPEGMetadataClean || inspection.Err != nil {
+					t.Fatalf("replacement fixture must already be clean: %+v", inspection)
+				}
 			}
 			if err := os.WriteFile(private, privateBytes, 0o600); err != nil {
 				t.Fatal(err)
@@ -255,7 +261,7 @@ func TestMetadataRemovalBindsConfirmedSource(t *testing.T) {
 				if err := os.Symlink(private, source.Path()); err != nil {
 					t.Fatal(err)
 				}
-			case "identical replacement":
+			case "identical replacement", "clean replacement":
 				if err := os.Rename(private, source.Path()); err != nil {
 					t.Fatal(err)
 				}

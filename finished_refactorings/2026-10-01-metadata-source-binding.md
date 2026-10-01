@@ -76,7 +76,7 @@ existing filesystem transaction/staging semantics remain in force.
 - Ledger: zero spawns; one lead local review plus targeted inspection fixes;
   one local race round; broad native amd64 suite delegated to hosted CI.
 
-### Final code gate and local test package
+### Qualified code gate and local test package at f36f1ca
 
 Verified code revision: f36f1cade1504a3f126c564be91f7554e098b710.
 [Fresh code review](https://github.com/frathe/picfetch/pull/75#issuecomment-5927983355)
@@ -113,3 +113,24 @@ finished_refactorings, with todo links updated and earlier snapshots labeled or
 reconciled. Application code and the qualified test package remain unchanged.
 Fresh review and CI results for subsequent documentation revisions are posted
 in PR #75; original local code evidence retains its analyzed revision above.
+
+### Subsequent review fix: changed clean inputs
+
+Thread 4154549323 confirmed that a replacement already-clean JPEG bypassed source
+verification through the no-op shortcut. Verified removal now compares inspected
+identity and bytes immediately after rereading, before preparing removal or
+returning a clean no-op. Unverified clean-file behavior remains unchanged.
+The confirmation-path regression uses an independently qualified clean replacement:
+it failed before the fix (no refusal), failed again with the guard moved behind
+the shortcut, and passes after restoration. Replacement bytes remain unchanged
+and no committed-source notification is emitted. Existing unchanged-symlink,
+changed-byte, replaced-inode, confirmation-refresh and clean no-op cases pass.
+
+Focused EXIF/imaging races, actual appleappstore-tagged confirmation tests and
+make verify-build pass. GoLand Project per-file inspections of imaging/save.go
+and exifwin/stripwork_test.go include weak warnings: no findings or timeouts.
+No added test file/shard/exclusion or dependency changes. Logs:
+/private/tmp/picfetch-clean-replacement-{red,negative,race}.log and
+/private/tmp/picfetch-review-three-fixes-{race,store,verify}.log.
+Original f36f1ca package evidence above remains source-specific; latest review
+and hosted gates are recorded through PR #75 before refreshing the test package.
