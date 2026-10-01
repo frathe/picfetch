@@ -24,7 +24,8 @@ authority second; upstream source/encode failure ruled out by that boundary.
    UI producer path; affected root regressions pass.
    `go test -race -tags no_emoji,nodynamic -run 'TestCopyImage|TestCopySelection|TestClipboard' ./internal/ui`
 3. Actual Store sandbox app copies the generated image and Preview File -> New
-   from Clipboard opens the correct 16x12 colored image. Repeat image copy and
+   from Clipboard opens the correct 16x12 colored image. A distinct 8x6 image replaces it via
+   Cmd+C and remains pasteable after PicFetch exits. Repeat image copy and
    retain errors/empty-input behavior. Qualification uses exact packaged source
    and does not read an old user clipboard after a failed publication.
 4. Make verify-build, changed-file GoLand weak-inclusive inspections, fresh
@@ -37,8 +38,8 @@ authority second; upstream source/encode failure ruled out by that boundary.
 
 Use existing clipboard.go dispatch plus darwin.go/other.go platform pair.
 The private operation receives its writer as an argument; no mutable package
-seam is added. AppKit creates a fresh NSPasteboardItem/NSData inside one call
-and eagerly writes PNG data; original Go memory is not retained. File-list
+seam is added. AppKit creates copied NSData inside one call
+and writes it directly with NSPasteboard setData:forType:; original Go memory is not retained. File-list
 copy is unchanged; Windows/Linux keep their existing paths. Update obsolete
 comments, package map, tests and the exact first todo without staging unrelated
 App Store metadata/acceptance edits. Archive this record at completion.
@@ -70,16 +71,30 @@ the qualified Preview path remain separate. Native worker policy remains intact.
   completes without the old denied-temp-file toast or clipboard error in the log.
   Candidate manifest records base a46076c plus the dirty source snapshot; it is
   not yet the final committed-source package.
-- Preview inspection was rejected by automatic approval review because other
-  open documents could be exposed. Permission requested; Preview paste and
-  pixel-dimension qualification remain pending, not passed.
+- Ronin approved Preview inspection after the automatic approval rejection.
+  Actual Preview File -> New from Clipboard opens the generated 16x12 color
+  pattern, and its inspector confirms PNG, 981 bytes, 16x12 pixels. Cmd+C on
+  a distinct 8x6 pink fixture opens a second correct image while PicFetch runs.
+- Additional native lifetime red: after copying the distinct image and quitting
+  PicFetch (exit zero), Preview New from Clipboard becomes disabled. Repeating
+  Cmd+C while PicFetch runs enables it again and opens the correct pink image.
+  This isolates publication lifetime from source/encoding and shortcut routing.
+  Replace the item writeObjects publisher with direct pasteboard setData so
+  copied bytes belong to the pasteboard server without a deferred item writer.
+  Post-exit qualification of that correction remains pending.
+- Fix commit 04e5e16 pushed. Fresh code review is clean:
+  https://github.com/frathe/picfetch/pull/75#issuecomment-5932020836.
+  CodeQL completed with no current PR open alerts. Configured Qodana run
+  36865494671, artifact 11164215681: exact 04e5e16 provenance, eleven
+  post-suppression unused-export false positives, identical to the prior set;
+  all production callers rechecked. Hosted CI 36865494787 is still running.
+  These results apply to 04e5e16, not the subsequent native lifetime correction.
 
-The publisher uses Apple's documented [NSPasteboardItem data publication](https://developer.apple.com/documentation/appkit/nspasteboarditem)
-through [NSPasteboard writeObjects](https://developer.apple.com/documentation/appkit/nspasteboard).
+The corrected publisher uses Apple's documented [direct NSPasteboard data publication](https://developer.apple.com/documentation/appkit/nspasteboard/), with copied NSData and setData:forType: rather than an item writer.
 
 ## Remaining gates
 
-Commit/push the reviewed source fix; complete Preview qualification if approved,
-then refresh the package from the committed source. Fresh latest-commit code and
+Commit/push the native lifetime correction; complete Preview post-exit
+qualification, then refresh the package from the committed source. Fresh latest-commit code and
 security-focused reviews, hosted CI, CodeQL and post-suppression Qodana assessment
 remain pending. Archive this record only after required work is complete.

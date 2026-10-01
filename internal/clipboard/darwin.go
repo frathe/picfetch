@@ -10,18 +10,15 @@ package clipboard
 #include <stdlib.h>
 #include <string.h>
 
-// NSData copies the borrowed Go bytes before this call returns. A fresh item
-// publishes eager PNG data, without a temporary file or deferred provider.
+// NSData copies the borrowed Go bytes before this call returns. Publish data
+// directly on the pasteboard so it survives application exit, without a
+// temporary file or an item writer whose data is requested later.
 static char *copyPNG(const void *bytes, size_t length) {
 	@autoreleasepool {
 		NSData *data = [NSData dataWithBytes:bytes length:length];
-		NSPasteboardItem *item = [[NSPasteboardItem alloc] init];
-		if (![item setData:data forType:NSPasteboardTypePNG]) {
-			return strdup("the pasteboard item rejected the PNG data");
-		}
 		NSPasteboard *pb = [NSPasteboard generalPasteboard];
 		[pb clearContents];
-		if (![pb writeObjects:@[item]]) {
+		if (![pb setData:data forType:NSPasteboardTypePNG]) {
 			return strdup("the pasteboard rejected the PNG image");
 		}
 		return NULL;

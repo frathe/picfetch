@@ -81,9 +81,9 @@
 - [ ] Finish qualifying the Copy Image fix in the sandboxed build. The macOS
   backend now publishes PNG bytes directly through AppKit instead of writing a
   denied temporary PNG and running AppleScript. Clipboard race tests, image and
-  selection regressions, vet/build and native Copy Image pass. Preview paste
-  awaits the requested inspection permission; fresh GitHub review/CI and the
-  committed-source test package remain pending. See the
+  selection regressions, vet/build and native Copy Image pass. Preview confirms the correct PNG
+  and Cmd+C works; post-exit clipboard lifetime needs the direct-data publisher
+  correction. Fresh latest-head GitHub review/CI and test package remain pending. See the
   [implementation and evidence](plans/2026-10-01-store-clipboard-image.md).
 
 ### Mac App Store preparation
