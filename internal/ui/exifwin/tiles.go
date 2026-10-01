@@ -289,13 +289,14 @@ func (f *tileFetcher) get(ctx context.Context, url string) (*cachedTile, error) 
 
 	client := &http.Client{Transport: f.base, Timeout: tileTimeout}
 
+	requested := f.now()
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode == http.StatusNotModified && previous != nil {
-		entry := cacheTile(previous.data, previous.header, res.Header, f.now())
+		entry := cacheTile(previous.data, previous.header, res.Header, requested, f.now())
 		entry.pixels = previous.pixels
 		return entry, nil
 	}
@@ -325,7 +326,7 @@ func (f *tileFetcher) get(ctx context.Context, url string) (*cachedTile, error) 
 	if err != nil {
 		return nil, err
 	}
-	entry := cacheTile(data, nil, res.Header, f.now())
+	entry := cacheTile(data, nil, res.Header, requested, f.now())
 	entry.pixels = image.NewNRGBA(image.Rect(0, 0, tileSize, tileSize))
 	draw.Draw(entry.pixels, entry.pixels.Bounds(), pixels, pixels.Bounds().Min, draw.Src)
 	return entry, nil

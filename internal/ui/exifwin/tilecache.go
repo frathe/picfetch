@@ -30,7 +30,7 @@ func tileWeight(entry *cachedTile) int64 {
 	return size
 }
 
-func cacheTile(data []byte, previous, response http.Header, now time.Time) *cachedTile {
+func cacheTile(data []byte, previous, response http.Header, requested, now time.Time) *cachedTile {
 	header := make(http.Header)
 	size := 0
 	for _, name := range []string{"Cache-Control", "Expires", "Date", "Age", "ETag", "Last-Modified", "Vary"} {
@@ -51,6 +51,9 @@ func cacheTile(data []byte, previous, response http.Header, now time.Time) *cach
 	if seconds, err := strconv.ParseInt(header.Get("Age"), 10, 64); err == nil && seconds > 0 {
 		age = time.Duration(min(seconds, int64((1<<63-1)/time.Second))) * time.Second
 	}
+	// Include transport/body/decode delay conservatively; saturate before adding.
+	delay := max(now.Sub(requested), time.Duration(0))
+	age += min(delay, time.Duration(1<<63-1)-age)
 	date, dateErr := http.ParseTime(header.Get("Date"))
 	if dateErr == nil {
 		age = max(age, now.Sub(date))

@@ -105,6 +105,43 @@ func TestTileFetcherHTTPFreshness(t *testing.T) {
 	}
 }
 
+func TestTileFetcherResponseDelay(t *testing.T) {
+	body := tilePNG(t)
+	for _, status := range []int{http.StatusOK, http.StatusNotModified} {
+		for _, date := range []string{"", "invalid", time.Unix(1700000000, 0).UTC().Format(http.TimeFormat)} {
+			for _, policy := range []struct {
+				age, maxAge string
+				remaining   time.Duration
+			}{
+				{"4", "5", 0},
+				{"4", "10", 4 * time.Second},
+				{"9223372036854775807", "10", 0},
+			} {
+				t.Run(fmt.Sprintf("%d/date=%s/age=%s/max-age=%s", status, date, policy.age, policy.maxAge), func(t *testing.T) {
+					now := time.Unix(1700000000, 0).UTC()
+					fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+						now = now.Add(2 * time.Second)
+						return &http.Response{StatusCode: status, Header: http.Header{"Cache-Control": {"max-age=" + policy.maxAge}, "Age": {policy.age}, "Date": {date}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+					}))
+					defer func() { fetcher.Stop(); fetcher.Wait() }()
+					fetcher.now = func() time.Time { return now }
+					url := "https://tiles.invalid/one"
+					if status == http.StatusNotModified {
+						fetcher.cache.AddIfFits(url, &cachedTile{data: body, header: http.Header{"Etag": {`"tile"`}}})
+					}
+					entry, err := fetcher.get(fetcher.session(), url)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := entry.expires.Sub(now); got != policy.remaining {
+						t.Fatalf("remaining freshness = %v, want %v after 2s response delay", got, policy.remaining)
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestTileCacheFreshnessRules(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	for _, testCase := range []struct {
@@ -150,18 +187,18 @@ func TestTileCacheFreshnessRules(t *testing.T) {
 		{"old age", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"9223372036854775807"}}, 0, false},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			entry := cacheTile([]byte("tile"), nil, testCase.header, now)
+			entry := cacheTile([]byte("tile"), nil, testCase.header, now, now)
 			if entry.expires.Sub(now) != testCase.fresh || entry.noStore != testCase.noStore {
 				t.Fatalf("freshness = %v, no-store = %t", entry.expires.Sub(now), entry.noStore)
 			}
 		})
 	}
 	previous := http.Header{"Cache-Control": {"max-age=60"}, "Etag": {`"old"`}, "Last-Modified": {now.Add(-time.Hour).Format(http.TimeFormat)}}
-	entry := cacheTile([]byte("tile"), previous, http.Header{"Cache-Control": {"max-age=120"}, "Etag": {`"new"`}}, now)
+	entry := cacheTile([]byte("tile"), previous, http.Header{"Cache-Control": {"max-age=120"}, "Etag": {`"new"`}}, now, now)
 	if entry.header.Get("ETag") != `"new"` || entry.header.Get("Last-Modified") != previous.Get("Last-Modified") || entry.expires.Sub(now) != 2*time.Minute {
 		t.Fatal("304 did not merge validators and replace freshness")
 	}
-	oversize := cacheTile([]byte("tile"), nil, http.Header{"Etag": {strings.Repeat("x", 17*1024)}}, now)
+	oversize := cacheTile([]byte("tile"), nil, http.Header{"Etag": {strings.Repeat("x", 17*1024)}}, now, now)
 	if !oversize.noStore || tileWeight(oversize) != 4 {
 		t.Fatal("oversized metadata escaped the cache bound")
 	}

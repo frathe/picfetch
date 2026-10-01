@@ -312,3 +312,18 @@ The EXIF race suite and focused vet pass. GoLand weak-inclusive inspections cove
 uiqueue.go and exifwin_test.go: no runtime findings; eight intentional independent
 fixture duplicates match the existing exact test exclusion. Zero delegates.
 Latest-head hosted gates and fresh reviews remain required on PR #75.
+
+## Response-age timing follow-up
+
+Fresh 9ae519c discussion_r4158984241 confirmed omitted response delay in Age
+accounting. Twelve delayed 200/304 cases failed before the fix with freshness
+extended by two seconds. Request time is now captured before client.Do; cacheTile
+conservatively includes elapsed transport/body/decode time in corrected Age,
+saturating addition before taking the maximum with apparent Date age. Eighteen
+cases cover missing/invalid/valid Date, exhausted and remaining lifetimes, and
+saturated Age for both 200 and 304 responses. Both map feature race suites and
+focused vet pass. GoLand inspected tilecache.go, tiles.go and tiles_test.go with
+weak warnings included: no findings. Existing exact test exclusion applies;
+zero delegates and no dependency/worker changes. Fresh code/security rounds and
+exact-head hosted gates remain required, recorded on PR #75. Calculation evidence:
+[RFC 9111 section 4.2.3](https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.3).

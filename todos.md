@@ -109,7 +109,7 @@
   Quote-aware Cache-Control grammar prevents extension directive injection;
   Vary wildcard responses are non-storable; malformed equals-boundary whitespace
   is rejected. Hidden Location transitions now retire viewport pixels and claims.
-  HTTP/grammar and hide/reopen regressions pass.
+  HTTP/grammar, hide/reopen and delayed-response freshness regressions pass.
   FOSSA passed on c89c74d after the ignore; fresh review gates are pending.
   New signed candidate, native
   visual confirmation and broader qualification remain pending. See
