@@ -242,3 +242,25 @@ func TestResolutionPicker(t *testing.T) {
 		})
 	}
 }
+
+func TestResolutionPickerDoesNotLoseSignalAfterSelection(t *testing.T) {
+	var out bytes.Buffer
+	notices := make(chan os.Signal, 1)
+	_, err := pickResolution(&out, func() (byte, bool, error) { notices <- syscall.SIGTERM; return '\r', true, nil }, notices)
+	if err == nil {
+		t.Fatal("Return swallowed an arriving SIGTERM and allowed GUI startup")
+	}
+}
+
+func TestResolutionSignalDuringCleanupPreventsStartup(t *testing.T) {
+	for _, notice := range []os.Signal{os.Interrupt, syscall.SIGTERM} {
+		notices := make(chan os.Signal, 1)
+		notices <- notice
+		if err := finishResolutionSignals(notices); err == nil {
+			t.Fatalf("cleanup swallowed %v", notice)
+		}
+		if err := finishResolutionSignals(notices); err != nil {
+			t.Fatalf("already-consumed signal remained: %v", err)
+		}
+	}
+}

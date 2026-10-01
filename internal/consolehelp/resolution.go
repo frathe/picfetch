@@ -24,7 +24,7 @@ func SelectResolution(in *os.File, out io.Writer) (size launch.Resolution, err e
 	// the process while its terminal is still raw.
 	notices := make(chan os.Signal, 2)
 	signal.Notify(notices, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(notices)
+	defer func() { err = errors.Join(err, finishResolutionSignals(notices)) }()
 	restoreANSI, err := enableANSI(output)
 	if err != nil {
 		return size, err
@@ -44,6 +44,22 @@ func SelectResolution(in *os.File, out io.Writer) (size launch.Resolution, err e
 	}
 	size, err = pickResolution(out, func() (byte, bool, error) { return readTerminalByte(in) }, notices)
 	return size, err
+}
+
+// Stop waits for signal delivery to stop, then observes notifications received
+// during deferred terminal restoration before startup can accept the selection.
+func finishResolutionSignals(notices chan os.Signal) error {
+	signal.Stop(notices)
+	return pendingResolutionSignal(notices)
+}
+
+func pendingResolutionSignal(notices <-chan os.Signal) error {
+	select {
+	case <-notices:
+		return errors.New("fixed-size selection interrupted")
+	default:
+		return nil
+	}
 }
 
 func pickResolution(out io.Writer, read func() (byte, bool, error), notices <-chan os.Signal) (launch.Resolution, error) {
@@ -76,6 +92,9 @@ func pickResolution(out io.Writer, read func() (byte, bool, error), notices <-ch
 		key, ready, err := read()
 		if err != nil {
 			return launch.Resolution{}, fmt.Errorf("fixed-size selection: %w", err)
+		}
+		if err := pendingResolutionSignal(notices); err != nil {
+			return launch.Resolution{}, err
 		}
 		if !ready {
 			continue

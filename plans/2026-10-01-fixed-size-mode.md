@@ -130,3 +130,12 @@ post-suppression SARIF results, all unused-export false positives with productio
 callers (the prior eight plus ScreenshotContentSize and SelectResolution).
 Fresh code review has the four addressed findings above; a new clean code/security
 round on the final subsequent head remains required.
+
+### Fresh review: termination during picker restoration
+
+Thread 4153347460 found that a signal arriving after Return could remain unread
+when deferred `signal.Stop` ran. The final cleanup now stops delivery and checks
+pending notifications after cursor/raw/ANSI restoration; arrival during a terminal
+read also prevents accepting Return. A deterministic regression reproduced the
+selection/read race before the fix; cleanup covers both SIGINT and SIGTERM.
+Focused race, PTY restoration and changed-file inspections recorded with the fix.
