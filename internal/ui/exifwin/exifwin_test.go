@@ -579,6 +579,110 @@ func TestThemedMapViewCacheLifetime(t *testing.T) {
 	}
 }
 
+func TestThemedMapPaddedForegroundDelivery(t *testing.T) {
+	for _, scenario := range []struct {
+		name, directive      string
+		width, height, tiles int
+		padded               bool
+	}{
+		{"padded no-store", "no-store", 1024, 1024, 16, true},
+		{"padded fresh", "max-age=60", 1024, 1024, 16, true},
+		{"large no-store viewport", "no-store", 4096, 2048, 128, false},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			app, host := testApp(t)
+			defer app.Quit()
+			body := tilePNG(t)
+			if scenario.padded {
+				body = append(body, make([]byte, maxTileBytes-len(body))...)
+			}
+			var requests atomic.Int32
+			w := newTestWindow(t, app, host)
+			w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {scenario.directive}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+			}))
+			w.buildLocation()
+			view := w.locationMap
+			view.Resize(fyne.NewSize(float32(scenario.width), float32(scenario.height)))
+			for range 4 {
+				_ = view.draw(scenario.width, scenario.height)
+				w.Settle()
+			}
+			if got := len(view.frame); got != scenario.tiles {
+				t.Errorf("visible tiles = %d, want all %d despite cache eviction", got, scenario.tiles)
+			}
+			if got := int(requests.Load()); got != scenario.tiles {
+				t.Errorf("downloads = %d, want each of %d visible tiles downloaded once", got, scenario.tiles)
+			}
+		})
+	}
+}
+
+func TestThemedMapQueuedDeliveryRetiresHiddenView(t *testing.T) {
+	app, host := testApp(t)
+	defer app.Quit()
+	body := tilePNG(t)
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	w.buildLocation()
+	view := w.locationMap
+	view.Resize(fyne.NewSize(256, 256))
+	_ = view.draw(256, 256)
+	w.tiles.Wait()
+	view.Hide()
+	w.Settle()
+	if len(view.frame) != 0 {
+		t.Fatal("queued tile delivery revived a hidden viewport")
+	}
+	view.Show()
+	_ = view.draw(256, 256)
+	w.Settle()
+	_ = view.draw(256, 256)
+	if len(view.frame) != 4 {
+		t.Fatal("reopened viewport did not receive fresh foreground tiles")
+	}
+}
+
+func TestThemedMapPaddedViewportMemory(t *testing.T) {
+	app, host := testApp(t)
+	defer app.Quit()
+	body := tilePNG(t)
+	body = append(body, make([]byte, maxTileBytes-len(body))...)
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"max-age=60"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	w.buildLocation()
+	view := w.locationMap
+	view.Resize(fyne.NewSize(1024, 1024))
+	_ = view.draw(0, 0)
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	for range 20 {
+		_ = view.draw(1024, 1024)
+		w.Settle()
+		if len(view.frame) == 16 {
+			break
+		}
+	}
+	if len(view.frame) != 16 {
+		t.Fatal("viewport never received all 16 tiles")
+	}
+	runtime.GC()
+	runtime.ReadMemStats(&after)
+	// Sixteen decoded tiles take 4 MiB. Allow substantial headroom for the
+	// bounded caches and renderer; pinning sixteen encoded bodies takes 64 MiB.
+	if after.HeapAlloc > before.HeapAlloc+40*1024*1024 {
+		t.Errorf("viewport retains %d extra bytes; encoded response bodies escaped the cache budget", after.HeapAlloc-before.HeapAlloc)
+	}
+	runtime.KeepAlive(view)
+	runtime.KeepAlive(body)
+}
+
 func TestThemedMapExpiredPixelsOnFailedValidation(t *testing.T) {
 	app := test.NewApp()
 	defer app.Quit()

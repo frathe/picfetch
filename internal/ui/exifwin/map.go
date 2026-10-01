@@ -6,6 +6,7 @@ import (
 	"image"
 	"math"
 	"net/url"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -26,26 +27,51 @@ type mapView struct {
 }
 
 type displayedTile struct {
-	entry  *cachedTile
-	pixels image.Image
+	pixels            image.Image
+	expires, received time.Time
+	noStore           bool
 }
 
 type themedMap struct {
 	widget.BaseWidget
-	tiles   *tileFetcher
-	centerX float64
-	centerY float64
-	zoom    int
-	markers []xwidget.MapMarker
-	view    mapView
-	frame   map[string]displayedTile
-	session context.Context
+	tiles     *tileFetcher
+	centerX   float64
+	centerY   float64
+	zoom      int
+	markers   []xwidget.MapMarker
+	view      mapView
+	frame     map[string]displayedTile
+	session   context.Context
+	ui        UIQueue
+	requested map[string]bool
 }
 
 func newThemedMap(tiles *tileFetcher) *themedMap {
 	result := &themedMap{tiles: tiles, centerX: .5, centerY: .5, zoom: mapZoom}
 	result.ExtendBaseWidget(result)
 	return result
+}
+
+// bindTileDelivery preserves foreground pixels until UI consumes them, independently
+// of the encoded-byte LRUs. Each claim owns one decoded tile, never response bytes.
+func (viewWidget *themedMap) bindTileDelivery(queue UIQueue) {
+	viewWidget.ui = queue
+	viewWidget.tiles.setOnTile(func(ctx context.Context, version uint64, address string, tile displayedTile) {
+		queue.Do(func() {
+			if ctx.Err() != nil || ctx != viewWidget.session || version != viewWidget.tiles.captureView() || !viewWidget.requested[address] {
+				return
+			}
+			delete(viewWidget.requested, address)
+			if tile.pixels != nil {
+				viewWidget.frame[address] = tile
+			}
+			viewWidget.Refresh()
+		})
+	})
+}
+
+func displayPixels(entry *cachedTile) displayedTile {
+	return displayedTile{pixels: entry.pixels, expires: entry.expires, received: entry.received, noStore: entry.noStore}
 }
 
 func projectMapLocation(latitude, longitude float64) (float64, float64) {
@@ -95,6 +121,7 @@ func (viewWidget *themedMap) MinSize() fyne.Size { return fyne.NewSize(64, 64) }
 func (viewWidget *themedMap) Hide() {
 	viewWidget.tiles.advanceView()
 	viewWidget.frame = nil
+	viewWidget.requested = nil
 	viewWidget.BaseWidget.Hide()
 }
 
@@ -106,8 +133,12 @@ func (viewWidget *themedMap) draw(width, height int) image.Image {
 	}
 	if view != viewWidget.view || session != viewWidget.session || session.Err() != nil {
 		viewWidget.frame = nil
+		viewWidget.requested = nil
 		viewWidget.view = view
 		viewWidget.session = session
+	}
+	if viewWidget.requested == nil {
+		viewWidget.requested = make(map[string]bool)
 	}
 	pixels := image.NewNRGBA(image.Rect(0, 0, width, height))
 	if width <= 0 || height <= 0 || session.Err() != nil {
@@ -130,10 +161,15 @@ func (viewWidget *themedMap) draw(width, height int) image.Image {
 			if !reused {
 				shown = viewWidget.frame[address]
 			}
-			if shown.entry == nil || (!shown.entry.noStore && shown.entry.expires.After(shown.entry.received) && !viewWidget.tiles.now().Before(shown.entry.expires)) {
+			if shown.pixels == nil || (!shown.noStore && shown.expires.After(shown.received) && !viewWidget.tiles.now().Before(shown.expires)) {
 				shown = displayedTile{}
-				if entry := viewWidget.tiles.displayTile(address); entry != nil {
-					shown = displayedTile{entry, entry.pixels}
+				if !viewWidget.requested[address] {
+					entry, claimed := viewWidget.tiles.requestDisplayTile(address)
+					if entry != nil {
+						shown = displayPixels(entry)
+					} else if claimed && viewWidget.ui != nil {
+						viewWidget.requested[address] = true
+					}
 				}
 			}
 			if shown.pixels == nil {
@@ -203,7 +239,10 @@ func (renderer *mapRenderer) Layout(size fyne.Size) {
 
 func (renderer *mapRenderer) MinSize() fyne.Size           { return renderer.owner.MinSize() }
 func (renderer *mapRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{renderer.root} }
-func (renderer *mapRenderer) Destroy()                     { renderer.owner.frame = nil }
+func (renderer *mapRenderer) Destroy() {
+	renderer.owner.frame = nil
+	renderer.owner.requested = nil
+}
 func (renderer *mapRenderer) Refresh() {
 	renderer.Layout(renderer.owner.Size())
 	renderer.raster.Refresh()

@@ -98,6 +98,9 @@
   pixels after failed validation and retires one-shot results when the view changes;
   regressions and weak-inclusive inspections pass. Ronin ignored the confirmed
   FOSSA research-reference false positive; review/CI evidence is tracked on PR #75.
+  A further review fix retains decoded-only viewport pixels and delivers foreground
+  tiles through the EXIF UI queue before cache eviction can lose them; padded-PNG
+  memory/progress and queued-hide regressions pass. Fresh review gates are pending.
   New signed candidate, native
   visual confirmation and broader qualification remain pending. See
   `plans/2026-10-01-map-cache-rights.md`; do not mark Store compliance passed.

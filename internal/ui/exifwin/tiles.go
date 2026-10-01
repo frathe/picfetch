@@ -150,6 +150,7 @@ type tileFetcher struct {
 	inflight    map[string]*tileJob
 	failed      map[string]time.Time
 	onChange    func(pending int)
+	onTile      func(context.Context, uint64, string, displayedTile)
 	ctx         context.Context
 	cancel      context.CancelFunc
 	stopped     bool
@@ -206,6 +207,14 @@ func (f *tileFetcher) SetOnChange(fn func(pending int)) {
 	f.onChange = fn
 }
 
+// setOnTile delivers minimal foreground display values from tracked workers.
+// The consumer must marshal delivery onto UI and recheck its context and view.
+func (f *tileFetcher) setOnTile(fn func(context.Context, uint64, string, displayedTile)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.onTile = fn
+}
+
 // Pending counts current queued and active jobs for the loading indicator.
 // Obsolete HTTP calls still occupy worker slots but cannot keep a new map
 // loading. This count is not a completion signal; Wait includes old workers.
@@ -227,21 +236,22 @@ func (f *tileFetcher) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func (f *tileFetcher) displayTile(url string) *cachedTile {
+	entry, _ := f.requestDisplayTile(url)
+	return entry
+}
+
+func (f *tileFetcher) requestDisplayTile(url string) (*cachedTile, bool) {
 	f.mu.Lock()
+	defer f.mu.Unlock()
 	if entry, ok := f.ready.Get(url); ok {
 		f.ready.Remove(url)
-		f.mu.Unlock()
-		return entry
+		return entry, false
 	}
 	if entry, ok := f.cache.Get(url); ok && f.now().Before(entry.expires) {
-		f.mu.Unlock()
-		return entry
+		return entry, false
 	}
-	f.mu.Unlock()
-
-	_, _ = f.submit(f.session(), url, true)
-
-	return nil
+	job, _ := f.submitLocked(f.ctx, url, true, f.viewVersion)
+	return nil, job != nil
 }
 
 // tileResponse wraps cached tile bytes as the 200 response the widget's

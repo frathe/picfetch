@@ -238,6 +238,7 @@ func (w *Window) Show() {
 		w.cancelStrip()
 		w.cancelMetadata()
 		w.tiles.SetOnChange(nil)
+		w.tiles.setOnTile(nil)
 
 		w.cancelTiles()
 
@@ -382,6 +383,7 @@ func (w *Window) buildLocation() {
 	w.tiles.Restart()
 	w.observeTiles(w.warmGen)
 	w.locationMap = newThemedMap(w.tiles)
+	w.locationMap.bindTileDelivery(w.ui)
 
 	spinner := widget.NewProgressBarInfinite()
 	w.loading = container.NewCenter(container.NewVBox(widget.NewLabel(lang.L("Loading map…")), spinner))
@@ -645,11 +647,8 @@ func formatExifMetadata(m imaging.Metadata) string {
 }
 
 func (w *Window) observeTiles(gen int) {
-	// A tile that arrives after the frame that asked for it only reaches
-	// the screen if the map is told to redraw - see tiles.go. Redrawing
-	// once the batch is in, rather than per tile, is what keeps a pan
-	// across a dozen new tiles from queueing a dozen repaints of a map
-	// that is still mostly holes.
+	// Pixel deliveries refresh progressively through the map's UI queue. This
+	// final notice also settles the spinner when a batch ends or a tile fails.
 	w.tiles.SetOnChange(func(pending int) {
 		if pending > 0 {
 			return

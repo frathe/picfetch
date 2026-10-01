@@ -139,3 +139,46 @@ this documentation-reference false positive to FOSSA's ignore list. Record and
 scope: `docs/fossa-license-ci-2026-09-26.md`. The earlier GitHub status predates
 that disposition; verify a fresh scan before calling the license gate passed.
 This does not waive OSM attribution, tile-service obligations or Store qualification.
+
+## Foreground pixel delivery review follow-up
+
+The separate security-focused review of c8fd4df reported two confirmed P2
+findings (discussion_r4157592372 and discussion_r4157592390). The visible frame
+pinned whole cached responses after eviction, and eviction could discard completed
+foreground results before the batch repaint consumed them. A valid 256x256 PNG
+padded to the existing 4 MiB body limit reproduced both: sixteen visible tiles
+caused 58 downloads with only three displayed after four paints; a completed
+viewport retained 71,347,776 extra heap bytes after GC.
+
+The frame now owns only decoded pixels, copied freshness timestamps and the
+no-store bit. Foreground workers deliver this same minimal value through EXIF's
+existing UIQueue independently of the two evicting LRUs. UI claims prevent a
+repaint from requesting a completed-but-not-yet-consumed tile again. Queued
+results recheck cancellation, session, view version and the current claim before
+installing pixels. Hide/renderer retirement clear claims; Close/Stop remove the
+callback. Workers never wait for UI acknowledgement: existing Settle joins
+tracked workers and then drains delivery, preserving shutdown and warm barriers.
+
+The two LRUs still share the 16 MiB budget, including encoded bytes, headers and
+decoded pixels. That budget excludes the displayed viewport and queued foreground
+pixels: each visible/requested URL retains one normalized 256x256 NRGBA tile
+(256 KiB), plus minimal metadata. This is bounded by viewport demand, independent
+of encoded-body padding; no raw response bodies or header references cross the
+foreground UI callback. Warm-only responses retain the existing bounded cache
+policy. No new dependency, goroutine, global test seam or persistent cache.
+
+Acceptance evidence: TestThemedMapPaddedForegroundDelivery verifies exactly one
+download per visible tile for padded fresh and no-store responses and a 128-tile
+viewport exceeding the work-queue capacity. TestThemedMapPaddedViewportMemory
+verifies retained heap stays below a generous 40 MiB increase for sixteen padded
+tiles; it failed at 68 MiB before the fix. TestThemedMapQueuedDeliveryRetiresHiddenView
+checks queued delivery cannot revive a hidden frame and reopen admits fresh work.
+make verify-build passes formatting/configuration/notice checks, full vet and
+build. Both feature package race suites and the focused root TestLocationMap/
+tile_policy_and_bounds regression pass. GoLand inspected all five changed Go
+files (exifwin.go, exifwin_test.go, map.go, tiles.go, tilework.go) with weak
+warnings included, and reinspected the final test edits. No actionable findings;
+the same six existing fixture-duplication warnings remain covered by the exact
+exifwin_test.go Qodana exclusion. Lead fixes inline; zero delegates. Latest-head
+fresh code/security review, hosted CI, CodeQL, Qodana SARIF and the FOSSA ignore
+rescan remain the final review-loop gates.

@@ -61,6 +61,7 @@ func (f *tileFetcher) Stop() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stopped = true
+	f.onTile = nil
 	f.cancelLocked()
 }
 
@@ -178,13 +179,21 @@ func (f *tileFetcher) releaseJob(job *tileJob, data *cachedTile, err error) {
 			f.failed[job.url] = f.now()
 		}
 	}
-	pending, onChange := f.currentPendingLocked(), f.onChange
+	pending, onChange, onTile := f.currentPendingLocked(), f.onChange, f.onTile
+	var tile displayedTile
+	if err == nil && data != nil {
+		tile = displayPixels(data)
+	}
 	if !current || !job.foreground {
 		onChange = nil
+		onTile = nil
 	}
 	f.changedLocked()
 	f.mu.Unlock()
 
+	if onTile != nil {
+		onTile(job.ctx, job.viewVersion, job.url, tile)
+	}
 	if onChange != nil {
 		onChange(pending)
 	}
