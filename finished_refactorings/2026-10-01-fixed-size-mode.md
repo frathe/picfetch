@@ -44,10 +44,10 @@ Task graph: 1 -> 2 -> 3 -> 4. All tasks owned by T0 inline.
 
 Budgets: zero spawns; one local lead assessment per task, further rounds only
 for findings; focused suites locally, full suite once on hosted CI per revision.
-Evidence and actual cost ledger will be appended as work completes. Active work
-stays here until Ronin accepts it.
+The completed work and verification evidence are archived here. The implementation
+sequence below is retained as history; final code qualification is recorded at the end.
 
-## Local evidence, 2026-10-01
+## Historical local evidence before the first review, 2026-10-01
 
 - Parser, picker, startup and constrained-window regressions were observed red
   before implementation (unknown flag, zero selection, missing selected startup
@@ -91,15 +91,14 @@ stays here until Ronin accepts it.
 | CLI / picker | 0 / 0 | 1 | no |
 | Window policy / native metrics | 0 / 0 | 1 | no |
 | UI / persistence | 0 / 0 | 2 (fixture completion fix) | no |
-| Land | 0 / 0 | pending GitHub loop | hosted CI pending |
+| Land | 0 / 0 | clean code/security at f36f1ca | hosted CI passed at f36f1ca |
 
-The existing PR now also contains fresh security-priority follow-up threads on
-metadata removal/export identity. Those confirmed older findings must be addressed
-in the requested review loop before the new App Store package is built. Recursive
-scan limits are explicitly classified by the bot as deferrable availability
-hardening and remain an open backlog item.
+At this initial stage, the PR also contained security-priority follow-up threads
+on metadata removal/export identity. Both were subsequently fixed in a664aad
+before the fresh package was built. Recursive scan limits were classified by the
+bot as deferrable availability hardening and remain an open backlog item.
 
-## Review fixes after 1439746
+## Historical review fixes after 1439746
 
 Four confirmed code-review findings are fixed inline. Signal notification now
 starts before any raw terminal mutation and stops after cursor, terminal and
@@ -128,10 +127,10 @@ Hosted evidence for 1439746: full platform/race CI and CodeQL pass; artifact
 11146375885 from Qodana run 36828289980 has the exact revision and 10 final
 post-suppression SARIF results, all unused-export false positives with production
 callers (the prior eight plus ScreenshotContentSize and SelectResolution).
-Fresh code review has the four addressed findings above; a new clean code/security
-round on the final subsequent head remains required.
+That review found the four issues addressed above. The required clean code and
+security rounds subsequently completed at f36f1ca, as linked below.
 
-### Fresh review: termination during picker restoration
+### Historical review: termination during picker restoration
 
 Thread 4153347460 found that a signal arriving after Return could remain unread
 when deferred `signal.Stop` ran. The final cleanup now stops delivery and checks
@@ -172,3 +171,12 @@ including titlebar and excluding shadow. Evidence is retained in
 .scratch/fixed-size-mode/final-1280x800.jpeg. Existing four-preset native frame
 measurements and scale/backing regressions remain valid; mixed-monitor movement
 is still unqualified.
+
+### Completion-record maintenance
+
+The final documentation review at 2e392a9 identified active-directory placement
+and stale historical gate wording. This completed record is now archived under
+finished_refactorings, with todo links updated and earlier snapshots labeled or
+reconciled. Application code and the qualified test package remain unchanged.
+Fresh review and CI results for subsequent documentation revisions are posted
+in PR #75; original local code evidence retains its analyzed revision above.

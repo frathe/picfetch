@@ -33,7 +33,7 @@ Files: internal/filepicker/darwin.go, folders.go and existing folders_test.go;
 native completion coverage in existing darwin_test.go if needed after assessment.
 No native OS operation runs in ordinary unit tests.
 
-## Diagnosis evidence
+## Historical diagnosis and initial qualification
 
 - Existing packaged sandbox app at 382a40d: exact fixture Photos folder selected,
   Return leaves permission panel open. AX reports disabled confirmation. Record
@@ -65,13 +65,15 @@ Native Save also accepted a new destination and wrote a valid 981-byte PNG.
 Computer Use capture refreshes then timed out. A native thread sample shows
 normal GLFW event polling on UI and the following Open request waiting only on
 its tracked worker, so no post-Save native-modal deadlock is present. Remembered
-native reuse remains unverified until capture service recovers.
-Latest-head hosted gates and the fresh deliverable package remain pending.
+native reuse was unverified during that initial capture outage. The final package
+checks below subsequently qualified reuse and full quit/relaunch persistence;
+hosted gates and package qualification completed at f36f1ca.
 
 Windows CI at d402f38 exposed a test assertion comparing URI forward slashes to
 native TempDir backslashes. The raw native-guards artifact confirms both paths
 name the correct resolved `002` folder. The assertion now compares filepath.Clean
-values; no production behavior changed. Fresh Windows CI must verify the correction.
+values; no production behavior changed. Windows CI subsequently passed at
+f36f1ca in the full platform run linked below.
 
 ### Final code gate and local test package
 
@@ -108,3 +110,12 @@ was inconclusive (UI timeout/exited instance); subsequent controlled repeats
 qualified these effects. Final-bundle direct Finder drag remains unqualified;
 native Open/Save was qualified during implementation and the shared authorization
 path plus moved-parent regression remain covered.
+
+### Completion-record maintenance
+
+The final documentation review at 2e392a9 identified active-directory placement
+and stale historical gate wording. This completed record is now archived under
+finished_refactorings, with todo links updated and earlier snapshots labeled or
+reconciled. Application code and the qualified test package remain unchanged.
+Fresh review and CI results for subsequent documentation revisions are posted
+in PR #75; original local code evidence retains its analyzed revision above.

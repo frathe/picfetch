@@ -58,7 +58,7 @@ existing filesystem transaction/staging semantics remain in force.
   EXIF compilation and affected-package vet passed (runtime qualification CI).
 - Removing the identity guard again caused all three mutation regressions to
   fail; removing digest verification caused export GPS disclosure again. Both
-  implementations were restored. Fresh post-restoration focused checks follow.
+  implementations were restored and the fresh post-restoration focused checks passed.
 - `make verify-build` passed after repository import formatting. Existing root
   test was extended with subtests; no shard or test-exclusion changes required.
 - GoLand inspected every changed file including weak warnings. Redundant casts,
@@ -67,7 +67,8 @@ existing filesystem transaction/staging semantics remain in force.
   The loader has an IDE configuration error (required `nodynamic` tag absent),
   despite real tagged build/vet/tests passing. An ignored module-tag edit did not
   refresh the active IDE; it was restored. That IDE resolution gate remains
-  unverified, requiring current configured hosted Qodana evidence. No blanket
+  unverified; the configured hosted Qodana scan subsequently verified this source
+  separately, as recorded below. No blanket
   source suppression was introduced. IDE build tool reported limited diagnostics.
 - No dependency changes; existing notices remain the shipped closure. Parent
   directory replacement races outside these source-read/confirmation guards
@@ -103,3 +104,12 @@ code results with this revision stated.
 All source-binding guards and regression evidence are unchanged at the compiled
 code gate. The availability backlog was recorded and the bot thread resolved as
 a deferral. No OS atomic compare-and-swap guarantee is added by these guards.
+
+### Completion-record maintenance
+
+The final documentation review at 2e392a9 identified active-directory placement
+and stale historical gate wording. This completed record is now archived under
+finished_refactorings, with todo links updated and earlier snapshots labeled or
+reconciled. Application code and the qualified test package remain unchanged.
+Fresh review and CI results for subsequent documentation revisions are posted
+in PR #75; original local code evidence retains its analyzed revision above.
