@@ -1883,6 +1883,48 @@ func TestWindow_CloseCancelsActiveTileReads(t *testing.T) {
 	w.tiles.Wait()
 }
 
+func TestWindow_HiddenLocationRetiresMapFrame(t *testing.T) {
+	for _, change := range []string{"collapse", "no-gps"} {
+		t.Run(change, func(t *testing.T) {
+			app, host := gpsApp(t)
+			server := newTileServer(t)
+			w := newTestWindow(t, app, host)
+			w.tiles = fetcherFor(server)
+			w.Show()
+			settleMetadata(w)
+			t.Cleanup(func() { w.Window().Close() })
+			w.ToggleLocation()
+			w.Settle()
+			view := w.locationMap
+			_ = view.draw(256, 256)
+			w.Settle()
+			_ = view.draw(256, 256)
+			if len(view.frame) == 0 {
+				t.Fatal("setup: rendered map has no decoded viewport tiles")
+			}
+			if change == "collapse" {
+				w.ToggleLocation()
+			} else {
+				w.showLocation(imaging.Metadata{})
+			}
+			if len(view.frame) != 0 || len(view.requested) != 0 || view.Visible() {
+				t.Fatal("hidden Location section retained map frame or request claims")
+			}
+			w.showLocation(imaging.Metadata{HasGPS: true, Latitude: 48.86, Longitude: 2.35})
+			if !w.expanded {
+				w.ToggleLocation()
+			}
+			w.Settle()
+			_ = view.draw(256, 256)
+			w.Settle()
+			_ = view.draw(256, 256)
+			if !view.Visible() || len(view.frame) == 0 {
+				t.Fatal("reopened Location section did not render a fresh frame")
+			}
+		})
+	}
+}
+
 func TestWindow_MapTransitionsCancelCapturedSession(t *testing.T) {
 	for _, change := range []string{"collapse", "no-gps", "navigate", "stop"} {
 		t.Run(change, func(t *testing.T) {

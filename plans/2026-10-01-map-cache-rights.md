@@ -300,3 +300,15 @@ and focused vet pass. GoLand inspected the final cachecontrol.go and tiles_test.
 with weak warnings included: no findings. Zero delegates. Latest-head fresh
 code/security reviews and hosted gates remain required, with final evidence on
 PR #75.
+
+## Hidden Location frame follow-up
+
+Fresh 9ae519c review discussion_r4158984230 confirmed that hiding an ancestor
+container does not call the map widget's Hide method. Both collapse and no-GPS
+regressions failed with retained viewport pixels. The shared cancelTiles path now
+explicitly hides the map, clearing frame/request claims and retiring queued
+view delivery; regressions also verify reopening renders a fresh frame.
+The EXIF race suite and focused vet pass. GoLand weak-inclusive inspections cover
+uiqueue.go and exifwin_test.go: no runtime findings; eight intentional independent
+fixture duplicates match the existing exact test exclusion. Zero delegates.
+Latest-head hosted gates and fresh reviews remain required on PR #75.
