@@ -25,30 +25,54 @@ func App(app fyne.App, width, height int) fyne.App {
 }
 
 func (a *application) NewWindow(title string) fyne.Window {
-	w := &window{Window: a.App.NewWindow(title), app: a.App, width: a.width, height: a.height}
-	w.Window.SetContent(container.New(fixedLayout{}))
-	w.Window.SetPadded(false)
+	w := &window{Window: a.App.NewWindow(title), app: a.App, width: a.width, height: a.height, measure: winpos.ScreenshotContentSize}
+	w.Window.SetContent(container.New(fixedLayout{window: w}))
 	w.Window.Resize(fyne.NewSize(float32(a.width), float32(a.height)))
 	w.Window.SetFixedSize(true)
+	w.Window.SetOnClosed(func() {
+		w.closed, w.shown = true, false
+		if w.onClosed != nil {
+			w.onClosed()
+		}
+	})
 	return w
 }
 
 type window struct {
 	fyne.Window
-	app           fyne.App
-	width, height int
-	content       fyne.CanvasObject
+	app            fyne.App
+	width, height  int
+	content        fyne.CanvasObject
+	shown, closed  bool
+	sizing, queued bool
+	warned         bool
+	applied        fyne.Size
+	onClosed       func()
+	measure        func(fyne.Window, int, int) (fyne.Size, bool)
 }
 
 // fixedLayout keeps a panel's natural minimum from expanding the native window.
 // Its children still get normal layout inside the available screenshot surface.
-type fixedLayout struct{}
+type fixedLayout struct{ window *window }
 
 func (fixedLayout) MinSize(_ []fyne.CanvasObject) fyne.Size { return fyne.Size{} }
-func (fixedLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+func (layout fixedLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	for _, object := range objects {
 		object.Move(fyne.Position{})
 		object.Resize(size)
+	}
+	// Scale changes refresh content. Check native metrics too, because macOS
+	// backing scale is independent of Canvas.Scale. Queue correction after layout.
+	if w := layout.window; w != nil && w.shown && !w.closed && !w.sizing && !w.queued {
+		if target := w.targetSize(); target != w.applied {
+			w.queued = true
+			fyne.Do(func() {
+				w.queued = false
+				if w.shown && !w.closed {
+					w.applySize()
+				}
+			})
+		}
 	}
 }
 
@@ -57,9 +81,12 @@ func (w *window) SetFullScreen(_ bool)        {}
 func (w *window) SetFixedSize(_ bool)         {}
 func (w *window) RequestFullScreenSecondary() {}
 func (w *window) Content() fyne.CanvasObject  { return w.content }
+func (w *window) SetOnClosed(fn func())       { w.onClosed = fn }
+func (w *window) Hide()                       { w.shown = false; w.Window.Hide() }
+func (w *window) Close()                      { w.closed = true; w.Window.Close() }
 func (w *window) SetContent(content fyne.CanvasObject) {
 	w.content = content
-	root := container.New(fixedLayout{})
+	root := container.New(fixedLayout{window: w})
 	if content != nil {
 		root.Add(content)
 	}
@@ -67,12 +94,18 @@ func (w *window) SetContent(content fyne.CanvasObject) {
 }
 func (w *window) Show() {
 	w.Window.Show()
-	size, ok := winpos.ScreenshotContentSize(w.Window, w.width, w.height)
+	w.shown = true
+	w.applySize()
+}
+func (w *window) targetSize() fyne.Size {
+	size, ok := w.measure(w.Window, w.width, w.height)
+	_, native := w.Window.(driver.NativeWindow)
 	if !ok {
-		// The test driver has no chrome or backing scale. Native unsupported
-		// backends retain the bounded canvas size and report the missing metric.
-		if _, native := w.Window.(driver.NativeWindow); native {
+		// Unknown chrome cannot be measured, but physical content pixels still
+		// require scale conversion. Report the decoration limitation once.
+		if native && !w.warned {
 			fyne.LogError("screenshot window geometry unavailable", nil)
+			w.warned = true
 		}
 		size = fyne.NewSize(float32(w.width), float32(w.height))
 	}
@@ -80,12 +113,22 @@ func (w *window) Show() {
 	if scale <= 0 {
 		scale = 1
 	}
-	// Fyne rounds native coordinates upward. Bias by one float step so division
-	// by a fractional UI scale cannot add a physical pixel at that boundary.
-	logical := fyne.NewSize(math.Nextafter32(size.Width/scale, 0), math.Nextafter32(size.Height/scale, 0))
-	if !ok {
-		logical = size
-	} // exact dimensions for the headless test driver
+	logical := fyne.NewSize(size.Width/scale, size.Height/scale)
+	// Fyne rounds native coordinates upward. Avoid an extra pixel caused by
+	// fractional floating-point division at that boundary.
+	if native {
+		logical = fyne.NewSize(math.Nextafter32(logical.Width, 0), math.Nextafter32(logical.Height, 0))
+	}
+	return logical
+}
+func (w *window) applySize() {
+	if w.sizing || w.closed {
+		return
+	}
+	w.sizing = true
+	defer func() { w.sizing = false }()
+	logical := w.targetSize()
+	w.applied = logical
 	w.Window.SetFixedSize(false)
 	w.Window.Resize(logical)
 	w.Window.SetFixedSize(true)

@@ -258,7 +258,7 @@ picfetch -fixed-size-mode
 # Optional preset for scripts:
 picfetch -fixed-size-mode=1280x800 ~/photos
 # Packaged macOS application:
-/path/to/PicFetch.app/Contents/MacOS/picfetch -fixed-size-mode
+/path/to/PicFetch.app/Contents/MacOS/PicFetch -fixed-size-mode
 ```
 
 Dimensions are physical pixels of the whole window, including its title bar.
@@ -268,7 +268,9 @@ Saved window geometry is preserved. Native OS file dialogs retain their OS sizin
 On macOS use a window capture without a shadow: Cmd+Shift+4, Space, then hold
 Option while clicking the window. Shadows add pixels outside the selected size.
 The exact sizes have been measured on Retina macOS; native Windows/X11 captures
-still need qualification, and unsupported native geometry is logged.
+still need qualification. If native decorations cannot be measured (including
+Wayland), the content size remains scaled correctly, but the title-bar/frame
+allowance is unavailable and logged; exact whole-window pixels are unverified.
 
 ## Building
 

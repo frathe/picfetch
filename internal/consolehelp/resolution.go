@@ -20,6 +20,11 @@ func SelectResolution(in *os.File, out io.Writer) (size launch.Resolution, err e
 	if !ok || !term.IsTerminal(int(in.Fd())) || !term.IsTerminal(int(output.Fd())) || os.Getenv("TERM") == "dumb" {
 		return size, errors.New("fixed-size-mode needs an interactive terminal; use -fixed-size-mode=1280x800 for a scripted launch")
 	}
+	// Cover setup and cleanup too: default signal handling must never terminate
+	// the process while its terminal is still raw.
+	notices := make(chan os.Signal, 2)
+	signal.Notify(notices, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(notices)
 	restoreANSI, err := enableANSI(output)
 	if err != nil {
 		return size, err
@@ -30,9 +35,6 @@ func SelectResolution(in *os.File, out io.Writer) (size launch.Resolution, err e
 		return size, err
 	}
 	defer func() { err = errors.Join(err, term.Restore(int(in.Fd()), state)) }()
-	notices := make(chan os.Signal, 2)
-	signal.Notify(notices, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(notices)
 	defer func() {
 		_, restoreErr := io.WriteString(out, "\x1b[?25h\x1b[?1049l")
 		err = errors.Join(err, restoreErr)

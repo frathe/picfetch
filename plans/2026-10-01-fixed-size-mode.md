@@ -98,3 +98,35 @@ metadata removal/export identity. Those confirmed older findings must be address
 in the requested review loop before the new App Store package is built. Recursive
 scan limits are explicitly classified by the bot as deferrable availability
 hardening and remain an open backlog item.
+
+## Review fixes after 1439746
+
+Four confirmed code-review findings are fixed inline. Signal notification now
+starts before any raw terminal mutation and stops after cursor, terminal and
+ANSI restoration. Fixed windows retain ordinary Fyne padding. Unknown native
+chrome still reports a limitation, but fallback sizes divide by canvas scale.
+Content layout refresh checks native dimensions as well as Fyne scale, and queues
+one correction on UI; hidden/closed windows discard it, with no new workers.
+
+Padding and 2x fallback tests were observed red (padding removed and 2560 x 1600
+instead of 1280 x 800). Tests now cover native/non-native fallback and 2x -> 1x
+changes. A separate simulated native 2x -> 1x -> 2x backing transition keeps
+Canvas.Scale at 1 and preserves the physical target. Disabling correction made
+that guard fail at 640 x 400; it was restored and the race suite passes.
+
+Focused screenshot/console/root UI race regressions pass. All four actual Retina
+native frames still equal their selected pixels after forbidden resize,
+fullscreen/maximize and large-content attempts. The real executable passes the
+pseudo-terminal Ctrl+C, SIGTERM and Down/Return restoration checks. Windows
+cross-compilation passes. GoLand inspections of all three changed Go files,
+including weak warnings, are clear after fixing one inferred-type warning.
+`make verify-build` passes. Actual mixed-monitor movement remains unqualified;
+its independent backing conversion is covered by the per-instance native-metric
+seam test. The README states the unknown-chrome limitation explicitly.
+
+Hosted evidence for 1439746: full platform/race CI and CodeQL pass; artifact
+11146375885 from Qodana run 36828289980 has the exact revision and 10 final
+post-suppression SARIF results, all unused-export false positives with production
+callers (the prior eight plus ScreenshotContentSize and SelectResolution).
+Fresh code review has the four addressed findings above; a new clean code/security
+round on the final subsequent head remains required.
