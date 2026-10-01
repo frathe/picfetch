@@ -19,11 +19,13 @@ import (
 func Write(out io.Writer, usage string) (err error) {
 	file, ok := out.(*os.File)
 	if ok && os.Getenv("TERM") != "dumb" && term.IsTerminal(int(file.Fd())) {
-		notices := make(chan os.Signal, 2)
-		signal.Notify(notices, os.Interrupt, syscall.SIGTERM)
+		notices := newHelpSignals()
+		signal.Notify(notices.interrupts, os.Interrupt)
+		signal.Notify(notices.terminations, syscall.SIGTERM)
 		defer func() {
 			// Finish delivery after screen and platform terminal restoration.
-			signal.Stop(notices)
+			signal.Stop(notices.interrupts)
+			signal.Stop(notices.terminations)
 			err = errors.Join(err, pendingHelpSignal(notices))
 		}()
 		restore, ansiErr := enableANSI(file)
@@ -38,29 +40,35 @@ func Write(out io.Writer, usage string) (err error) {
 	return err
 }
 
+// Separate delivery capacity keeps repeated skips from dropping termination.
+type helpSignals struct {
+	interrupts   chan os.Signal
+	terminations chan os.Signal
+}
+
+func newHelpSignals() helpSignals {
+	return helpSignals{interrupts: make(chan os.Signal, 1), terminations: make(chan os.Signal, 1)}
+}
+
 // Ctrl+C skips artwork successfully; a queued termination still fails help.
-func pendingHelpSignal(notices <-chan os.Signal) (err error) {
-	for {
-		select {
-		case notice := <-notices:
-			if notice != os.Interrupt {
-				err = errors.Join(err, fmt.Errorf("help interrupted by %s", notice))
-			}
-		default:
-			return err
-		}
+func pendingHelpSignal(notices helpSignals) error {
+	select {
+	case notice := <-notices.terminations:
+		return fmt.Errorf("help interrupted by %s", notice)
+	default:
+		return nil
 	}
 }
 
 const turnDuration = 3 * time.Second
 
-func animate(ctx context.Context, out io.Writer, usage string, size func() (int, int, error), notices <-chan os.Signal) error {
+func animate(ctx context.Context, out io.Writer, usage string, size func() (int, int, error), notices helpSignals) error {
 	ticker := time.NewTicker(time.Second / 30)
 	defer ticker.Stop()
 	return play(ctx, out, usage, size, ticker.C, time.Now(), notices)
 }
 
-func play(ctx context.Context, out io.Writer, usage string, size func() (int, int, error), ticks <-chan time.Time, start time.Time, notices <-chan os.Signal) (err error) {
+func play(ctx context.Context, out io.Writer, usage string, size func() (int, int, error), ticks <-chan time.Time, start time.Time, notices helpSignals) (err error) {
 	active := false
 	final := usage
 	defer func() {
@@ -106,10 +114,9 @@ func play(ctx context.Context, out io.Writer, usage string, size func() (int, in
 		select {
 		case <-ctx.Done():
 			return nil
-		case notice := <-notices:
-			if notice == os.Interrupt {
-				return nil
-			}
+		case <-notices.interrupts:
+			return nil
+		case notice := <-notices.terminations:
 			return fmt.Errorf("help interrupted by %s", notice)
 		case now := <-ticks:
 			elapsed = now.Sub(start)

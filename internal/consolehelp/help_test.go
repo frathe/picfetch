@@ -21,7 +21,7 @@ func TestOneTurnExitsAndLeavesPortraitAboveHelp(t *testing.T) {
 	ticks <- start.Add(1500 * time.Millisecond)
 	ticks <- start.Add(3 * time.Second)
 	const usage = "Usage:\n  picfetch [flags]\n"
-	if err := play(context.Background(), &out, usage, func() (int, int, error) { return 100, 50, nil }, ticks, start, nil); err != nil {
+	if err := play(context.Background(), &out, usage, func() (int, int, error) { return 100, 50, nil }, ticks, start, helpSignals{}); err != nil {
 		t.Fatal(err)
 	}
 	width, height, text := layout(100, 50, usage)
@@ -40,7 +40,7 @@ func TestAnimationCancellationRestoresTerminal(t *testing.T) {
 	var output strings.Builder
 	out := callbackWriter{out: &output, after: cancel}
 	const usage = "Usage:\n  picfetch [flags]\n"
-	if err := animate(ctx, out, usage, func() (int, int, error) { return 100, 50, nil }, nil); err != nil {
+	if err := animate(ctx, out, usage, func() (int, int, error) { return 100, 50, nil }, helpSignals{}); err != nil {
 		t.Fatal(err)
 	}
 	result := output.String()
@@ -66,7 +66,7 @@ func (w callbackWriter) Write(p []byte) (int, error) {
 func TestSmallTerminalKeepsCompleteHelp(t *testing.T) {
 	var out strings.Builder
 	const usage = "Usage:\n  picfetch [flags]\n"
-	if err := animate(context.Background(), &out, usage, func() (int, int, error) { return 20, 10, nil }, nil); err != nil {
+	if err := animate(context.Background(), &out, usage, func() (int, int, error) { return 20, 10, nil }, helpSignals{}); err != nil {
 		t.Fatal(err)
 	}
 	if out.String() != usage {
@@ -89,7 +89,7 @@ func TestResizeAndOutputFailureRestoreTerminal(t *testing.T) {
 			}
 			return 100, 50, nil
 		}
-		if err := play(context.Background(), &out, usage, size, ticks, start, nil); err != nil {
+		if err := play(context.Background(), &out, usage, size, ticks, start, helpSignals{}); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.HasSuffix(out.String(), "\x1b[?25h\x1b[?1049l"+usage) {
@@ -98,7 +98,7 @@ func TestResizeAndOutputFailureRestoreTerminal(t *testing.T) {
 	})
 	t.Run("partial_write", func(t *testing.T) {
 		out := &partialWriter{}
-		err := animate(context.Background(), out, usage, func() (int, int, error) { return 100, 50, nil }, nil)
+		err := animate(context.Background(), out, usage, func() (int, int, error) { return 100, 50, nil }, helpSignals{})
 		if !errors.Is(err, errOutput) || !strings.Contains(out.String(), "\x1b[?25h\x1b[?1049l") {
 			t.Fatalf("partial write: error=%v, cleanup missing=%v", err, out.String())
 		}
@@ -191,8 +191,12 @@ func TestAnimationSignalsRestoreTerminal(t *testing.T) {
 	for _, notice := range []os.Signal{os.Interrupt, syscall.SIGTERM} {
 		t.Run(notice.String(), func(t *testing.T) {
 			var out strings.Builder
-			notices := make(chan os.Signal, 1)
-			notices <- notice
+			notices := newHelpSignals()
+			if notice == os.Interrupt {
+				notices.interrupts <- notice
+			} else {
+				notices.terminations <- notice
+			}
 			const usage = "Usage: picfetch\n"
 			err := play(context.Background(), &out, usage, func() (int, int, error) {
 				return 100, 50, nil
@@ -216,14 +220,22 @@ func TestAnimationSignalsDuringRestoration(t *testing.T) {
 		{name: "interrupt_skips", notices: []os.Signal{os.Interrupt}},
 		{name: "termination_fails", notices: []os.Signal{syscall.SIGTERM}, failed: true},
 		{name: "interrupt_then_termination_fails", notices: []os.Signal{os.Interrupt, syscall.SIGTERM}, failed: true},
+		{name: "interrupt_saturation_then_termination_fails", notices: []os.Signal{os.Interrupt, os.Interrupt, syscall.SIGTERM}, failed: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var output strings.Builder
-			notices := make(chan os.Signal, len(tc.notices))
+			notices := newHelpSignals()
 			out := callbackWriter{out: &output, after: func() {
 				if strings.Contains(output.String(), "\x1b[?1049l") {
 					for _, notice := range tc.notices {
-						notices <- notice
+						channel := notices.terminations
+						if notice == os.Interrupt {
+							channel = notices.interrupts
+						}
+						select {
+						case channel <- notice:
+						default:
+						}
 					}
 				}
 			}}
@@ -236,6 +248,9 @@ func TestAnimationSignalsDuringRestoration(t *testing.T) {
 			}, ticks, start, notices)
 			if (err != nil) != tc.failed {
 				t.Fatalf("cleanup signals %v: error=%v; want failed=%v", tc.notices, err, tc.failed)
+			}
+			if tc.failed && !strings.Contains(err.Error(), syscall.SIGTERM.String()) {
+				t.Fatalf("cleanup failed without reporting queued SIGTERM: %v", err)
 			}
 			if !strings.Contains(output.String(), "\x1b[?25h\x1b[?1049l") || !strings.HasSuffix(output.String(), usage) {
 				t.Fatal("cleanup signal lost restored cursor/screen or final help")

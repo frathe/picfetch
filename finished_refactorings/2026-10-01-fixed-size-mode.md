@@ -210,3 +210,15 @@ The f36f1ca bundle and qualification above remain evidence for that source, not
 for this new help change. Latest-head code/security rounds and hosted checks
 follow this fix; final results are recorded in PR #75. Refresh the local App
 Store test package after the new code gate clears.
+
+### Subsequent review fix: independent termination delivery
+
+Thread 4154549312 reproduced a full interrupt queue dropping the following
+SIGTERM. Help now captures SIGINT and SIGTERM in independent per-invocation
+buffered channels. Ctrl+C remains successful; a queued termination retains its
+own delivery capacity and is checked during and after terminal restoration.
+The saturation case failed before this fix; deliberately sharing the two queues
+again broke successful skips and SIGTERM reporting, then restoration passed.
+Focused console races and GoLand Project inspections of help.go/help_test.go
+(errorsOnly=false, zero findings/timeouts) pass. Latest hosted evidence is
+recorded through the ongoing PR #75 review loop; no new dependency or test file.
