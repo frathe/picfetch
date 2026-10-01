@@ -100,7 +100,9 @@
   FOSSA research-reference false positive; review/CI evidence is tracked on PR #75.
   A further review fix retains decoded-only viewport pixels and delivers foreground
   tiles through the EXIF UI queue before cache eviction can lose them; padded-PNG
-  memory/progress and queued-hide regressions pass. Fresh review gates are pending.
+  memory/progress and queued-hide regressions pass. Direct no-store delivery now
+  bypasses the one-shot LRU; renderer-recreation single-use regression passes.
+  FOSSA passed on c89c74d after the ignore; fresh review gates are pending.
   New signed candidate, native
   visual confirmation and broader qualification remain pending. See
   `plans/2026-10-01-map-cache-rights.md`; do not mark Store compliance passed.

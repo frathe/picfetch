@@ -64,8 +64,10 @@ Ronin reports adding that finding to FOSSA's ignore list. This disposition conce
 the research-file match only, not a general allowance for this license in shipped
 code/data. Preserve map attribution, third-party notices and tile-service duties;
 new file matches or assets require their own assessment. The original GitHub
-status was published before the ignore; require a fresh latest-head scan/check to
-verify propagation. Export ZIP SHA-256:
+status was published before the ignore. Fresh PR #75 checks for
+`c89c74d43eb26ff258ed660370959b21f1d53227` report SUCCESS for License Compliance,
+Security Analysis and Dependency Quality, verifying propagation on that revision.
+Continue requiring the actual check on each new pushed head. Export ZIP SHA-256:
 `d82fada1b2bdf6a7a14af41fa734af329794b15088350265fc4d894e0e423cf8`.
 The signed download URL and account credentials are intentionally not retained.
 

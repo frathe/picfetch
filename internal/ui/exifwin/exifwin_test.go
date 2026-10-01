@@ -619,6 +619,37 @@ func TestThemedMapPaddedForegroundDelivery(t *testing.T) {
 	}
 }
 
+func TestThemedMapNoStoreDirectDeliveryIsSingleUse(t *testing.T) {
+	app, host := testApp(t)
+	defer app.Quit()
+	body := tilePNG(t)
+	var requests atomic.Int32
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests.Add(1)
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	w.buildLocation()
+	view := w.locationMap
+	view.Resize(fyne.NewSize(256, 256))
+	_ = view.draw(256, 256)
+	w.Settle()
+	_ = view.draw(256, 256)
+	if len(view.frame) != 4 || requests.Load() != 4 {
+		t.Fatal("initial display did not consume each visible response once")
+	}
+	if w.tiles.ready.Len() != 0 || w.tiles.cache.Len() != 0 {
+		t.Error("no-store response retained after direct UI adoption")
+	}
+	test.WidgetRenderer(view).Destroy()
+	_ = view.draw(256, 256)
+	w.Settle()
+	_ = view.draw(256, 256)
+	if len(view.frame) != 4 || requests.Load() != 8 {
+		t.Fatal("recreated renderer reused an already delivered no-store response")
+	}
+}
+
 func TestThemedMapQueuedDeliveryRetiresHiddenView(t *testing.T) {
 	app, host := testApp(t)
 	defer app.Quit()

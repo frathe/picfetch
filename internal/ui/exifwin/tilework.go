@@ -160,7 +160,9 @@ func (f *tileFetcher) releaseJob(job *tileJob, data *cachedTile, err error) {
 			if !data.noStore {
 				f.cache.AddIfFits(job.url, data)
 			}
-			if data.noStore || !f.now().Before(data.expires) {
+			// Direct foreground delivery already owns decoded pixels until UI
+			// consumes them. Keep one-shot responses only for cache-only consumers.
+			if (data.noStore || !f.now().Before(data.expires)) && (!job.foreground || f.onTile == nil) {
 				f.ready.AddIfFits(job.url, data)
 			}
 			delete(f.failed, job.url)

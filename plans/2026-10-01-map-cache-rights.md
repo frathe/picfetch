@@ -182,3 +182,28 @@ the same six existing fixture-duplication warnings remain covered by the exact
 exifwin_test.go Qodana exclusion. Lead fixes inline; zero delegates. Latest-head
 fresh code/security review, hosted CI, CodeQL, Qodana SARIF and the FOSSA ignore
 rescan remain the final review-loop gates.
+
+## No-store single-use review follow-up
+
+The fresh c89c74d code round is clean (issuecomment-5935816898). Full CI run
+36891892382 and CodeQL run 36891892683 passed; open PR CodeQL alerts are empty.
+Qodana run 36891892521/artifact 11177162384 has exact c89c74d provenance and the
+same eleven assessed unused-export false positives as c8fd4df, with no new
+results. FOSSA's fresh c89c74d license compliance, security and dependency-quality
+statuses all passed, confirming Ronin's research-reference ignore took effect.
+
+Its separate security-focused round reported one confirmed finding,
+discussion_r4157961192: direct decoded delivery left foreground no-store bodies
+in the one-shot LRU after adoption. Frame paints no longer consumed that entry,
+so renderer recreation could reuse an already delivered response. Direct
+foreground results now bypass the one-shot LRU; pending warm/cache-only consumers
+keep their existing bounded one-shot delivery. Validator cache policy is unchanged.
+TestThemedMapNoStoreDirectDeliveryIsSingleUse failed before the fix on retained
+no-store entries and second delivery after renderer recreation. It now verifies
+four initial downloads, no stored response, stable repaint and four fresh downloads
+when the renderer is recreated. Both map feature race suites and focused vet
+pass. GoLand inspected the final two changed Go files (tilework.go and
+exifwin_test.go), weak warnings included: no actionable findings, only the same
+six existing excluded fixture duplicates. Zero delegates. Fresh code/security
+rounds and all exact-head hosted gates are required again after this fix; final
+review-loop evidence is tracked on PR #75.
