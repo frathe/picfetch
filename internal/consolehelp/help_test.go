@@ -207,6 +207,43 @@ func TestAnimationSignalsRestoreTerminal(t *testing.T) {
 	}
 }
 
+func TestAnimationSignalsDuringRestoration(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		notices []os.Signal
+		failed  bool
+	}{
+		{name: "interrupt_skips", notices: []os.Signal{os.Interrupt}},
+		{name: "termination_fails", notices: []os.Signal{syscall.SIGTERM}, failed: true},
+		{name: "interrupt_then_termination_fails", notices: []os.Signal{os.Interrupt, syscall.SIGTERM}, failed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var output strings.Builder
+			notices := make(chan os.Signal, len(tc.notices))
+			out := callbackWriter{out: &output, after: func() {
+				if strings.Contains(output.String(), "\x1b[?1049l") {
+					for _, notice := range tc.notices {
+						notices <- notice
+					}
+				}
+			}}
+			start := time.Unix(0, 0)
+			ticks := make(chan time.Time, 1)
+			ticks <- start.Add(turnDuration)
+			const usage = "Usage: picfetch\n"
+			err := play(context.Background(), out, usage, func() (int, int, error) {
+				return 100, 50, nil
+			}, ticks, start, notices)
+			if (err != nil) != tc.failed {
+				t.Fatalf("cleanup signals %v: error=%v; want failed=%v", tc.notices, err, tc.failed)
+			}
+			if !strings.Contains(output.String(), "\x1b[?25h\x1b[?1049l") || !strings.HasSuffix(output.String(), usage) {
+				t.Fatal("cleanup signal lost restored cursor/screen or final help")
+			}
+		})
+	}
+}
+
 func TestResolutionPicker(t *testing.T) {
 	for _, tc := range []struct {
 		keys      string

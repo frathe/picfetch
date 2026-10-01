@@ -16,22 +16,40 @@ import (
 )
 
 // Write prints usage, animating Trane when the output terminal has room.
-func Write(out io.Writer, usage string) error {
+func Write(out io.Writer, usage string) (err error) {
 	file, ok := out.(*os.File)
 	if ok && os.Getenv("TERM") != "dumb" && term.IsTerminal(int(file.Fd())) {
-		restore, err := enableANSI(file)
-		if err == nil {
+		notices := make(chan os.Signal, 2)
+		signal.Notify(notices, os.Interrupt, syscall.SIGTERM)
+		defer func() {
+			// Finish delivery after screen and platform terminal restoration.
+			signal.Stop(notices)
+			err = errors.Join(err, pendingHelpSignal(notices))
+		}()
+		restore, ansiErr := enableANSI(file)
+		if ansiErr == nil {
 			defer restore()
-			notices := make(chan os.Signal, 2)
-			signal.Notify(notices, os.Interrupt, syscall.SIGTERM)
-			defer signal.Stop(notices)
 			return animate(context.Background(), out, usage, func() (int, int, error) {
 				return term.GetSize(int(file.Fd()))
 			}, notices)
 		}
 	}
-	_, err := io.WriteString(out, usage)
+	_, err = io.WriteString(out, usage)
 	return err
+}
+
+// Ctrl+C skips artwork successfully; a queued termination still fails help.
+func pendingHelpSignal(notices <-chan os.Signal) (err error) {
+	for {
+		select {
+		case notice := <-notices:
+			if notice != os.Interrupt {
+				err = errors.Join(err, fmt.Errorf("help interrupted by %s", notice))
+			}
+		default:
+			return err
+		}
+	}
 }
 
 const turnDuration = 3 * time.Second
@@ -50,6 +68,7 @@ func play(ctx context.Context, out io.Writer, usage string, size func() (int, in
 			_, restoreErr := io.WriteString(out, "\x1b[?25h\x1b[?1049l"+final)
 			err = errors.Join(err, restoreErr)
 		}
+		err = errors.Join(err, pendingHelpSignal(notices))
 	}()
 	elapsed := time.Duration(0)
 	lastColumns, lastRows := 0, 0

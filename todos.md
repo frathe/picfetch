@@ -13,6 +13,11 @@
 
 #### Bugfix
 
+- [x] Preserve unsuccessful termination when SIGTERM arrives during animated
+  help restoration; Ctrl+C still skips successfully. Focused races, negative
+  cleanup guard, executable PTY checks and GoLand inspections pass. Latest
+  hosted review evidence is tracked in PR #75 and the screenshot record.
+
 - [x] Bind confirmed metadata removal to inspected file identity and contents;
   bind exported metadata to displayed source bytes, including cache and Save.
   Local regressions/race/Store checks and fresh code/security/CI gates pass.

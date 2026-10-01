@@ -139,7 +139,7 @@ read also prevents accepting Return. A deterministic regression reproduced the
 selection/read race before the fix; cleanup covers both SIGINT and SIGTERM.
 Focused race, PTY restoration and changed-file inspections recorded with the fix.
 
-### Final code gate and local test package
+### Qualified code gate and local test package at f36f1ca
 
 Verified code revision: f36f1cade1504a3f126c564be91f7554e098b710.
 [Fresh code review](https://github.com/frathe/picfetch/pull/75#issuecomment-5927983355)
@@ -180,3 +180,33 @@ finished_refactorings, with todo links updated and earlier snapshots labeled or
 reconciled. Application code and the qualified test package remain unchanged.
 Fresh review and CI results for subsequent documentation revisions are posted
 in PR #75; original local code evidence retains its analyzed revision above.
+
+### Subsequent review fix: animated help restoration
+
+Security-focused thread 4154399879 at c8b5b4e found the same late-SIGTERM
+window in animated help. The deterministic final-write callback reproduced
+success after SIGTERM before this fix; disabling the new pending-notice guard
+reproduced both termination cases again. Ctrl+C remains a successful skip, even
+during cleanup, but cannot mask a queued SIGTERM. Screen cleanup checks notices,
+and Write stops delivery and checks again only after platform ANSI restoration.
+Signal registration now precedes ANSI setup. No workers, dependencies, test files
+or top-level root UI tests were added; existing exact Qodana exclusion applies.
+
+Focused console races and startup help/launch regressions pass after restoration.
+Windows console cross-compilation, make verify-build and make build pass. Actual
+PTY normal completion, Ctrl+C and SIGTERM confirm correct exit status, cursor,
+alternate screen, complete help and unchanged terminal settings. Evidence logs
+are /private/tmp/picfetch-help-cleanup-{red,negative,race,verify,pty}.log and
+/private/tmp/picfetch-help-startup-race.log. Initial broader local commands hit
+a sandbox cache-access error; the authorized cache-enabled retry passed.
+
+GoLand Project per-file inspections (errorsOnly=false, including weak warnings)
+re-ran on both changed Go files after the negative mutation was restored: zero
+findings and no timeouts. Analyzed worktree parent is c8b5b4e; file digests:
+- internal/consolehelp/help.go: 2a26aec0b473d7b816c4d9eb1ecf181591e51bb588cfa70bfb7e965b26ede711
+- internal/consolehelp/help_test.go: c4c579aa475b198d8f5a16d40095beac8f8bb56d5918474408442e954dd0497f
+
+The f36f1ca bundle and qualification above remain evidence for that source, not
+for this new help change. Latest-head code/security rounds and hosted checks
+follow this fix; final results are recorded in PR #75. Refresh the local App
+Store test package after the new code gate clears.
