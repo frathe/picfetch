@@ -69,8 +69,8 @@ the qualified Preview path remain separate. Native worker policy remains intact.
 - Native candidate `bin/apple-store-clipboard-candidate-2026-10-01/PicFetch.app`,
   1.1.11 build 483: approved 16x12 test JPEG loaded; Actions -> Copy image now
   completes without the old denied-temp-file toast or clipboard error in the log.
-  Candidate manifest records base a46076c plus the dirty source snapshot; it is
-  not yet the final committed-source package.
+  Candidate manifest records base a46076c plus the dirty source snapshot;
+  subsequent exact committed-source packages are recorded below.
 - Ronin approved Preview inspection after the automatic approval rejection.
   Actual Preview File -> New from Clipboard opens the generated 16x12 color
   pattern, and its inspector confirms PNG, 981 bytes, 16x12 pixels. Cmd+C on
@@ -79,22 +79,59 @@ the qualified Preview path remain separate. Native worker policy remains intact.
   PicFetch (exit zero), Preview New from Clipboard becomes disabled. Repeating
   Cmd+C while PicFetch runs enables it again and opens the correct pink image.
   This isolates publication lifetime from source/encoding and shortcut routing.
-  Replace the item writeObjects publisher with direct pasteboard setData so
-  copied bytes belong to the pasteboard server without a deferred item writer.
-  Post-exit qualification of that correction remains pending.
+  Correction committed and pushed as 01b5a18: direct pasteboard setData replaces
+  item writeObjects. Native copy/quit/paste requalification passes below.
 - Fix commit 04e5e16 pushed. Fresh code review is clean:
   https://github.com/frathe/picfetch/pull/75#issuecomment-5932020836.
   CodeQL completed with no current PR open alerts. Configured Qodana run
   36865494671, artifact 11164215681: exact 04e5e16 provenance, eleven
   post-suppression unused-export false positives, identical to the prior set;
-  all production callers rechecked. Hosted CI 36865494787 is still running.
+  all production callers rechecked. Hosted CI 36865494787 completed successfully.
   These results apply to 04e5e16, not the subsequent native lifetime correction.
 
 The corrected publisher uses Apple's documented [direct NSPasteboard data publication](https://developer.apple.com/documentation/appkit/nspasteboard/), with copied NSData and setData:forType: rather than an item writer.
 
-## Remaining gates
+## Completed native qualification and package
 
-Commit/push the native lifetime correction; complete Preview post-exit
-qualification, then refresh the package from the committed source. Fresh latest-commit code and
-security-focused reviews, hosted CI, CodeQL and post-suppression Qodana assessment
-remain pending. Archive this record only after required work is complete.
+Qualification host: macOS 27.0.1 (26A434), Apple Silicon arm64.
+Exact compiled source: **01b5a182b157d58c9686273270f2cb2ff39b23ab**.
+`bin/apple-store-clipboard-2026-10-01-01b5a18/PicFetch.app`, version 1.1.11,
+build 483, universal arm64/x86_64, ad-hoc signatures, App Sandbox and production
+XPC helpers. Packager validates entitlements, pinned native runtime closure,
+architectures/deployment minima, privacy/notices and nested/outer seals. All
+24 manifest payload hashes independently verified. Preserved packaging metadata
+and unrelated user documents make the worktree dirty; the adjacent manifest
+records that diff hash (8308e9cae4f81d82e2e8cbcd949808314ed6815f1c310d2fe6705123d67a8f92).
+No uncommitted code is included in this final source package.
+
+- Native Actions -> Copy image on first.jpg, then complete PicFetch quit **before
+  any clipboard consumer reads**: Preview File -> New from Clipboard opens the
+  correct color pattern. Inspector confirms PNG, 981 bytes, **16x12 pixels**.
+- Fresh PicFetch launch, distinct clipboard-pink.jpg, **Cmd+C**, then complete quit
+  before reading: Preview opens the new pink image, PNG, 82 bytes, **8x6 pixels**.
+  This proves replacement, shortcut routing and producer-independent lifetime.
+- Both final processes exit zero; no clipboard error/toast. Original generated
+  test folder remains the previously approved resource. Ronin separately approved
+  Preview inspection; the earlier approval block is resolved, not a waived test.
+- Preview-only captures (not exact app screenshot-size evidence) and TESTING.md
+  are adjacent to the final app. Older 04e5e16/candidate apps are superseded.
+- Clipboard race tests and fresh make verify-build pass after the native lifetime
+  correction. Native-file GoLand weak-inclusive reinspection is clear; unchanged
+  other-file inspections carry from 04e5e16 with the documented duplicate exclusion
+  and narrow resource ownership suppression. No broad local race suite repeated.
+- Qodana run 36867380407, artifact 11164343852: exact 01b5a18 provenance, eleven
+  post-suppression unused-export results identical to the already assessed set.
+  Real production callers rechecked; no new/actionable findings.
+
+## Review disposition and final workflow gate
+
+Confirmed thread 4155800415: the prior plan/todo incorrectly called the committed
+lifetime correction unimplemented. This completion record and canonical done
+entry distinguish implemented/qualified source from the remaining PR checks.
+Both source fixes are committed/pushed; no implementation or native clipboard
+qualification remains. No merge, distribution signing, submission or release.
+
+The final documentation-head code/security-focused rounds, CI/CodeQL and fresh
+Qodana provenance are recorded on [PR #75](https://github.com/frathe/picfetch/pull/75).
+This record does not claim a future documentation commit has passed before those
+checks complete; the agent continues that required loop after pushing the record.

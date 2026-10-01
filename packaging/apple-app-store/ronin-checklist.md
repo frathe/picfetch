@@ -131,7 +131,14 @@ checks on the eventual TestFlight-delivered build.
 - [ ] If available, repeat with an external volume disconnected, then
   reconnected. The app should remain responsive and recover after access returns.
 - [ ] Exercise Save/export to a chosen destination, overwrite a disposable copy,
-  Trash, clipboard, Reveal in Finder and wallpaper. Check the actual output/effect.
+  Trash, Reveal in Finder and wallpaper. Check the actual output/effect.
+- [x] Qualify Copy Image in the sandboxed Mac app: source 01b5a18, 1.1.11/build
+  483, macOS 27.0.1 (26A434), Apple Silicon. Native menu Copy Image and Cmd+C open the correct 16x12
+  color pattern and distinct 8x6 pink PNG in Preview, including after PicFetch
+  fully exits before either copied image is read. Preview's inspector confirms
+  both dimensions. Ronin approved the test folder and Preview inspection.
+  Current app: `bin/apple-store-clipboard-2026-10-01-01b5a18/PicFetch.app`.
+  See [native evidence](../../finished_refactorings/2026-10-01-store-clipboard-image.md).
 - [ ] Exercise HEIC, Similarity Explorer/visual search, cancel/reopen, and maps
   in the GUI. Confirm ordinary browsing still works when model setup is declined.
 - [ ] Arrange access to physical Intel hardware and the declared minimum systems:

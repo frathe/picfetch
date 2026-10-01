@@ -13,6 +13,14 @@
 
 #### Bugfix
 
+- [x] Restore Copy Image in the sandboxed Mac build with direct in-memory AppKit
+  PNG publication. Menu Copy Image and Cmd+C produce correct images in Preview,
+  including a distinct second image and paste after PicFetch exits. Clipboard
+  race/image-selection regressions, vet/build and changed-file inspections pass.
+  Universal Store test build 483 is refreshed at source 01b5a18. Latest-head PR
+  review/CI evidence is tracked separately in PR #75. See the
+  [implementation and native evidence](finished_refactorings/2026-10-01-store-clipboard-image.md).
+
 - [x] Complete PR #75 source follow-ups: all fixes are committed/pushed and
   all 20 threads have dispositions. Fresh code/security-focused reviews, full
   hosted CI, CodeQL and assessed Qodana pass at 3453f1b. Universal Store test
@@ -75,16 +83,6 @@
   Verification and limitations: [turntable record](finished_refactorings/2026-09-30-trane-ascii.md).
 
 ## Open
-
-### First priority: Copy Image in the Apple Store build
-
-- [ ] Finish qualifying the Copy Image fix in the sandboxed build. The macOS
-  backend now publishes PNG bytes directly through AppKit instead of writing a
-  denied temporary PNG and running AppleScript. Clipboard race tests, image and
-  selection regressions, vet/build and native Copy Image pass. Preview confirms the correct PNG
-  and Cmd+C works; post-exit clipboard lifetime needs the direct-data publisher
-  correction. Fresh latest-head GitHub review/CI and test package remain pending. See the
-  [implementation and evidence](plans/2026-10-01-store-clipboard-image.md).
 
 ### Mac App Store preparation
 
