@@ -95,7 +95,7 @@ exclude:
     paths:
       - "internal/ui/exif_test.go"
   # writeTempPNGFile takes ownership and closes the file on every path;
-  # the Darwin/Windows callers remove the returned filename after use.
+  # the Windows caller removes the returned filename after use.
   - name: GoResourceLeak
     paths:
       - "internal/clipboard/clipboard.go"

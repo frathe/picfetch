@@ -76,6 +76,16 @@
 
 ## Open
 
+### First priority: Copy Image in the Apple Store build
+
+- [ ] Finish qualifying the Copy Image fix in the sandboxed build. The macOS
+  backend now publishes PNG bytes directly through AppKit instead of writing a
+  denied temporary PNG and running AppleScript. Clipboard race tests, image and
+  selection regressions, vet/build and native Copy Image pass. Preview paste
+  awaits the requested inspection permission; fresh GitHub review/CI and the
+  committed-source test package remain pending. See the
+  [implementation and evidence](plans/2026-10-01-store-clipboard-image.md).
+
 ### Mac App Store preparation
 
 Preserve the full feature set. Active plan: [Mac App Store preparation](plans/2026-09-29-apple-app-store.md).

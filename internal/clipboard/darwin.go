@@ -8,10 +8,29 @@ package clipboard
 
 #import <AppKit/AppKit.h>
 #include <stdlib.h>
+#include <string.h>
+
+// NSData copies the borrowed Go bytes before this call returns. A fresh item
+// publishes eager PNG data, without a temporary file or deferred provider.
+static char *copyPNG(const void *bytes, size_t length) {
+	@autoreleasepool {
+		NSData *data = [NSData dataWithBytes:bytes length:length];
+		NSPasteboardItem *item = [[NSPasteboardItem alloc] init];
+		if (![item setData:data forType:NSPasteboardTypePNG]) {
+			return strdup("the pasteboard item rejected the PNG data");
+		}
+		NSPasteboard *pb = [NSPasteboard generalPasteboard];
+		[pb clearContents];
+		if (![pb writeObjects:@[item]]) {
+			return strdup("the pasteboard rejected the PNG image");
+		}
+		return NULL;
+	}
+}
 
 // copyFileURLs puts count file paths onto the general pasteboard as NSURLs -
 // the representation Finder's own Copy writes, and the one it reads back on
-// Paste. Deliberately not an AppleScript shell-out like copyImageDarwin's:
+// Paste. Deliberately not an AppleScript shell-out:
 // AppleScript can express a single "POSIX file" on the clipboard, but has no
 // reliable form for a *list* of them, and scripting Finder to do it would
 // trigger the same one-time Automation permission prompt internal/trash
@@ -49,6 +68,18 @@ import (
 	"errors"
 	"unsafe"
 )
+
+func publishPNGDarwin(data []byte) error {
+	if len(data) == 0 {
+		return errors.New("cannot copy an empty PNG image")
+	}
+	cErr := C.copyPNG(unsafe.Pointer(unsafe.SliceData(data)), C.size_t(len(data)))
+	if cErr == nil {
+		return nil
+	}
+	defer C.free(unsafe.Pointer(cErr))
+	return errors.New(C.GoString(cErr))
+}
 
 // copyFilesDarwin puts paths onto the general pasteboard as file references,
 // in-process via AppKit - see copyFileURLs above for why not an osascript

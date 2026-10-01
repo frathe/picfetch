@@ -1,16 +1,14 @@
 // Package clipboard puts image data onto the system clipboard as a real
 // image - not a file reference - so it can be pasted into another app
 // (Slack, an image editor, ...) as an image, the way a browser's own "Copy
-// Image" works. fyne.Clipboard is text-only, so each platform needs its own
-// shell-out: AppleScript on macOS (pbcopy has no image support at all);
-// xclip/wl-copy on Linux; PowerShell's System.Windows.Forms.Clipboard on
-// Windows.
+// Image" works. fyne.Clipboard is text-only, so image copying uses AppKit
+// directly on macOS, xclip/wl-copy on Linux, and PowerShell's
+// System.Windows.Forms.Clipboard on Windows.
 package clipboard
 
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -23,7 +21,7 @@ import (
 var CopyImage = func(data []byte) error {
 	switch runtime.GOOS {
 	case "darwin":
-		return copyImageDarwin(data)
+		return copyImageDarwin(data, publishPNGDarwin)
 	case "windows":
 		return copyImageWindows(data)
 	default:
@@ -31,10 +29,11 @@ var CopyImage = func(data []byte) error {
 	}
 }
 
-// writeTempPNG writes data to a temp file for the shell-outs below that need
-// a real path - osascript's "read ... as «class PNGf»" and PowerShell's
-// Image.FromFile both require one, neither accepts piped bytes.
+// writeTempPNG writes data to a temp file for PowerShell's Image.FromFile,
+// which requires a real path rather than piped bytes.
 func writeTempPNG(data []byte) (string, error) {
+	// writeTempPNGFile owns and closes f on every return path.
+	//noinspection GoResourceLeak
 	f, err := os.CreateTemp("", "picfetch_clip_*.png")
 	if err != nil {
 		return "", err
@@ -87,19 +86,14 @@ var runClipboardCommand = func(cmd *exec.Cmd) ([]byte, error) {
 	return nil, err
 }
 
-// copyImageDarwin shells out to osascript: pbcopy is text-only, but
-// AppleScript's "read ... as «class PNGf»" reads a PNG file straight onto
-// the clipboard as an image.
-func copyImageDarwin(data []byte) error {
-	path, err := writeTempPNG(data)
-	if err != nil {
-		return err
+// copyImageDarwin publishes encoded PNG bytes in-process. AppKit receives the
+// data directly, so a sandboxed app needs neither temp storage nor AppleScript.
+// The writer is supplied by dispatch; tests never touch the system clipboard.
+func copyImageDarwin(data []byte, publish func([]byte) error) error {
+	if len(data) == 0 {
+		return errors.New("cannot copy an empty PNG image")
 	}
-	defer func() { _ = os.Remove(path) }()
-
-	script := fmt.Sprintf(`set the clipboard to (read (POSIX file %q) as «class PNGf»)`, path)
-	_, err = runClipboardCommand(exec.Command("osascript", "-e", script))
-	return err
+	return publish(data)
 }
 
 // lookupXClip/lookupWlCopy find their respective binaries; vars so tests can
@@ -110,8 +104,7 @@ var lookupWlCopy = func() (string, error) { return exec.LookPath("wl-copy") }
 
 // copyImageLinux prefers xclip, the more widely available of the two (X11
 // and XWayland both work with it), falling back to wl-copy for a
-// Wayland-native session with no XWayland. Unlike the macOS/Windows shell-
-// outs, both take the PNG straight over stdin - no temp file needed.
+// Wayland-native session with no XWayland. Both take PNG straight over stdin.
 func copyImageLinux(data []byte) error {
 	path, err := lookupXClip()
 	args := []string{"-selection", "clipboard", "-t", "image/png"}

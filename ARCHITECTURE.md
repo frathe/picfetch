@@ -1158,7 +1158,7 @@ PNG image data (`CopyImage`) and file-reference lists (`CopyFiles`).
 |------|----------------|
 | `clipboard.go` | `CopyImage` dispatcher + per-OS image copy. |
 | `copyfiles.go` | `CopyFiles` dispatcher + Linux/Windows file-list copy. |
-| `darwin.go` / `other.go` | AppKit `NSPasteboard` file list / stub. |
+| `darwin.go` / `other.go` | In-process AppKit `NSPasteboard` PNG image and file-list publication / stubs. PNG data is copied eagerly from Go memory; no macOS temporary file or AppleScript subprocess. |
 | `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
 ### `internal/filepicker`
