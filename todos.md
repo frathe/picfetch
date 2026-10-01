@@ -6,21 +6,21 @@
 
 #### New Features
 
-- [ ] Fixed screenshot window mode: four console-selected physical pixel sizes,
-  constrained mode transitions and preserved saved geometry. Local native Retina
-  measurements pass; review/CI and fresh App Store test package remain pending.
+- [x] Fixed screenshot window mode: four console-selected physical pixel sizes,
+  constrained mode transitions and preserved saved geometry. Native measurements,
+  actual 1280 x 800 captures, fresh reviews/CI and App Store test build 483 pass.
   See [plan and evidence](plans/2026-10-01-fixed-size-mode.md).
 
 #### Bugfix
 
-- [ ] Bind confirmed metadata removal to inspected file identity and contents;
+- [x] Bind confirmed metadata removal to inspected file identity and contents;
   bind exported metadata to displayed source bytes, including cache and Save.
-  Local regressions/race/Store checks pass; latest hosted review is pending.
+  Local regressions/race/Store checks and fresh code/security/CI gates pass.
   See [source-binding evidence](plans/2026-10-01-metadata-source-binding.md).
 
-- [ ] Restore Store folder consent: native panels complete without blocking the
-  Fyne dispatcher; moved file bookmarks suggest the current parent. Sandbox
-  confirmation/cancel and local regressions pass; hosted review is pending.
+- [x] Restore Store folder consent: native panels complete without blocking the
+  Fyne dispatcher; moved file bookmarks suggest the current parent. Exact-package
+  approval/button, cancel, grant reuse/relaunch and fresh hosted checks pass.
   See [regression evidence](plans/2026-10-01-folder-access-regression.md).
 
 - [x] Bound Save Changes and JPEG Export secondary source reads by the encoded

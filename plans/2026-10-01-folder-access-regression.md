@@ -72,3 +72,39 @@ Windows CI at d402f38 exposed a test assertion comparing URI forward slashes to
 native TempDir backslashes. The raw native-guards artifact confirms both paths
 name the correct resolved `002` folder. The assertion now compares filepath.Clean
 values; no production behavior changed. Fresh Windows CI must verify the correction.
+
+### Final code gate and local test package
+
+Verified code revision: f36f1cade1504a3f126c564be91f7554e098b710.
+[Fresh code review](https://github.com/frathe/picfetch/pull/75#issuecomment-5927983355)
+and the [separate security-focused round](https://github.com/frathe/picfetch/pull/75#issuecomment-5928247620)
+report no findings after all eight thread dispositions. Recursive scan work
+budget is explicitly deferred availability hardening, not an implemented fix.
+
+[Full CI](https://github.com/frathe/picfetch/actions/runs/36838100555),
+[CodeQL](https://github.com/frathe/picfetch/actions/runs/36838100685) and FOSSA pass.
+Open PR CodeQL alerts are empty. [Qodana](https://github.com/frathe/picfetch/actions/runs/36838100783)
+artifact 11150212850 has this exact revision and 12 post-suppression SARIF
+results, all unused-export false positives: the prior ten plus
+StripJPEGMetadataVerified (EXIF constructor) and ReadAndProbeSnapshot (metadata
+worker). Production callers were checked; no actionable findings remain.
+Original local inspection scope/profile and its loader IDE-tag limitation remain
+as recorded; tagged compiler checks and configured Qodana verify that source.
+
+Universal ad-hoc sandbox package: version 1.1.11, build 483,
+bin/apple-store-e2e-2026-10-01-f36f1ca/PicFetch.app. Native signatures,
+entitlements, dependency closure, deployment minima, resources and seals pass;
+all 24 manifest payload hashes were independently checked. No submission,
+distribution signing or merge occurred. The manifest preserves the original
+source/worktree provenance; later evidence-only commits carry forward unchanged
+code results with this revision stated.
+The exact final package starts Open With consent at the correct fixture folder
+(including spaces). Return and a mouse click on Allow Folder Access for the
+selected exact directory both dismiss it and load (1/2) or (2/2). The grant
+reuses for a sibling and survives a complete quit/relaunch. Cancel opens only
+the selected file, Right cannot reach a sibling, and reopening prompts again.
+Direct diagnostic runs quit normally with status zero. An initial capture attempt
+was inconclusive (UI timeout/exited instance); subsequent controlled repeats
+qualified these effects. Final-bundle direct Finder drag remains unqualified;
+native Open/Save was qualified during implementation and the shared authorization
+path plus moved-parent regression remain covered.

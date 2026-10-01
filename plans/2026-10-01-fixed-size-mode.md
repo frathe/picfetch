@@ -139,3 +139,36 @@ pending notifications after cursor/raw/ANSI restoration; arrival during a termin
 read also prevents accepting Return. A deterministic regression reproduced the
 selection/read race before the fix; cleanup covers both SIGINT and SIGTERM.
 Focused race, PTY restoration and changed-file inspections recorded with the fix.
+
+### Final code gate and local test package
+
+Verified code revision: f36f1cade1504a3f126c564be91f7554e098b710.
+[Fresh code review](https://github.com/frathe/picfetch/pull/75#issuecomment-5927983355)
+and the [separate security-focused round](https://github.com/frathe/picfetch/pull/75#issuecomment-5928247620)
+report no findings after all eight thread dispositions. Recursive scan work
+budget is explicitly deferred availability hardening, not an implemented fix.
+
+[Full CI](https://github.com/frathe/picfetch/actions/runs/36838100555),
+[CodeQL](https://github.com/frathe/picfetch/actions/runs/36838100685) and FOSSA pass.
+Open PR CodeQL alerts are empty. [Qodana](https://github.com/frathe/picfetch/actions/runs/36838100783)
+artifact 11150212850 has this exact revision and 12 post-suppression SARIF
+results, all unused-export false positives: the prior ten plus
+StripJPEGMetadataVerified (EXIF constructor) and ReadAndProbeSnapshot (metadata
+worker). Production callers were checked; no actionable findings remain.
+Original local inspection scope/profile and its loader IDE-tag limitation remain
+as recorded; tagged compiler checks and configured Qodana verify that source.
+
+Universal ad-hoc sandbox package: version 1.1.11, build 483,
+bin/apple-store-e2e-2026-10-01-f36f1ca/PicFetch.app. Native signatures,
+entitlements, dependency closure, deployment minima, resources and seals pass;
+all 24 manifest payload hashes were independently checked. No submission,
+distribution signing or merge occurred. The manifest preserves the original
+source/worktree provenance; later evidence-only commits carry forward unchanged
+code results with this revision stated.
+The final Store app and the standalone native sizing fixture were captured by
+Computer Use; both actual JPEG screenshots measure exactly 1280 x 800 pixels,
+including titlebar and excluding shadow. Evidence is retained in
+.scratch/folder-access-regression/final-store-approved.jpeg and
+.scratch/fixed-size-mode/final-1280x800.jpeg. Existing four-preset native frame
+measurements and scale/backing regressions remain valid; mixed-monitor movement
+is still unqualified.
