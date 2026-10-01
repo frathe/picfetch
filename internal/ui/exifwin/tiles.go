@@ -146,17 +146,18 @@ type tileFetcher struct {
 	cache    *imaging.ByteCache[*cachedTile]
 	ready    *imaging.ByteCache[*cachedTile]
 
-	mu       sync.Mutex
-	inflight map[string]*tileJob
-	failed   map[string]time.Time
-	onChange func(pending int)
-	ctx      context.Context
-	cancel   context.CancelFunc
-	stopped  bool
-	queue    []*tileJob
-	workers  int
-	work     sync.WaitGroup
-	changed  chan struct{}
+	mu          sync.Mutex
+	inflight    map[string]*tileJob
+	failed      map[string]time.Time
+	onChange    func(pending int)
+	ctx         context.Context
+	cancel      context.CancelFunc
+	stopped     bool
+	queue       []*tileJob
+	workers     int
+	work        sync.WaitGroup
+	changed     chan struct{}
+	viewVersion uint64
 
 	// now is time.Now, replaced in tests that need the retry backoff to
 	// pass without sleeping.

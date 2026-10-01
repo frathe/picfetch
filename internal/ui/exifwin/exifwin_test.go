@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"image/color"
 	"image/png"
 	"io"
@@ -573,6 +574,131 @@ func TestThemedMapViewCacheLifetime(t *testing.T) {
 			view.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(-1000, 1000)})
 			if view.centerX < 0 || view.centerX >= 1 || view.centerY < 0 || view.centerY > 1 {
 				t.Fatal("pan escaped world bounds")
+			}
+		})
+	}
+}
+
+func TestThemedMapExpiredPixelsOnFailedValidation(t *testing.T) {
+	app := test.NewApp()
+	defer app.Quit()
+	body := tilePNG(t)
+	now := time.Unix(1700000000, 0)
+	var fail atomic.Bool
+	fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		status := http.StatusOK
+		if fail.Load() {
+			status = http.StatusServiceUnavailable
+		}
+		return &http.Response{StatusCode: status, Header: http.Header{"Cache-Control": {"max-age=60"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	defer func() { fetcher.Stop(); fetcher.Wait() }()
+	fetcher.now = func() time.Time { return now }
+	view := newThemedMap(fetcher)
+	view.Resize(fyne.NewSize(256, 256))
+	for range 3 {
+		_ = view.draw(256, 256)
+		fetcher.Wait()
+	}
+	if len(view.frame) == 0 {
+		t.Fatal("map did not display fresh tiles")
+	}
+	now = now.Add(2 * time.Minute)
+	fail.Store(true)
+	for range 3 {
+		pixels := view.draw(256, 256)
+		fetcher.Wait()
+		if len(view.frame) != 0 {
+			t.Fatal("expired pixels survived failed validation or retry backoff")
+		}
+		_, _, _, alpha := pixels.At(128, 128).RGBA()
+		if alpha != 0 {
+			t.Fatal("map painted expired pixels")
+		}
+	}
+}
+
+func TestThemedMapCameraChangeRetiresWarmDelivery(t *testing.T) {
+	for _, directive := range []string{"no-store", "no-cache", "max-age=60"} {
+		t.Run(directive, func(t *testing.T) {
+			app := test.NewApp()
+			defer app.Quit()
+			body := tilePNG(t)
+			var requests atomic.Int32
+			neighbor := fmt.Sprintf("/%d/%d/%d.png", mapZoom, (1<<mapZoom)/2+1, (1<<mapZoom)/2)
+			fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if request.URL.Path == neighbor {
+					requests.Add(1)
+				}
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {directive}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+			}))
+			defer func() { fetcher.Stop(); fetcher.Wait() }()
+			view := newThemedMap(fetcher)
+			view.Resize(fyne.NewSize(256, 256))
+			fetcher.Warm(0, 0, mapZoom)
+			for range 3 {
+				_ = view.draw(256, 256)
+				fetcher.Wait()
+			}
+			before := requests.Load()
+			if before != 1 {
+				t.Fatalf("neighbor warming requests = %d, want 1", before)
+			}
+			view.PanEast()
+			_ = view.draw(256, 256)
+			fetcher.Wait()
+			if (requests.Load() > before) != (directive != "max-age=60") {
+				t.Fatal("new camera view reused one-shot warming or discarded fresh cache")
+			}
+		})
+	}
+}
+
+func TestThemedMapCameraChangeRetiresActiveDelivery(t *testing.T) {
+	for _, directive := range []string{"no-store", "no-cache"} {
+		t.Run(directive, func(t *testing.T) {
+			app := test.NewApp()
+			defer app.Quit()
+			body := tilePNG(t)
+			started, release := make(chan struct{}), make(chan struct{})
+			var requests atomic.Int32
+			fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if requests.Add(1) == 1 {
+					close(started)
+					select {
+					case <-release:
+					case <-request.Context().Done():
+						return nil, request.Context().Err()
+					}
+				}
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {directive}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+			}))
+			defer func() { fetcher.Stop(); fetcher.Wait() }()
+			view := newThemedMap(fetcher)
+			_ = view.draw(0, 0)
+			address := "https://tiles.invalid/1/0/0.png"
+			job, _ := fetcher.submit(fetcher.session(), address, true)
+			<-started
+			view.PanEast()
+			_ = view.draw(0, 0)
+			close(release)
+			<-job.done
+			if fetcher.ready.Len() != 0 || fetcher.cache.Len() != 0 {
+				t.Fatal("retired view published its late response")
+			}
+			if fetcher.displayTile(address) != nil {
+				t.Fatal("new view consumed a retired one-shot response")
+			}
+			fetcher.Wait()
+			if requests.Load() != 2 || fetcher.displayTile(address) == nil {
+				t.Fatal("new view did not obtain its own response")
+			}
+			capturedView := fetcher.captureView()
+			view.PanEast()
+			_ = view.draw(0, 0)
+			fetcher.warmView(fetcher.session(), 0, 0, mapZoom, capturedView)
+			if requests.Load() != 2 {
+				t.Fatal("a delayed warm worker admitted demand for its retired view")
 			}
 		})
 	}

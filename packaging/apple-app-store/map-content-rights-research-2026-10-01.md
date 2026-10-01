@@ -29,18 +29,24 @@ OpenAI; this report does not independently audit those assets or their inputs.
 - Location Map parses freshness headers, retains validators and sends conditional
   requests. Its cache is memory-only; this check does not certify retention across
   restarts or eviction patterns against the service's sufficient-cache requirement.
-- EXIF's `tileFetcher.get` discards response freshness headers and returns only
-  PNG bytes. `tilework.go` stores these in a byte-bounded in-memory cache without
-  age/expiry metadata. There is neither header-based freshness handling nor a
-  seven-day retention guarantee. This is a concrete gap against the tile policy,
-  not evidence that PicFetch has no license to OSM data.
+- Historical pre-fix finding: EXIF discarded response freshness headers and
+  cached PNG bytes without expiry metadata. The implementation at `3eafe3d`
+  retains bounded freshness/validator metadata, conditionally validates expired
+  entries, merges 304 responses and uses an owned renderer without the upstream
+  global cache bypass. The review follow-up also clears expired displayed pixels
+  after failed validation and binds one-shot delivery to the current view.
+  These fixes address that concrete technical gap; memory eviction/restart still
+  does not guarantee seven-day retention or certify sufficient cache capacity.
 - EXIF warms a fixed 5-by-5 neighborhood before painting. Whether that exceeds
   permitted modest look-ahead depends on the displayed viewport; do not label
   this bulk scraping without further assessment. Prefer viewport-derived demand.
-- Location Map shows plain contributor credit. THIRD-PARTY-NOTICES includes the
-  copyright/license link. Attribution placement is being checked separately in
-  `map-attribution-research-2026-10-01.md`.
+- Historical pre-fix finding: Location Map showed plain contributor credit.
+  Both map surfaces now display attribution linked directly to the copyright/
+  license page, and THIRD-PARTY-NOTICES retains that link. The attribution research
+  records the primary-source reasoning for this change. A new signed candidate
+  and native visual/Store qualification remain pending.
 
 Recommendation: correct/verify map-service compliance, then use the rights-held
 Yes declaration rather than No. This scoped technical review is not a blanket
-legal certification. No app code or App Store rights answers changed here.
+legal certification. This record incorporates the implementation and review
+follow-up; no App Store rights answer was saved and no replacement was uploaded.

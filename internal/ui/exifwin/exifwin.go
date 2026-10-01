@@ -458,10 +458,11 @@ func (w *Window) startWarm() {
 	w.syncLoading()
 
 	tiles := w.tiles
+	viewVersion := tiles.captureView()
 
 	w.warmWorkers.Go(func() {
 		defer done()
-		tiles.WarmContext(ctx, lat, lon, mapZoom)
+		tiles.warmView(ctx, lat, lon, mapZoom, viewVersion)
 
 		w.ui.Do(func() {
 			if ctx.Err() != nil || gen != w.warmGen || w.stopped || w.locationMap == nil {

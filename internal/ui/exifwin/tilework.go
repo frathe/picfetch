@@ -8,10 +8,28 @@ import (
 // URL jobs share one queue and worker count across foreground and warm work.
 // A warm caller waits on job completion; it never creates a worker per URL.
 type tileJob struct {
-	url        string
-	ctx        context.Context
-	done       chan struct{}
-	foreground bool // guarded by the fetcher mutex; a paint can join a warm job
+	url         string
+	ctx         context.Context
+	done        chan struct{}
+	foreground  bool // guarded by the fetcher mutex; a paint can join a warm job
+	viewVersion uint64
+}
+
+// advanceView retires one-shot deliveries and old view demand while retaining
+// fresh cached tiles. Active calls remain tracked until their transport returns.
+func (f *tileFetcher) advanceView() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.viewVersion++
+	f.ready.Purge()
+	for _, job := range f.queue {
+		if f.inflight[job.url] == job {
+			delete(f.inflight, job.url)
+		}
+		close(job.done)
+	}
+	f.queue = nil
+	f.changedLocked()
 }
 
 // session captures the lifetime before handing a warm pass to a worker.
@@ -73,10 +91,14 @@ func (f *tileFetcher) changedLocked() {
 func (f *tileFetcher) submit(ctx context.Context, url string, foreground bool) (*tileJob, <-chan struct{}) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.stopped || ctx.Err() != nil || f.ready.Contains(url) || freshTileLocked(f, url) {
+	return f.submitLocked(ctx, url, foreground, f.viewVersion)
+}
+
+func (f *tileFetcher) submitLocked(ctx context.Context, url string, foreground bool, viewVersion uint64) (*tileJob, <-chan struct{}) {
+	if f.stopped || ctx.Err() != nil || viewVersion != f.viewVersion || f.ready.Contains(url) || freshTileLocked(f, url) {
 		return nil, nil
 	}
-	if job := f.inflight[url]; job != nil && job.ctx.Err() == nil {
+	if job := f.inflight[url]; job != nil && job.ctx.Err() == nil && job.viewVersion == viewVersion {
 		job.foreground = job.foreground || foreground
 		return job, nil
 	}
@@ -87,7 +109,7 @@ func (f *tileFetcher) submit(ctx context.Context, url string, foreground bool) (
 	if len(f.queue) >= tileQueueCapacity {
 		return nil, f.changed
 	}
-	job := &tileJob{url: url, ctx: ctx, done: make(chan struct{}), foreground: foreground}
+	job := &tileJob{url: url, ctx: ctx, done: make(chan struct{}), foreground: foreground, viewVersion: viewVersion}
 	f.inflight[url] = job
 	f.queue = append(f.queue, job)
 	if f.workers < tileWorkers {
@@ -113,6 +135,11 @@ func (f *tileFetcher) runWorker() {
 
 		var data *cachedTile
 		err := job.ctx.Err()
+		f.mu.Lock()
+		if job.viewVersion != f.viewVersion {
+			err = context.Canceled
+		}
+		f.mu.Unlock()
 		if err == nil {
 			data, err = f.get(job.ctx, job.url)
 		}
@@ -122,7 +149,7 @@ func (f *tileFetcher) runWorker() {
 
 func (f *tileFetcher) releaseJob(job *tileJob, data *cachedTile, err error) {
 	f.mu.Lock()
-	current := job.ctx.Err() == nil && f.inflight[job.url] == job
+	current := job.ctx.Err() == nil && f.inflight[job.url] == job && job.viewVersion == f.viewVersion
 	if f.inflight[job.url] == job {
 		delete(f.inflight, job.url)
 	}
@@ -167,7 +194,7 @@ func (f *tileFetcher) releaseJob(job *tileJob, data *cachedTile, err error) {
 func (f *tileFetcher) currentPendingLocked() int {
 	n := 0
 	for _, job := range f.inflight {
-		if job.ctx.Err() == nil {
+		if job.ctx.Err() == nil && job.viewVersion == f.viewVersion {
 			n++
 		}
 	}
@@ -189,11 +216,23 @@ func (f *tileFetcher) Warm(lat, lon float64, zoom int) {
 	f.WarmContext(f.session(), lat, lon, zoom)
 }
 
+func (f *tileFetcher) captureView() uint64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.viewVersion
+}
+
 func (f *tileFetcher) WarmContext(ctx context.Context, lat, lon float64, zoom int) {
+	f.warmView(ctx, lat, lon, zoom, f.captureView())
+}
+
+func (f *tileFetcher) warmView(ctx context.Context, lat, lon float64, zoom int, viewVersion uint64) {
 	var jobs []*tileJob
 	for _, url := range f.neighborhood(lat, lon, zoom) {
 		for {
-			job, capacity := f.submit(ctx, url, false)
+			f.mu.Lock()
+			job, capacity := f.submitLocked(ctx, url, false, viewVersion)
+			f.mu.Unlock()
 			if capacity == nil {
 				if job != nil {
 					jobs = append(jobs, job)

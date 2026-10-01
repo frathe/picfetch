@@ -93,6 +93,7 @@ func (viewWidget *themedMap) SetMarkers(markers []xwidget.MapMarker) {
 func (viewWidget *themedMap) MinSize() fyne.Size { return fyne.NewSize(64, 64) }
 
 func (viewWidget *themedMap) Hide() {
+	viewWidget.tiles.advanceView()
 	viewWidget.frame = nil
 	viewWidget.BaseWidget.Hide()
 }
@@ -100,6 +101,9 @@ func (viewWidget *themedMap) Hide() {
 func (viewWidget *themedMap) draw(width, height int) image.Image {
 	view := mapView{viewWidget.centerX, viewWidget.centerY, viewWidget.zoom, width, height}
 	session := viewWidget.tiles.session()
+	if session == viewWidget.session && view != viewWidget.view {
+		viewWidget.tiles.advanceView()
+	}
 	if view != viewWidget.view || session != viewWidget.session || session.Err() != nil {
 		viewWidget.frame = nil
 		viewWidget.view = view
@@ -127,6 +131,7 @@ func (viewWidget *themedMap) draw(width, height int) image.Image {
 				shown = viewWidget.frame[address]
 			}
 			if shown.entry == nil || (!shown.entry.noStore && shown.entry.expires.After(shown.entry.received) && !viewWidget.tiles.now().Before(shown.entry.expires)) {
+				shown = displayedTile{}
 				if entry := viewWidget.tiles.displayTile(address); entry != nil {
 					shown = displayedTile{entry, entry.pixels}
 				}
