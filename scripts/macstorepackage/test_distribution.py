@@ -19,6 +19,25 @@ from package import APP_ID, run
 
 
 class DistributionPolicy(unittest.TestCase):
+    def test_payload_rejects_owner_only_files_and_directories(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            app = root / "PicFetch.app"
+            app.mkdir()
+            (app / "library").write_bytes(b"fixture")
+            component = root / "expanded" / "component"
+            payload = component / "Payload"
+            payload.mkdir(parents=True)
+            shutil.copytree(app, payload / app.name)
+            (component / "PackageInfo").write_text(
+                f'<pkg-info identifier="{APP_ID}" install-location="/Applications"/>')
+            for relative, restricted, restored in (("library", 0o600, 0o644), ("", 0o700, 0o755)):
+                target = payload / app.name / relative
+                target.chmod(restricted)
+                with self.assertRaisesRegex(ValueError, "permissions"):
+                    distribution.verify_payload(component.parent, app)
+                target.chmod(restored)
+
     def setUp(self):
         self.now = datetime(2026, 9, 30, tzinfo=timezone.utc)
         self.team = "ABCDEFGHIJ"
@@ -168,6 +187,10 @@ class DistributionAssembly(unittest.TestCase):
                 path = source / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("fixture")
+            library = source / "Contents/Frameworks/runtime.dylib"
+            library.chmod(0o600)
+            executable = source / "Contents/MacOS/PicFetch"
+            executable.chmod(0o700)
             original = distribution.bundle_files(source)
             (source.parent / "manifest.json").write_text(json.dumps({"files": {name: value["sha256"] for name, value in original.items()}}))
             app_key = "A" * 40
@@ -220,6 +243,9 @@ class DistributionAssembly(unittest.TestCase):
             self.assertEqual(distribution.bundle_files(source), original)
             self.assertTrue((Path(args.out) / "PicFetch.pkg").is_file())
             self.assertTrue((Path(args.out) / "manifest.json").is_file())
+            self.assertEqual(library.stat().st_mode & 0o777, 0o600)
+            self.assertEqual((Path(args.out) / "PicFetch.app/Contents/Frameworks/runtime.dylib").stat().st_mode & 0o777, 0o644)
+            self.assertEqual((Path(args.out) / "PicFetch.app/Contents/MacOS/PicFetch").stat().st_mode & 0o777, 0o755)
 
     def test_profile_snapshot_is_the_same_data_decoded_and_embedded(self):
         with tempfile.TemporaryDirectory() as temporary:

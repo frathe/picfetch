@@ -6,12 +6,26 @@
 
 #### New Features
 
+- [x] Add `make apple-store-package` for a fresh Intel/Apple Silicon build,
+  Store signing and installer validation in one command. Local configuration
+  is gitignored; environment overrides remain supported. Orchestration tests
+  cover ordering, fresh paths, missing inputs and stopping after build failure.
+  Full native execution of the new wrapper remains unverified; existing build
+  and signing stages retain their separate qualification evidence.
+
 - [x] Fixed screenshot window mode: four console-selected physical pixel sizes,
   constrained mode transitions and preserved saved geometry. Native measurements,
   actual 1280 x 800 captures, fresh reviews/CI and App Store test build 483 pass.
   See [plan and evidence](finished_refactorings/2026-10-01-fixed-size-mode.md).
 
 #### Bugfix
+
+- [x] Fix Store installer permissions rejected by Transporter (90255).
+  Staged permission normalization and extracted-payload readability guards pass
+  regression tests and the real signed installer roundtrip. Ronin reported
+  Transporter Verify passing on 2026-10-01 after the corrected candidate was
+  supplied. No delivery or App Review submission occurred. See
+  `packaging/apple-app-store/ronin-checklist.md` for evidence and candidate path.
 
 - [x] Restore Copy Image in the sandboxed Mac build with direct in-memory AppKit
   PNG publication. Menu Copy Image and Cmd+C produce correct images in Preview,
@@ -49,9 +63,10 @@
 
 - [x] Bound Save Changes and JPEG Export secondary source reads by the encoded
   input limit, including growth after stat. Save leaves oversized sources intact;
-  Export preserves pixel-only fallback. Local race, Store-tagged and static
-  checks pass; hosted qualification is pending on PR #75. See the
-  [verification record](plans/2026-09-30-secondary-jpeg-read-budget.md).
+  Export preserves pixel-only fallback. Local checks, full hosted CI and CodeQL
+  pass; Qodana has no actionable findings and fresh code reviews are clean.
+  Accepted as finished by Ronin; separate security-review confirmation is
+  recorded in the [verification record](finished_refactorings/2026-09-30-secondary-jpeg-read-budget.md).
 
 - [x] Preserve broker cancellation during signal-source startup and retain a
   nonzero exit status when SIGTERM interrupts animated terminal help. Native
@@ -118,6 +133,12 @@
   visual confirmation and broader qualification remain pending. See
   `plans/2026-10-01-map-cache-rights.md`; do not mark Store compliance passed.
 
+- [ ] Resolve Apple encryption case **102982575995** before enabling France.
+  Initial availability is saved for 174 countries/regions with France excluded;
+  TestFlight's encryption warning is cleared after the standard-crypto/No-France
+  answers. Confirm any separate French TestFlight restriction in Apple's reply.
+  App Privacy remains a separate pending case; no App Review submission yet.
+
 Preserve the full feature set. Active plan: [Mac App Store preparation](plans/2026-09-29-apple-app-store.md).
 
 - [x] Add an immutable Apple Store channel, localized update/repair messages, verified pre-sign runtime staging and a read-only developer-input preflight.
@@ -135,12 +156,12 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Verify production workers deny an ungranted private source while an allowed control image still completes inference, on ARM and Intel under Rosetta.
 - [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Current qualified local test app is in `bin/apple-store-e2e-2026-10-01-3453f1b/`.
 - [x] Ronin confirmed native Open-dialog folder consent fixes navigation; extend the same consent to shared drop/Open With discovery with cancellation and replacement coverage.
-- [x] Qualify native Open With in refreshed Store build 483 at 3453f1b: exact-folder approval/button, sibling browsing and full quit/relaunch grant reuse pass.
-- [ ] Confirm a single-file window drop in the refreshed shared-consent test app; the tracked controlled qualification above exercises native Open With.
+- [x] Confirm the repaired build 483 shared-consent app: controlled Open With qualification passed; Ronin confirmed single-file Finder drop, fresh folder approval and Left/Right sibling navigation on 2026-10-01.
 - [x] Ronin confirmed multiple-file picker/drop navigation must remain within the selected images; folder sibling discovery applies only to single-file inputs. Automated selection coverage passes.
 - [x] Persist explicit sibling-folder approvals in app preferences and validate/reuse bookmarks on fresh single-image opens; keep renewal, cancellation and selection guards.
-- [x] Ronin confirmed persistent folder approvals work across real quit/relaunch in `bin/apple-store-e2e-persistent-folders/PicFetch.app`.
-- [ ] Confirm moved-folder bookmark reuse in the persistent-folder test app; automated coverage passes, live moved-folder testing remains open.
+- [x] Ronin observed one successful folder-approval reuse across quit/relaunch in `bin/apple-store-e2e-persistent-folders/PicFetch.app`; later reproduction shows acceptance remains open.
+- [x] Resolve the native sibling-folder approval blocker in build 483: controlled native consent/cancel/restart checks and Ronin's fresh-folder Finder drop pass. Remaining manual acceptance is tracked in the [release checklist](packaging/apple-app-store/ronin-checklist.md#6-finish-the-remaining-hands-on-checks).
+- [x] Confirm renamed-folder bookmark reuse in build 483: Ronin reopened the Favorite after quit/rename/relaunch and then directly dropped an image from the renamed folder; both browse siblings without renewed consent. Moves to another parent/volume remain unqualified; see the [release checklist](packaging/apple-app-store/ronin-checklist.md#6-finish-the-remaining-hands-on-checks).
 - [x] Fix PR #75 findings: acquire source authority for metadata sorting and map analysis/search file I/O to resolved bookmark locations while preserving collection/cache identities.
 - [x] Complete the application/CI review fixes in [PR #75](https://github.com/frathe/picfetch/pull/75): `0a670e6` has fresh clean code/security reviews, passing platform/race CI and CodeQL, and no actionable local/Qodana findings. All three threads are resolved. Final documentation-commit review/CI evidence lives on the PR.
 - [x] Validate copyright/category metadata and reject quarantine attributes in local Store packages.
@@ -159,6 +180,16 @@ Preserve the full feature set. Active plan: [Mac App Store preparation](plans/20
 - [x] Ronin returned from lunch on 2026-09-30 and explicitly reauthorized committing and pushing the current state.
 
 ## Deferred
+
+### Missing-file toasts for disconnected drives
+
+- [ ] Improve repeated raw missing-file errors when opening a Favorite on a
+  disconnected external drive. Explicitly deferred by Ronin on 2026-10-01;
+  this is not a release blocker. Ronin considers the behavior acceptably quick
+  even for large collections and reports no problematic memory use (not an
+  instrumented measurement). Build 483 stays responsive, and reopening the
+  Favorite after reconnecting restores images and navigation. See the
+  [acceptance record](packaging/apple-app-store/ronin-checklist.md#6-finish-the-remaining-hands-on-checks).
 
 ### Recursive scan work budget
 

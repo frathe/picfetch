@@ -216,6 +216,35 @@ permission results. Native presentation is tracked without blocking shutdown.
 
 ## Distribution-signed candidate packaging
 
+### One-shot local build and signing
+
+```sh
+make apple-store-package
+```
+
+This builds a fresh universal Intel/Apple Silicon app from the current checkout,
+then signs and validates a Store installer. It runs preflight first, invokes the
+existing local-build target (including Fyne/tool and tag-vector prerequisites),
+then invokes the existing signing target. A failure stops the sequence. It never
+uploads, installs, submits, or releases the result.
+
+Configure this Mac once with a JSON object in the gitignored
+`.scratch/apple-store-signing.json`. Its string keys are
+`APPLE_STORE_TEAM_ID`, `APPLE_STORE_APP_IDENTITY`,
+`APPLE_STORE_INSTALLER_IDENTITY`, `APPLE_STORE_PROFILE`,
+`APPLE_STORE_WORKER_PROFILE`, `APPLE_STORE_ARM64_ARCHIVE` and
+`APPLE_STORE_AMD64_ARCHIVE`. `APPLE_STORE_DEVELOPER_DIR` is optional.
+Use the same values described below and under Local packaging; full paths are
+recommended. Shell environment values override the file. Keep private keys in
+Keychain, not in this configuration. No password or upload credential is needed.
+
+Every run gets a fresh `bin/apple-store-candidate-*/` directory with `local/`
+and `signed/` outputs; the final path is printed. TestFlight profiles are required.
+The existing local packager can update `FyneApp.toml`'s build number. The wrapper
+does not commit changes or assert runtime acceptance: test the candidate and run
+Transporter Verify before delivery. Existing separately qualified artifacts remain
+untouched. Interrupted runs may leave their new output folder for inspection.
+
 `make apple-store-package-signed` consumes a qualified local app and creates a
 fresh output directory containing a signed app, `PicFetch.pkg` and provenance
 manifest. It does not upload or install anything and does not modify the input

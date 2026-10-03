@@ -15,6 +15,19 @@ is separate, not a confirmed bulk-download violation.
 
 ## Tasks and acceptance
 
+Screenshot follow-up authorized by Ronin: show the copyright URL as readable
+text on both map surfaces, retaining the hyperlink. Update every locale and
+existing attribution assertions; verify focused map tests and locale parity.
+Budget: zero spawns, one review round. The EXIF assertion fails before the change.
+New native map screenshots remain a separate capture step; no Store upload is
+implied by preparing them. Keep unrelated manual and listing copy unchanged.
+Follow-up evidence: EXIF and root Location Map attribution tests pass with race
+detection; translation parity tests and native screenshot build pass. GoLand
+reports no new findings in the four changed Go files; the same six excluded
+duplicate-fixture warnings remain. Local screenshot binary is
+`bin/map-attribution-screenshots/picfetch`. Native capture and clipping checks
+remain pending. This follow-up is not yet committed or part of the pushed review.
+
 1. EXIF caching: retain bounded response metadata, freshness and validators;
    reuse fresh entries, conditionally validate stale entries, merge 304 updates,
    deliver no-cache/no-store responses once without an endless redraw loop.

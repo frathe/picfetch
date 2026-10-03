@@ -66,7 +66,7 @@ COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 .PHONY: verify-build --skip-local-tests
 .PHONY: generate-updater-notices check-updater-notices generate-avif-notices check-avif-notices
 .PHONY: fossa-findings
-.PHONY: apple-store-preflight apple-worker-test apple-store-package-local apple-store-package-signed
+.PHONY: apple-store-preflight apple-worker-test apple-store-package-local apple-store-package-signed apple-store-package
 .PHONY: loc
 
 all: build
@@ -111,6 +111,9 @@ apple-store-package-local: install-fyne generate-tag-vectors ## Build an ad-hoc 
 
 apple-store-package-signed: ## Sign a qualified Store app and package a candidate installer (requires Apple credentials)
 	python3 scripts/macstorepackage/distribution.py
+
+apple-store-package: ## Build Intel + Apple Silicon and sign a fresh Store installer (local signing setup required; no upload)
+	python3 scripts/macstorepackage/build_signed.py
 
 apple-store-preflight: ## Check native Xcode and Mac App Store signing inputs (see packaging/apple-app-store/README.md)
 	bash scripts/apple-store-preflight.sh

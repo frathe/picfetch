@@ -8,6 +8,7 @@
    "%d of %d processed, %d located, %d without GPS, %d unreadable, %d conflicts": "%d von %d verarbeitet, %d mit Standort, %d ohne GPS, %d nicht lesbar, %d Konflikte",
    "No usable image locations. %d without GPS, %d unreadable, %d conflicts": "Keine verwendbaren Bildstandorte. %d ohne GPS, %d nicht lesbar, %d Konflikte",
    "© OpenStreetMap contributors": "© OpenStreetMap-Mitwirkende",
+   "© OpenStreetMap contributors\nopenstreetmap.org/copyright": "© OpenStreetMap-Mitwirkende\nopenstreetmap.org/copyright",
    "Could not load map tiles. An internet connection is required.": "Kartenkacheln konnten nicht geladen werden. Eine Internetverbindung ist erforderlich.",
    "Location Map": "Standortkarte",
    "Open Image": "Bild öffnen",

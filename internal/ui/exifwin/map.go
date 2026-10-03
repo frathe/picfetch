@@ -192,7 +192,7 @@ func (viewWidget *themedMap) draw(width, height int) image.Image {
 func (viewWidget *themedMap) CreateRenderer() fyne.WidgetRenderer {
 	license := &url.URL{Scheme: "https", Host: "www.openstreetmap.org", Path: "/copyright"}
 	renderer := &mapRenderer{owner: viewWidget, raster: canvas.NewRaster(viewWidget.draw),
-		credit: widget.NewHyperlink(lang.L("© OpenStreetMap contributors"), license),
+		credit: widget.NewHyperlink(lang.L("© OpenStreetMap contributors\nopenstreetmap.org/copyright"), license),
 		zoom:   container.NewVBox(widget.NewButtonWithIcon("", theme.ZoomInIcon(), viewWidget.ZoomIn), widget.NewButtonWithIcon("", theme.ZoomOutIcon(), viewWidget.ZoomOut)),
 		marker: widget.NewButtonWithIcon("", theme.RadioButtonCheckedIcon(), nil)}
 	renderer.marker.OnTapped = func() {

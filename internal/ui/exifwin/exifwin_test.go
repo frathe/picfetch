@@ -460,7 +460,7 @@ func TestLocationMapTheme(t *testing.T) {
 		}
 		switch object := object.(type) {
 		case *widget.Hyperlink:
-			attribution = object.Text == lang.L("© OpenStreetMap contributors") && object.URL != nil && object.URL.String() == "https://www.openstreetmap.org/copyright"
+			attribution = object.Text == lang.L("© OpenStreetMap contributors\nopenstreetmap.org/copyright") && object.URL != nil && object.URL.String() == "https://www.openstreetmap.org/copyright"
 		case *canvas.Raster:
 			raster = object
 		case *fyne.Container:

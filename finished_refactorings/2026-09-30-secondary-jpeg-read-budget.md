@@ -1,5 +1,8 @@
 # Bound Save and Export JPEG rereads
 
+Status: finished at Ronin's explicit acceptance on 2026-09-30. Implementation
+commit: `382a40d8ea195613b1990ced2581c966445c682c`.
+
 Route: Standard, lead inline, zero delegates. The repository agreement keeps
 hot-context investigation, fixes and every review with the lead; the security
 skill's investigation and candidate review are separate inline passes.
@@ -8,7 +11,7 @@ skill's investigation and candidate review are separate inline passes.
 
 After display admission, an external writer can grow or replace a regular JPEG.
 Save Changes rereads it through `readFileContext`; JPEG Export acquires source
-authority and rereads through `jpegFileBytesContext`. Both currently allocate
+authority and rereads through `jpegFileBytesContext`. Before this fix, both allocated
 without a byte limit. Every complete reread must capture `MaxEncodedBytes`,
 reject an oversized stat before allocation, and enforce the bound while reading
 even when the file grows after stat. Cancellation remains observable.
@@ -70,12 +73,40 @@ build/static gate. No dependency, package, UI string or test-file addition.
   Metadata-removal's tighter independent budget is unchanged. No new test file,
   UI test or package move requires exclusions, shard or architecture changes.
 
-Hosted code/security reviews, full native Linux/amd64 CI, CodeQL and a fresh
-post-suppression Qodana assessment are pending for the pushed fix. Final results
-will be retained on PR 75 before proceeding to the recursive-scan finding.
 On resumption, the lead rechecked the complete candidate and direct callers;
 the focused security race regressions passed again (1.644s), and
 `git diff --check HEAD` was clear. Ronin explicitly authorized commit/push and
 a separate completed GitHub review loop after each security fix.
+
+## Hosted qualification and acceptance
+
+- [Full CI](https://github.com/frathe/picfetch/actions/runs/36750169790)
+  passed all four native Linux/amd64 race partitions, validation, Linux/Windows
+  native guards and both macOS architectures on the implementation commit.
+- [CodeQL](https://github.com/frathe/picfetch/actions/runs/36750169854)
+  passed both Go and Actions analyses; the assessed PR alert set was empty.
+- [Qodana](https://github.com/frathe/picfetch/actions/runs/36750169922)
+  artifact `11114242664` contains a fresh final `qodana.sarif.json` for this
+  exact revision with exit code 0 and successful execution. Its eight
+  unused-export warnings have verified production callers and are unchanged
+  false positives; no actionable findings. Fresh local GoLand inspection of
+  all three changed Go files retains only the previously assessed nonpointer
+  `WriteResult` nullable-value warning in the existing missing-source test.
+- Fresh [code review at 18:04 UTC](https://github.com/frathe/picfetch/pull/75#issuecomment-5916898358)
+  and [code review at 18:16 UTC](https://github.com/frathe/picfetch/pull/75#issuecomment-5917082533)
+  both report no findings for `382a40d8ea`. All historical threads are resolved.
+- Both initial review requests were refused for exhausted quota. Ronin first
+  authorized marking the security ticket complete despite that blocker, then
+  explicitly accepted this update as finished after reviews resumed and checks
+  were green. The fresh code reviews are verified above. A separately labeled
+  security-review completion for this revision has not been observed; it remains
+  unverified, rather than being inferred from a clean regular review. The
+  [requested follow-up](https://github.com/frathe/picfetch/pull/75#issuecomment-5917720628)
+  asks Codex to confirm that result and prioritize the three remaining issues.
+
+Original [verification and quota evidence](https://github.com/frathe/picfetch/pull/75#issuecomment-5916368651)
+is retained on PR 75. The recursive-scan and two metadata identity items remain
+open separately; this record does not close them.
+
 Ledger: zero spawns, one inline candidate review, one negative streaming probe,
 focused regression/race checks and local build/static gate.

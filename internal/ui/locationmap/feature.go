@@ -128,7 +128,7 @@ func New(host Host, options Options) *Feature {
 	licenseURL := &url.URL{Scheme: "https", Host: "www.openstreetmap.org", Path: "/copyright"}
 	content := container.NewBorder(container.NewHBox(widget.NewLabel(lang.L("Location Map")),
 		widget.NewButton(lang.L("Fit All"), func() { f.surface.fit(); host.Unfocus() }),
-		widget.NewButton(lang.L("Back to Viewer"), host.LeaveLocationMap)), container.NewVBox(f.preparation, f.status, widget.NewHyperlink(lang.L("© OpenStreetMap contributors"), licenseURL)), nil, nil, clipped)
+		widget.NewButton(lang.L("Back to Viewer"), host.LeaveLocationMap)), container.NewVBox(f.preparation, f.status, widget.NewHyperlink(lang.L("© OpenStreetMap contributors\nopenstreetmap.org/copyright"), licenseURL)), nil, nil, clipped)
 	f.overlay = container.NewStack(widgets.NewThemedRectangle(theme.ColorNameBackground), content)
 	f.overlay.Hide()
 	return f

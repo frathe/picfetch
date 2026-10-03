@@ -8,6 +8,7 @@
    "%d of %d processed, %d located, %d without GPS, %d unreadable, %d conflicts": "%d of %d processed, %d located, %d without GPS, %d unreadable, %d conflicts",
    "No usable image locations. %d without GPS, %d unreadable, %d conflicts": "No usable image locations. %d without GPS, %d unreadable, %d conflicts",
    "© OpenStreetMap contributors": "© OpenStreetMap contributors",
+   "© OpenStreetMap contributors\nopenstreetmap.org/copyright": "© OpenStreetMap contributors\nopenstreetmap.org/copyright",
    "Could not load map tiles. An internet connection is required.": "Could not load map tiles. An internet connection is required.",
    "Location Map": "Location Map",
    "Open Image": "Open Image",

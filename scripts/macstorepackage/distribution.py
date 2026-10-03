@@ -82,6 +82,20 @@ def bundle_files(app):
     return result
 
 
+def normalize_permissions(app):
+    for path in [app, *app.rglob("*")]:
+        if path.is_symlink():
+            raise ValueError("unexpected bundle symlink")
+        path.chmod(0o755 if path.is_dir() or path.stat().st_mode & 0o111 else 0o644)
+
+
+def verify_permissions(app):
+    for path in [app, *app.rglob("*")]:
+        required = 0o005 if path.is_dir() else 0o004
+        if path.is_symlink() or path.stat().st_mode & required != required:
+            raise ValueError(f"bundle permissions prevent non-owner access: {path}")
+
+
 def verify_payload(expanded, app):
     infos = list(expanded.rglob("PackageInfo"))
     if len(infos) != 1:
@@ -93,6 +107,8 @@ def verify_payload(expanded, app):
     payload = infos[0].parent / "Payload"
     if not payload.is_dir() or {p.name for p in payload.iterdir()} != {"PicFetch.app"}:
         raise ValueError("unexpected installer payload")
+    verify_permissions(app)
+    verify_permissions(payload / "PicFetch.app")
     if bundle_files(payload / "PicFetch.app") != bundle_files(app):
         raise ValueError("installer payload differs from the verified signed app")
 
@@ -194,12 +210,14 @@ def sign_candidate(args):
             (bundle / "Contents/embedded.provisionprofile").write_bytes(data)
         for role, values in entitlements.items():
             write_plist(stage / (role + ".plist"), values)
+        normalize_permissions(candidate)
         for path, role, identifier in code_items(candidate):
             claims = ["--entitlements", stage / (role + ".plist")] if role else []
             run("codesign", "--force", "--sign", args.app_identity, "--timestamp", "--identifier", identifier,
                 *claims, path, env=env)
         verify(candidate, env, expected_entitlements=entitlements)
         verify_code_identities(candidate, args.team, args.app_identity, env)
+        verify_permissions(candidate)
         installer = stage / "PicFetch.pkg"
         run("productbuild", "--component", candidate, "/Applications", "--sign", installer_name,
             "--timestamp", installer, env=env)

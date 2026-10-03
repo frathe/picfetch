@@ -317,7 +317,11 @@ checks full Xcode and caller-supplied Store signing prerequisites without changi
 credentials or uploading an artifact. `packaging/apple-app-store/README.md`
 records the experimental channel and outstanding signed qualification.
 `scripts/macstorestage` adapts verified runtime staging for native packaging.
-`scripts/macstorepackage` builds and validates universal ad-hoc bundles through
+`scripts/macstorepackage` builds and validates universal Mac bundles.
+Its `build_signed.py` provides `make apple-store-package`: local gitignored signing
+settings plus environment overrides, preflight, a fresh universal local build,
+and distribution signing in sequential fail-fast steps without uploading.
+The underlying local build remains available through
 `make apple-store-package-local`; its disposable thin derivatives run production
 workers through the Go driver in `scripts/macstorequalify`, without changing the
 original app or accessing an Apple account. The package builder also verifies and

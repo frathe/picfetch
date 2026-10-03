@@ -2329,7 +2329,7 @@ func TestLocationMap(t *testing.T) {
 		v.locationMap.Settle()
 		attribution := false
 		explorerWalk(v.win.Content(), func(object fyne.CanvasObject) {
-			if link, ok := object.(*widget.Hyperlink); ok && link.Text == lang.L("© OpenStreetMap contributors") && link.URL != nil && link.URL.String() == "https://www.openstreetmap.org/copyright" {
+			if link, ok := object.(*widget.Hyperlink); ok && link.Text == lang.L("© OpenStreetMap contributors\nopenstreetmap.org/copyright") && link.URL != nil && link.URL.String() == "https://www.openstreetmap.org/copyright" {
 				attribution = true
 			}
 		})
