@@ -554,11 +554,11 @@ Apache License
 License: BSD-3-Clause
 Source: https://github.com/fyne-io/fyne-x/blob/master/LICENSE
 
-Used for the `Map` widget behind the EXIF window's location view. The map
-tiles it renders are served by [OpenStreetMap](https://openstreetmap.org)
+Used for marker values in the EXIF window's owned location renderer. The map
+tiles are served by [OpenStreetMap](https://openstreetmap.org)
 and are © OpenStreetMap contributors, available under the
-[Open Database License](https://www.openstreetmap.org/copyright); the widget
-displays that attribution itself, in the corner of every map it draws.
+[Open Database License](https://www.openstreetmap.org/copyright); both map
+surfaces display contributor attribution linked directly to that license page.
 
 ```
 BSD 3-Clause License
@@ -5734,6 +5734,23 @@ The direct-download builds obtain the corresponding runtime during optional
 Explorer setup, except Intel macOS, which obtains ONNX Runtime 1.23.2,
 Microsoft's last official Intel binary. Microsoft Store setup downloads only the model and its processor
 configuration; runtime DLL installation and updates belong to the Store package.
+
+Mac App Store preparation stages the same architecture-pinned macOS releases:
+ONNX Runtime 1.23.2 for Intel and 1.29.0 for Apple Silicon. Each staged runtime
+retains the complete upstream `LICENSE`, `ThirdPartyNotices.txt`, and
+`Privacy.md` in its versioned directory. These notices must accompany the native
+library in the eventual Store bundle; PicFetch's source license does not replace
+the runtime's component licenses. Signed Store packaging remains under qualification.
+
+The local Mac App Store packaging route also retains the unmodified Abseil
+privacy manifest supplied by both Abseil 20250512.0 (Intel runtime) and 20250814.0
+(Apple Silicon runtime). These identical declarations are distributed once in
+`Contents/Resources/AbseilPrivacy.bundle`, alongside their Apache-2.0 license
+and exact source/version/hash provenance. Sources:
+https://github.com/abseil/abseil-cpp/blob/20250512.0/PrivacyInfo.xcprivacy
+https://github.com/abseil/abseil-cpp/blob/20250814.0/PrivacyInfo.xcprivacy
+The retained manifest does not cover PicFetch, Protobuf or other ONNX components;
+remaining SDK manifest and signature requirements are still under qualification.
 
 Intel macOS setup retains the complete upstream `LICENSE`,
 `ThirdPartyNotices.txt` and `Privacy.md` beside

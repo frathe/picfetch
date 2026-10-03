@@ -1,10 +1,15 @@
 package openwith
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 
 	"fyne.io/fyne/v2"
 
@@ -17,9 +22,12 @@ import (
 // isn't an exported test seam.
 func reset() {
 	defaultQueue.mu.Lock()
+	pending := defaultQueue.pending
 	defaultQueue.pending = nil
 	defaultQueue.handler = nil
+	defaultQueue.stopped = false
 	defaultQueue.mu.Unlock()
+	fileaccess.ReleaseSelected(pending)
 }
 
 func TestQueue_DeliverBeforeSetHandler_BuffersThenFlushesInArrivalOrder(t *testing.T) {
@@ -317,5 +325,29 @@ func TestURIsFromFileURLs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestQueueStopDiscardsPendingAndLateNativeSelections(t *testing.T) {
+	q := &queue{}
+	released := 0
+	makeInput := func() fyne.URI {
+		return fileaccess.NewSelection(storage.NewFileURI("/selected.jpg"), func(_ context.Context) (fileaccess.Record, error) {
+			t.Fatal("queue performed native capture")
+			return fileaccess.Record{}, nil
+		}, func() { released++ })
+	}
+	first := makeInput()
+	q.Deliver([]fyne.URI{first, first})
+	q.stop()
+	q.Deliver([]fyne.URI{makeInput()})
+	q.stop()
+	if released != 2 || len(q.pending) != 0 {
+		t.Fatalf("released=%d pending=%v", released, q.pending)
+	}
+	q.SetHandler(func(uris []fyne.URI) { fileaccess.ReleaseSelected(uris) })
+	q.Deliver([]fyne.URI{makeInput()})
+	if released != 3 {
+		t.Fatal("fresh handler did not receive ownership")
 	}
 }

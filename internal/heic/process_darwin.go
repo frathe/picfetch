@@ -1,3 +1,5 @@
+//go:build darwin && !appleappstore
+
 package heic
 
 import (

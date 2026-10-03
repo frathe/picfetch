@@ -12,7 +12,17 @@ package openwith
 */
 import "C"
 
-import "unsafe"
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"unsafe"
+
+	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/fileaccess"
+)
 
 // picfetchDeliverOpenURLs is the single entry point from Objective-C: both
 // grafted delegate methods funnel their absolute file:// URL strings here.
@@ -127,3 +137,66 @@ var _ = []any{
 // here records that the missing call site is the point rather than an
 // oversight, and keeps an unused-function inspection from flagging it.
 var _ = picfetchDeliverOpenURLs
+
+//export picfetchUsesScopedOpen
+func picfetchUsesScopedOpen() C.int {
+	if distribution.AppleAppStore {
+		return 1
+	}
+	return 0
+}
+
+//export picfetchDeliverSelectedURLs
+func picfetchDeliverSelectedURLs(owners *unsafe.Pointer, addresses **C.char, n C.int) {
+	if owners == nil || addresses == nil || n <= 0 {
+		return
+	}
+	native := unsafe.Slice(owners, int(n))
+	names := unsafe.Slice(addresses, int(n))
+	files := make([]fyne.URI, 0, int(n))
+	for i, owner := range native {
+		if owner == nil {
+			continue
+		}
+		if names[i] == nil {
+			C.picfetchReleaseSelectedURL(owner)
+			continue
+		}
+		uris := URIsFromFileURLs([]string{C.GoString(names[i])})
+		if len(uris) != 1 {
+			C.picfetchReleaseSelectedURL(owner)
+			continue
+		}
+		files = append(files, fileaccess.NewSelection(uris[0], func(ctx context.Context) (fileaccess.Record, error) {
+			if err := ctx.Err(); err != nil {
+				return fileaccess.Record{}, err
+			}
+			var failure *C.char
+			data := C.picfetchCaptureSelectedURL(owner, &failure)
+			defer C.free(unsafe.Pointer(data))
+			defer C.free(unsafe.Pointer(failure))
+			if failure != nil {
+				return fileaccess.Record{}, errors.New(C.GoString(failure))
+			}
+			if data == nil {
+				return fileaccess.Record{}, errors.New("selected URL capture failed")
+			}
+			var record fileaccess.Record
+			if err := json.Unmarshal([]byte(C.GoString(data)), &record); err != nil {
+				return fileaccess.Record{}, err
+			}
+			// Foundation's URL string is escaped; Fyne persists decoded file identities.
+			record.URI = uris[0].String()
+			return record, ctx.Err()
+		}, func() { C.picfetchReleaseSelectedURL(owner) }))
+	}
+	Deliver(files)
+}
+
+func testInvokeSelectedURLs(urls []string) {
+	buf, release := cStrings(urls)
+	defer release()
+	C.picfetchTestInvokeSelectedURLs(buf, C.int(len(urls)))
+}
+
+var _ = []any{picfetchUsesScopedOpen, picfetchDeliverSelectedURLs, testInvokeSelectedURLs}

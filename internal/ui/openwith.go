@@ -5,8 +5,12 @@
 package ui
 
 import (
+	"slices"
+	"sync"
+
 	"fyne.io/fyne/v2"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/openwith"
 )
 
@@ -29,7 +33,15 @@ import (
 // would fail exactly where this is used.
 func (v *viewer) installOpenWithHandler() {
 	openwith.SetHandler(func(uris []fyne.URI) {
-		fyne.Do(func() { v.openFilesFromOS(uris) })
+		request := v.osInputs.add(uris)
+		if request == nil {
+			return
+		}
+		v.osInputs.queue.Do(func() {
+			if files, ok := v.osInputs.take(request); ok {
+				v.openFilesFromOS(files)
+			}
+		})
 	})
 }
 
@@ -37,7 +49,7 @@ func (v *viewer) installOpenWithHandler() {
 // installOpenWithHandler's flush already swept it up along with an
 // "Open With" delivery - the usual macOS cold start.
 func (v *viewer) openInitialFiles() {
-	fyne.Do(func() { v.openFilesFromOS(nil) })
+	v.osInputs.queue.Do(func() { v.openFilesFromOS(nil) })
 }
 
 // openFilesFromOS opens uris together with whatever the launch is still
@@ -57,4 +69,56 @@ func (v *viewer) openFilesFromOS(uris []fyne.URI) {
 	v.pendingInitial = nil
 
 	v.handleDrop(files)
+}
+
+// osInputQueue owns URLs handed to a UI callback that may never run at shutdown.
+// Taking a request transfers ownership to the admitted collection scan.
+type osInputQueue struct {
+	mu      sync.Mutex
+	pending map[*osInputRequest]struct{}
+	closed  bool
+	queue   chooserUIQueue
+}
+
+type osInputRequest struct{ files []fyne.URI }
+
+func (q *osInputQueue) add(files []fyne.URI) *osInputRequest {
+	q.mu.Lock()
+	if q.closed {
+		q.mu.Unlock()
+		fileaccess.ReleaseSelected(files)
+		return nil
+	}
+	if q.pending == nil {
+		q.pending = make(map[*osInputRequest]struct{})
+	}
+	request := &osInputRequest{files: slices.Clone(files)}
+	q.pending[request] = struct{}{}
+	q.mu.Unlock()
+	return request
+}
+
+func (q *osInputQueue) take(request *osInputRequest) ([]fyne.URI, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if _, ok := q.pending[request]; !ok {
+		return nil, false
+	}
+	delete(q.pending, request)
+	files := request.files
+	request.files = nil
+	return files, true
+}
+
+func (q *osInputQueue) stop() {
+	q.mu.Lock()
+	q.closed = true
+	var files []fyne.URI
+	for request := range q.pending {
+		files = append(files, request.files...)
+		request.files = nil
+	}
+	q.pending = nil
+	q.mu.Unlock()
+	fileaccess.ReleaseSelected(files)
 }

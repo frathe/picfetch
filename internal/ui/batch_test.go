@@ -8,6 +8,7 @@ import (
 
 	"fyne.io/fyne/v2"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -222,9 +223,21 @@ func TestBatchDelete_LeavesTheWindowMaximizedOnAColdReload(t *testing.T) {
 func TestCopy_WhileGridVisibleCopiesTheSelectionAsFileReferences(t *testing.T) {
 	v := openGridWith(t, "a.jpg", "b.jpg", "c.jpg")
 
+	released := 0
+	sources := slices.Clone(v.state.Observe().DisplayFiles())
+	for i, uri := range sources {
+		sources[i] = fileaccess.NewDestination(uri, func() { released++ })
+	}
+	v.state.Replace(collectionInput{source: sources, display: sources})
 	var got []string
 	uitest.StubClipboardCopyFiles(t, func(paths []string) error {
 		got = paths
+		for _, uri := range sources {
+			fileaccess.ReleaseDestination(uri)
+		}
+		if released != 0 {
+			t.Error("source access ended during pasteboard publication")
+		}
 		return nil
 	})
 	uitest.StubClipboardCopy(t, func([]byte) error {
@@ -239,6 +252,9 @@ func TestCopy_WhileGridVisibleCopiesTheSelectionAsFileReferences(t *testing.T) {
 	handler.TypedShortcut(&fyne.ShortcutCopy{})
 	waitForClipboard(t, v)
 
+	if released != len(sources) {
+		t.Errorf("released %d sources", released)
+	}
 	want := []string{v.state.Observe().DisplayFiles()[0].Path(), v.state.Observe().DisplayFiles()[1].Path(), v.state.Observe().DisplayFiles()[2].Path()}
 	if !slices.Equal(got, want) {
 		t.Errorf("CopyFiles paths = %v, want %v", got, want)

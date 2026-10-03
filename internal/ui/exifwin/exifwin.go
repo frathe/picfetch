@@ -118,17 +118,18 @@ type Window struct {
 	// see tiles.go for why the widget's own fetching can't be left to it.
 	// warming and warmGen track the prefetch that fills the first view,
 	// warm is the completion.Signal tests wait on - see internal/completion.
-	tiles       *tileFetcher
-	warming     bool
-	warmGen     int
-	warm        completion.Signal
-	warmWorkers sync.WaitGroup
-	ui          UIQueue
-	stopped     bool
-	stripFile   func(context.Context, fyne.URI) (imaging.WriteResult, error)
-	stripWork   stripMutation
-	metadata    metadataRead
-	heic        *heic.Capability
+	tiles         *tileFetcher
+	warming       bool
+	warmGen       int
+	warm          completion.Signal
+	warmWorkers   sync.WaitGroup
+	ui            UIQueue
+	stopped       bool
+	stripFile     func(context.Context, fyne.URI, imaging.SourceVersion) (imaging.WriteResult, error)
+	stripWork     stripMutation
+	metadata      metadataRead
+	sourceVersion imaging.SourceVersion
+	heic          *heic.Capability
 
 	onClosed func()
 }
@@ -144,7 +145,7 @@ func New(application fyne.App, host Host) *Window {
 		host:      host,
 		tiles:     newTileFetcher(osmTiles, nil),
 		ui:        fyneQueue{},
-		stripFile: imaging.StripJPEGMetadataContext,
+		stripFile: imaging.StripJPEGMetadataVerified,
 	}
 
 	// The panel is read against the photo it describes, so it floats above
@@ -237,6 +238,7 @@ func (w *Window) Show() {
 		w.cancelStrip()
 		w.cancelMetadata()
 		w.tiles.SetOnChange(nil)
+		w.tiles.setOnTile(nil)
 
 		w.cancelTiles()
 
@@ -353,12 +355,13 @@ func (w *Window) requestStrip() {
 		return
 	}
 
+	version := w.sourceVersion
 	if w.showConfirm(confirmation{
 		title:      lang.L("Remove Metadata?"),
 		message:    fmt.Sprintf(lang.L("Remove identifying metadata, previews, additional pictures, and audio/video from %q? The original file will be replaced. Image data and essential orientation/color instructions are preserved without recompression. This cannot be undone."), u.Name()),
 		action:     lang.L("Remove Metadata"),
 		importance: widget.DangerImportance,
-		onConfirm:  func() { w.performStrip(u) },
+		onConfirm:  func() { w.performStripVersion(u, version) },
 		onCancel:   func() { w.pending = nil },
 		onClosed:   func() { w.pending = nil },
 	}) == nil {
@@ -379,7 +382,8 @@ func (w *Window) requestStrip() {
 func (w *Window) buildLocation() {
 	w.tiles.Restart()
 	w.observeTiles(w.warmGen)
-	w.locationMap = newThemedMap(w.tiles.template, w.tiles.client())
+	w.locationMap = newThemedMap(w.tiles)
+	w.locationMap.bindTileDelivery(w.ui)
 
 	spinner := widget.NewProgressBarInfinite()
 	w.loading = container.NewCenter(container.NewVBox(widget.NewLabel(lang.L("Loading map…")), spinner))
@@ -456,10 +460,11 @@ func (w *Window) startWarm() {
 	w.syncLoading()
 
 	tiles := w.tiles
+	viewVersion := tiles.captureView()
 
 	w.warmWorkers.Go(func() {
 		defer done()
-		tiles.WarmContext(ctx, lat, lon, mapZoom)
+		tiles.warmView(ctx, lat, lon, mapZoom, viewVersion)
 
 		w.ui.Do(func() {
 			if ctx.Err() != nil || gen != w.warmGen || w.stopped || w.locationMap == nil {
@@ -642,11 +647,8 @@ func formatExifMetadata(m imaging.Metadata) string {
 }
 
 func (w *Window) observeTiles(gen int) {
-	// A tile that arrives after the frame that asked for it only reaches
-	// the screen if the map is told to redraw - see tiles.go. Redrawing
-	// once the batch is in, rather than per tile, is what keeps a pan
-	// across a dozen new tiles from queueing a dozen repaints of a map
-	// that is still mostly holes.
+	// Pixel deliveries refresh progressively through the map's UI queue. This
+	// final notice also settles the spinner when a batch ends or a tile fails.
 	w.tiles.SetOnChange(func(pending int) {
 		if pending > 0 {
 			return

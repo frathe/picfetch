@@ -113,6 +113,11 @@ func buildTestStartupViewer(t *testing.T, application fyne.App) (*viewer, fyne.W
 
 func newTestUIWithPolicy(t *testing.T, policy launch.Policy) (v *viewer, win fyne.Window, closed func() bool) {
 	t.Helper()
+	return newTestUIWithLaunchOptions(t, policy, launch.Options{})
+}
+
+func newTestUIWithLaunchOptions(t *testing.T, policy launch.Policy, opts launch.Options) (v *viewer, win fyne.Window, closed func() bool) {
+	t.Helper()
 
 	// Reassert the shared app as the current one before building: the
 	// persistence tests construct their own app, and Fyne makes whichever
@@ -136,7 +141,7 @@ func newTestUIWithPolicy(t *testing.T, policy launch.Policy) (v *viewer, win fyn
 	}
 
 	var err error
-	v, win, err = buildStartupViewer(testApp, policy, testLaunchStorage(t))
+	v, win, err = buildStartupViewerForLaunch(testApp, policy, testLaunchStorage(t), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +171,9 @@ func newTestUIWithPolicy(t *testing.T, policy launch.Policy) (v *viewer, win fyn
 	v.slides.SetUIQueue(&uitest.UIQueue{})
 	v.exif.SetUIQueue(&uitest.UIQueue{})
 	v.fileWork.ui = &uitest.UIQueue{}
+	v.authorizeSiblingFolder = func(_ context.Context, files []fyne.URI) ([]fyne.URI, error) { return files, nil }
 	v.chooserUI = &uitest.UIQueue{}
+	v.scanUI = &uitest.UIQueue{}
 	v.clipboardWork.ui = &uitest.UIQueue{}
 
 	// The auto-hide timer must never fire on its own mid-suite: its inline
@@ -322,6 +329,8 @@ func drain(t *testing.T, v *viewer) {
 	// Native chooser delivery can begin scan, which can begin sort and load.
 	// Drain that delivery first, then observe the current root generations.
 	// Display was stopped above and joins all its retired workers afterward.
+	v.scanWorkers.Wait()
+	settleScan(t, v)
 	for _, c := range []struct {
 		name string
 		sig  *completion.Signal
@@ -484,6 +493,7 @@ func waitForScan(t *testing.T, v *viewer) {
 		t.Fatal("the scan never started")
 	}
 
+	settleScan(t, v)
 	waitFor(t, "the scan", &v.scanOp.done)
 }
 
@@ -724,4 +734,14 @@ func namesOfURIs(files []fyne.URI) []string {
 // Leave a real uncached request queued; callers cancel it before test cleanup.
 func beginPendingImageLoad(v *viewer) {
 	v.display.Load(display.Request{Source: storage.NewFileURI("/picfetch-pending-test.png")})
+}
+
+func settleScan(t *testing.T, v *viewer) {
+	t.Helper()
+	for {
+		waitFor(t, "the current scan worker", &v.scanWorkerDone)
+		if !v.scanUI.Drain() {
+			return
+		}
+	}
 }

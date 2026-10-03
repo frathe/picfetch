@@ -50,7 +50,14 @@ func TestStoreDownloadPolicy(t *testing.T) {
 	cache := t.TempDir()
 	t.Setenv("PICFETCH_SIMILARITY_ASSETS", cache)
 	root, err := runtimeDirectory(cache)
-	if err != nil || root != filepath.Dir(executable) {
+	// The test executable is outside the installed Apple bundle; it must refuse
+	// native loading instead of falling back to the model/cache override.
+	//goland:noinspection GoBoolExpressions
+	if distribution.AppleAppStore {
+		if err == nil || root != "" {
+			t.Fatalf("Apple runtime accepted an unbundled executable: %s, %v", root, err)
+		}
+	} else if err != nil || root != filepath.Dir(executable) {
 		t.Fatalf("Store runtime followed a model/cache override: %s, %v", root, err)
 	}
 	requests := 0
@@ -58,12 +65,83 @@ func TestStoreDownloadPolicy(t *testing.T) {
 		requests++
 		return nil, errors.New("unexpected download")
 	})}}
-	if _, err := client.InstallAssets(context.Background(), nil); err == nil || !strings.Contains(err.Error(), "Microsoft Store") || requests != 0 {
+	if _, err := client.InstallAssets(context.Background(), nil); err == nil || !errors.Is(err, ErrBundledRuntimeUnavailable) || requests != 0 {
 		t.Fatalf("missing bundled runtime triggered a download: requests=%d err=%v", requests, err)
 	}
 }
 
 type similarityAssetTransport func(*http.Request) (*http.Response, error)
+
+func TestStageMacRuntime(t *testing.T) {
+	for _, arch := range []string{"amd64", "arm64", "386"} {
+		t.Run(arch, func(t *testing.T) {
+			root := t.TempDir()
+			archive := filepath.Join(root, "runtime.tgz")
+			if err := os.WriteFile(archive, []byte("not a release archive"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			out := filepath.Join(root, "package")
+			if err := StageMacRuntime(t.Context(), arch, archive, out); err == nil {
+				t.Fatal("unverified native code entered Mac App Store staging")
+			}
+			if _, err := os.Stat(out); !os.IsNotExist(err) {
+				t.Fatalf("rejected archive changed package output: %v", err)
+			}
+		})
+	}
+	t.Run("cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := StageMacRuntime(ctx, "arm64", "missing.tgz", t.TempDir()); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled package staging: %v", err)
+		}
+	})
+	t.Run("checksum", func(t *testing.T) {
+		root := t.TempDir()
+		archive := filepath.Join(root, "runtime.tgz")
+		file, err := os.Create(archive)
+		if err != nil {
+			t.Fatal(err)
+		}
+		asset, _ := platformRuntime("darwin", "arm64")
+		if err := file.Truncate(asset.size); err != nil {
+			_ = file.Close()
+			t.Fatal(err)
+		}
+		if err := file.Close(); err != nil {
+			t.Fatal(err)
+		}
+		out := filepath.Join(root, "package")
+		if err := StageMacRuntime(t.Context(), "arm64", archive, out); err == nil || !strings.Contains(err.Error(), "checksum") {
+			t.Fatalf("runtime archive hash was not checked: %v", err)
+		}
+		if _, err := os.Stat(out); !os.IsNotExist(err) {
+			t.Fatalf("rejected archive changed package output: %v", err)
+		}
+	})
+}
+
+func TestStageMacRuntimePinnedArchive(t *testing.T) {
+	archive := os.Getenv("PICFETCH_TEST_MAC_RUNTIME_ARCHIVE")
+	if archive == "" {
+		t.Skip("explicit pinned macOS archive required")
+	}
+	arch := os.Getenv("PICFETCH_TEST_MAC_RUNTIME_ARCH")
+	if arch == "" {
+		arch = "arm64"
+	}
+	root := t.TempDir()
+	if err := StageMacRuntime(t.Context(), arch, archive, root); err != nil {
+		t.Fatal(err)
+	}
+	asset, _ := platformRuntime("darwin", arch)
+	asset.privacyNotice = true
+	for _, name := range asset.files() {
+		if info, err := os.Stat(filepath.Join(root, name)); err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+			t.Fatalf("missing packaged runtime or notice %s: %v", name, err)
+		}
+	}
+}
 
 func (f similarityAssetTransport) RoundTrip(request *http.Request) (*http.Response, error) {
 	return f(request)

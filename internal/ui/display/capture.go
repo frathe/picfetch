@@ -10,6 +10,7 @@ import (
 
 // Capture retains read-only pixels and the presentation they came from.
 type Capture struct {
+	Digest          imaging.SourceDigest
 	Pixels          image.Image
 	Identity        Identity
 	Rotation        int
@@ -25,17 +26,23 @@ func (f *Feature) Capture() (Capture, bool) {
 		return Capture{}, false
 	}
 	return Capture{Pixels: f.surface.Image, Identity: f.snapshot.Displayed,
-		Rotation: f.Rotation(), owner: f, requestRevision: f.revision,
+		Digest: f.snapshot.Digest, Rotation: f.Rotation(), owner: f, requestRevision: f.revision,
 		Vector: f.vector.svg, LogicalSize: image.Pt(int(f.logical.Width+0.5), int(f.logical.Height+0.5)), Rasterize: f.vector.options.Rasterize}, true
 }
 
 // ReconcileSaved adopts a committed capture as the saved baseline, preserving
 // any subsequent turns and the published image itself.
 func (f *Feature) ReconcileSaved(capture Capture) bool {
+	return f.ReconcileSavedDigest(capture, imaging.SourceDigest{})
+}
+
+// ReconcileSavedDigest retains the digest of our own committed encoded output.
+func (f *Feature) ReconcileSavedDigest(capture Capture, digest imaging.SourceDigest) bool {
 	if capture.owner != f || f.stopped || f.snapshot.Loading || capture.requestRevision != f.revision ||
 		capture.Identity.Revision != f.snapshot.Displayed.Revision || capture.Pixels == nil || f.Count() != 1 {
 		return false
 	}
+	f.snapshot.Digest = digest
 	f.frames = []image.Image{capture.Pixels}
 	f.rotation = normalizedRotation(f.rotation - capture.Rotation)
 	b := capture.Pixels.Bounds()

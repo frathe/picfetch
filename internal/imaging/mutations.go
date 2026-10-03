@@ -8,11 +8,16 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // WriteResult distinguishes an accomplished replacement from cancelled work.
 // Cancelling presentation after Committed became true cannot undo the file.
 type WriteResult struct {
+	Digest    SourceDigest // exact bytes encoded by this process, never a path reread
 	Path      string
 	Committed bool
 }
@@ -166,7 +171,33 @@ func readFileContext(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
-	return io.ReadAll(contextRead{ctx: ctx, in: f})
+	return readMutationSource(ctx, f)
+}
+
+// Secondary reads obey the same encoded-input policy as initial image loads.
+// Stat rejects known oversized files cheaply; the stream bound also covers
+// regular files that grow after that observation.
+func readMutationSource(ctx context.Context, f *os.File) ([]byte, error) {
+	limit := MaxEncodedBytes()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > limit {
+		return nil, &InputTooLargeError{limit: limit}
+	}
+	return readMutationBytes(ctx, f, limit)
+}
+
+func readMutationBytes(ctx context.Context, in io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(contextRead{ctx: ctx, in: io.LimitReader(in, limit+1)})
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, &InputTooLargeError{limit: limit}
+	}
+	return data, nil
 }
 
 type contextRead struct {
@@ -199,4 +230,15 @@ func (w contextWrite) Write(p []byte) (int, error) {
 		return n, cancelled
 	}
 	return n, err
+}
+
+// writeWithAccess holds authority across path resolution, serialized admission,
+// source reads, atomic replacement and staging cleanup.
+func writeWithAccess(ctx context.Context, uri fyne.URI, create bool, write func(string) (bool, error)) (WriteResult, error) {
+	resolved, release, err := fileaccess.Acquire(ctx, uri)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	defer release()
+	return fileTransactions.write(ctx, resolved.Path(), create, write)
 }

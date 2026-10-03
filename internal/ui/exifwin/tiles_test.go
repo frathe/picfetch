@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,218 @@ func tilePNG(t *testing.T) []byte {
 	t.Helper()
 
 	return uitest.EncodePNG(t, tileSize, tileSize, color.RGBA{R: 1, G: 2, B: 3, A: 255})
+}
+
+func TestTileFetcherHTTPFreshness(t *testing.T) {
+	for _, scenario := range []struct {
+		name           string
+		header         http.Header
+		fresh, noStore bool
+	}{
+		{"max-age=60", http.Header{"Cache-Control": {"max-age=60"}}, true, false},
+		{"no-cache", http.Header{"Cache-Control": {"no-cache"}}, false, false},
+		{"no-store", http.Header{"Cache-Control": {"no-store"}}, false, true},
+		{"vary wildcard", http.Header{"Vary": {"*"}, "Cache-Control": {"max-age=60"}}, false, true},
+		{"invalid expires", http.Header{"Expires": {"0"}}, false, false},
+		{"invalid expires overridden", http.Header{"Expires": {"0"}, "Cache-Control": {"max-age=60"}}, true, false},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			body := tilePNG(t)
+			var requests atomic.Int32
+			var conditional atomic.Bool
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				count := requests.Add(1)
+				for name, values := range scenario.header {
+					writer.Header()[name] = append([]string(nil), values...)
+				}
+				writer.Header().Set("ETag", `"tile"`)
+				writer.Header().Set("Date", time.Unix(1700000000, 0).UTC().Format(http.TimeFormat))
+				if count > 1 && request.Header.Get("If-None-Match") == `"tile"` {
+					conditional.Store(true)
+					writer.WriteHeader(http.StatusNotModified)
+					return
+				}
+				_, _ = writer.Write(body)
+			}))
+			defer server.Close()
+			fetcher := newTileFetcher(server.URL+"/%d/%d/%d.png", server.Client().Transport)
+			defer func() { fetcher.Stop(); fetcher.Wait() }()
+			now := time.Unix(1700000000, 0)
+			fetcher.now = func() time.Time { return now }
+			request, err := http.NewRequest(http.MethodGet, server.URL+"/1/0/0.png", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			readTile := func() {
+				t.Helper()
+				response, requestErr := fetcher.RoundTrip(request)
+				if errors.Is(requestErr, errTilePending) {
+					fetcher.Wait()
+					response, requestErr = fetcher.RoundTrip(request)
+				}
+				if requestErr != nil {
+					t.Fatal(requestErr)
+				}
+				data, readErr := io.ReadAll(response.Body)
+				_ = response.Body.Close()
+				if readErr != nil || !bytes.Equal(data, body) {
+					t.Fatal("tile delivery lost pixels")
+				}
+			}
+			readTile()
+			readTile()
+			want := int32(2)
+			if scenario.fresh {
+				want = 1
+			}
+			if requests.Load() != want {
+				t.Fatalf("requests = %d, want %d", requests.Load(), want)
+			}
+			now = now.Add(2 * time.Minute)
+			readTile()
+			if requests.Load() != want+1 {
+				t.Fatal("expired tile was reused without validation")
+			}
+			if conditional.Load() == scenario.noStore {
+				t.Fatal("validator retention does not match cache policy")
+			}
+		})
+	}
+}
+
+func TestTileFetcherResponseDelay(t *testing.T) {
+	body := tilePNG(t)
+	maximumFreshness := (time.Duration(1<<63-1) / time.Second) * time.Second
+	for _, status := range []int{http.StatusOK, http.StatusNotModified} {
+		for _, date := range []string{"", "invalid", time.Unix(1700000000, 0).UTC().Format(http.TimeFormat)} {
+			for _, policy := range []struct {
+				age, maxAge string
+				remaining   time.Duration
+			}{
+				{"4", "5", 0},
+				{"4", "10", 4 * time.Second},
+				{"9223372036854775807", "10", 0},
+				{"9223372036854775808", "10", 0},
+				{"99999999999999999999", "10", 0},
+				{"4", "9223372036854775808", maximumFreshness - 6*time.Second},
+				{"99999999999999999999", "99999999999999999999", 0},
+			} {
+				t.Run(fmt.Sprintf("%d/date=%s/age=%s/max-age=%s", status, date, policy.age, policy.maxAge), func(t *testing.T) {
+					now := time.Unix(1700000000, 0).UTC()
+					fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+						now = now.Add(2 * time.Second)
+						return &http.Response{StatusCode: status, Header: http.Header{"Cache-Control": {"max-age=" + policy.maxAge}, "Age": {policy.age}, "Date": {date}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+					}))
+					defer func() { fetcher.Stop(); fetcher.Wait() }()
+					fetcher.now = func() time.Time { return now }
+					url := "https://tiles.invalid/one"
+					if status == http.StatusNotModified {
+						fetcher.cache.AddIfFits(url, &cachedTile{data: body, header: http.Header{"Etag": {`"tile"`}}})
+					}
+					entry, err := fetcher.get(fetcher.session(), url)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := entry.expires.Sub(now); got != policy.remaining {
+						t.Fatalf("remaining freshness = %v, want %v after 2s response delay", got, policy.remaining)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestTileCacheFreshnessRules(t *testing.T) {
+	now := time.Unix(1700000000, 0).UTC()
+	maximumFreshness := (time.Duration(1<<63-1) / time.Second) * time.Second
+	for _, testCase := range []struct {
+		name    string
+		header  http.Header
+		fresh   time.Duration
+		noStore bool
+	}{
+		{"fallback", http.Header{}, 7 * 24 * time.Hour, false},
+		{"escaped quoted max-age", http.Header{"Cache-Control": {`max-age="6\0"`}}, time.Minute, false},
+		{"quoted max-age", http.Header{"Cache-Control": {`max-age="60"`}}, time.Minute, false},
+		{"max-age with age", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"20"}}, 40 * time.Second, false},
+		{"apparent age", http.Header{"Cache-Control": {"max-age=60"}, "Date": {now.Add(-30 * time.Second).Format(http.TimeFormat)}}, 30 * time.Second, false},
+		{"expires", http.Header{"Date": {now.Format(http.TimeFormat)}, "Expires": {now.Add(time.Hour).Format(http.TimeFormat)}}, time.Hour, false},
+		{"expired", http.Header{"Expires": {now.Add(-time.Hour).Format(http.TimeFormat)}}, 0, false},
+		{"repeated expires uses first", http.Header{"Expires": {now.Add(time.Hour).Format(http.TimeFormat), "0"}}, time.Hour, false},
+		{"space before equals", http.Header{"Expires": {"0"}, "Cache-Control": {"max-age =86400"}}, 0, true},
+		{"tab before equals", http.Header{"Expires": {"0"}, "Cache-Control": {"max-age\t=86400"}}, 0, true},
+		{"space after equals", http.Header{"Expires": {"0"}, "Cache-Control": {"max-age= 86400"}}, 0, true},
+		{"tab after equals", http.Header{"Expires": {"0"}, "Cache-Control": {"max-age=\t86400"}}, 0, true},
+		{"space before quoted argument", http.Header{"Expires": {"0"}, "Cache-Control": {`max-age= "86400"`}}, 0, true},
+		{"quoted comma extension", http.Header{"Expires": {"0"}, "Cache-Control": {`ext="a,max-age=86400,b"`}}, 0, false},
+		{"escaped quote extension", http.Header{"Expires": {"0"}, "Cache-Control": {`ext="a\",max-age=86400,b"`}}, 0, false},
+		{"quoted extension then max-age", http.Header{"Expires": {"0"}, "Cache-Control": {`ext="a,max-age=86400,b", max-age=60`}}, time.Minute, false},
+		{"escaped backslash extension", http.Header{"Cache-Control": {`ext="a\\", max-age=60`}}, time.Minute, false},
+		{"unclosed extension quote", http.Header{"Cache-Control": {`ext="a,max-age=86400`}}, 0, true},
+		{"dangling quoted escape", http.Header{"Cache-Control": {`ext="a\`}}, 0, true},
+		{"invalid extension token", http.Header{"Cache-Control": {`ext=a"b", max-age=60`}}, 0, true},
+		{"vary wildcard", http.Header{"Vary": {"*"}, "Cache-Control": {"max-age=60"}}, time.Minute, true},
+		{"vary wildcard in list", http.Header{"Vary": {"Accept-Encoding, *"}, "Cache-Control": {"max-age=60"}}, time.Minute, true},
+		{"zero expires", http.Header{"Expires": {"0"}}, 0, false},
+		{"invalid expires", http.Header{"Expires": {"not a date"}}, 0, false},
+		{"empty expires", http.Header{"Expires": {""}}, 0, false},
+		{"invalid expires overridden", http.Header{"Cache-Control": {"max-age=60"}, "Expires": {"0"}}, time.Minute, false},
+		{"repeated max-age", http.Header{"Cache-Control": {"max-age=0, max-age=60"}}, 0, false},
+		{"repeated max-age fields", http.Header{"Cache-Control": {"max-age=10", "max-age=60"}}, 0, false},
+		{"signed max-age", http.Header{"Cache-Control": {"max-age=+60"}}, 0, false},
+		{"malformed quoted max-age", http.Header{"Cache-Control": {`max-age="60""`}}, 0, true},
+		{"precedence", http.Header{"Cache-Control": {"max-age=10"}, "Expires": {now.Add(time.Hour).Format(http.TimeFormat)}}, 10 * time.Second, false},
+		{"no-cache", http.Header{"Cache-Control": {"max-age=60, no-cache"}}, 0, false},
+		{"no-store", http.Header{"Cache-Control": {"no-store, max-age=60"}}, time.Minute, true},
+		{"max-age int64 limit", http.Header{"Cache-Control": {"max-age=9223372036854775807"}}, maximumFreshness, false},
+		{"max-age duration overflow", http.Header{"Cache-Control": {"max-age=9223372037"}}, maximumFreshness, false},
+		{"max-age overflow boundary", http.Header{"Cache-Control": {"max-age=9223372036854775808"}}, maximumFreshness, false},
+		{"max-age long decimal overflow", http.Header{"Cache-Control": {"max-age=" + strings.Repeat("9", 200)}}, maximumFreshness, false},
+		{"quoted max-age overflow", http.Header{"Cache-Control": {`max-age="99999999999999999999"`}}, maximumFreshness, false},
+		{"overflowing max-age with age", http.Header{"Cache-Control": {"max-age=99999999999999999999"}, "Age": {"20"}}, maximumFreshness - 20*time.Second, false},
+		{"overflowing max-age and age", http.Header{"Cache-Control": {"max-age=99999999999999999999"}, "Age": {"99999999999999999999"}}, 0, false},
+		{"overflowing malformed max-age", http.Header{"Cache-Control": {"max-age=99999999999999999999x"}}, 0, false},
+		{"overflowing signed max-age", http.Header{"Cache-Control": {"max-age=+99999999999999999999"}}, 0, false},
+		{"old age", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"9223372036854775807"}}, 0, false},
+		{"age overflow boundary", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"9223372036854775808"}}, 0, false},
+		{"age overflow decimal", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"99999999999999999999"}}, 0, false},
+		{"age overflow long decimal", http.Header{"Cache-Control": {"max-age=60"}, "Age": {strings.Repeat("9", 200)}}, 0, false},
+		{"age overflow fallback", http.Header{"Age": {"99999999999999999999"}}, 0, false},
+		{"negative age overflow", http.Header{"Cache-Control": {"max-age=60"}, "Age": {"-99999999999999999999"}}, time.Minute, false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			entry := cacheTile([]byte("tile"), nil, testCase.header, now, now)
+			if entry.expires.Sub(now) != testCase.fresh || entry.noStore != testCase.noStore {
+				t.Fatalf("freshness = %v, no-store = %t", entry.expires.Sub(now), entry.noStore)
+			}
+		})
+	}
+	previous := http.Header{"Cache-Control": {"max-age=60"}, "Etag": {`"old"`}, "Last-Modified": {now.Add(-time.Hour).Format(http.TimeFormat)}}
+	entry := cacheTile([]byte("tile"), previous, http.Header{"Cache-Control": {"max-age=120"}, "Etag": {`"new"`}}, now, now)
+	if entry.header.Get("ETag") != `"new"` || entry.header.Get("Last-Modified") != previous.Get("Last-Modified") || entry.expires.Sub(now) != 2*time.Minute {
+		t.Fatal("304 did not merge validators and replace freshness")
+	}
+	oversize := cacheTile([]byte("tile"), nil, http.Header{"Etag": {strings.Repeat("x", 17*1024)}}, now, now)
+	if !oversize.noStore || tileWeight(oversize) != 4 {
+		t.Fatal("oversized metadata escaped the cache bound")
+	}
+}
+
+func TestTileFetcherNoStoreDeliveryClearedOnCancel(t *testing.T) {
+	body := tilePNG(t)
+	fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	defer func() { fetcher.Stop(); fetcher.Wait() }()
+	job, _ := fetcher.submit(fetcher.session(), "https://tiles.invalid/1/0/0.png", true)
+	<-job.done
+	if fetcher.cache.Len() != 0 || fetcher.ready.Len() != 1 {
+		t.Fatal("no-store result must only await its pending delivery")
+	}
+	fetcher.Cancel()
+	if fetcher.ready.Len() != 0 {
+		t.Fatal("cancel retained no-store delivery")
+	}
 }
 
 func pngWithDimensions(t *testing.T, width, height int) []byte {

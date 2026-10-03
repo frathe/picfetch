@@ -35,8 +35,12 @@ func (c Client) Search(ctx context.Context, search SearchRequest, queries <-chan
 	}
 	search.Paths = slices.Clone(search.Paths)
 	req := request{Assets: assets, MaxEncodedBytes: imaging.MaxEncodedBytes(), Search: &search}
-	req.captureHEIC(heic.FromContext(ctx))
-	cmd := workerCommand(ctx, executable)
+	release, err := c.captureAccess(ctx, &req)
+	if err != nil {
+		return err
+	}
+	defer release()
+	cmd := c.workerCommand(ctx, executable)
 	cmd.Env = append(os.Environ(), workerEnvironment+"=1")
 	return searchCommand(ctx, cmd, req, queries, emit)
 }
@@ -105,7 +109,7 @@ func searchCommand(ctx context.Context, cmd *exec.Cmd, req request, queries <-ch
 		_ = input.Close()
 		<-done
 		if cmd.ProcessState == nil {
-			_ = cmd.Process.Kill()
+			_ = stopWorkerProcess(cmd)
 			_ = cmd.Wait()
 		}
 	}()
@@ -141,7 +145,7 @@ func searchCommand(ctx context.Context, cmd *exec.Cmd, req request, queries <-ch
 		emit(event)
 	}
 	if err != nil && !errors.Is(err, io.EOF) {
-		_ = cmd.Process.Kill()
+		_ = stopWorkerProcess(cmd)
 	}
 	waitErr := cmd.Wait()
 	if ctx.Err() != nil {

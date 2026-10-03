@@ -61,13 +61,15 @@ func (v *viewer) beginExplorerAnalysis() {
 	}
 	collection := v.state.Observe()
 	paths := make([]string, 0, collection.Count())
+	access := make([]fyne.URI, 0, collection.Count())
 	visibility := v.dupes.Visibility()
 	for i := range collection.Count() {
 		if visibility.Visible(i) {
 			paths = append(paths, collection.FileAt(i).Path())
+			access = append(access, collection.FileAt(i))
 		}
 	}
-	request := explorerui.OpenRequest{Sources: paths, FavoriteDir: collection.Favorite(), FavoritesDir: v.favorites.Dir()}
+	request := explorerui.OpenRequest{Sources: paths, Access: access, FavoriteDir: collection.Favorite(), FavoritesDir: v.favorites.Dir()}
 	cache := v.searchCachePolicy()
 	if cache.LooseEnabled {
 		request.GeneralAnalysisDir, request.GeneralAnalysisLimitBytes = cache.Roots.GeneralDir, cache.GeneralLimitBytes

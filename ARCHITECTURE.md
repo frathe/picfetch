@@ -27,6 +27,21 @@ policy enters UI composition before preferences/session access. It loads embedde
 Help's offline Licenses and Privacy policy windows before startup. `main_darwin_test.go` asserts the graft landed — this is the only
 test binary that links the Cocoa driver.
 
+### `scripts/traneascii`
+
+Developer preview of the production console help, reached through `make trane`.
+`main.go` joins `launch.Usage` to `consolehelp.Write` without linking the desktop.
+
+### `internal/consolehelp`
+
+`Write` renders one eased, three-second ASCII Trane turn above terminal help,
+then leaves a front portrait and PicFetch wordmark. `render.go` owns the original
+ellipsoid sculpture and depth-tested lighting; `help.go` owns fitting, wrapping,
+signals and terminal restoration. `resolution.go` owns the fixed-size screenshot picker; its build-tagged readers
+poll without detached stdin workers, so interruption restores raw mode.
+Build-tagged terminal files enable/restore
+Windows VT mode. Pipes, small terminals and `TERM=dumb` receive plain usage.
+
 ### `scripts/historymovie`
 
 Development-only Git history films, reached through `make movie` and
@@ -78,7 +93,9 @@ rule compatibility.
 and publication counts as immutable values; grouping includes its named sub-stages.
 `control_unix.go`/`control_other.go` own the pollable worker input descriptor.
 `worker_linux.go` installs worker-only seccomp denial on x64/ARM64 synchronized across all
-threads before reading requests; `worker_other.go` retains the macOS sandbox launcher.
+threads before reading requests; `worker_other.go` retains the ordinary macOS sandbox launcher.
+`worker_darwin_store.go` launches the bundled `internal/macworker` broker;
+`worker_stop_other.go` preserves immediate retirement outside the Apple channel.
 `worker_windows.go` launches a hidden ordinary subprocess with closeable control
 pipes; Windows does not install OS network denial and events keep `OfflineVerified`
 false. `offline.go` exposes that distinction through `EnforcesNetworkIsolation`
@@ -133,6 +150,11 @@ skip debug symbols. Store builds verify/load DLLs beside the executable, ignore
 model-cache runtime overrides, and download only model data. `assets_package.go`
 verifies architecture-specific archives for MSIX staging and extracts both DLLs
 and the upstream license, third-party notices and privacy document.
+`StageMacRuntime` stages architecture-pinned macOS native code and upstream
+notices only after archive and extracted-library verification, for later bundle
+signing. Both Windows and macOS packaging verify in private staging before
+copying allowlisted files into the package. Signed Mac runtime validation is
+still pending and must not compare signed Mach-O bytes with upstream hashes.
 Asset availability is separate from analysis admission; analysis
 never starts a download. `offline.go`
 verifies actual TCP/UDP OS denial on macOS/Linux; `files.go` registers the driverless read-only
@@ -289,6 +311,38 @@ payloads; CI runs this before release publication/Store upload.
 reviewed WASM payload, build recipe and retained source license texts against
 `manifest.json`; it generates the AVIF section of `THIRD-PARTY-NOTICES.md` offline.
 Its README records the libyuv/WASI source-provenance limits.
+
+`scripts/apple-store-preflight.sh`, reached through `make apple-store-preflight`,
+checks full Xcode and caller-supplied Store signing prerequisites without changing
+credentials or uploading an artifact. `packaging/apple-app-store/README.md`
+records the experimental channel and outstanding signed qualification.
+`scripts/macstorestage` adapts verified runtime staging for native packaging.
+`scripts/macstorepackage` builds and validates universal Mac bundles.
+Its `build_signed.py` provides `make apple-store-package`: local gitignored signing
+settings plus environment overrides, preflight, a fresh universal local build,
+and distribution signing in sequential fail-fast steps without uploading.
+The underlying local build remains available through
+`make apple-store-package-local`; its disposable thin derivatives run production
+workers through the Go driver in `scripts/macstorequalify`, without changing the
+original app or accessing an Apple account. The package builder also verifies and
+stages exact upstream Abseil privacy/license/provenance inputs from
+`packaging/apple-app-store/privacy/abseil` into a macOS resource bundle; final
+artifact validation refuses missing or changed declarations even after re-signing.
+`distribution.py`, through `make apple-store-package-signed`, consumes a qualified
+local app without modifying it. It checks explicit Store identities and profile
+fields, signs inside-out with exact per-role claims, verifies Apple-anchored code
+identities, builds a component installer and checks its signature and expanded
+payload. Profile field checks do not establish Apple's CMS/DER or submission
+acceptance. `test_distribution.py` covers policy and assembly, with opt-in native
+unsigned installer roundtrip and ad-hoc signature rejection guards. Neither route
+uploads or installs the result.
+`ci_sign.py` wraps distribution signing on GitHub-hosted Macs with temporary
+Keychain/profile ownership, sanitized subprocess boundaries and cleanup on
+failure/cancellation. `.github/workflows/apple-store.yml` gates a main-only manual
+candidate on reusable CI and native package checks, then requires the protected
+`apple-store-signing` environment before credentials enter a separate signing job.
+Its same-run artifact carries the exact clean source revision; only the installer
+and provenance are retained from signing. Account upload/release is separate.
 
 `packaging/tools.mk` owns reviewed CLI versions and multiarchitecture image
 digests consumed by Makefile and the release/Store workflows.
@@ -505,8 +559,21 @@ or supply a human verdict.
 maps. It wraps immutable source pixels, without another pixel cache, reversing
 luminance and softening chroma in dark mode; light mode restores originals.
 It reads resolved theme colors so both forced and system appearance work.
-EXIF's `themedMap` adapter in `exifwin/map.go` wraps the pinned Fyne-X map raster
-generator, leaving controls, markers, HTTP and caches unchanged.
+EXIF's `themedMap` in `exifwin/map.go` owns its viewport raster, pan/zoom controls,
+photo marker and direct OSM license link. It never uses Fyne-X's global decoded
+tile cache; only the existing marker-value interface remains. `tilecache.go`
+retains bounded HTTP freshness, validators and Vary metadata; `cachecontrol.go`
+parses directive tokens and quoted strings. The two LRUs share a 16 MiB budget
+including encoded bytes, headers and normalized decoded tiles. Foreground pixels
+remain in a purgeable current-view delivery store independently of eviction;
+EXIF's UIQueue carries only claim keys. Viewport and delivery state retain only
+decoded pixels and minimal freshness fields, separately bounded by current visible
+URL demand. View/session retirement purges undelivered pixels before UI drains.
+The renderer revalidates expired reusable entries and retires frame
+state and delivery versions across view changes and renderer destruction, checking
+captured session ownership before retiring shared work. No-cache/no-store and
+Vary-wildcard responses can finish the current display without revalidation loops,
+but cannot be reused across subsequent view sessions.
 Shared `widgets.NewThemedRectangle` uses a paint-time theme color for plain
 canvas backgrounds, avoiding construction-time color snapshots in map chrome.
 
@@ -690,8 +757,8 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `menu.go` | Explicit File/Favorites/Actions/Window/Help composition. `menuState` observes one command context and derives named availability decisions; `syncMenus` applies them with presentation facts, updates Favorites and Help, and refreshes the native bar once when rendered state changes. |
 | `commandpolicy.go`, `commandadmission.go` | Private value-only request/context/decision policy for application commands; root observes feature facts and applies refusal feedback/yield only after admission. Visible surfaces, retained visits, input ownership, capabilities and operation state stay distinct. Payload capture/workers remain with handlers. Delete/export notifications assign their card's single keyboard owner and release it on dismissal; prompt/Fyne-dialog notifications refresh availability. |
 | `actionmenu.go` | Actions-menu adapters call guarded bare handlers. Duplicate preparation rechecks admission before presenting a group and retires refused presentation instead of replaying it. Progress and accepted-group notifications remain separate. |
-| `drop.go` | `openCollection` / `applyScanResult` / `applyScannedFiles` glue over filescan discovery and recorded replay. `handleDrop` discovers, Favorite/session replay; both retain the same scan lifecycle, captured admission and commit path. A non-empty open is refused before any state change while comparison is active. |
-| `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. The combined pending set is cleared before that shared path refuses an active comparison, so deliveries cannot queue behind it. |
+| `drop.go` | `openCollection` / `applyScanResult` / `applyScannedFiles` glue over filescan discovery and recorded replay. `handleDrop` discovers, Favorite/session replay; both retain the same scan lifecycle, captured admission and commit path. Native/scoped inputs capture and inspect authority on tracked workers; `scanUI` owns delivery. A non-empty open is refused before any state change while comparison is active. |
+| `openwith.go` | macOS "Open With" delivery: `installOpenWithHandler` / `openInitialFiles` / `openFilesFromOS` over `internal/openwith`, both routed through `fyne.Do` so a launch carrying argv files and a delivery makes one `handleDrop`. `osInputQueue` owns native selections until UI admission and discards undelivered requests at shutdown. The combined pending set is cleared before comparison admission. |
 | `memlimits.go` | `settings` value, `settingsState` / `ApplySettings`, memory-limit get/set that retune caches and `imaging.SetMaxEncodedBytes`. |
 | `theme.go` | Settings-facing appearance getter/setter; applies `internal/appearance` modes live. |
 | `favthumbs.go` | Viewer glue for `favthumbs.Sync` and `gridSink`; carries the owner captured by complete opening or committed saving, captures the saved preview limit (default 1000), and retires active work on edits; per-request completion plus all-pass worker tracking and terminal shutdown cancellation. |
@@ -732,7 +799,7 @@ The concurrency invariant: see `AGENTS.md` § Concurrency and Fyne.
 | `internal/ui/deletion/` | Shift+Delete confirm (`widgets.ChoiceCard`) then `trash.Move`. `RequestFiles` snapshots unique URI targets; successful moves deliver one `ReconcileDeletedFiles` call with the outcome message. Root applies the model batch, retained-scope restoration and the sole final image/empty-state handoff. `uiqueue.go` owns completion dispatch; `Close` stops admission/unstarted moves and suppresses late callbacks, and `Settle` drains test completions. | 4-method `Host`, including `ReconcileDeletedFiles`. |
 | `internal/ui/slideshow/` | Picture-frame mode (P): full-screen, auto-advance, interval, `winpos.Tracker` capture/restore. `uiqueue.go` owns delayed advance dispatch; the worker waits for a buffered application acknowledgement, and Exit/Close cancel waits independently of UI. Kick discards an already queued timed advance. Close stops shutdown work without geometry restoration; Settle waits workers before draining stale test callbacks. | 2-method `Host`. Knows nothing about the grid. |
 | `internal/ui/framemenu/` | Sliding picture-frame menu bar for in-window menus. Hidden until the pointer dwells 500ms on the top edge, then a 200ms ease-in-out. An open menu pins it fully shown. | None. The viewer detaches and restores `MainMenu`. |
-| `internal/ui/exifwin/` | EXIF panel (E): `metadata.go` owns cancellable source reads, generation-checked tag/GPS/action presentation and content-based removal inspection/status and separate `MetadataDone` completion. `stripwork.go` owns cancellable removal, busy admission and a committed `WriteResult` in the Host notification. GPS map (`tiles.go`, `tilework.go`, `startWarm`): four shared workers, a 64-job queue, 256 expiring failure entries and a 16 MiB encoded-byte cache. Navigation/close cancels old reads and tile sessions; collapse cancels tiles. `uiqueue.go` owns result delivery and Settle waits/drains removal, metadata, warm and tile workers repeatedly. Shutdown Stop is terminal. Geometry via `widgets.Singleton`. | 4-method `Host`. |
+| `internal/ui/exifwin/` | EXIF panel (E): `metadata.go` owns cancellable source reads, generation-checked tag/GPS/action presentation and content-based removal inspection/status and separate `MetadataDone` completion. `stripwork.go` owns cancellable removal, busy admission and a committed `WriteResult` in the Host notification. GPS map (`tiles.go`, `tilework.go`, `startWarm`): four shared workers, a 64-job queue, 256 expiring failure entries and two LRUs sharing a 16 MiB encoded/header/decoded budget. `tilecache.go` and `cachecontrol.go` own HTTP freshness and directive grammar; foreground decoded delivery uses the instance UIQueue and viewport claims. Navigation/close cancels old reads and tile sessions; collapse cancels tiles. `uiqueue.go` owns result delivery and Settle waits/drains removal, metadata, warm and tile workers repeatedly. Shutdown Stop is terminal. Geometry via `widgets.Singleton`. | 4-method `Host`. |
 | `internal/ui/help/` | Manual, About, release notes/What's New (`whatsnew.go`), Help menu; embeds `manual.md` / `manual_de.md` and this build's `release-notes.md`. `make release` copies the canonical `.github/release-notes.md` into the bundle alongside the version bump. Both notes entry points share the bundled file and a singleton with a GitHub release-history link. `releaseart.go` replaces Markdown images before layout and loads GitHub-hosted HTTPS URLs on up to three background workers; `releaseimage.go` owns the allowlisted redirect policy and bounded HTTP fetch/decode. `releasework.go` cancels on close, stops admission on shutdown and exposes Wait/Settle with a per-instance UIQueue. Notes without images start no workers. Secret search phrase calls the viewer’s registered `SetOnSpiral` callback; `finis` in manual search opens the cursor-following companion (`finis.go`, embedded `finis.webp`), hosting `widgets.Gaze` with centered portrait geometry and its own hover surface. `ShowFinis` also serves welcome Trane; ten independent circles reveal the localized, wrapped bubble in `finis_clue.go`, whose click opens an empty focused manual search. | `New(app, title, art)` plus optional event callbacks. |
 | `internal/ui/spiral/` | Full-screen shader easter egg. `tunnel.go` owns serial preview admission and three texture slots; `playback.go` advances bounded GIF frames on the existing UI clock with independent flight origins; `flow.go` owns cycles, batch variation and route selection; `flight.go` owns safe route geometry used for admission/retirement; `shader.go` renders depth, feather and translucent composition. `uiqueue.go` marshals preview/frame callbacks with session checks. H toggles local help; F1 invokes the viewer's manual callback. The shared centre stays within a resized viewport. | Viewer supplies a frozen URI value to `Show` / `ShowForGesture`; `Close` cancels on UI and test `Settle` joins/drains off UI. Process shutdown does not join uninterruptible preview source reads. |
 | `internal/ui/settingswin/` | Settings: General/Appearance/Updates/Limits/Cache, update dialogs, snapshot seed, live apply, Singleton geometry. Updates always shows the installed version, with permitted GitHub controls or every supplied Store/trial explanation. | `Show(preferences.State, launch.UpdatePermission)` + Host (`ApplySettings`, `CheckForUpdatesNow`, `PerformUpdate`). |
@@ -761,6 +828,70 @@ Help's `privacy.go` uses the same document-injection pattern through
 policy opens a separate, word-wrapped Markdown singleton with vertical scrolling,
 Escape-to-close, and the same command-admission and shutdown guards.
 
+### `internal/fileaccess`
+
+Immutable source URI authority and bounded native acquisition. `source.go`
+restores/snapshots bookmark records, propagates selected directory grants to
+validated children and resolves an independent scope for each operation.
+`reader.go` holds the scope through the actual ReadCloser.Close; imaging's
+canonical read path uses it. `native_darwin.go` resolves explicit scopes in
+Apple Store builds and renews stale bookmarks while access is active;
+`native_other.go` preserves ordinary URI behavior. Acquisition returns renewed
+metadata without mutating previously captured records.
+`manifest.go` stores each distinct scope once while retaining every ordered
+source occurrence. Session and Favorite persistence validate the complete
+manifest against their saved membership before publishing restored sources.
+`selection.go` owns native selected URLs through admission, worker-side bookmark
+capture and exact-once release, including active cancellation and duplicate
+occurrences. On restored opening it also refreshes scoped paths/records on the
+worker, retaining unavailable entries for existing offline handling. The Darwin open picker captures native URL bookmarks on its tracked
+chooser worker; Open With/Dock selections use the collection worker. Folder scans
+pass captured directory authority to children. `destination.go` retains a native
+save URL without requiring an existing file; `ReleaseDestination` closes admission
+while active `Acquire` borrowers finish. Native save workers own this URI through
+export success, failure and cancellation. Native window drops retain original URLs before GLFW flattens paths. Permission
+reselection and full source-version qualification remain in the Apple Store plan.
+`transfer.go` captures immutable URI authority in request contexts and owns
+ephemeral interprocess grants; `transfer_darwin.go` creates/resolves implicit
+Foundation bookmarks while original scopes remain active, with an unsupported
+platform pair. These grants are never persisted in sessions/Favorites. `stat.go` bounds source
+metadata reads with the same acquisition contract; preview versioning and file
+reconciliation retain authority before stat/alias checks. Root clipboard/reveal
+and deletion workers hold scopes through their native OS handoff.
+
+Image mutations acquire source/destination access before path resolution and hold
+it through serialized commit and cleanup; export metadata reads acquire their
+source separately. `imaging/staging_apple.go` selects Foundation's private
+same-volume replacement directory for Apple Store writes; `staging_other.go`
+keeps ordinary sibling staging.
+
+### `internal/macbundle`
+
+Apple Store native runtime layout and signed admission. `bundle.go` recognizes
+only the main app and known XPC image-helper executable, resolves their shared
+Contents/Frameworks, refuses escaping links and checks dylib architecture/type.
+`signature_darwin.go` validates the library and outer app's complete nested-code
+and resource seals through Security.framework; `signature_other.go` refuses
+native verification elsewhere. Similarity separates pre-sign payload checksums
+from Apple runtime signature checks and revalidates before loading native code.
+
+### `internal/macworker`
+
+Mac App Store worker broker factory and native XPC service. `command.go` selects
+only the broker beside the main executable and cancels with SIGTERM so process
+Wait includes the service's child retirement. `native/protocol.h` transfers
+stdin/stdout/stderr handles and a fixed HEIC/similarity mode; `client.m` forwards
+cancellation; `service.m` owns a process group and reaps its leader after killing
+descendants. The image worker lives inside the XPC service's `Contents/MacOS`.
+`scripts/macworkerqualify` builds an ad-hoc signed native fixture to exercise
+actual TCP/UDP denial, pipe transfer, cancellation, broker crash, group exit
+and implicit bookmark transfer from a separate app container.
+Similarity `worker_access*.go` captures app/model/cache and exact source grants
+in the existing bounded request stream, retains parent scopes through process
+Wait and releases receiving scopes at worker exit. Its request-owned source-path
+lookup maps file I/O to moved bookmark locations while keeping collection/query,
+result and cache identities unchanged. Explorer/search capture authority before leaving UI. Final Store signing remains qualification work.
+
 ### `internal/heic`
 
 Instance-owned system HEIC boundary. `Capability` coalesces representative checks,
@@ -775,8 +906,9 @@ including repeated URIs, independently of displayed files.
 `Client` bounds native children (two slots, deadlines, framed output, Stop/Wait).
 Analysis producers use `NewInheritedSandboxClient` after establishing their
 own sandbox and verify OS network denial before reading images. macOS children
-inherit that policy without a second `sandbox-exec`; desktop children still
-install their own sandbox, and all client cancellation/resource bounds remain.
+inherit that policy without a second `sandbox-exec`; ordinary desktop children
+still install their own sandbox. Apple Store desktop children use the XPC
+service and nested decoders retain its process group, and all client cancellation/resource bounds remain.
 `WorkerMain` dispatches before desktop startup. `container.go` performs checked
 primary-item/property and EXIF-transform interpretation inside that child;
 `native_linux.go/.c` dynamically loads system libheif with an HEVC provider.
@@ -815,6 +947,7 @@ Encode/write-back for a subset of formats lives in `save.go`; `mutations.go` ser
 | File | Responsibility |
 |------|----------------|
 | `bytecache.go` | `ByteCache[V]`: goroutine-safe LRU by estimated bytes. `Add` admits foreground images even over budget; generation-bound `CacheWriter.AddIfRoom` admits display preloads only into remaining space without eviction or promotion. `RefreshIfRoom` lets Favorite warming replace stale keys, dropping only that key if the replacement cannot fit. `AddIfFits` keeps its existing individual-size gate and may evict. `LoadedImage.DecodedBytes` shares retained pixel/vector accounting with the mosaic repeat cache. |
+| `sourceversion.go` | Descriptor identity plus encoded-byte SHA-256 snapshots for confirmed JPEG removal; display/cache digests bind export metadata to decoded pixels. |
 | `loader.go` | `LoadedImage`, `NewImgCache`, `ReadAndProbe`, `CaptureDateContext` (cancellable metadata reads), `DecodeLoaded` (pixels), `DecodeRecord` (complete full-cache facts), `LoadImage`, `IsSupportedImage`, `SupportedExtensions`, `MaxEncodedBytes` / `InputTooLargeError`. |
 | `heic.go` | Canonical native HEIC probe/pixels, independent output validation, `ReadMetadataContext` and worker pixel budget. No image decoder is globally registered. |
 | `recognized.go` | Static `RecognizedExtensions` for package declarations and portable format rules, distinct from unconditional runtime `SupportedExtensions`. |
@@ -863,7 +996,7 @@ unavailable.
 | File | Responsibility |
 |------|----------------|
 | `favstore.go` | `Save` / `Load` / `Count` / `DefaultDir`; trash-backed remove. |
-| `membership.go` | One strict numeric-position decoder, cancellable reads, validated encoding and the exact 64 MiB read/write definition limit. |
+| `membership.go` | Strict numeric-position membership with optional `$access` scope manifest, cancellable reads, complete authority/membership validation and the exact 64 MiB read/write definition limit. |
 | `ownership.go` | `Open` / `Definition`, captured directory/list `Owner`, short-lived `Access`, permanent observed retirement, full-list fingerprint and captured relative-path interpretation. `Observe` supports unknown-membership maintenance. |
 | `inventory.go` | Cancellable 64-entry enumeration, complete validation with scoped retained membership, healthy/unknown outcomes and enumeration completeness. |
 | `listing.go` | Batched Favorite discovery and complete validated counts, retaining bare names for unreadable definitions; no partial cancelled listing. |
@@ -891,7 +1024,7 @@ Last-open file set via Fyne’s app-scoped cache.
 
 | File | Responsibility |
 |------|----------------|
-| `session.go` | `Save`, `Load`. |
+| `session.go` | `Save`, `Load`; legacy path lists plus an optional deduplicated scope manifest aligned to complete occurrence order. |
 
 ### `internal/update`
 
@@ -935,8 +1068,11 @@ switching automatically.
 ### `internal/distribution`
 
 Compile-time distribution policy. `StoreManaged` is false for ordinary builds
-and true only with the `microsoftstore` build tag. Production startup captures
-it in `launch.Policy`; UI composition receives that explicit decision.
+and true with either the `microsoftstore` or macOS-only `appleappstore` build
+tag. `AppleAppStore` distinguishes the Apple channel for localized repair and
+update explanations. Apple builds remain experimental until signed sandbox and
+packaging qualification is recorded in the active Apple Store plan. Production
+startup captures it in `launch.Policy`; UI composition receives that decision.
 
 ### `internal/wingesture`
 
@@ -949,6 +1085,17 @@ on screen). `realdrag_test.go` replays recorded title-bar drags.
 | `wingesture.go` | `Direction`, `Result`, `Config`. |
 | `detector.go` | Ring buffer, idle gap, one-shot `armed` latch. |
 | `analyse.go` | Centroid, accumulated angle, sign consistency, radius-vs-angle fit. |
+
+### `internal/screenshots`
+
+`app.go` decorates the application before viewer/feature construction for a
+fixed-size launch. Every app-owned window contains natural content minimums and
+suppresses programmatic resize/fullscreen requests, while forwarding native and
+desktop position/topmost operations. Show converts whole-window physical pixels
+through winpos's native chrome/backing metrics into Fyne content coordinates.
+`app_test.go` covers main and secondary windows, content replacement and reopen.
+`startup.go` captures original persisted geometry in the launch override so these
+windows never replace standing geometry during screenshot sessions.
 
 ### `internal/winpos`
 
@@ -963,10 +1110,10 @@ pollers across close/reopen for `WaitForTracking`.
 
 | File | Responsibility |
 |------|----------------|
-| `winpos.go` | `Get`, `Set`, `Maximize`, `Unmaximize`. |
+| `winpos.go` | `Get`, `Set`, `Maximize`, `Unmaximize`, `ScreenshotContentSize`; fixed windows reject maximize/restore. |
 | `poll.go` | `PollAt` / `Poll` / `Poller` / `PollInterval` / `GestureInterval`; per-call native-read/dispatch seam and cancellation-aware acknowledgement. |
 | `tracker.go` | `Tracker` atomics: `Store` / `Get` / `Capture` / `Restore`. |
-| `darwin.go` / `windows.go` / `linux.go` / `other.go` | Platform position + maximize. Linux/Wayland: `Get` reports `ok=false`. |
+| `darwin.go` / `windows.go` / `linux.go` / `other.go` | Platform position, maximize and screenshot chrome/backing metrics. Linux/Wayland: `Get` reports `ok=false`. |
 
 OS integrations (`clipboard`, `displays`, `filemanager`, `filepicker`, `trash`,
 `wallpaper`) use
@@ -1028,18 +1175,20 @@ PNG image data (`CopyImage`) and file-reference lists (`CopyFiles`).
 |------|----------------|
 | `clipboard.go` | `CopyImage` dispatcher + per-OS image copy. |
 | `copyfiles.go` | `CopyFiles` dispatcher + Linux/Windows file-list copy. |
-| `darwin.go` / `other.go` | AppKit `NSPasteboard` file list / stub. |
+| `darwin.go` / `other.go` | In-process AppKit `NSPasteboard` PNG image and file-list publication / stubs. PNG data is copied eagerly from Go memory; no macOS temporary file or AppleScript subprocess. |
 | `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
 ### `internal/filepicker`
 
-Native open chooser (`Choose`) and save panel (`ChooseSave`). Linux/macOS
+Native open chooser (`Choose`), persistent sibling-folder authorization (`FolderAuthorizer.AuthorizeSiblingFolder`)
+and save panel (`ChooseSave`). Linux/macOS
 can pick folders; Windows is files-only.
 
 | File | Responsibility |
 |------|----------------|
-| `filepicker.go` | Typed `Choose` (URI list) / `ChooseSave` (one URI), strict native result decoding, canonical-path Zenity framing and UTF-8 JSON PowerShell transport. |
-| `darwin.go` / `other.go` | `NSOpenPanel` / `NSSavePanel` with a shared NSURL-to-JSON transport / stubs; `darwin_test.go` exercises the actual native serializer. |
+| `filepicker.go` | Typed `Choose` (URI list) / `ChooseSave` (one URI), strict native result decoding, explicit folder consent policy for shared collection discovery, canonical-path Zenity framing and UTF-8 JSON PowerShell transport. |
+| `folders.go` | Per-viewer `FolderAuthorizer` stores explicit sibling-folder bookmarks in app preferences; resolves the selected image before suggesting its current parent, validates saved grants on tracked opening workers, refreshes moved/stale authority, and falls back to native consent. Native scopes are bounded, and preference locks never cover native calls. |
+| `darwin.go` / `other.go` | Completion-based `NSOpenPanel` / `NSSavePanel`, including Store sibling-folder permission. Native setup returns immediately to Fyne; the existing chooser worker waits for completion and owns selected URLs through NSURL-to-JSON transport / stubs. `darwin_test.go` exercises the actual native serializer. |
 | `windows.go` / `notwindows.go` | `hideConsoleWindow` pair. |
 
 ### `internal/trash`
@@ -1096,8 +1245,9 @@ viewer's handler and flushes in the same critical section.
 
 | File | Responsibility |
 |------|----------------|
-| `openwith.go` | The queue (`Deliver` / `SetHandler`) and `URIsFromFileURLs`. |
-| `openwith_darwin.{go,h,m}` | `Install` / `DelegateRespondsToOpen` + the `application:openURLs:` / `application:openFiles:` graft. |
+| `openwith.go` | The queue (`Deliver` / `SetHandler` / terminal `Stop`) and `URIsFromFileURLs`; pending native ownership is discarded at shutdown. |
+| `openwith_darwin.{go,h,m}` | `Install` / `DelegateRespondsToOpen` + the `application:openURLs:` / `application:openFiles:` graft; Apple Store deliveries retain original native URLs until worker capture or discard. |
+| `drop_darwin_store.go` / `drop_other.go` | Installs retained-NSURL drops on only the shown main Cocoa content view through a native per-instance subclass; other views and distribution channels keep Fyne handling. |
 | `openwith_notdarwin.go` | Both report false; other OSes use `argv`. |
 
 ### `internal/filescan`
@@ -1105,6 +1255,8 @@ viewer's handler and flushes in the same critical section.
 Recursive image gather for drop/open, plus a non-recursive sibling listing
 when the user opened a single file. Recorded Favorite/session replay shares the
 bounded admission loop without discovering directories or collapsing occurrences.
+Listings acquire operation-bound scopes, preserve directory grants in descendants,
+and refuse sibling discovery beyond a selected file or directory root.
 
 | File | Responsibility |
 |------|----------------|
@@ -1123,14 +1275,15 @@ against the `preferences.SortBy*` vocabulary. No Fyne import.
 
 | File | Responsibility |
 |------|----------------|
-| `launch.go` | `Options`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
+| `launch.go` | `Options`, `Resolution`, `ScreenshotResolutions`, `Parse`, `Usage`, `ErrHelp`; the `flagSpecs` table every flag is declared in. |
 | `policy.go` | Explicit immutable `Policy`, `UpdatePermission` and storage selection, independent of trial resources and offline prerequisites. |
 | `preparation.go` | Per-launch prerequisite/reservation operations and `Prepared`, the single evidence owner; partial acquisition and finalization preserve joined errors and retained evidence. |
 
 ### `internal/filesort`
 
 Five orderings the S key cycles, plus `Label` (`lang.L`) and preference
-string translation (`FromPref` / `PrefValue`).
+string translation (`FromPref` / `PrefValue`). Metadata keys use operation-scoped
+`fileaccess.Stat`, including the EXIF-to-mtime fallback.
 
 | File | Responsibility |
 |------|----------------|

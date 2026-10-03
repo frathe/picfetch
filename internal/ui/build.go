@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/appearance"
+	"github.com/frathe/picfetch/internal/filepicker"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/imaging"
@@ -111,7 +112,10 @@ func buildViewer(application fyne.App, startup startupState) (*viewer, fyne.Wind
 		updateExecutable: os.Executable,
 	}
 
+	view.authorizeSiblingFolder = filepicker.NewFolderAuthorizer(application.Preferences()).AuthorizeSiblingFolder
 	view.chooserUI = fyneChooserQueue{}
+	view.scanUI = fyneChooserQueue{}
+	view.osInputs.queue = fyneChooserQueue{}
 	view.maximizeWindow = winpos.Maximize
 	view.unmaximizeWindow = winpos.Unmaximize
 	view.regionCopyDo = fyne.Do

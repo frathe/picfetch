@@ -3,9 +3,12 @@
 package filepicker
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 func TestDarwinPathTransport_RoundTripsNativeURLPaths(t *testing.T) {
@@ -36,4 +39,29 @@ func TestDarwinPathTransport_RoundTripsNativeURLPaths(t *testing.T) {
 			t.Errorf("native result no longer names its temporary file: %v", err)
 		}
 	}
+}
+
+func TestDarwinSaveTransportOwnsMissingDestination(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "new cafe\u0301 %20 #.png")
+	destination, err := darwinSaveTransport(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fileaccess.ReleaseDestination(destination)
+	if destination.Path() != path {
+		t.Fatalf("destination=%q", destination.Path())
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("chooser created destination: %v", err)
+	}
+	_, release, err := fileaccess.Acquire(context.Background(), destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileaccess.ReleaseDestination(destination)
+	if _, late, err := fileaccess.Acquire(context.Background(), destination); err == nil {
+		late()
+		t.Error("native destination lost owned access")
+	}
+	release()
 }

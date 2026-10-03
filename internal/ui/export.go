@@ -15,6 +15,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/filepicker"
 	"github.com/frathe/picfetch/internal/imaging"
 )
@@ -130,7 +131,10 @@ func (v *viewer) exportAs(ext string) {
 	if !ok {
 		return
 	}
-	req := exportRequest{ext: ext, opts: v.exportOptions.Options(), source: capture.Identity.Source, pixels: capture.Pixels, choose: filepicker.ChooseSave, write: v.fileWork.export}
+	opts := v.exportOptions.Options()
+	opts.VerifySource = true
+	opts.SourceDigest = capture.Digest
+	req := exportRequest{ext: ext, opts: opts, source: capture.Identity.Source, pixels: capture.Pixels, choose: filepicker.ChooseSave, write: v.fileWork.export}
 
 	// chooser is shared with openFileDialog's own goroutine rather than
 	// given a twin of its own: it means "the native file dialog
@@ -204,6 +208,7 @@ func (req exportRequest) run(ctx context.Context) exportResult {
 	}
 
 	result.destination, result.err = req.choose(suggestedExportPath(req.source, req.ext, result.edge))
+	defer fileaccess.ReleaseDestination(result.destination)
 	if result.err != nil {
 		result.chooserFailure = true
 		return result

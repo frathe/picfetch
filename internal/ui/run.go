@@ -42,7 +42,7 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, prepared
 		return launch.ErrInvalidPolicy
 	}
 	trial := prepared.ExplorerTrial()
-	view, window, err := buildStartupViewer(application, policy, ordinaryLaunchStorage)
+	view, window, err := buildStartupViewerForLaunch(application, policy, ordinaryLaunchStorage, opts)
 	if err != nil {
 		return err
 	}
@@ -71,6 +71,9 @@ func Run(application fyne.App, initial []fyne.URI, opts launch.Options, prepared
 	// defers CLI drops until the event loop is running, as handleDrop
 	// touches widgets directly.
 	window.Show()
+	if !openwith.InstallWindowDrop(window) {
+		fyne.LogError("native window drop bridge unavailable", nil)
+	}
 	view.syncNativeMenuBar()
 	registerStartup(application, view, initial)
 	stopSignals := func() {}
@@ -213,9 +216,8 @@ func registerShutdown(application fyne.App, view *viewer) {
 		// state that outlives the viewer: openwith's queue is
 		// process-global, so a delivery landing mid-shutdown would
 		// otherwise reach a viewer whose window is already going away.
-		// Anything still buffered stays buffered - SetHandler(nil) does
-		// not discard it - which costs nothing, as the process is exiting.
-		openwith.SetHandler(nil)
+		// Native selections still buffered own implicit scope and must retire.
+		openwith.Stop()
 
 		session.Save(application, view.state.Observe().Capture(collectionSourceOrder))
 		preferences.Save(application, view.currentPreferences())

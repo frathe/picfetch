@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 
 	"github.com/frathe/picfetch/internal/completion"
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/requestlife"
 )
@@ -93,7 +94,7 @@ func (v *viewer) reconcileSearchOrigin() {
 			if source == nil || source.Scheme() != "file" {
 				continue
 			}
-			if _, err := os.Stat(source.Path()); errors.Is(err, os.ErrNotExist) {
+			if _, err := fileaccess.Stat(ctx, source); errors.Is(err, os.ErrNotExist) {
 				missing = append(missing, i)
 			}
 		}
@@ -147,7 +148,6 @@ func writtenFileSources(ctx context.Context, path string, files collectionSnapsh
 	if ctx.Err() != nil {
 		return nil
 	}
-	written, _ := os.Stat(path)
 	var affected []fyne.URI
 	for i := range files.Count() {
 		if ctx.Err() != nil {
@@ -159,8 +159,17 @@ func writtenFileSources(ctx context.Context, path string, files collectionSnapsh
 		}
 		if filepath.Clean(u.Path()) == filepath.Clean(path) {
 			affected = append(affected, u)
-		} else if source, err := os.Stat(u.Path()); err == nil && written != nil && os.SameFile(source, written) {
-			affected = append(affected, u)
+		} else {
+			resolved, release, err := fileaccess.Acquire(ctx, u)
+			if err != nil {
+				continue
+			}
+			source, sourceErr := os.Stat(resolved.Path())
+			written, writtenErr := os.Stat(path)
+			if sourceErr == nil && writtenErr == nil && os.SameFile(source, written) {
+				affected = append(affected, u)
+			}
+			release()
 		}
 	}
 	return affected
@@ -184,7 +193,13 @@ func (v *viewer) refreshWrittenFile(result imaging.WriteResult, reload, refreshE
 			done()
 			return
 		}
-		path, err := filepath.Abs(u.Path())
+		resolved, release, err := fileaccess.Acquire(ctx, u)
+		if err != nil {
+			done()
+			return
+		}
+		defer release()
+		path, err := filepath.Abs(resolved.Path())
 		if err == nil {
 			path, err = filepath.EvalSymlinks(path)
 		}

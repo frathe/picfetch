@@ -12,6 +12,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -19,6 +20,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/clipboard"
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/ui/deletion"
 )
 
@@ -108,14 +110,14 @@ func (v *viewer) copyGridSelection() {
 	}
 	targets := v.grid.Targets()
 
-	paths := make([]string, 0, len(targets))
+	sources := make([]fyne.URI, 0, len(targets))
 	collection := v.state.Observe()
 	for _, i := range targets {
 		if i >= 0 && i < collection.Count() {
-			paths = append(paths, collection.FileAt(i).Path())
+			sources = append(sources, collection.FileAt(i))
 		}
 	}
-	if len(paths) == 0 {
+	if len(sources) == 0 {
 		return
 	}
 
@@ -128,18 +130,18 @@ func (v *viewer) copyGridSelection() {
 			v.completeClipboardCopy(token, done, nil)
 			return
 		}
-		err := clipboard.CopyFiles(paths)
+		err := copyFilesWithAccess(token.Context(), sources)
 		v.completeClipboardCopy(token, done, func() {
 			if err != nil {
 				v.reportFileCopyError(err)
 				return
 			}
-			if len(paths) == 1 {
+			if len(sources) == 1 {
 				v.ShowToast(lang.L("copied 1 file"))
 				return
 			}
 
-			v.ShowToast(fmt.Sprintf(lang.L("copied %d files"), len(paths)))
+			v.ShowToast(fmt.Sprintf(lang.L("copied %d files"), len(sources)))
 		})
 	})
 }
@@ -162,4 +164,26 @@ func (v *viewer) selectAllInGrid() {
 	}
 
 	v.grid.SelectAll()
+}
+
+func copyFilesWithAccess(ctx context.Context, sources []fyne.URI) error {
+	paths := make([]string, 0, len(sources))
+	var releases []func()
+	defer func() {
+		for i := len(releases) - 1; i >= 0; i-- {
+			releases[i]()
+		}
+	}()
+	for _, uri := range sources {
+		resolved, release, err := fileaccess.Acquire(ctx, uri)
+		if err != nil {
+			return err
+		}
+		releases = append(releases, release)
+		paths = append(paths, resolved.Path())
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return clipboard.CopyFiles(paths)
 }

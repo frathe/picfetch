@@ -3,11 +3,18 @@ package filepicker
 import (
 	"encoding/json"
 	"errors"
+	"net/url"
 	"os"
 	"os/exec"
 	"slices"
 	"strings"
 	"testing"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 func TestDecodePickedPaths_PreservesBoundaries(t *testing.T) {
@@ -159,13 +166,44 @@ func TestBuildPowerShellSaveCmd(t *testing.T) {
 
 	for _, want := range []string{
 		"SaveFileDialog",
-		"holiday.png",
-		`C:\photos`,
+		"$env:PICFETCH_SAVE_PATH",
 		"$dlg.OverwritePrompt = $true",
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("script does not contain %q:\n%s", want, script)
 		}
+	}
+}
+
+// Path bytes must survive transport without becoming executable script text.
+func TestBuildPowerShellSaveCmd_PathIsData(t *testing.T) {
+	t.Setenv("PICFETCH_SAVE_PATH", "inherited stale suggestion")
+	t.Setenv("PICFETCH_PICKER_ENV_CONTROL", "preserved")
+	baseline := buildPowerShellSaveCmd(`C:\photos\ordinary.jpg`).Args
+	for _, path := range []string{
+		`C:\photos\ordinary.jpg`,
+		`C:\photos\“;Write-Output INJECTED;#”.jpg`,
+		`C:\photos\”;Write-Output INJECTED;#“.jpg`,
+		"C:\\photos\\$dollar`tick; (brackets) 'single' ‘curly’.jpg",
+		`C:\photos\café 東京 😀 [1]=100%.jpg`,
+		`\\server\share\ spaced name .jpg`,
+	} {
+		t.Run(path, func(t *testing.T) {
+			cmd := buildPowerShellSaveCmd(path)
+			if !slices.Equal(cmd.Args, baseline) || strings.Contains(strings.Join(cmd.Args, "\n"), path) {
+				t.Fatal("suggested path changed executable PowerShell source")
+			}
+			env := cmd.Environ()
+			if !slices.Contains(env, "PICFETCH_SAVE_PATH="+path) || slices.Contains(env, "PICFETCH_SAVE_PATH=inherited stale suggestion") {
+				t.Fatal("child environment lost or replaced the exact suggested path")
+			}
+			if !slices.Contains(env, "PICFETCH_PICKER_ENV_CONTROL=preserved") {
+				t.Fatal("unrelated inherited environment was lost")
+			}
+			if os.Getenv("PICFETCH_SAVE_PATH") != "inherited stale suggestion" {
+				t.Fatal("parent environment changed")
+			}
+		})
 	}
 }
 
@@ -294,6 +332,109 @@ func TestZenityResult_DistinguishesCancelAndFailure(t *testing.T) {
 			}
 		} else if !errors.Is(err, processErr) {
 			t.Fatal("execution failure was lost")
+		}
+	}
+}
+
+func TestDecodePickedPaths_ScopedRecords(t *testing.T) {
+	source := storage.NewFileURI("/tmp/ scoped café folder ")
+	payload, err := json.Marshal([]fileaccess.Record{{URI: (&url.URL{Scheme: "file", Path: source.Path()}).String(), Bookmark: []byte("selected-scope"), Directory: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	picked, err := decodePickedPaths(payload, nil)
+	// The immutable channel changes with the build tags used by this test.
+	//goland:noinspection GoBoolExpressions
+	if !distribution.AppleAppStore {
+		if err == nil {
+			t.Fatal("ordinary picker accepted a Store authority payload")
+		}
+		return
+	}
+	if err != nil || len(picked) != 1 {
+		t.Fatalf("scoped selection: %v, %v", picked, err)
+	}
+	record := fileaccess.Snapshot(picked[0])
+	if record.URI != picked[0].String() || string(record.Bookmark) != "selected-scope" || !record.Directory {
+		t.Fatalf("lost selected authority: %+v", record)
+	}
+}
+
+func TestScopedSelectionDecodesNativeURLExactlyOnce(t *testing.T) {
+	for _, path := range []string{"/photos/space café.jpg", "/photos/literal%20name.jpg", "/photos/hash#question?.jpg"} {
+		native := (&url.URL{Scheme: "file", Path: path}).String()
+		payload, err := json.Marshal([]fileaccess.Record{{URI: native, Bookmark: []byte("scope")}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		selected, err := decodeScopedSelection(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(selected) != 1 || selected[0].Path() != path {
+			t.Fatalf("native URL %q became %v", native, selected)
+		}
+		restored, err := fileaccess.FromRecord(fileaccess.Snapshot(selected[0]))
+		if err != nil || restored.Path() != path {
+			t.Fatalf("persistent URI decoded twice: %v, %v", restored, err)
+		}
+	}
+}
+
+func TestAuthorizeSiblingFolderPreservesOpenedFileAndFolderAuthority(t *testing.T) {
+	root := storage.NewFileURI(t.TempDir()).Path()
+	source, err := fileaccess.FromRecord(fileaccess.Record{URI: storage.NewFileURI(root + "/photos/a.jpg").String(), Bookmark: []byte("file")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder, err := fileaccess.FromRecord(fileaccess.Record{URI: storage.NewFileURI(root + "/photos").String(), Bookmark: []byte("folder"), Directory: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	files, err := authorizeSiblingFolder([]fyne.URI{source}, func(path string) (fyne.URI, error) {
+		calls++
+		if path != root+"/photos" {
+			t.Fatalf("requested folder %q", path)
+		}
+		return folder, nil
+	})
+	if err != nil || calls != 1 || len(files) != 1 {
+		t.Fatalf("files=%v calls=%d err=%v", files, calls, err)
+	}
+	record := fileaccess.Snapshot(files[0])
+	if files[0].String() != source.String() || !record.Directory || record.Relative != "a.jpg" || string(record.Bookmark) != "folder" {
+		t.Fatalf("selected file lost folder authority: %+v", record)
+	}
+}
+
+func TestAuthorizeSiblingFolderCancellationAndInvalidGrants(t *testing.T) {
+	root := storage.NewFileURI(t.TempDir()).Path()
+	source, err := fileaccess.FromRecord(fileaccess.Record{URI: storage.NewFileURI(root + "/photos/a.jpg").String(), Bookmark: []byte("file")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder, err := fileaccess.FromRecord(fileaccess.Record{URI: storage.NewFileURI(root + "/other").String(), Bookmark: []byte("other"), Directory: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelled, err := authorizeSiblingFolder([]fyne.URI{source}, func(_ string) (fyne.URI, error) { return nil, nil })
+	if err != nil || len(cancelled) != 1 || cancelled[0] != source {
+		t.Fatalf("cancel lost original: %v %v", cancelled, err)
+	}
+	for _, invalid := range []fyne.URI{folder, source, storage.NewFileURI(root + "/photos")} {
+		if _, err := authorizeSiblingFolder([]fyne.URI{source}, func(_ string) (fyne.URI, error) { return invalid, nil }); err == nil {
+			t.Fatalf("accepted unrelated or unscoped folder: %v", invalid)
+		}
+	}
+	failure := errors.New("native permission failure")
+	if _, err := authorizeSiblingFolder([]fyne.URI{source}, func(_ string) (fyne.URI, error) { return nil, failure }); !errors.Is(err, failure) {
+		t.Fatalf("lost permission error: %v", err)
+	}
+	for _, files := range [][]fyne.URI{nil, {source, source}, {folder}, {storage.NewFileURI(root + "/photos/a.jpg")}} {
+		result, err := authorizeSiblingFolder(files, func(_ string) (fyne.URI, error) { t.Fatal("unexpected permission panel"); return nil, nil })
+		if err != nil || !slices.Equal(result, files) {
+			t.Fatalf("changed selection: %v %v", result, err)
 		}
 	}
 }

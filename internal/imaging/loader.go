@@ -11,6 +11,7 @@ package imaging
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"image"
 	_ "image/jpeg" // registers JPEG with image.Decode
@@ -21,7 +22,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
 	_ "github.com/fyne-io/image/xpm" // registers XPM with image.Decode
 	_ "github.com/gen2brain/avif"    // registers AVIF with image.Decode (WASM/wazero, no cgo)
 	_ "golang.org/x/image/bmp"       // registers BMP with image.Decode
@@ -29,6 +29,7 @@ import (
 	_ "golang.org/x/image/webp"      // registers WebP with image.Decode
 
 	_ "github.com/frathe/picfetch/internal/avifpolicy" // requires the WASM/wazero build
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/heic"
 )
 
@@ -96,6 +97,7 @@ func IsSupportedImage(u fyne.URI) bool {
 type LoadedImage struct {
 	Frames   []image.Image
 	Delays   []time.Duration // parallel to Frames; unused when len(Frames) == 1
+	Digest   SourceDigest    // encoded source of these pixels, retained through cache hits
 	FileSize int64           // raw byte count read by ReadAndProbe, for the info overlay
 
 	// Vector is the parsed source of an SVG, retained so the app can
@@ -258,7 +260,7 @@ func readRawBytes(ctx context.Context, u fyne.URI) ([]byte, error) {
 		return nil, err
 	}
 
-	rc, err := storage.Reader(u)
+	rc, err := fileaccess.Reader(ctx, u)
 	if err != nil {
 		return nil, err
 	}
@@ -357,6 +359,10 @@ func ReadAndProbe(ctx context.Context, u fyne.URI) (data []byte, bounds image.Re
 	if err != nil {
 		return nil, image.Rectangle{}, err
 	}
+	return probeSource(ctx, data)
+}
+
+func probeSource(ctx context.Context, data []byte) ([]byte, image.Rectangle, error) {
 	if heic.IsData(data) {
 		result, readErr := readHEIC(ctx, data, false)
 		if readErr != nil {
@@ -471,6 +477,7 @@ func DecodeRecord(ctx context.Context, data []byte, maxAnimBytes int64) (*Loaded
 		return nil, err
 	}
 	loaded.FileSize = int64(len(data))
+	loaded.Digest = sha256.Sum256(data)
 	if !heic.IsData(data) {
 		loaded.HasEXIF = !ReadMetadata(data).Empty()
 	}

@@ -89,13 +89,14 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			return err
 		}
 		item := Item{Path: path}
+		sourcePath := req.SourcePaths.resolve(path)
 		var sourceErr error
 		if !filepath.IsAbs(path) {
 			sourceErr = fmt.Errorf("source must be an absolute local path")
 		}
 		var before os.FileInfo
 		if sourceErr == nil {
-			before, sourceErr = os.Stat(path)
+			before, sourceErr = os.Stat(sourcePath)
 		}
 		if sourceErr == nil {
 			item.Size, item.ModifiedNS = before.Size(), before.ModTime().UnixNano()
@@ -122,13 +123,13 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 		}
 		if sourceErr == nil && reused && (item.Facts.Version != FactsVersion || item.Facts.Width <= 0 || item.Facts.Height <= 0) {
 			factsStart := time.Now()
-			data, bounds, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
+			data, bounds, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(sourcePath))
 			sourceErr = readErr
 			if sourceErr == nil && fmt.Sprintf("%x", sha256.Sum256(data)) != item.SHA256 {
 				sourceErr = fmt.Errorf("source changed since cached representation")
 			}
 			if sourceErr == nil {
-				item.Facts, sourceErr = imageFacts(ctx, path, data, bounds)
+				item.Facts, sourceErr = imageFacts(ctx, sourcePath, data, bounds)
 				backfilled = sourceErr == nil
 			}
 			event.Measurements.DecodeSeconds += time.Since(factsStart).Seconds()
@@ -144,10 +145,10 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 				}
 			}
 			decodeStart := time.Now()
-			data, bounds, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(path))
+			data, bounds, readErr := imaging.ReadAndProbe(ctx, storage.NewFileURI(sourcePath))
 			sourceErr = readErr
 			if sourceErr == nil {
-				item.Facts, sourceErr = imageFacts(ctx, path, data, bounds)
+				item.Facts, sourceErr = imageFacts(ctx, sourcePath, data, bounds)
 			}
 			if sourceErr == nil {
 				item.SHA256 = fmt.Sprintf("%x", sha256.Sum256(data))
@@ -175,7 +176,7 @@ func analyzeLocal(ctx context.Context, req request, controls <-chan Control, emi
 			return ctx.Err()
 		}
 		if sourceErr == nil {
-			after, statErr := os.Stat(path)
+			after, statErr := os.Stat(sourcePath)
 			if statErr != nil {
 				sourceErr = statErr
 			} else if !os.SameFile(before, after) || after.Size() != item.Size || after.ModTime().UnixNano() != item.ModifiedNS {

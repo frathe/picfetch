@@ -32,12 +32,20 @@ type launchOverride struct {
 	shuffle  *bool
 	interval *time.Duration
 	maxScan  *int
+	geometry *preferences.State
 }
 
 // restore rewrites every overridden field of s back to its pre-flag value.
 // Called by currentPreferences, at the end, so it is the last word on what
 // shutdown writes.
 func (o launchOverride) restore(s *preferences.State) {
+	if o.geometry != nil {
+		saved := o.geometry
+		s.WindowSize = saved.WindowSize
+		s.WindowPosX, s.WindowPosY, s.WindowPositionSet = saved.WindowPosX, saved.WindowPosY, saved.WindowPositionSet
+		s.SettingsWindow, s.ExifWindow, s.MosaicWindow = saved.SettingsWindow, saved.ExifWindow, saved.MosaicWindow
+	}
+
 	if o.sortMode != nil {
 		s.SortMode = *o.sortMode
 	}
