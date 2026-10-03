@@ -3,7 +3,7 @@ module github.com/frathe/picfetch
 go 1.27.1
 
 require (
-	fyne.io/fyne/v2 v2.8.0
+	fyne.io/fyne/v2 v2.8.1
 	fyne.io/x/fyne v0.0.0-20260712112324-6989f2f174fb
 	github.com/frathe/picfetch/internal/ortlegacy v0.0.0
 	github.com/fyne-io/image v0.1.1
@@ -16,6 +16,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/theupdateframework/go-tuf/v2 v2.4.2
 	github.com/yalue/onnxruntime_go v1.36.0
+	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/image v0.46.0
 	golang.org/x/mod v0.41.0
 	golang.org/x/net v0.59.0
@@ -27,7 +28,7 @@ require (
 replace github.com/frathe/picfetch/internal/ortlegacy => github.com/yalue/onnxruntime_go v1.25.0
 
 require (
-	fyne.io/systray v1.12.2 // indirect
+	fyne.io/systray v1.12.3-0.20260810170012-af4e8e793ec4 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/FyshOS/fancyfs v0.0.1 // indirect
 	github.com/anthonynsimon/bild v0.17.0 // indirect
@@ -39,7 +40,6 @@ require (
 	github.com/digitorus/pkcs7 v0.0.0-20230818184609-3a137a874352 // indirect
 	github.com/digitorus/timestamp v0.0.0-20231217203849-220c5c2851b7 // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
-	github.com/fredbi/uri v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fyne-io/gl-js v0.2.1-0.20260315212741-029c47fd27e8 // indirect
 	github.com/fyne-io/glfw-js v0.4.0 // indirect
@@ -103,7 +103,6 @@ require (
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 // indirect
