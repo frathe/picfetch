@@ -195,6 +195,42 @@ def build_environment(env, arch, minimum):
                   "CGO_CFLAGS": flags, "CGO_CXXFLAGS": flags, "CGO_LDFLAGS": flags}
 
 
+def build_executable(repo, stage, output, env, metadata, tags=TAGS):
+    # Packaging a prebuilt executable only stamps Info.plist. Install the same
+    # Fyne metadata in each executable at compile time, without writing generated
+    # files into the checkout or changing the architecture's deployment flags.
+    repo, stage = repo.resolve(), stage.resolve()
+    virtual = repo / "fyne_metadata_init.go"
+    if virtual.exists() or virtual.is_symlink():
+        raise ValueError("unexpected existing generated Fyne metadata source")
+    details = metadata["Details"]
+    quote = lambda value: json.dumps(value, ensure_ascii=False)
+    migrations = ", ".join(f"{quote(key)}: {str(value).lower()}"
+                           for key, value in metadata.get("Migrations", {}).items())
+    generated = stage / "metadata.go"
+    generated.write_text(f'''package main
+import (
+    _ "embed"
+    "fyne.io/fyne/v2"
+    "fyne.io/fyne/v2/app"
+)
+//go:embed {quote(details["Icon"])}
+var packagedAppIcon []byte
+func init() {{
+    app.SetMetadata(fyne.AppMetadata{{
+        ID: {quote(details["ID"])}, Name: {quote(details["Name"])},
+        Version: {quote(details["Version"])}, Build: {details["Build"]},
+        Icon: fyne.NewStaticResource({quote(Path(details["Icon"]).name)}, packagedAppIcon),
+        Release: true, Migrations: map[string]bool{{{migrations}}},
+    }})
+}}
+''')
+    overlay = stage / "metadata-overlay.json"
+    overlay.write_text(json.dumps({"Replace": {str(virtual): str(generated)}}))
+    run("go", "build", "-overlay", overlay, "-tags", tags + ",release", "-trimpath", "-ldflags=-s -w",
+        "-o", output, ".", cwd=repo, env=env)
+
+
 def build(args):
     repo = Path(__file__).resolve().parents[2]
     env = os.environ | {"DEVELOPER_DIR": os.environ.get("APPLE_STORE_DEVELOPER_DIR", "/Applications/Xcode.app/Contents/Developer")}
@@ -210,7 +246,8 @@ def build(args):
     fyne = repo / ".tools/fyne-v1.7.2/fyne"
     if not fyne.is_file():
         raise ValueError("run make install-fyne first")
-    details = tomllib.loads((repo / "FyneApp.toml").read_text())["Details"]
+    metadata = tomllib.loads((repo / "FyneApp.toml").read_text())
+    details = metadata["Details"]
     if details["ID"] != APP_ID or details["Name"] != "PicFetch":
         raise ValueError("unexpected source app identity")
     run("xcodebuild", "-version", env=env)
@@ -230,7 +267,7 @@ def build(args):
             archdir = stage / arch
             archdir.mkdir()
             buildenv = build_environment(env, arch, minimum)
-            run("go", "build", "-tags", TAGS, "-trimpath", "-ldflags=-s -w", "-o", archdir / "PicFetch", ".", cwd=repo, env=buildenv)
+            build_executable(repo, archdir, archdir / "PicFetch", buildenv, metadata)
             for source, name in (("client.m", "picfetch-worker-client"), ("service.m", "worker")):
                 run("xcrun", "clang", "-arch", native, "-mmacosx-version-min=" + minimum,
                     "-fobjc-arc", "-Wall", "-Wextra", "-Werror", "-framework", "Foundation",

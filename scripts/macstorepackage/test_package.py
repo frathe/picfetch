@@ -1,5 +1,6 @@
 """Policy guards complement the actual signed bundle qualification."""
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -13,6 +14,48 @@ spec.loader.exec_module(package)
 
 
 class PackagingPolicy(unittest.TestCase):
+    def test_built_executable_preserves_runtime_metadata_outside_checkout(self):
+        repo = Path(__file__).resolve().parents[2]
+        metadata = package.tomllib.loads((repo / "FyneApp.toml").read_text())
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, stage = root / "source", root / "stage"
+            source.mkdir()
+            stage.mkdir()
+            for name in ("go.mod", "go.sum"):
+                shutil.copyfile(repo / name, source / name)
+            icon = source / metadata["Details"]["Icon"]
+            icon.parent.mkdir(parents=True)
+            shutil.copyfile(repo / metadata["Details"]["Icon"], icon)
+            (source / "main.go").write_text('''package main
+import (
+    "encoding/json"
+    "os"
+    "fyne.io/fyne/v2/app"
+)
+func main() {
+    meta := app.NewWithID("metadata-test").Metadata()
+    if err := json.NewEncoder(os.Stdout).Encode(meta); err != nil { panic(err) }
+}
+''')
+            before = {str(p.relative_to(source)): p.read_bytes()
+                      for p in source.rglob("*") if p.is_file()}
+            for version, build in ((metadata["Details"]["Version"], metadata["Details"]["Build"]),
+                                   ("2.4.6", 789)):
+                with self.subTest(version=version):
+                    config = {**metadata, "Details": {**metadata["Details"],
+                                                      "Version": version, "Build": build}}
+                    executable = stage / "metadata-probe"
+                    package.build_executable(source, stage, executable, os.environ.copy(), config, tags="ci")
+                    actual = json.loads(package.run(executable, cwd=stage, capture=True))
+                    for key in ("Version", "Build", "ID", "Name"):
+                        self.assertEqual(actual[key], config["Details"][key])
+                    self.assertIs(actual["Release"], True)
+                    self.assertEqual(actual["Migrations"], metadata["Migrations"])
+                    self.assertIsNotNone(actual["Icon"])
+                    self.assertEqual(before, {str(p.relative_to(source)): p.read_bytes()
+                                             for p in source.rglob("*") if p.is_file()})
+
     def test_missing_privacy_resource_is_refused(self):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaisesRegex(ValueError, "Abseil privacy"):

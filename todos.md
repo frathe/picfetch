@@ -101,6 +101,13 @@
 
 ### Mac App Store preparation
 
+- [ ] Fix Apple's in-app version rejection: embed Fyne metadata in both Store
+  executable slices; keep version 1.1.11 and use new build 484. Runtime regression
+  reproduced 0.0.1 before the fix and now passes. Universal bundle qualification,
+  native About text, bundle guards, verify-build and GoLand inspections pass.
+  PR #75 review gates and a fresh signed candidate remain pending. See
+  [plan and evidence](plans/2026-10-03-store-runtime-version.md).
+
 - [ ] Resolve OSM tile-service compliance before confirming Content Rights:
   Original EXIF tile caching discarded HTTP freshness metadata and did not guarantee the
   alternative seven-day retention. Assess fixed neighborhood warming against
