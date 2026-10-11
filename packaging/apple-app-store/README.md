@@ -1,17 +1,18 @@
 # Mac App Store preparation
 
-The Apple channel is experimental. A universal ad-hoc sandbox bundle and real
-HEIC/ONNX workers are locally qualified on ARM and Intel under Rosetta. No Apple
-Distribution-signed submission or complete GUI sandbox qualification is claimed. Retain all PicFetch features; do not use
-temporary filesystem exceptions or weaken the analysis worker's network denial
-to pass a packaging check.
+PicFetch 1.1.11 (build 484) is released on the Mac App Store in 174
+countries/regions; France is excluded pending Apple's encryption reply. Retain all
+PicFetch features; do not use temporary filesystem exceptions or weaken the
+analysis worker's network denial to pass a packaging check.
 
-The [active plan](../../plans/2026-09-29-apple-app-store.md) owns implementation
-and evidence. [Apple requirements](../../docs/apple-app-store-requirements-2026-09-29.md)
+The [completed plan](../../finished_refactorings/2026-09-29-apple-app-store.md)
+records implementation and evidence for the initial release. Open follow-ups
+(release automation, France, physical Intel/minimum-OS and cross-volume folder
+moves) live in `todos.md`. [Apple requirements](../../docs/apple-app-store-requirements-2026-09-29.md)
 records current primary sources and distinguishes native macOS requirements
 from mobile-platform privacy rules.
 
-For the remaining owner actions, follow [Ronin's ordered checklist](ronin-checklist.md).
+The release steps and hands-on acceptance are recorded in [Ronin's ordered checklist](ronin-checklist.md).
 
 ## Build policy
 

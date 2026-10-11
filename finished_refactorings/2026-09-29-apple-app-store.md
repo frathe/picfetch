@@ -1,6 +1,6 @@
 # Mac App Store preparation
 
-Status: active; submission readiness is not established.
+Status: complete; PicFetch 1.1.11 (build 484) released on the Mac App Store, France excluded.
 Route: Deep (macOS distribution and cross-package permission lifetimes).
 
 ## Deliverable
@@ -1717,3 +1717,89 @@ checks, avoiding further status-only commits that would invalidate their head.
 Apple certificates/profiles, SDK/privacy qualification and hands-on distribution
 validation remain open in the owner checklist; a clean code review does not
 establish App Store release readiness.
+
+## Closing record — initial release (2026-10-11)
+
+Ronin reports the initial Mac App Store release of PicFetch 1.1.11 (build 484)
+complete, with France excluded from availability pending encryption case
+102982575995. Ronin verified native map rendering and on-map OSM license access in
+the shipped build. Source head b69171b has clean Codex code/security reviews and
+full CI/CodeQL/FOSSA results on PR #75. Follow-ups moved to `todos.md`: release
+automation with manual signing approval (modelled on the Microsoft Store route),
+France availability, physical Intel/minimum-OS qualification, and bookmark reuse
+after cross-parent/volume folder moves.
+
+## Appendix — final todos.md checklist
+
+PicFetch 1.1.11 (build 484) is released on the Mac App Store in 174
+countries/regions; France is excluded pending the encryption follow-up below.
+
+- [x] Resolve OSM tile-service compliance before confirming Content Rights:
+  Original EXIF tile caching discarded HTTP freshness metadata and did not guarantee the
+  alternative seven-day retention. Assess fixed neighborhood warming against
+  permitted modest look-ahead and make on-map license access unambiguous.
+  See `packaging/apple-app-store/map-content-rights-research-2026-10-01.md`
+  and the accompanying attribution research. Ronin authorized the fix; transport
+  freshness and license links are implemented. After scope approval, replaced
+  Fyne-X's cache-bypassing renderer with an owned viewport renderer; end-to-end
+  expiry regression and view-lifecycle tests pass. Review follow-up fixes expired
+  pixels after failed validation and retires one-shot results when the view changes;
+  regressions and weak-inclusive inspections pass. Ronin ignored the confirmed
+  FOSSA research-reference false positive; review/CI evidence is tracked on PR #75.
+  A further review fix retains decoded-only viewport pixels and delivers foreground
+  tiles through the EXIF UI queue before cache eviction can lose them; padded-PNG
+  memory/progress and queued-hide regressions pass. Direct no-store delivery now
+  bypasses the one-shot LRU; renderer-recreation single-use regression passes.
+  Renderer retirement also advances the delivery version under captured-session
+  ownership; queued old pixels and late old-renderer teardown regressions pass.
+  Invalid Expires and malformed/repeated max-age now require revalidation;
+  freshness and conditional-request regressions pass.
+  Quote-aware Cache-Control grammar prevents extension directive injection;
+  Vary wildcard responses are non-storable; malformed equals-boundary whitespace
+  is rejected. Hidden Location transitions now retire viewport pixels and claims.
+  HTTP/grammar, hide/reopen and delayed-response freshness regressions pass.
+  Queued foreground pixels are purgeable on retirement; callbacks retain only keys.
+  Positive Age and valid max-age overflow now saturate; freshness and delayed
+  200/304 regressions pass.
+  FOSSA passed on c89c74d after the ignore; b69171b has clean reviews and CI.
+  Shipped in build 484. See
+  [plan and evidence](2026-10-01-map-cache-rights.md). Ronin
+  confirmed native map rendering and on-map OSM license access in the shipped build.
+
+Preserve the full feature set. 
+
+- [x] Add an immutable Apple Store channel, localized update/repair messages, verified pre-sign runtime staging and a read-only developer-input preflight.
+- [x] Preserve captured permissions through image reads, directory scans, and complete session/Favorite serialization; shared folder bookmarks are stored once.
+- [x] Carry native Open With/Dock selections through worker-side bookmark capture, cancellation and shutdown; decode native URL escapes once. Signed production opening shipped in build 484.
+- [x] Own native save destinations through export/mosaic cancellation, scope image mutations and metadata reads, and stage Apple Store atomic writes in a same-volume replacement directory.
+- [x] Qualify persistent security-scoped permissions for opening, saved sessions, Favorites, writes and workers.
+- [x] Implement the Apple Store XPC worker boundary and qualify native fixture TCP/UDP denial, cancellation and broker crash on Apple Silicon.
+- [x] Qualify real HEIC/ONNX execution and granted private source/cache access through that worker boundary on ARM and Intel under Rosetta.
+- [x] Validate post-sign Apple runtime code and outer bundle seals, use a shared Frameworks path for the app and worker, and qualify real arm64 CPU inference in a network-disabled sandbox fixture.
+- [x] Bundle both pinned native runtimes and notices in a universal ad-hoc app; validate signed Mach-O code, architecture/minimum OS, dependencies and nested/outer seals.
+- [x] Transfer exact source/model/cache and app-signature access to analysis workers; qualify real HEIC/ONNX, private source/cache access and reuse on ARM and Intel under Rosetta.
+- [x] Qualify retained visual search through production ARM/Intel-Rosetta workers; keep scopes through clipboard/Finder/Trash calls and source metadata reads.
+- [x] Capture native window-drop URLs before GLFW flattens paths; refresh restored moved/stale bookmarks with immutable persistence coverage.
+- [x] Verify production workers deny an ungranted private source while an allowed control image still completes inference, on ARM and Intel under Rosetta.
+- [x] Add explicit Store Open-dialog folder consent for single-image sibling navigation; preserve cancellation and the initially selected image. Current qualified local test app is in `bin/apple-store-e2e-2026-10-01-3453f1b/`.
+- [x] Ronin confirmed native Open-dialog folder consent fixes navigation; extend the same consent to shared drop/Open With discovery with cancellation and replacement coverage.
+- [x] Confirm the repaired build 483 shared-consent app: controlled Open With qualification passed; Ronin confirmed single-file Finder drop, fresh folder approval and Left/Right sibling navigation on 2026-10-01.
+- [x] Ronin confirmed multiple-file picker/drop navigation must remain within the selected images; folder sibling discovery applies only to single-file inputs. Automated selection coverage passes.
+- [x] Persist explicit sibling-folder approvals in app preferences and validate/reuse bookmarks on fresh single-image opens; keep renewal, cancellation and selection guards.
+- [x] Ronin observed one successful folder-approval reuse across quit/relaunch in `bin/apple-store-e2e-persistent-folders/PicFetch.app`; later reproduction shows acceptance remains open.
+- [x] Resolve the native sibling-folder approval blocker in build 483: controlled native consent/cancel/restart checks and Ronin's fresh-folder Finder drop pass. Remaining manual acceptance is tracked in the [release checklist](../packaging/apple-app-store/ronin-checklist.md#6-finish-the-remaining-hands-on-checks).
+- [x] Confirm renamed-folder bookmark reuse in build 483: Ronin reopened the Favorite after quit/rename/relaunch and then directly dropped an image from the renamed folder; both browse siblings without renewed consent. Moves to another parent/volume remain unqualified; see the [release checklist](../packaging/apple-app-store/ronin-checklist.md#6-finish-the-remaining-hands-on-checks).
+- [x] Fix PR #75 findings: acquire source authority for metadata sorting and map analysis/search file I/O to resolved bookmark locations while preserving collection/cache identities.
+- [x] Complete the application/CI review fixes in [PR #75](https://github.com/frathe/picfetch/pull/75): `0a670e6` has fresh clean code/security reviews, passing platform/race CI and CodeQL, and no actionable local/Qodana findings. All three threads are resolved. Final documentation-commit review/CI evidence lives on the PR.
+- [x] Validate copyright/category metadata and reject quarantine attributes in local Store packages.
+- [x] Finish GUI sandbox workflows and in-place renamed-folder relaunch for the initial release. Physical Intel/minimum-OS and cross-volume moves continue under App Store follow-ups.
+- [x] Implement a separate Store distribution-signing/installer route with identity, profile and payload guards.
+- [x] Prepare a main-only CI candidate signing workflow with a separate temporary-Keychain signing job and Ronin's required approval environment.
+- [x] Run the signed route with real Apple certificates/profiles and validate the resulting candidate on the required distribution path and platform matrix.
+- [x] Prepare [listing/review notes](../packaging/apple-app-store/submission-draft.md) and [ordered owner checklist](../packaging/apple-app-store/ronin-checklist.md); inventory privacy/network/export facts.
+- [x] Preserve exact Abseil privacy manifests/license/provenance; verify original Microsoft runtime signatures before local re-signing.
+- [x] Resolve remaining [Protobuf/ONNX privacy coverage and SDK validation](../packaging/apple-app-store/privacy-dependency-audit.md), confirm final privacy/export answers and validate Apple submission.
+- [x] Enable the full Xcode compiler after local license acceptance.
+- [x] Human inputs last: developer Team ID, Store application/installer certificates, separate app/worker TestFlight provisioning profiles, App Store Connect record and final submission decisions.
+- [x] Signed and pushed `62661a1`; full platform/race CI and CodeQL passed. Fresh Qodana SARIF has eight reviewed false positives and no actionable findings.
+- [x] Ronin returned from lunch on 2026-09-30 and explicitly reauthorized committing and pushing the current state.

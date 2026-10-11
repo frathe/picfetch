@@ -401,3 +401,9 @@ suites and focused vet pass; GoLand weak-inclusive inspections of tilecache.go
 and tiles_test.go report no findings. Zero delegates and no dependency/worker/new
 file changes. Fresh code/security rounds and exact-head hosted gates remain
 required; final evidence is tracked on PR #75.
+
+## Closing record (2026-10-11)
+
+b69171b, which includes the max-age overflow fix, has clean Codex code/security
+reviews and full hosted CI, CodeQL and FOSSA on PR #75. Ronin verified native map
+rendering and on-map OSM license access in shipped App Store build 484.

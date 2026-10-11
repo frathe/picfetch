@@ -55,12 +55,47 @@ Local qualification on the reviewed working patch based on 37d7aeb:
 - Native `test_package.py`: all 14 tests pass, including the eight artifact guards.
   A full-suite attempt on the ad-hoc input passed the other cases but its installer
   payload check rejected upstream dylib owner-only permissions. Distribution's
-  existing normalization step handles this; run the complete suite again against
-  the final signed, normalized candidate. No installer pass is claimed yet.
+  existing normalization step handles this; run the installer guards against the signed, normalized candidate below.
 - GoLand IDE fallback inspected package.py, test_package.py and FyneApp.toml
   with errorsOnly=false (weak warnings included): zero reported findings. Local
   Qodana itself was not run; this profile is not an exact qodana.starter substitute.
 
-Fresh hosted review gates and final signed-candidate qualification remain pending.
+Reviewed implementation commit: b69171bca23965297041f2e76e2af8e2af109251.
+- Fresh code review: https://github.com/frathe/picfetch/pull/75#issuecomment-5967878037
+- Separate security-focused review: https://github.com/frathe/picfetch/pull/75#issuecomment-5967926585
+  Both report no findings; all 41 older/current threads are resolved.
+- Full CI: https://github.com/frathe/picfetch/actions/runs/37113634421 (success),
+  including every Linux race shard, Windows and both macOS native guards.
+- CodeQL: https://github.com/frathe/picfetch/actions/runs/37113634403 (success),
+  zero open PR alerts. All three exact-head FOSSA statuses pass.
+- Qodana: https://github.com/frathe/picfetch/actions/runs/37113634419 (success),
+  artifact 11270562626. Root post-suppression SARIF identifies b69171b and has
+  the identical 11 assessed unused-export false positives as 3da5f98; current
+  production callers, platform dispatch and callback references were rechecked.
+  Its findings summary is neutral, not a zero-result report.
+- `make apple-store-package` passed with the existing local signing setup.
+  The local manifest is clean and source-bound to b69171b, version 1.1.11/build
+  484. Distribution verification includes both provisioning profiles, every
+  nested signature/entitlement, non-owner permissions, trusted installer leaf
+  and extracted-payload equality/signature. No upload or submission occurred.
+- Native distribution suite: all 12 test_distribution.py tests passed using the
+  signed candidate, including both installer guards. Native bundle mutation
+  guards use the ad-hoc qualification app (14 test_package.py tests passed).
+  These input roles differ: do not treat the distribution app as an ad-hoc input.
+- Signed candidate: `bin/apple-store-candidate-1xg3fxka/signed/PicFetch.pkg`.
+  SHA-256: af4bdac7d3cf4ee158b9f5d259793485ed320c0eeff6b86da2abffff702bbb79
+- Direct desktop launch of the distribution app failed with macOS spawn error
+  163. The matching clean qualification process ran, but the Computer Use tool
+  could not locate its window; that process was stopped. No reason for the
+  distribution-launch refusal is claimed. Native visual version evidence above
+  is from the pre-commit qualification app with the same metadata implementation.
+  Apple-installed execution/acceptance remains an external submission gate.
+- Automatic approval review rejected inspection by shared bundle identifier,
+  because it could select another PicFetch copy. Explicit candidate-path retries
+  and scoped process checks were used; no unrelated app content was inspected.
+
+Implementation and signed delivery are complete. The documentation-only closing
+commit requires fresh latest-head review/CI; its final result is recorded on PR #75.
+Unchanged-code local inspections retain b69171b as their analyzed revision.
 Final exact-head hosted results and signed candidate path will be recorded on
 PR #75 to avoid changing the reviewed source after the final round.
