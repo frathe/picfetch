@@ -20,9 +20,9 @@ func TestHEICAnalysisWorkerCancellationJoinsRetirement(t *testing.T) {
 			defer cancel()
 			var err error
 			if kind == "finite" {
-				err = (Client{}).Analyze(ctx, nil, nil, func(_ Event) { cancel() })
+				err = heicCaptureClient().Analyze(ctx, nil, nil, func(_ Event) { cancel() })
 			} else {
-				err = (Client{}).Search(ctx, SearchRequest{SessionID: 1}, nil, func(_ SearchEvent) { cancel() })
+				err = heicCaptureClient().Search(ctx, SearchRequest{SessionID: 1}, nil, func(_ SearchEvent) { cancel() })
 			}
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("producer cancellation: %v", err)

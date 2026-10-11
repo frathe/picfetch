@@ -51,4 +51,7 @@ func (w *Window) cancelTiles() {
 	w.warmGen++
 	w.warming = false
 	w.tiles.Cancel()
+	if w.locationMap != nil {
+		w.locationMap.Hide()
+	}
 }

@@ -1,0 +1,20 @@
+{
+  "component": "Abseil",
+  "license": "Apache-2.0",
+  "sources": [
+    {
+      "version": "20250512.0",
+      "url": "https://raw.githubusercontent.com/abseil/abseil-cpp/20250512.0/PrivacyInfo.xcprivacy",
+      "git_blob": "3ff4a9d98b13eafdc813fb5394796afd6cb8486b",
+      "sha256": "f232217ae9edf2ab6a541a28eff50cfe05303c2b4756fff95cca72eccbc3b898"
+    },
+    {
+      "version": "20250814.0",
+      "url": "https://raw.githubusercontent.com/abseil/abseil-cpp/20250814.0/PrivacyInfo.xcprivacy",
+      "git_blob": "3ff4a9d98b13eafdc813fb5394796afd6cb8486b",
+      "sha256": "f232217ae9edf2ab6a541a28eff50cfe05303c2b4756fff95cca72eccbc3b898"
+    }
+  ],
+  "license_source": "https://raw.githubusercontent.com/abseil/abseil-cpp/20250814.0/LICENSE",
+  "license_sha256": "c79a7fea0e3cac04cd43f20e7b648e5a0ff8fa5344e644b0ee09ca1162b62747"
+}

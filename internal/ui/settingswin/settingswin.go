@@ -25,6 +25,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/appearance"
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/launch"
@@ -444,7 +445,11 @@ func (w *Window) build() fyne.CanvasObject {
 			var explanation string
 			switch reason {
 			case launch.StoreManagedUpdates:
-				explanation = lang.L("Updates are managed by Microsoft Store.")
+				if distribution.AppleAppStore {
+					explanation = lang.L("Updates are managed by Mac App Store.")
+				} else {
+					explanation = lang.L("Updates are managed by Microsoft Store.")
+				}
 			case launch.TrialUpdates, launch.MissingPolicy:
 				explanation = lang.L("Updates are unavailable in this session")
 			}

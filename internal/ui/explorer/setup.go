@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/similarity"
 	"github.com/frathe/picfetch/internal/ui/assets"
 )
@@ -174,7 +175,11 @@ func (f *Feature) downloadExplorerAssets(s *explorerSetup) {
 				fyne.LogError("install similarity assets", err)
 				s.status.SetText(lang.L("Setup could not finish. Check your connection and available disk space, then retry."))
 				if errors.Is(err, similarity.ErrBundledRuntimeUnavailable) {
-					s.status.SetText(lang.L("The bundled analysis runtime is missing or damaged. Repair or update PicFetch through Microsoft Store, then retry."))
+					if distribution.AppleAppStore {
+						s.status.SetText(lang.L("The bundled analysis runtime is missing or damaged. Repair or update PicFetch through Mac App Store, then retry."))
+					} else {
+						s.status.SetText(lang.L("The bundled analysis runtime is missing or damaged. Repair or update PicFetch through Microsoft Store, then retry."))
+					}
 				}
 				s.primary.SetText(lang.L("Retry"))
 				s.primary.Enable()

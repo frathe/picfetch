@@ -1,13 +1,18 @@
 package ui
 
 import (
+	"context"
 	"image"
 	"image/color"
+	"sync"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/uitest"
@@ -82,18 +87,104 @@ func TestStepImage_SingleFileDropWalksFolderSiblings(t *testing.T) {
 }
 
 func TestHandleKeyEvent_LeftRightWalkFolderSiblings(t *testing.T) {
-	v := newTestViewer(t)
-	files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
-	dropAndWait(t, v, files[0])
-	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
-	waitUntilLoaded(t, v)
-	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "b.jpg" {
-		t.Fatalf("Right showing %q, want b.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
+	for _, route := range []string{"picker", "drop", "os"} {
+		t.Run(route+"/multiple-selected-files", func(t *testing.T) {
+			if distribution.AppleAppStore {
+				t.Skip("synthetic bookmark requires non-Store resolver; native grants are qualified separately")
+			}
+			v := newTestViewer(t)
+			files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg", "c.jpg")
+			selected := make([]fyne.URI, 2)
+			for i, original := range files[:2] {
+				selected[i] = fileaccess.NewSelection(original, func(_ context.Context) (fileaccess.Record, error) {
+					return fileaccess.Record{URI: original.String(), Bookmark: []byte(original.Name())}, nil
+				}, func() {})
+			}
+			v.authorizeSiblingFolder = func(_ context.Context, inputs []fyne.URI) ([]fyne.URI, error) {
+				t.Error("selected files should not require additional folder consent")
+				return inputs, nil
+			}
+			switch route {
+			case "picker":
+				uitest.StubChooser(t, selected, nil)
+				v.openFileDialog()
+				settleChooser(t, v)
+			case "drop":
+				v.handleDrop(selected)
+			case "os":
+				v.openFilesFromOS(selected)
+			}
+			waitForScan(t, v)
+			waitForSort(t, v)
+			waitUntilLoaded(t, v)
+			if got := v.FileCount(); got != 2 {
+				t.Fatalf("selected image count = %d, want 2", got)
+			}
+			for _, step := range []struct {
+				key  fyne.KeyName
+				want string
+			}{{fyne.KeyRight, "b.jpg"}, {fyne.KeyLeft, "a.jpg"}} {
+				v.handleKeyEvent(&fyne.KeyEvent{Name: step.key})
+				waitUntilLoaded(t, v)
+				if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != step.want {
+					t.Fatalf("%s showing %q, want %s", step.key, got, step.want)
+				}
+			}
+		})
 	}
-	v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyLeft})
-	waitUntilLoaded(t, v)
-	if v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "a.jpg" {
-		t.Fatalf("Left showing %q, want a.jpg", v.state.Observe().DisplayFiles()[v.state.Observe().index].Name())
+	for _, route := range []string{"picker", "drop", "os"} {
+		for _, scoped := range []bool{false, true} {
+			name := route + "/ordinary"
+			if scoped {
+				name = route + "/selected-file"
+			}
+			t.Run(name, func(t *testing.T) {
+				if scoped {
+					if distribution.AppleAppStore {
+						t.Skip("synthetic bookmark requires non-Store resolver; native grants are qualified separately")
+					}
+				}
+				v := newTestViewer(t)
+				files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
+				selected := files[0]
+				if scoped {
+					original := selected
+					selected = fileaccess.NewSelection(original, func(_ context.Context) (fileaccess.Record, error) {
+						return fileaccess.Record{URI: original.String(), Bookmark: []byte("file")}, nil
+					}, func() {})
+					v.authorizeSiblingFolder = func(_ context.Context, inputs []fyne.URI) ([]fyne.URI, error) {
+						if len(inputs) != 1 || inputs[0].String() != original.String() || fileaccess.NeedsCapture(inputs[0]) {
+							t.Error("consent did not receive captured original selection")
+						}
+						child, err := fileaccess.FromRecord(fileaccess.Record{URI: original.String(), Bookmark: []byte("folder"), Directory: true, Relative: original.Name()})
+						return []fyne.URI{child}, err
+					}
+				}
+				switch route {
+				case "picker":
+					uitest.StubChooser(t, []fyne.URI{selected}, nil)
+					v.openFileDialog()
+					settleChooser(t, v)
+				case "drop":
+					v.handleDrop([]fyne.URI{selected})
+				case "os":
+					v.openFilesFromOS([]fyne.URI{selected})
+				}
+				waitForScan(t, v)
+				waitForSort(t, v)
+				waitUntilLoaded(t, v)
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyRight})
+				waitUntilLoaded(t, v)
+				if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != "b.jpg" {
+					t.Fatalf("Right showing %q, want b.jpg", got)
+				}
+				v.handleKeyEvent(&fyne.KeyEvent{Name: fyne.KeyLeft})
+				waitUntilLoaded(t, v)
+				if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != "a.jpg" {
+					t.Fatalf("Left showing %q, want a.jpg", got)
+				}
+			})
+		}
 	}
 }
 
@@ -693,5 +784,104 @@ func TestClearToDropzone_ClearsInspect(t *testing.T) {
 	v.clearToDropzone()
 	if v.dupes.Inspecting() {
 		t.Fatal("clearToDropzone must ClearInspect")
+	}
+}
+
+func TestSiblingFolderConsentLifecycle(t *testing.T) {
+	if distribution.AppleAppStore {
+		t.Skip("synthetic scopes use non-Store resolver")
+	}
+	for _, mode := range []string{"cancel-panel", "cancel-scan", "replace", "merge", "replay", "multiple", "directory-grant"} {
+		t.Run(mode, func(t *testing.T) {
+			v := newTestViewer(t)
+			files := uitest.TempDirJPEGURIs(t, "a.jpg", "b.jpg")
+			record := fileaccess.Record{URI: files[0].String(), Bookmark: []byte("file")}
+			if mode == "directory-grant" {
+				record.Directory = true
+				record.Relative = files[0].Name()
+			}
+			source, err := fileaccess.FromRecord(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			entered, returned := make(chan struct{}), make(chan struct{})
+			release := sync.OnceFunc(func() { close(returned) })
+			t.Cleanup(release)
+			v.authorizeSiblingFolder = func(ctx context.Context, inputs []fyne.URI) ([]fyne.URI, error) {
+				close(entered)
+				if mode == "cancel-panel" {
+					return inputs, nil
+				}
+				if mode != "cancel-scan" && mode != "replace" {
+					t.Error("unexpected folder consent")
+					return inputs, nil
+				}
+				<-returned
+				if ctx.Err() == nil {
+					t.Error("retired opening did not cancel folder consent")
+				}
+				granted, err := fileaccess.FromRecord(fileaccess.Record{URI: inputs[0].String(), Bookmark: []byte("folder"), Directory: true, Relative: inputs[0].Name()})
+				return []fyne.URI{granted}, err
+			}
+			if mode == "merge" {
+				dropAndWait(t, v, uitest.TempJPEGURI(t, "existing.jpg", 4, 4, color.White))
+				v.SetMergeMode(true)
+			}
+			switch mode {
+			case "replay":
+				v.openCollection([]fyne.URI{source}, "", replayCollection)
+			case "multiple":
+				v.handleDrop([]fyne.URI{source, files[1]})
+			default:
+				v.handleDrop([]fyne.URI{source})
+			}
+			if mode == "cancel-scan" || mode == "replace" {
+				select {
+				case <-entered:
+				case <-time.After(testTimeout):
+					t.Fatal("folder consent did not begin")
+				}
+				pending := v.scanWorkerDone.Current()
+				if mode == "cancel-scan" {
+					v.cancelScan()
+				} else {
+					dropAndWait(t, v, uitest.TempJPEGURI(t, "replacement.jpg", 4, 4, color.White))
+				}
+				release()
+				ctx, cancel := context.WithTimeout(t.Context(), testTimeout)
+				defer cancel()
+				if err := pending.Wait(ctx); err != nil {
+					t.Fatal(err)
+				}
+				v.scanUI.Drain()
+				if mode == "cancel-scan" && v.FileCount() != 0 {
+					t.Fatal("cancelled consent populated collection")
+				}
+				if mode == "replace" && v.state.Observe().DisplayFiles()[v.state.Observe().index].Name() != "replacement.jpg" {
+					t.Fatal("late consent replaced current image")
+				}
+				return
+			}
+			waitForScan(t, v)
+			waitForSort(t, v)
+			waitUntilLoaded(t, v)
+			want := 2
+			if mode == "cancel-panel" || mode == "replay" {
+				want = 1
+			}
+			if v.FileCount() != want {
+				t.Fatalf("files=%d, want %d", v.FileCount(), want)
+			}
+			if mode == "cancel-panel" {
+				select {
+				case <-entered:
+				default:
+					t.Fatal("folder consent did not run")
+				}
+				if string(fileaccess.Snapshot(v.state.Observe().DisplayFiles()[0]).Bookmark) != "file" {
+					t.Fatal("cancelled panel changed source authority")
+				}
+			}
+		})
 	}
 }

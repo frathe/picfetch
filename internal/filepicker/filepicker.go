@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -20,6 +21,9 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // Choose returns the exact selected file/folder identities in selection order.
@@ -42,12 +46,14 @@ var Choose = func() ([]fyne.URI, error) {
 // ChooseSave returns exactly the destination confirmed by the native panel.
 // Nil with no error means cancellation; more than one result is a protocol error.
 // suggestedPath supplies both the initial directory and the proposed name.
+// The caller must fileaccess.ReleaseDestination the returned URI after use,
+// including cancellation or errors that occur after the panel returns.
 var ChooseSave = func(suggestedPath string) (fyne.URI, error) {
 	var out []byte
 	var err error
 	switch runtime.GOOS {
 	case "darwin":
-		out, err = chooseSaveDarwin(suggestedPath)
+		return chooseSaveDarwin(suggestedPath)
 	case "windows":
 		out, err = chooseSaveWindows(suggestedPath)
 	default:
@@ -67,7 +73,7 @@ func decodePickedDestination(out []byte, err error) (fyne.URI, error) {
 	return picked[0], nil
 }
 
-// Native adapters emit a JSON array of paths, or null for cancellation.
+// Native adapters emit paths, Apple Store scope records, or null for cancellation.
 // An empty successful selection is distinct from cancellation and cannot be used.
 func decodePickedPaths(out []byte, err error) ([]fyne.URI, error) {
 	if err != nil {
@@ -78,6 +84,9 @@ func decodePickedPaths(out []byte, err error) ([]fyne.URI, error) {
 	}
 	var paths []string
 	if err := json.Unmarshal(out, &paths); err != nil {
+		if distribution.AppleAppStore {
+			return decodeScopedSelection(out)
+		}
 		return nil, fmt.Errorf("invalid file chooser result: %w", err)
 	}
 	if paths == nil {
@@ -175,17 +184,16 @@ func chooseSaveWindows(suggestedPath string) ([]byte, error) {
 }
 
 // buildPowerShellSaveCmd builds that dialog's script. The suggested path is
-// embedded whole and split by PowerShell's own [System.IO.Path], not by Go's
+// passed as environment data and split by PowerShell's [System.IO.Path], not Go's
 // filepath: this function's test runs on whatever machine builds the module,
 // where a `C:\...` path is one long base name to filepath.Dir. Letting the
 // platform that will actually run the script do its own splitting keeps the
 // two from disagreeing.
 func buildPowerShellSaveCmd(suggestedPath string) *exec.Cmd {
-	escaped := powerShellEscape(suggestedPath)
 	script := `Add-Type -AssemblyName System.Windows.Forms
 $dlg = New-Object System.Windows.Forms.SaveFileDialog
-$dlg.FileName = "` + escaped + `"
-$dlg.InitialDirectory = [System.IO.Path]::GetDirectoryName("` + escaped + `")
+$dlg.FileName = $env:PICFETCH_SAVE_PATH
+$dlg.InitialDirectory = [System.IO.Path]::GetDirectoryName($env:PICFETCH_SAVE_PATH)
 $dlg.OverwritePrompt = $true
 $dlg.Title = "` + powerShellEscape(lang.L("Export image")) + `"
 if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
@@ -194,6 +202,8 @@ if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
 	script = powerShellPickerScript(script)
 
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	// Path values are data, including PowerShell smart-quote delimiters.
+	cmd.Env = append(cmd.Environ(), "PICFETCH_SAVE_PATH="+suggestedPath)
 	hideConsoleWindow(cmd)
 	return cmd
 }
@@ -248,4 +258,57 @@ try {
 	[Console]::Error.WriteLine($_.Exception.Message)
 	exit 1
 }`
+}
+
+// decodeScopedSelection accepts only complete native authority records. It
+// never upgrades plain paths or a partially captured selection into grants.
+func decodeScopedSelection(out []byte) ([]fyne.URI, error) {
+	var records []fileaccess.Record
+	if err := json.Unmarshal(out, &records); err != nil {
+		return nil, fmt.Errorf("invalid scoped file chooser result: %w", err)
+	}
+	if len(records) == 0 {
+		return nil, errors.New("file chooser returned an empty scoped selection")
+	}
+	files := make([]fyne.URI, len(records))
+	for i, record := range records {
+		if len(record.Bookmark) == 0 || record.Relative != "" {
+			return nil, errors.New("file chooser did not capture its selected scope")
+		}
+		nativeURL, err := url.Parse(record.URI)
+		if err != nil || nativeURL.Scheme != "file" || (nativeURL.Host != "" && nativeURL.Host != "localhost") || nativeURL.Path == "" {
+			return nil, errors.New("file chooser returned an invalid native file URL")
+		}
+		record.URI = storage.NewFileURI(nativeURL.Path).String()
+		source, err := fileaccess.FromRecord(record)
+		if err != nil {
+			return nil, err
+		}
+		files[i] = source
+	}
+	return files, nil
+}
+
+// authorizeSiblingFolder keeps the opened file while attaching only a separately
+// selected parent directory's authority. Cancelling leaves file-only access.
+func authorizeSiblingFolder(files []fyne.URI, choose func(string) (fyne.URI, error)) ([]fyne.URI, error) {
+	if len(files) != 1 || !fileaccess.HasScope(files[0]) || fileaccess.Snapshot(files[0]).Directory {
+		return files, nil
+	}
+	parent := storage.NewFileURI(filepath.Dir(files[0].Path()))
+	folder, err := choose(parent.Path())
+	if err != nil {
+		return nil, err
+	}
+	if folder == nil {
+		return files, nil
+	}
+	if !fileaccess.HasScope(folder) || !fileaccess.Snapshot(folder).Directory || filepath.Clean(folder.Path()) != filepath.Clean(parent.Path()) {
+		return nil, errors.New("folder access does not match the selected image's parent")
+	}
+	child, err := fileaccess.Child(folder, files[0])
+	if err != nil {
+		return nil, err
+	}
+	return []fyne.URI{child}, nil
 }

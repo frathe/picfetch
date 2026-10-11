@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/favstore"
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/similarity"
 )
 
@@ -33,7 +34,7 @@ func (f *Feature) Open(request OpenRequest) bool {
 	f.complete = false
 	f.hasMap = false
 	token := f.lifecycle.begin()
-	token.ctx = f.heic.CaptureContext(token.context())
+	token.ctx = fileaccess.WithSources(f.heic.CaptureContext(token.context()), request.Access)
 	f.token = token
 	f.surface.SetResult(nil, nil)
 	f.surface.Status(lang.L("Analyzing images..."))

@@ -12,8 +12,7 @@ import (
 )
 
 // copyPathToClipboard puts the current file's absolute path on the system
-// text clipboard. No shell-out needed here, unlike copyImageToClipboard
-// below - fyne.Clipboard already handles text on every platform.
+// text clipboard; fyne.Clipboard handles text on every platform.
 func (v *viewer) copyPathToClipboard() {
 	if _, ok := v.admitCommand(commandRequest{command: commandCopyPath}); !ok {
 		return
@@ -23,9 +22,8 @@ func (v *viewer) copyPathToClipboard() {
 }
 
 // copyImageToClipboard puts the currently displayed frame onto the system
-// clipboard as real image data, via internal/clipboard's per-OS shell-out -
-// the same kind openfiles.go already established for the file/folder
-// dialog. The displayed image is immutable after publication; capture that
+// clipboard as real image data, via internal/clipboard's platform backend.
+// The displayed image is immutable after publication; capture that
 // reference on UI, then encode and dispatch on the operation's worker.
 func (v *viewer) copyImageToClipboard() {
 	if _, ok := v.admitCommand(commandRequest{command: commandCopyImage}); !ok {

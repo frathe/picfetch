@@ -27,7 +27,7 @@ func TestPresentationContract(t *testing.T) {
 				t.Cleanup(f.Stop)
 				source := storage.NewFileURI("/saved.png")
 				pixels := image.NewNRGBA(image.Rect(0, 0, 2, 3))
-				loaded := &imaging.LoadedImage{Frames: []image.Image{pixels}}
+				loaded := &imaging.LoadedImage{Frames: []image.Image{pixels}, Digest: imaging.SourceDigest{1}}
 				f.Present(source, loaded, false)
 				f.RotateBy(1)
 				capture, ok := f.Capture()
@@ -40,8 +40,11 @@ func TestPresentationContract(t *testing.T) {
 					f.RotateBy(1)
 				}
 				visible := f.Surface().Image
-				if !f.ReconcileSaved(capture) {
+				if !f.ReconcileSavedDigest(capture, imaging.SourceDigest{2}) {
 					t.Fatal("current committed capture was rejected")
+				}
+				if f.Snapshot().Digest != (imaging.SourceDigest{2}) {
+					t.Fatal("save reconciliation did not adopt committed output digest")
 				}
 				wantRotation := 1
 				if reset {
@@ -49,6 +52,9 @@ func TestPresentationContract(t *testing.T) {
 				}
 				if f.Snapshot().Rotation != wantRotation || f.Surface().Image != visible {
 					t.Fatal("save reconciliation discarded a later view adjustment or republished pixels")
+				}
+				if capture.Digest != loaded.Digest {
+					t.Fatal("capture lost decoded source digest")
 				}
 				if capture.Rotation != 1 || capture.Pixels.Bounds().Size() != image.Pt(3, 2) {
 					t.Fatal("capture changed after the view changed")

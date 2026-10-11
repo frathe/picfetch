@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -22,18 +23,27 @@ import (
 func TestRevealCurrentFile_HandsThePathToTheFileManager(t *testing.T) {
 	v, _, _ := newTestUI(t)
 
-	jpegURI := uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})
+	uri := uitest.TempJPEGURI(t, "picked.jpg", 4, 4, color.RGBA{R: 100, A: 255})
+	released := false
+	jpegURI := fileaccess.NewDestination(uri, func() { released = true })
 	v.state.Replace(collectionInput{source: []fyne.URI{jpegURI}, display: []fyne.URI{jpegURI}})
 
 	var got string
 	uitest.StubReveal(t, func(path string) error {
 		got = path
+		fileaccess.ReleaseDestination(jpegURI)
+		if released {
+			t.Error("source released before Finder handoff returned")
+		}
 		return nil
 	})
 
 	v.revealCurrentFile()
 	waitForReveal(t, v)
 
+	if !released {
+		t.Error("Finder handoff leaked access")
+	}
 	if got != jpegURI.Path() {
 		t.Errorf("revealed path = %q, want %q", got, jpegURI.Path())
 	}

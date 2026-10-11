@@ -3,9 +3,11 @@
 package winpos
 
 import (
+	"strconv"
 	"syscall"
 	"unsafe"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver"
 )
 
@@ -72,4 +74,44 @@ func platformUnmaximize(ctx any) {
 		return
 	}
 	_, _, _ = procShowWindow.Call(win.HWND, uintptr(swRestore))
+}
+
+// Windows screenshots exclude the invisible resize border: DWM reports the
+// visible frame, while GetClientRect reports the Fyne content surface.
+func platformScreenshotContentSize(ctx any, width, height int) (fyne.Size, bool) {
+	win, ok := ctx.(driver.WindowsWindowContext)
+	if !ok || win.HWND == 0 {
+		return fyne.Size{}, false
+	}
+	// Fixed GLFW limits alone do not remove the native maximize command.
+	// Keep close/minimize, but remove resizing and maximize from the title bar.
+	getLong, setLong := "GetWindowLongPtrW", "SetWindowLongPtrW"
+	if strconv.IntSize == 32 {
+		getLong, setLong = "GetWindowLongW", "SetWindowLongW"
+	}
+	styleIndex := ^uintptr(15) // GWL_STYLE (-16)
+	style, _, _ := user32.NewProc(getLong).Call(win.HWND, styleIndex)
+	if style == 0 {
+		return fyne.Size{}, false
+	}
+	style &^= 0x00040000 | 0x00010000 // WS_THICKFRAME | WS_MAXIMIZEBOX
+	result, _, _ := user32.NewProc(setLong).Call(win.HWND, styleIndex, style)
+	if result == 0 {
+		return fyne.Size{}, false
+	}
+	_, _, _ = user32.NewProc("SetWindowPos").Call(win.HWND, 0, 0, 0, 0, 0, 0x37) // frame changed; preserve position/size/z-order/activation
+	var frame, client struct{ left, top, right, bottom int32 }
+	getClientRect := user32.NewProc("GetClientRect")
+	getFrame := syscall.NewLazyDLL("dwmapi.dll").NewProc("DwmGetWindowAttribute")
+	result, _, _ = getFrame.Call(win.HWND, 9, uintptr(unsafe.Pointer(&frame)), unsafe.Sizeof(frame))
+	if result != 0 {
+		return fyne.Size{}, false
+	}
+	result, _, _ = getClientRect.Call(win.HWND, uintptr(unsafe.Pointer(&client)))
+	if result == 0 {
+		return fyne.Size{}, false
+	}
+	chromeWidth := (frame.right - frame.left) - (client.right - client.left)
+	chromeHeight := (frame.bottom - frame.top) - (client.bottom - client.top)
+	return fyne.NewSize(float32(width)-float32(chromeWidth), float32(height)-float32(chromeHeight)), true
 }

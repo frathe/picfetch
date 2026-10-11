@@ -148,8 +148,17 @@ func TestFavoriteMembership(t *testing.T) {
 			`{"0":"/a","00":"/b"}`, `{"+1":"/a","1":"/b"}`,
 			`{"-1":"/a"}`, `{"1.0":"/a"}`, `{"999999999999999999999999":"/a"}`,
 			`{"one":"/a"}`, `{" 1":"/a"}`, `[]`, `null`, `"path"`, `{} {}`,
+			`{"0":"/a","$access":null}`,
+			`{"0":"/a","$access":{"sources":[]}}`,
+			`{"0":"/a","$access":{"sources":[{"uri":"file:///b","scope":-1}]}}`,
+			`{"0":"/a","$access":{"sources":[{"uri":"file:///a","scope":2}]}}`,
+			`{"$access":{"sources":[]},"$access":{"sources":[]}}`,
 			`{"0":null}`, `{"0":1}`, `{"0":true}`, `{"0":[]}`, `{"0":{}}`,
 			`{"0":""}`, `{"0":"/a\u0000b"}`, `{"0":"/valid","99":""}`,
+			`{"0":"/valid","1":{"uri":"file:///photo.jpg","directory":true}}`,
+			`{"0":{"uri":"file:///photo.jpg","bookmark":"eA==","directory":true,"relative":"../photo.jpg"}}`,
+			`{"0":{"uri":"https://example.com/photo.jpg","bookmark":"eA=="}}`,
+			`{"0":{"uri":"file:///photo.jpg","bookmark":"not base64"}}`,
 		} {
 			t.Run(data, func(t *testing.T) {
 				dir, name := putDefinition(t, data)

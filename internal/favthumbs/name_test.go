@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 func TestEntryNameStableAcrossCalls(t *testing.T) {
@@ -17,7 +19,7 @@ func TestEntryNameStableAcrossCalls(t *testing.T) {
 	if err := os.WriteFile(path, []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	src := storage.NewFileURI(path)
+	src := fileaccess.NewDestination(storage.NewFileURI(path), func() {})
 
 	first, ok := EntryName(src)
 	if !ok {
@@ -29,6 +31,10 @@ func TestEntryNameStableAcrossCalls(t *testing.T) {
 	}
 	if first != second {
 		t.Errorf("EntryName not stable: first %q, second %q", first, second)
+	}
+	fileaccess.ReleaseDestination(src)
+	if _, ok := EntryName(src); ok {
+		t.Fatal("source version read without active authority")
 	}
 }
 

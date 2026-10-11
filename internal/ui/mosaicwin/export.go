@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/filepicker"
 	"github.com/frathe/picfetch/internal/imaging"
 )
@@ -39,6 +40,7 @@ func (w *Window) SaveImage() {
 	exporter, choose := w.exporter, filepicker.ChooseSave
 	w.workers.Go(func() {
 		destination, err := choose(suggested)
+		defer fileaccess.ReleaseDestination(destination)
 		if ctx.Err() != nil {
 			return
 		}

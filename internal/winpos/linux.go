@@ -5,6 +5,7 @@ package winpos
 /*
 #cgo LDFLAGS: -lX11
 #include <X11/Xlib.h>
+#include <X11/Xatom.h>
 #include <string.h>
 
 // translateToRoot resolves win's own (0,0) corner to root-window (i.e.
@@ -74,10 +75,29 @@ static void unmaximizeWindow(Display *display, Window win) {
 		SubstructureRedirectMask | SubstructureNotifyMask, &xev);
 	XFlush(display);
 }
+// EWMH frame extents describe decorations in X11 physical pixels.
+static int screenshotExtents(Display *display, Window win, int *horizontal, int *vertical) {
+ Atom property = XInternAtom(display, "_NET_FRAME_EXTENTS", False);
+ Atom actualType;
+ int format;
+ unsigned long count, remaining;
+ unsigned char *data = NULL;
+ int result = XGetWindowProperty(display, win, property, 0, 4, False, XA_CARDINAL,
+                                &actualType, &format, &count, &remaining, &data);
+ int valid = result == Success && actualType == XA_CARDINAL && format == 32 && count == 4;
+ if (valid) {
+  unsigned long *extents = (unsigned long *)data;
+  *horizontal = (int)(extents[0] + extents[1]);
+  *vertical = (int)(extents[2] + extents[3]);
+ }
+ if (data != NULL) XFree(data);
+ return valid;
+}
 */
 import "C"
 
 import (
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver"
 )
 
@@ -143,4 +163,21 @@ func platformUnmaximize(ctx any) {
 	defer C.XCloseDisplay(display)
 
 	C.unmaximizeWindow(display, C.Window(x11.WindowHandle))
+}
+
+func platformScreenshotContentSize(ctx any, width, height int) (fyne.Size, bool) {
+	x11, ok := ctx.(driver.X11WindowContext)
+	if !ok || x11.WindowHandle == 0 {
+		return fyne.Size{}, false
+	}
+	display := C.XOpenDisplay(nil)
+	if display == nil {
+		return fyne.Size{}, false
+	}
+	defer C.XCloseDisplay(display)
+	var horizontal, vertical C.int
+	if C.screenshotExtents(display, C.Window(x11.WindowHandle), &horizontal, &vertical) == 0 {
+		return fyne.Size{}, false
+	}
+	return fyne.NewSize(float32(width)-float32(horizontal), float32(height)-float32(vertical)), true
 }

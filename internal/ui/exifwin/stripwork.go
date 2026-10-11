@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/frathe/picfetch/internal/completion"
+	"github.com/frathe/picfetch/internal/imaging"
 )
 
 type stripMutation struct {
@@ -24,6 +25,10 @@ type stripMutation struct {
 // A successful commit still notifies the host after navigation/close; only its
 // current panel request owns the busy state and toast.
 func (w *Window) performStrip(u fyne.URI) {
+	w.performStripVersion(u, w.sourceVersion)
+}
+
+func (w *Window) performStripVersion(u fyne.URI, version imaging.SourceVersion) {
 	w.pending = nil
 	if w.stopped || w.text == nil || w.stripWork.pending {
 		return
@@ -38,7 +43,7 @@ func (w *Window) performStrip(u fyne.URI) {
 	w.syncStripVisible()
 	strip := w.stripFile
 	w.stripWork.workers.Go(func() {
-		result, err := strip(ctx, u)
+		result, err := strip(ctx, u, version)
 		if ctx.Err() != nil && !result.Committed {
 			cancel()
 			done()

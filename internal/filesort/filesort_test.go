@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/uitest"
 )
 
@@ -302,6 +303,30 @@ func TestOrder_CaptureDateReadErrorsPreserveFallbackExceptCancellation(t *testin
 			}
 			if stats != tc.wantStats || !slices.Equal(got, want) {
 				t.Errorf("mtime stats=%d order=%v, want %d / %v", stats, got, tc.wantStats, want)
+			}
+		})
+	}
+}
+
+func TestOrderMetadataHonorsRetiredAuthority(t *testing.T) {
+	for _, mode := range []Mode{ByModTime, BySize, ByCaptureDate} {
+		t.Run(mode.PrefValue(), func(t *testing.T) {
+			allowed := storage.NewFileURI(uitest.WriteTempFile(t, "allowed.dat", []byte("a")))
+			blocked := storage.NewFileURI(uitest.WriteTempFile(t, "blocked.dat", []byte("larger")))
+			base := time.Unix(1700000000, 0)
+			for i, uri := range []fyne.URI{allowed, blocked} {
+				modified := base.Add(time.Duration(i) * time.Hour)
+				if err := os.Chtimes(uri.Path(), modified, modified); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// The file remains readable to this test process, but its capability
+			// has retired. A bare path stat would incorrectly bypass that denial.
+			retired := fileaccess.NewDestination(blocked, func() {})
+			fileaccess.ReleaseDestination(retired)
+			got := Order(context.Background(), mode, []fyne.URI{allowed, retired})
+			if !slices.Equal(got, []fyne.URI{retired, allowed}) {
+				t.Fatalf("metadata sort bypassed retired authority: %v", got)
 			}
 		})
 	}

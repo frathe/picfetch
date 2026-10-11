@@ -19,9 +19,10 @@ var ErrRetired = errors.New("favorite owner retired")
 
 // Definition is the complete ordered saved list and its captured owner.
 type Definition struct {
-	Owner *Owner
-	Paths []string
-	base  string
+	Owner   *Owner
+	Paths   []string
+	base    string
+	sources []fyne.URI
 }
 
 // Files interprets the saved occurrences as native file URIs.
@@ -29,6 +30,9 @@ func (d Definition) Files() []fyne.URI {
 	files := make([]fyne.URI, len(d.Paths))
 	for i, source := range d.Paths {
 		files[i] = storage.NewFileURI(interpretedPath(d.base, source))
+		if i < len(d.sources) && d.sources[i] != nil {
+			files[i] = d.sources[i]
+		}
 	}
 	return files
 }
@@ -217,7 +221,7 @@ func (s *Store) open(ctx context.Context, dir, base string) (Definition, error) 
 	if err != nil {
 		return Definition{}, err
 	}
-	paths, err := decodeMembership(ctx, data)
+	paths, sources, err := decodeMembership(ctx, data)
 	if err != nil {
 		return Definition{}, err
 	}
@@ -226,7 +230,7 @@ func (s *Store) open(ctx context.Context, dir, base string) (Definition, error) 
 	if err := access.Current(ctx); err != nil {
 		return Definition{}, err
 	}
-	return Definition{Owner: owner, Paths: paths, base: base}, nil
+	return Definition{Owner: owner, Paths: paths, base: base, sources: sources}, nil
 }
 
 func definitionVersion(data []byte, list os.FileInfo) string {

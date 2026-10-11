@@ -66,6 +66,7 @@ COVERAGE_HTML := $(COVERAGE_DIR)/coverage.html
 .PHONY: verify-build --skip-local-tests
 .PHONY: generate-updater-notices check-updater-notices generate-avif-notices check-avif-notices
 .PHONY: fossa-findings
+.PHONY: apple-store-preflight apple-worker-test apple-store-package-local apple-store-package-signed apple-store-package
 .PHONY: loc
 
 all: build
@@ -101,6 +102,21 @@ loc: ## Show tracked source files and physical lines, split into Go production/t
 
 fossa-findings: ## Retrieve current FOSSA licensing findings (PR=61 or FOSSA_REVISION=<sha>; key in .env.local)
 	go run ./scripts/fossafindings
+
+apple-worker-test: ## Qualify signed Mac XPC worker isolation and retirement with native fixtures
+	bash scripts/macworkerqualify/run.sh
+
+apple-store-package-local: install-fyne generate-tag-vectors ## Build an ad-hoc universal sandbox app for local qualification (see packaging/apple-app-store/README.md)
+	python3 scripts/macstorepackage/package.py
+
+apple-store-package-signed: ## Sign a qualified Store app and package a candidate installer (requires Apple credentials)
+	python3 scripts/macstorepackage/distribution.py
+
+apple-store-package: ## Build Intel + Apple Silicon and sign a fresh Store installer (local signing setup required; no upload)
+	python3 scripts/macstorepackage/build_signed.py
+
+apple-store-preflight: ## Check native Xcode and Mac App Store signing inputs (see packaging/apple-app-store/README.md)
+	bash scripts/apple-store-preflight.sh
 
 generate-updater-notices: ## Regenerate updater notices from the reviewed source/license manifest
 	go run ./scripts/updaternotices -write
@@ -164,6 +180,10 @@ location-map-qualify: build ## Collect native macOS Location Map evidence from e
 
 location-map-check-evidence: build ## Validate native evidence against this build and the explicit expected image count
 	go run ./scripts/locationmapqualify check -evidence "$(LOCATION_MAP_EVIDENCE)" -images "$(LOCATION_MAP_EXPECTED_IMAGES)" -binary "$(BIN_DIR)/$(BIN_NAME)"
+
+.PHONY: trane
+trane: ## Preview the app's animated Trane console help (one turn; Ctrl+C skips)
+	go run -tags "$(APP_TAGS)" ./scripts/traneascii
 
 MOVIE_SECONDS ?= 180
 MOVIE_DIR ?= .scratch/history-movies

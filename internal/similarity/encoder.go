@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/image/draw"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/ort"
 )
 
@@ -36,7 +37,15 @@ func NewEncoder(assets, provider string) (_ *Encoder, err error) {
 	if err != nil {
 		return nil, err
 	}
-	ort.SetSharedLibraryPath(filepath.Join(nativeRoot, asset.directory, asset.library))
+	// Revalidate signed code immediately before dlopen, including retained query
+	// workers whose last asset check predates this encoder initialization.
+	//goland:noinspection GoBoolExpressions
+	if distribution.AppleAppStore {
+		if err := verifyRuntime(context.Background(), nativeRoot, asset); err != nil {
+			return nil, err
+		}
+	}
+	ort.SetSharedLibraryPath(runtimeLibraryPath(nativeRoot, asset))
 	if err := ort.InitializeEnvironment(); err != nil {
 		return nil, err
 	}

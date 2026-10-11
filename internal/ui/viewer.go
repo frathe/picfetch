@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -220,7 +221,11 @@ type viewer struct {
 	// call begins a fresh completion generation before starting its async
 	// work; a stale request's own generation still gets finished, it just
 	// leaves the shared state untouched.
-	scanOp asyncOpUI
+	osInputs       osInputQueue
+	scanOp         asyncOpUI
+	scanWorkers    sync.WaitGroup
+	scanWorkerDone completion.Signal
+	scanUI         chooserUIQueue
 
 	// sortOp is the background-reorder progress UI - see asyncop.go's
 	// asyncOpUI for the shape it shares with the scan. sortOp.active is
@@ -401,6 +406,9 @@ type viewer struct {
 	openChooserLifecycle requestlife.Owner
 	openChooserWorkers   sync.WaitGroup
 	openChooserClosed    bool
+
+	// Captured by an admitted scan before worker-side native folder consent.
+	authorizeSiblingFolder func(context.Context, []fyne.URI) ([]fyne.URI, error)
 
 	// reveal is begun by revealCurrentFile (reveal.go) and finished once
 	// that goroutine has fully run, error toast included - the same

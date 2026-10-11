@@ -84,7 +84,7 @@ func (v *viewer) saveRotation() {
 				return
 			}
 			if result.Committed {
-				v.display.ReconcileSaved(capture)
+				v.display.ReconcileSavedDigest(capture, result.Digest)
 			}
 			v.ShowToast(lang.L("Saved"))
 		})

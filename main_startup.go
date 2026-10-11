@@ -15,6 +15,7 @@ import (
 type startupOps struct {
 	heicWorker       func() bool
 	similarityWorker func() bool
+	selectResolution func(io.Writer) (launch.Resolution, error)
 	installOpenWith  func()
 	cleanup          func()
 	capture          func(launch.Options) (launch.Policy, error)
@@ -31,8 +32,15 @@ func runStartup(args []string, stdout, stderr io.Writer, ops startupOps) (code i
 	if ops.heicWorker() || ops.similarityWorker() {
 		return 0, nil
 	}
-	// The native delegate must be installed before Fyne/GLFW initialization.
+	// Install the native delegate before terminal interaction or Fyne/GLFW.
 	ops.installOpenWith()
+	if opts.FixedSizeMode && opts.FixedSize == nil {
+		selected, selectionErr := ops.selectResolution(stdout)
+		if selectionErr != nil {
+			return 1, selectionErr
+		}
+		opts.FixedSize = &selected
+	}
 	policy, err := ops.capture(opts)
 	if err != nil {
 		return 1, err

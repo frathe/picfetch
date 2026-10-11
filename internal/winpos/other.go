@@ -2,6 +2,12 @@
 
 package winpos
 
+import "fyne.io/fyne/v2"
+
+func platformScreenshotContentSize(_ any, _, _ int) (fyne.Size, bool) {
+	return fyne.Size{}, false
+}
+
 // platformPosition has no implementation on BSD, mobile, wasm, and any
 // other backend without a native handle Get can read a position out of;
 // Get's caller already treats ok=false as "nothing to save".

@@ -24,6 +24,7 @@ import (
 	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/locationtrial"
 	"github.com/frathe/picfetch/internal/preferences"
@@ -402,7 +403,11 @@ func TestLaunchPolicyIntegration(t *testing.T) {
 				meta := v.app.Metadata()
 				want := []string{fmt.Sprintf(lang.L("Version %s (Build %d)"), meta.Version, meta.Build)}
 				if tc.policy.StoreManaged() {
-					want = append(want, lang.L("Updates are managed by Microsoft Store."))
+					if distribution.AppleAppStore {
+						want = append(want, lang.L("Updates are managed by Mac App Store."))
+					} else {
+						want = append(want, lang.L("Updates are managed by Microsoft Store."))
+					}
 				}
 				if tc.policy.Purpose() != launch.Ordinary {
 					want = append(want, lang.L("Updates are unavailable in this session"))

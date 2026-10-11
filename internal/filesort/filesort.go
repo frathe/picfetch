@@ -24,6 +24,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/preferences"
 )
@@ -104,9 +105,9 @@ func Order(ctx context.Context, m Mode, raw []fyne.URI) []fyne.URI {
 			return date.UnixNano(), err
 		})
 	case ByModTime:
-		sortByInt64Key(ctx, ordered, func(u fyne.URI) (int64, error) { return modTimeOf(u).UnixNano(), nil })
+		sortByInt64Key(ctx, ordered, func(u fyne.URI) (int64, error) { return modTimeOf(ctx, u).UnixNano(), nil })
 	case BySize:
-		sortByInt64Key(ctx, ordered, func(u fyne.URI) (int64, error) { return fileSizeOf(u), nil })
+		sortByInt64Key(ctx, ordered, func(u fyne.URI) (int64, error) { return fileSizeOf(ctx, u), nil })
 	default: // ByName
 		if ctx.Err() == nil {
 			sort.SliceStable(ordered, func(i, j int) bool {
@@ -162,12 +163,12 @@ func sortByInt64Key(ctx context.Context, files []fyne.URI, key func(fyne.URI) (i
 	}
 }
 
-// statFile stats u's filesystem path, reporting ok=false for anything that
+// statFile holds u's authority while reading metadata, reporting ok=false for anything that
 // can't be stat'd (a broken symlink, a permissions error, a file removed
 // since the scan) so the mtime/size sort keys below have a well-defined
 // fallback instead of erroring the whole sort out.
-func statFile(u fyne.URI) (os.FileInfo, bool) {
-	info, err := os.Stat(u.Path())
+func statFile(ctx context.Context, u fyne.URI) (os.FileInfo, bool) {
+	info, err := fileaccess.Stat(ctx, u)
 	if err != nil {
 		return nil, false
 	}
@@ -177,16 +178,16 @@ func statFile(u fyne.URI) (os.FileInfo, bool) {
 // modTimeOf returns u's filesystem modification time, or the zero time if
 // it can't be stat'd - which sorts first, same as an unreadable capture
 // date or size does for their own modes.
-func modTimeOf(u fyne.URI) time.Time {
-	if info, ok := statFile(u); ok {
+func modTimeOf(ctx context.Context, u fyne.URI) time.Time {
+	if info, ok := statFile(ctx, u); ok {
 		return info.ModTime()
 	}
 	return time.Time{}
 }
 
 // fileSizeOf returns u's size in bytes, or 0 if it can't be stat'd.
-func fileSizeOf(u fyne.URI) int64 {
-	if info, ok := statFile(u); ok {
+func fileSizeOf(ctx context.Context, u fyne.URI) int64 {
+	if info, ok := statFile(ctx, u); ok {
 		return info.Size()
 	}
 	return 0
@@ -210,7 +211,7 @@ func captureOrModTime(ctx context.Context, u fyne.URI) (time.Time, error) {
 	if ok {
 		return date, nil
 	}
-	return modTimeOf(u), nil
+	return modTimeOf(ctx, u), nil
 }
 
 // Label returns the window-title prefix for m, or "" for the

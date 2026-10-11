@@ -18,6 +18,7 @@ import (
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
 
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/launch"
@@ -340,5 +341,66 @@ func TestLaunchOptions_PictureFrameSpentWhenResetBeforeScan(t *testing.T) {
 				t.Error("an unrelated drop inherited picture-frame mode after reset")
 			}
 		})
+	}
+}
+
+func TestLaunchOptions_FixedSizeGeometryAndModes(t *testing.T) {
+	before := preferences.Load(testApp)
+	t.Cleanup(func() {
+		p := testApp.Preferences()
+		for _, key := range []string{"windowWidth", "windowHeight", "windowPosX", "windowPosY", "windowPosSet"} {
+			p.RemoveValue(key)
+		}
+		for _, prefix := range []string{"settingsWin", "exifWin", "mosaicWin"} {
+			for _, suffix := range []string{"PosX", "PosY", "PosSet", "Width", "Height"} {
+				p.RemoveValue(prefix + suffix)
+			}
+		}
+		preferences.Save(testApp, before)
+	})
+	saved := before
+	saved.WindowSize = fyne.NewSize(700, 500)
+	saved.WindowPosX, saved.WindowPosY, saved.WindowPositionSet = 43, 59, true
+	saved.SettingsWindow = preferences.WindowGeometry{X: 13, Y: 17, PositionSet: true, Size: fyne.NewSize(640, 700)}
+	saved.ExifWindow = preferences.WindowGeometry{X: 23, Y: 29, PositionSet: true, Size: fyne.NewSize(600, 650)}
+	saved.MosaicWindow = preferences.WindowGeometry{X: 31, Y: 37, PositionSet: true, Size: fyne.NewSize(800, 600)}
+	preferences.Save(testApp, saved)
+	opts := launch.Options{FixedSizeMode: true, FixedSize: &launch.Resolution{Width: 1280, Height: 800}}
+	v, win, _ := newTestUIWithLaunchOptions(t, testLaunchPolicy(t, opts, distribution.StoreManaged), opts)
+	v.applyLaunchOptions(opts)
+	win.Show()
+	assertSize := func() {
+		t.Helper()
+		if got := win.Canvas().Size(); got != fyne.NewSize(1280, 800) {
+			t.Fatalf("size=%v", got)
+		}
+	}
+	assertSize()
+	win.Resize(fyne.NewSize(3000, 2000))
+	assertSize()
+	dropAndWait(t, v, uitest.TempJPEGURI(t, "fixed.jpg", 80, 60, color.White))
+	assertSize()
+	v.grid.Toggle()
+	assertSize()
+	v.grid.Toggle()
+	v.togglePictureFrameMode()
+	if !v.slides.Active() {
+		t.Fatal("picture-frame mode did not enter")
+	}
+	if win.FullScreen() {
+		t.Fatal("picture-frame resized into fullscreen")
+	}
+	assertSize()
+	v.togglePictureFrameMode()
+	assertSize()
+	v.settingsWin.Show(v.currentPreferences(), v.launchPolicy.Updates())
+	v.SetSortMode(filesort.ByModTime)
+	waitForSort(t, v)
+	current := v.currentPreferences()
+	if current.WindowSize != saved.WindowSize || current.WindowPosX != saved.WindowPosX || current.WindowPosY != saved.WindowPosY || current.WindowPositionSet != saved.WindowPositionSet || current.SettingsWindow != saved.SettingsWindow || current.ExifWindow != saved.ExifWindow || current.MosaicWindow != saved.MosaicWindow {
+		t.Fatalf("screenshot geometry persisted: %+v", current)
+	}
+	if current.SortMode != preferences.SortByModTime {
+		t.Fatal("unrelated setting was held back")
 	}
 }

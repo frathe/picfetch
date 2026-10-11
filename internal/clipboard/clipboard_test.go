@@ -1,10 +1,12 @@
 package clipboard
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -171,32 +173,40 @@ func TestCopyImageLinux_ReturnsErrorWhenNeitherToolInstalled(t *testing.T) {
 	}
 }
 
-func TestCopyImageDarwin_RunsOsascriptAgainstATempPNGFile(t *testing.T) {
-	origRun := runClipboardCommand
-	t.Cleanup(func() { runClipboardCommand = origRun })
-
-	var gotScript, gotPath string
-	runClipboardCommand = func(cmd *exec.Cmd) ([]byte, error) {
-		gotPath = cmd.Path
-		for i, a := range cmd.Args {
-			if a == "-e" && i+1 < len(cmd.Args) {
-				gotScript = cmd.Args[i+1]
-			}
+func TestCopyImageDarwin_DoesNotRequireTempStorage(t *testing.T) {
+	unavailable := filepath.Join(t.TempDir(), "unavailable")
+	for _, name := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(name, unavailable)
+	}
+	data := []byte("encoded PNG bytes")
+	called := false
+	err := copyImageDarwin(data, func(got []byte) error {
+		called = true
+		if !bytes.Equal(got, data) {
+			t.Fatalf("published bytes = %q, want %q", got, data)
 		}
-		return nil, nil
+		return nil
+	})
+	if err != nil || !called {
+		t.Fatalf("copyImageDarwin() = %v, publisher called = %t", err, called)
 	}
+}
 
-	if err := copyImageDarwin([]byte("png-bytes")); err != nil {
-		t.Fatalf("copyImageDarwin() error = %v", err)
+func TestCopyImageDarwin_PublicationFailure(t *testing.T) {
+	want := errors.New("pasteboard unavailable")
+	err := copyImageDarwin([]byte("encoded PNG bytes"), func(_ []byte) error { return want })
+	if !errors.Is(err, want) {
+		t.Fatalf("copyImageDarwin() = %v, want %v", err, want)
 	}
+}
 
-	if !strings.Contains(gotPath, "osascript") {
-		t.Errorf("cmd.Path = %q, want it to run osascript", gotPath)
-	}
-	for _, want := range []string{"set the clipboard to", "PNGf", "POSIX file"} {
-		if !strings.Contains(gotScript, want) {
-			t.Errorf("script does not contain %q:\n%s", want, gotScript)
-		}
+func TestCopyImageDarwin_EmptyImagePreservesClipboard(t *testing.T) {
+	err := copyImageDarwin(nil, func(_ []byte) error {
+		t.Fatal("empty input reached the publisher")
+		return nil
+	})
+	if err == nil {
+		t.Fatal("empty input must return an error")
 	}
 }
 

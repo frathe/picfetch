@@ -284,6 +284,10 @@ func collectionPreparationLifecycle(t *testing.T) {
 				}
 				committed, visit := v.state.Observe(), v.browsing.current().binding
 				unblock()
+				if preparation == "scan" || preparation == "replay" {
+					v.scanWorkers.Wait()
+					settleScan(t, v)
+				}
 				waitHandle(t, "retired preparation", done)
 				v.settleHEIC()
 				v.display.Settle()

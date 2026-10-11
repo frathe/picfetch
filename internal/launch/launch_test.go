@@ -310,3 +310,45 @@ func TestTrialPreparationHonorsCancellation(t *testing.T) {
 		t.Fatalf("cancelled trial owner=%v err=%v", owner, err)
 	}
 }
+
+func TestFixedSizeMode(t *testing.T) {
+	for _, tc := range []struct {
+		flag    string
+		enabled bool
+		size    *Resolution
+		invalid bool
+	}{
+		{flag: "-fixed-size-mode", enabled: true},
+		{flag: "--fixed-size-mode=true", enabled: true},
+		{flag: "--fixed-size-mode=false"},
+		{flag: "--fixed-size-mode=1280x800", enabled: true, size: &Resolution{1280, 800}},
+		{flag: "--fixed-size-mode=1440x900", enabled: true, size: &Resolution{1440, 900}},
+		{flag: "--fixed-size-mode=2560x1600", enabled: true, size: &Resolution{2560, 1600}},
+		{flag: "--fixed-size-mode=2880x1800", enabled: true, size: &Resolution{2880, 1800}},
+		{flag: "--fixed-size-mode=1280x900", invalid: true},
+		{flag: "--fixed-size-mode=", invalid: true},
+	} {
+		t.Run(tc.flag, func(t *testing.T) {
+			paths, opts, err := Parse([]string{"photo.jpg", tc.flag})
+			if tc.invalid {
+				if err == nil {
+					t.Fatal("invalid resolution accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(paths) != 1 || paths[0] != "photo.jpg" || opts.FixedSizeMode != tc.enabled {
+				t.Fatalf("paths=%v options=%+v", paths, opts)
+			}
+			if tc.size == nil {
+				if opts.FixedSize != nil {
+					t.Fatal("unexpected selection")
+				}
+			} else if opts.FixedSize == nil || *opts.FixedSize != *tc.size {
+				t.Fatalf("size=%v want %v", opts.FixedSize, tc.size)
+			}
+		})
+	}
+}

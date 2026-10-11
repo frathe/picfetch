@@ -73,9 +73,13 @@ func TestFeatureSetupDownloadRetryCancel(t *testing.T) {
 	// Store binaries preserve their bundled-runtime repair path.
 	//goland:noinspection GoBoolExpressions
 	if distribution.StoreManaged && requests == 0 {
+		want := lang.L("The bundled analysis runtime is missing or damaged. Repair or update PicFetch through Microsoft Store, then retry.")
+		if distribution.AppleAppStore {
+			want = lang.L("The bundled analysis runtime is missing or damaged. Repair or update PicFetch through Mac App Store, then retry.")
+		}
 		explained := false
 		walkFeature(host.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
-			if l, ok := o.(*widget.Label); ok && l.Text == lang.L("The bundled analysis runtime is missing or damaged. Repair or update PicFetch through Microsoft Store, then retry.") {
+			if l, ok := o.(*widget.Label); ok && l.Text == want {
 				explained = true
 			}
 		})

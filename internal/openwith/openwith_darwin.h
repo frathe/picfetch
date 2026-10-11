@@ -10,6 +10,9 @@
 
 #ifndef PICFETCH_OPENWITH_DARWIN_H
 #define PICFETCH_OPENWITH_DARWIN_H
+#include <stdint.h>
+int picfetchInstallWindowDrop(uintptr_t window);
+int picfetchTestWindowDrop(char **path);
 
 // picfetchInstallOpenHandler grafts -application:openURLs: and
 // -application:openFiles: onto GLFW's application delegate class. Returns 1
@@ -27,5 +30,10 @@ int picfetchDelegateRespondsToOpen(void);
 // NSArray AppKit could hand a delegate. Test helpers.
 void picfetchTestInvokeOpenURLs(const char **urls, int n);
 void picfetchTestInvokeOpenFiles(const char **paths, int n);
+
+// Capture and retirement operate on the original retained NSURL.
+char *picfetchCaptureSelectedURL(void *url, char **failure);
+void picfetchReleaseSelectedURL(void *url);
+void picfetchTestInvokeSelectedURLs(const char **urls, int n);
 
 #endif // PICFETCH_OPENWITH_DARWIN_H

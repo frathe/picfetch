@@ -38,6 +38,10 @@ type Options struct {
 	// setting: there is no saved value to override and nothing to restore.
 	PictureFrame bool
 
+	// FixedSizeMode requests the terminal picker unless FixedSize is supplied.
+	FixedSizeMode bool
+	FixedSize     *Resolution
+
 	// ExplorerTrial requests an isolated native collection in a new directory.
 	ExplorerTrial    string
 	LocationMapTrial string
@@ -54,6 +58,16 @@ type Options struct {
 	// because it also bounds the non-recursive sibling expansion of a single
 	// opened image (filescan.Siblings).
 	MaxFiles *int
+}
+
+// Resolution measures the entire screenshot window in physical pixels.
+type Resolution struct {
+	Width, Height int
+}
+
+// ScreenshotResolutions returns a fresh value, so callers cannot alter presets.
+func ScreenshotResolutions() [4]Resolution {
+	return [4]Resolution{{1280, 800}, {1440, 900}, {2560, 1600}, {2880, 1800}}
 }
 
 // sortModes is every value --sort accepts, in the order the usage text lists
@@ -79,6 +93,23 @@ type spec struct {
 }
 
 var flagSpecs = []spec{
+	{
+		name: "fixed-size-mode",
+		help: "pick a fixed screenshot size with Up/Down and Return (or =1280x800, =1440x900, =2560x1600, =2880x1800)",
+		set: func(o *Options, raw string) error {
+			if enabled, err := strconv.ParseBool(raw); err == nil {
+				o.FixedSizeMode, o.FixedSize = enabled, nil
+				return nil
+			}
+			for _, size := range ScreenshotResolutions() {
+				if raw == fmt.Sprintf("%dx%d", size.Width, size.Height) {
+					o.FixedSizeMode, o.FixedSize = true, &size
+					return nil
+				}
+			}
+			return errors.New("want true, false, 1280x800, 1440x900, 2560x1600 or 2880x1800")
+		},
+	},
 	{
 		name: "location-map-trial",
 		arg:  "DIR",
@@ -280,7 +311,7 @@ func Usage() string {
 	for _, s := range flagSpecs {
 		b.WriteString(fmt.Sprintf("  %-*s  %s\n", width, flagLabel(s), s.help))
 	}
-	b.WriteString(fmt.Sprintf("  %-*s  %s\n", width, "--help", "print this help and exit"))
+	b.WriteString(fmt.Sprintf("  %-*s  %s\n", width, "--help", "show help and exit (Ctrl+C skips terminal animation)"))
 
 	b.WriteString("\nFlags may appear anywhere among the paths, and -flag reads the same as\n")
 	b.WriteString("--flag. Use -- to end flag parsing, for a path that starts with a dash.\n")

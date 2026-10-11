@@ -226,6 +226,7 @@ set up the launch. Run `picfetch --help` for the same list.
 
 | Flag | Effect |
 |------|--------|
+| `--fixed-size-mode` | Pick 1280 x 800, 1440 x 900, 2560 x 1600 or 2880 x 1800 with Up/Down and Return; constrain app windows for screenshots. |
 | `--slideshow` | Start in picture-frame mode once the given files have loaded. |
 | `--shuffle` | Advance to a random file in picture-frame mode. |
 | `--interval=DURATION` | Picture-frame auto-advance interval, e.g. `8s` or `1m30s`. |
@@ -249,6 +250,27 @@ A photo frame that starts with the machine is then just:
 ```sh
 picfetch --slideshow --shuffle --interval=20s /srv/photos
 ```
+
+For screenshot sessions, run the executable directly from a terminal:
+
+```sh
+picfetch -fixed-size-mode
+# Optional preset for scripts:
+picfetch -fixed-size-mode=1280x800 ~/photos
+# Packaged macOS application:
+/path/to/PicFetch.app/Contents/MacOS/PicFetch -fixed-size-mode
+```
+
+Dimensions are physical pixels of the whole window, including its title bar.
+Main and secondary PicFetch windows keep that size; image fitting, Grid, Explorer,
+Location Map, picture-frame and Spiral cannot enlarge them or enter fullscreen.
+Saved window geometry is preserved. Native OS file dialogs retain their OS sizing.
+On macOS use a window capture without a shadow: Cmd+Shift+4, Space, then hold
+Option while clicking the window. Shadows add pixels outside the selected size.
+The exact sizes have been measured on Retina macOS; native Windows/X11 captures
+still need qualification. If native decorations cannot be measured (including
+Wayland), the content size remains scaled correctly, but the title-bar/frame
+allowance is unavailable and logged; exact whole-window pixels are unverified.
 
 ## Building
 

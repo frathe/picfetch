@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"testing"
@@ -101,11 +102,11 @@ func TestHEICAnalysisWorkerReportsBackendLoss(t *testing.T) {
 				defer cancel()
 				run := func() error {
 					if kind == "finite" {
-						return (Client{}).Analyze(ctx, nil, nil, func(_ Event) {})
+						return heicCaptureClient().Analyze(ctx, nil, nil, func(_ Event) {})
 					}
 					queries := make(chan SearchQuery)
 					close(queries)
-					return (Client{}).Search(ctx, SearchRequest{SessionID: 1}, queries, func(_ SearchEvent) {})
+					return heicCaptureClient().Search(ctx, SearchRequest{SessionID: 1}, queries, func(_ SearchEvent) {})
 				}
 				if err := run(); err != nil {
 					t.Fatal(err)
@@ -140,7 +141,7 @@ func TestHEICAnalysisWorkerCapturedPolicy(t *testing.T) {
 	for _, snapshot := range []heic.Snapshot{{}, {Available: true, Generation: 2}, {Backend: backend, Available: false, Generation: 3}, {Backend: backend, Available: true, Generation: 4}} {
 		ctx, cancel := context.WithTimeout(heic.WithSnapshot(context.Background(), snapshot), 10*time.Second)
 		var actual heicCaptureReport
-		err := (Client{}).Analyze(ctx, nil, nil, func(event Event) {
+		err := heicCaptureClient().Analyze(ctx, nil, nil, func(event Event) {
 			if err := json.Unmarshal([]byte(event.CacheWarning), &actual); err != nil {
 				t.Error(err)
 			}
@@ -159,7 +160,7 @@ func TestHEICAnalysisWorkerCapturedPolicy(t *testing.T) {
 	defer cancel()
 	queries := make(chan SearchQuery, 1)
 	var finals int
-	err := (Client{}).Search(ctx, SearchRequest{SessionID: 77}, queries, func(event SearchEvent) {
+	err := heicCaptureClient().Search(ctx, SearchRequest{SessionID: 77}, queries, func(event SearchEvent) {
 		var actual heicCaptureReport
 		if err := json.Unmarshal([]byte(event.CacheWarning), &actual); err != nil {
 			t.Error(err)
@@ -184,4 +185,12 @@ func TestHEICAnalysisWorkerCapturedPolicy(t *testing.T) {
 	if err != nil || finals != 2 {
 		t.Fatalf("retained request did not settle both references: finals=%d error=%v", finals, err)
 	}
+}
+
+func heicCaptureClient() Client {
+	return Client{command: func(ctx context.Context, executable string) *exec.Cmd {
+		cmd := exec.CommandContext(ctx, executable)
+		cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+		return cmd
+	}}
 }

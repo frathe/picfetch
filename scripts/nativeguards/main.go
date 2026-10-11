@@ -87,7 +87,8 @@ func suiteFor(name, hostOS string) (suite, error) {
 		s.goos = "windows"
 		s.require("internal/wallpaper", "TestSetWindows_TargetPreservesOpaqueIDAndUnicodePath", "TestSetWindows_TargetValidationFailsBeforeMutation")
 		s.require("internal/clipboard", "TestCopyFilesWindows_DecodesUTF8WithNonUTF8Default")
-		s.require("internal/filepicker", "TestWindowsPickerTransport_EmitsUTF8PathArrays")
+		s.require("internal/filepicker", "TestWindowsPickerTransport_EmitsUTF8PathArrays", "TestWindowsSaveTransport_PathIsData")
+		s.require("internal/trash", "TestWindowsTrashTransport_PathIsData")
 		s.require("internal/update", "TestApplyWindows_ReplacesDestAndKeepsOld", "TestApplyWindows_MissingStagedBinaryRestoresDest", "TestWindowsRelaunchCommand_PassesThePIDInTheInheritedEnvironment", "TestClassifyApplyError_WindowsErrno", "TestWaitMilliseconds_NeverConvertsToAnUnboundedWait")
 		s.require("internal/ui/autoupdate", "TestUpdater_AutomaticAndManualShareCompleteTransaction", "TestApplyStagedUpdate_SuccessRemovesTheStageOnEveryPlatform")
 		s.require("internal/distribution", "TestStoreManaged_DefaultBuildIsFalse")

@@ -2,13 +2,17 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
@@ -550,6 +554,8 @@ func TestHandleDrop_SupersededScanGoroutineExits(t *testing.T) {
 
 	dropAndWait(t, v, jpegB)
 	releaseListing()
+	v.scanWorkers.Wait()
+	settleScan(t, v)
 	waitHandle(t, "the superseded scan's goroutine to exit", scanA)
 
 	if visitedChild {
@@ -707,4 +713,61 @@ func TestHandleDrop_SiblingScanTruncationToast(t *testing.T) {
 			settleToast(t, v)
 		})
 	}
+}
+
+func TestNativeSelectionOpeningOwnership(t *testing.T) {
+	t.Run("cancel_during_capture", func(t *testing.T) {
+		v := newTestViewer(t)
+		original := uitest.TempJPEGURI(t, "original.jpg", 4, 4, color.White)
+		dropAndWait(t, v, original)
+		var entered completion.Signal
+		markEntered := entered.Begin()
+		gate := make(chan struct{})
+		releaseCapture := sync.OnceFunc(func() { close(gate) })
+		t.Cleanup(releaseCapture)
+		var released atomic.Int32
+		input := fileaccess.NewSelection(original, func(_ context.Context) (fileaccess.Record, error) {
+			markEntered()
+			<-gate
+			return fileaccess.Record{URI: original.String(), Bookmark: []byte("scope")}, nil
+		}, func() { released.Add(1) })
+		v.handleDrop([]fyne.URI{input})
+		waitFor(t, "native capture entered without blocking UI", &entered)
+		v.cancelScan()
+		if released.Load() != 0 {
+			t.Fatal("cancel released an actively used native URL")
+		}
+		releaseCapture()
+		waitForScan(t, v)
+		if released.Load() != 1 || v.FileCount() != 1 || v.state.Observe().FileAt(0).String() != original.String() {
+			t.Fatalf("cancelled capture changed collection or leaked URL; releases=%d", released.Load())
+		}
+	})
+	t.Run("capture_failure_preserves_collection", func(t *testing.T) {
+		v := newTestViewer(t)
+		original := uitest.TempJPEGURI(t, "original.jpg", 4, 4, color.White)
+		dropAndWait(t, v, original)
+		released := 0
+		input := fileaccess.NewSelection(original, func(_ context.Context) (fileaccess.Record, error) {
+			return fileaccess.Record{}, errors.New("fixture capture denied")
+		}, func() { released++ })
+		v.handleDrop([]fyne.URI{input})
+		waitForScan(t, v)
+		if released != 1 || v.FileCount() != 1 || v.scanOp.active {
+			t.Fatal("failed capture did not retire cleanly")
+		}
+	})
+	t.Run("rejected_input_releases_without_capture", func(t *testing.T) {
+		v := newTestViewer(t)
+		v.stopping = true
+		released := 0
+		input := fileaccess.NewSelection(storage.NewFileURI("/selected.jpg"), func(_ context.Context) (fileaccess.Record, error) {
+			t.Fatal("rejected native input was captured")
+			return fileaccess.Record{}, nil
+		}, func() { released++ })
+		v.handleDrop([]fyne.URI{input})
+		if released != 1 || v.scanOp.done.Begun() {
+			t.Fatal("rejected native selection was retained or admitted")
+		}
+	})
 }

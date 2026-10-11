@@ -34,6 +34,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // queue buffers URIs that arrive before a handler is installed, and hands
@@ -42,6 +44,7 @@ type queue struct {
 	mu      sync.Mutex
 	pending []fyne.URI
 	handler func([]fyne.URI)
+	stopped bool
 }
 
 // Deliver adds uris to the queue: passed to the installed handler
@@ -54,6 +57,11 @@ func (q *queue) Deliver(uris []fyne.URI) {
 	}
 
 	q.mu.Lock()
+	if q.stopped {
+		q.mu.Unlock()
+		fileaccess.ReleaseSelected(uris)
+		return
+	}
 	h := q.handler
 	if h == nil {
 		q.pending = append(q.pending, uris...)
@@ -70,13 +78,15 @@ func (q *queue) Deliver(uris []fyne.URI) {
 // outside the lock. Doing both under one lock acquisition is the point: a
 // separate "drain, then install" pair would lose anything that arrives via
 // Deliver between the two steps. SetHandler(nil) clears the handler
-// (used at shutdown) without discarding whatever is currently pending -
+// without discarding whatever is currently pending -
 // there's no handler to flush it to, so it's left in the queue rather than
 // taken and dropped, and picks up right where it left off the next time
-// something is delivered or a real handler is installed.
+// something is delivered or a real handler is installed. Stop instead discards
+// pending ownership and refuses late delivery; SetHandler reopens admission.
 func (q *queue) SetHandler(h func([]fyne.URI)) {
 	q.mu.Lock()
 	q.handler = h
+	q.stopped = false
 
 	var pending []fyne.URI
 	if h != nil {
@@ -151,4 +161,17 @@ func URIsFromFileURLs(raw []string) []fyne.URI {
 	}
 
 	return uris
+}
+
+// Stop closes native-event admission and discards pending ownership without
+// waiting for capture. SetHandler explicitly attaches a fresh viewer afterward.
+func Stop() { defaultQueue.stop() }
+
+func (q *queue) stop() {
+	q.mu.Lock()
+	q.stopped, q.handler = true, nil
+	pending := q.pending
+	q.pending = nil
+	q.mu.Unlock()
+	fileaccess.ReleaseSelected(pending)
 }

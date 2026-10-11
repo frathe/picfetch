@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/frathe/picfetch/internal/distribution"
+	"github.com/frathe/picfetch/internal/macbundle"
 )
 
 //go:embed assets.sha256
@@ -111,20 +112,27 @@ func VerifyAssets(ctx context.Context, root string) error {
 	if err != nil {
 		return err
 	}
+	if err := verifyAssetFiles(ctx, root, "vision_model.onnx", "preprocessor_config.json"); err != nil {
+		return err
+	}
 	nativeRoot, err := runtimeDirectory(root)
 	if err != nil {
 		return err
 	}
-	return verifyAssetDirectories(ctx, root, nativeRoot, asset)
+	return verifyRuntime(ctx, nativeRoot, asset)
 }
 
-// Store native code is installed beside the executable. Model/cache overrides
+// Store native code has a fixed bundle/package location. Model/cache overrides
 // must never select another runtime or cause it to be copied into the cache.
 func runtimeDirectory(modelRoot string) (string, error) {
 	// The Store build tag selects the other branch.
 	//goland:noinspection GoBoolExpressions
 	if !distribution.StoreManaged {
 		return modelRoot, nil
+	}
+	//goland:noinspection GoBoolExpressions
+	if distribution.AppleAppStore {
+		return macbundle.CurrentRuntimeDirectory()
 	}
 	executable, err := os.Executable()
 	if err != nil {
@@ -133,14 +141,25 @@ func runtimeDirectory(modelRoot string) (string, error) {
 	return filepath.Dir(executable), nil
 }
 
-func verifyAssetDirectories(ctx context.Context, modelRoot, nativeRoot string, asset runtimeAsset) error {
-	if err := verifyAssetFiles(ctx, modelRoot, "vision_model.onnx", "preprocessor_config.json"); err != nil {
-		return err
+func runtimeLibraryPath(root string, asset runtimeAsset) string {
+	//goland:noinspection GoBoolExpressions
+	if distribution.AppleAppStore {
+		return filepath.Join(root, filepath.Base(asset.library))
 	}
-	return verifyRuntime(ctx, nativeRoot, asset)
+	return filepath.Join(root, asset.directory, asset.library)
 }
 
 func verifyRuntime(ctx context.Context, root string, asset runtimeAsset) error {
+	//goland:noinspection GoBoolExpressions
+	if distribution.AppleAppStore {
+		return macbundle.VerifyLibrary(ctx, root, runtimeLibraryPath(root, asset), runtime.GOARCH)
+	}
+	return verifyRuntimePayload(ctx, root, asset)
+}
+
+// Packaging verifies original payload bytes before any code signing, regardless
+// of the tool's distribution tag. Runtime signature checks are a separate gate.
+func verifyRuntimePayload(ctx context.Context, root string, asset runtimeAsset) error {
 	names := []string{asset.directory + "/" + asset.library}
 	for _, name := range asset.supportLibraries {
 		names = append(names, asset.directory+"/"+name)

@@ -3,6 +3,7 @@ package imaging
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"image"
 	"image/gif"
@@ -18,6 +19,8 @@ import (
 	"golang.org/x/image/tiff"
 
 	"github.com/gen2brain/avif"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // jpegSaveQuality is used instead of image/jpeg's own default (75, quite
@@ -96,23 +99,32 @@ func SaveRotated(u fyne.URI, img image.Image) error {
 
 // SaveRotatedContext holds the selected file's transaction through replacement.
 func SaveRotatedContext(ctx context.Context, u fyne.URI, img image.Image) (WriteResult, error) {
-	return fileTransactions.write(ctx, u.Path(), true, func(path string) (bool, error) {
-		err := saveRotated(ctx, path, img)
-		return err == nil, err
+	var digest SourceDigest
+	result, err := writeWithAccess(ctx, u, true, func(path string) (bool, error) {
+		var writeErr error
+		digest, writeErr = saveRotated(ctx, path, img)
+		return writeErr == nil, writeErr
 	})
+	if err != nil {
+		return result, err
+	}
+	if result.Committed {
+		result.Digest = digest
+	}
+	return result, nil
 }
 
-func saveRotated(ctx context.Context, path string, img image.Image) error {
+func saveRotated(ctx context.Context, path string, img image.Image) (SourceDigest, error) {
 	ext := filepath.Ext(path)
 	encode, ok := encoders[strings.ToLower(ext)]
 	if !ok {
-		return &UnsupportedSaveFormatError{ext: ext}
+		return SourceDigest{}, &UnsupportedSaveFormatError{ext: ext}
 	}
 
 	if isJPEGExt(ext) {
 		orig, err := readFileContext(ctx, path)
 		if err != nil {
-			return err
+			return SourceDigest{}, err
 		}
 		encode = func(w io.Writer, img image.Image) error {
 			var corrected image.Point
@@ -125,10 +137,14 @@ func saveRotated(ctx context.Context, path string, img image.Image) error {
 
 	info, err := os.Stat(path)
 	if err != nil {
-		return err
+		return SourceDigest{}, err
 	}
 
-	return writeEncodedContext(ctx, path, info.Mode().Perm(), encode, img)
+	digest := sha256.New()
+	err = writeFileContext(ctx, path, info.Mode().Perm(), func(w io.Writer) error { return encode(io.MultiWriter(w, digest), img) })
+	var sum SourceDigest
+	copy(sum[:], digest.Sum(nil))
+	return sum, err
 }
 
 // defaultExportPerm is what a file Export creates from scratch gets, the
@@ -143,6 +159,8 @@ const defaultExportPerm = 0o644
 // wallpaper and mosaic paths, which write generated pixels with no source
 // file at all) passes ExportOptions{} and gets exactly that.
 type ExportOptions struct {
+	SourceDigest SourceDigest
+
 	// FallbackExt selects an encoder when the exact destination has no
 	// supported extension. Native save callers set this from the chosen format;
 	// the destination path is never changed after confirmation. Empty retains
@@ -159,6 +177,9 @@ type ExportOptions struct {
 	// StripJPEGMetadata's irreversible in-place metadata removal. The colour
 	// profile still survives; see encodeJPEGKeepingICC.
 	OmitMetadata bool
+	// VerifySource binds reread metadata to the pixels' decoded source. A missing
+	// or mismatched digest yields a pixel-only export, including color profiles.
+	VerifySource bool
 }
 
 // Export writes img to the exact dest path, using its supported extension or
@@ -184,7 +205,7 @@ func Export(dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) er
 // ExportContext participates in the same resolved-destination transaction as
 // Save Changes and metadata removal, including aliases through parent directories.
 func ExportContext(ctx context.Context, dest fyne.URI, img image.Image, src fyne.URI, opts ExportOptions) (WriteResult, error) {
-	return fileTransactions.write(ctx, dest.Path(), true, func(path string) (bool, error) {
+	return writeWithAccess(ctx, dest, true, func(path string) (bool, error) {
 		err := exportImage(ctx, path, dest.Extension(), img, src, opts)
 		return err == nil, err
 	})
@@ -215,7 +236,7 @@ func exportImage(ctx context.Context, path, ext string, img image.Image, src fyn
 	}
 
 	if isJPEGExt(ext) && src != nil && src.Path() != "" {
-		if orig, err := jpegFileBytesContext(ctx, src.Path()); err == nil && orig != nil {
+		if orig, err := jpegSourceBytesContext(ctx, src); err == nil && orig != nil && (!opts.VerifySource || opts.SourceDigest == sha256.Sum256(orig)) {
 			// Answered here, once, while both frames are still in scope
 			// under their own names: out is what will be written, img is
 			// what arrived. Inside the closure below only one of them has a
@@ -309,13 +330,13 @@ func jpegFileBytesContext(ctx context.Context, path string) ([]byte, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
-	return io.ReadAll(contextRead{ctx: ctx, in: f})
+	return readMutationSource(ctx, f)
 }
 
-// writeEncodedContext encodes img into a temp file in path's own directory and
+// writeEncodedContext encodes img into a same-volume staging file and
 // renames it over path only once the encode has fully succeeded, so a
 // failed or interrupted encode can never leave the destination truncated or
-// corrupted - and, since the rename is within one directory, never leaves a
+// corrupted - and, since the rename stays on one volume, never leaves a
 // half-written file where the caller asked for a whole one either. Shared
 // by SaveRotated (overwriting the file on screen) and Export (writing a
 // copy elsewhere), which differ only in how they arrive at path, perm, and
@@ -324,18 +345,25 @@ func writeEncodedContext(ctx context.Context, path string, perm os.FileMode, enc
 	return writeFileContext(ctx, path, perm, func(w io.Writer) error { return encode(w, img) })
 }
 
-// writeFileContext is writeEncodedContext's underlying atomic write, generalized to any
-// write func rather than an (encode, img) pair: temp file in path's own
-// directory, Chmod(perm), write, Sync, Close, Rename - so a failed or
-// interrupted write can never leave the destination truncated or
-// corrupted, and never leaves a half-written file behind either, since the
-// rename stays within one directory. StripJPEGMetadata uses this directly
-// (writing already-encoded bytes rather than encoding an image.Image).
+// writeFileContext performs the atomic write shared by image encoding and
+// metadata stripping: stage, chmod, write, sync, close, cancellation check, rename.
+// Apple Store builds use Foundation's private replacement directory because a
+// file-only grant cannot create siblings. Other builds stage beside the target.
+// Both routes preserve atomic same-volume replacement and cleanup on failure.
 func writeFileContext(ctx context.Context, path string, perm os.FileMode, write func(io.Writer) error) error {
+	return writeFileContextChecked(ctx, path, perm, write, nil)
+}
+
+func writeFileContextChecked(ctx context.Context, path string, perm os.FileMode, write func(io.Writer) error, check func() error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".picfetch-save-*"+filepath.Ext(path))
+	directory, cleanup, err := writeStagingDirectory(path)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	tmp, err := os.CreateTemp(directory, ".picfetch-save-*"+filepath.Ext(path))
 	if err != nil {
 		return err
 	}
@@ -364,6 +392,11 @@ func writeFileContext(ctx context.Context, path string, perm os.FileMode, write 
 		return err
 	}
 
+	if check != nil {
+		if err := check(); err != nil {
+			return err
+		}
+	}
 	return os.Rename(tmpPath, path)
 }
 
@@ -380,15 +413,31 @@ func StripJPEGMetadata(u fyne.URI) error {
 
 // StripJPEGMetadataContext serializes the source read as well as its rewrite.
 func StripJPEGMetadataContext(ctx context.Context, u fyne.URI) (WriteResult, error) {
-	return fileTransactions.write(ctx, u.Path(), false, func(path string) (bool, error) {
-		return stripJPEGMetadata(ctx, path)
+	return writeWithAccess(ctx, u, false, func(path string) (bool, error) {
+		return stripJPEGMetadata(ctx, path, nil, writeFileContextChecked)
 	})
 }
 
-func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
-	data, err := readJPEGRemovalSource(ctx, path)
+// StripJPEGMetadataVerified refuses a reread whose identity or bytes differ
+// from the inspected snapshot. Scoped resolution and reads stay inside its turn.
+func StripJPEGMetadataVerified(ctx context.Context, u fyne.URI, expected SourceVersion) (WriteResult, error) {
+	if !expected.Valid() {
+		return WriteResult{}, ErrSourceChanged
+	}
+	return writeWithAccess(ctx, u, false, func(path string) (bool, error) {
+		return stripJPEGMetadata(ctx, path, &expected, writeFileContextChecked)
+	})
+}
+
+type checkedFileWriter func(context.Context, string, os.FileMode, func(io.Writer) error, func() error) error
+
+func stripJPEGMetadata(ctx context.Context, path string, expected *SourceVersion, write checkedFileWriter) (bool, error) {
+	data, info, err := readJPEGRemovalSourceVersion(ctx, path)
 	if err != nil {
 		return false, err
+	}
+	if expected != nil && !expected.matches(data, info) {
+		return false, ErrSourceChanged
 	}
 	p, err := prepareJPEGRemoval(ctx, data)
 	if err != nil {
@@ -398,47 +447,85 @@ func stripJPEGMetadata(ctx context.Context, path string) (bool, error) {
 		return false, nil
 	}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		return false, err
+	digest := sha256.Sum256(data)
+	check := func() error {
+		return checkJPEGRemovalSource(ctx, path, info, digest)
 	}
-
-	err = writeFileContext(ctx, path, info.Mode().Perm(), func(w io.Writer) error {
+	err = write(ctx, path, info.Mode().Perm(), func(w io.Writer) error {
 		_, err := w.Write(p.output)
 		return err
-	})
+	}, check)
 	return err == nil, err
 }
 
-func readJPEGRemovalSource(ctx context.Context, path string) ([]byte, error) {
+// checkJPEGRemovalSource streams the current bytes before replacement without
+// retaining another full source buffer. This is a final check, not filesystem CAS.
+func checkJPEGRemovalSource(ctx context.Context, path string, original os.FileInfo, digest SourceDigest) error {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	unchanged := func(current os.FileInfo) bool {
+		return os.SameFile(original, current) && current.Size() == original.Size() && current.ModTime().Equal(original.ModTime())
+	}
+	current, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if !unchanged(current) {
+		return ErrSourceChanged
+	}
+	hash := sha256.New()
+	n, err := io.Copy(hash, contextRead{ctx: ctx, in: io.LimitReader(f, original.Size()+1)})
+	if err != nil {
+		return err
+	}
+	if n != original.Size() || !bytes.Equal(hash.Sum(nil), digest[:]) {
+		return ErrSourceChanged
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	current, err = os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !unchanged(current) {
+		return ErrSourceChanged
+	}
+	return nil
+}
+
+func readJPEGRemovalSourceVersion(ctx context.Context, path string) ([]byte, os.FileInfo, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, nil, err
 	}
 	defer func() { _ = f.Close() }()
 	configuredLimit := MaxEncodedBytes()
 	limit := min(configuredLimit, jpegRemovalSourceBytes)
 	info, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if info.Size() > configuredLimit {
-		return nil, &InputTooLargeError{limit: configuredLimit}
+		return nil, nil, &InputTooLargeError{limit: configuredLimit}
 	}
 	if info.Size() > jpegRemovalSourceBytes {
-		return nil, ErrJPEGMetadataMemory
+		return nil, nil, ErrJPEGMetadataMemory
 	}
 	data, err := io.ReadAll(contextRead{ctx: ctx, in: io.LimitReader(f, limit+1)})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if int64(len(data)) > limit {
 		if limit < configuredLimit {
-			return nil, ErrJPEGMetadataMemory
+			return nil, nil, ErrJPEGMetadataMemory
 		}
-		return nil, &InputTooLargeError{limit: limit}
+		return nil, nil, &InputTooLargeError{limit: limit}
 	}
-	return data, nil
+	return data, info, nil
 }
 
 // CanStripJPEGMetadata is the compatibility predicate for the shared inspection.
@@ -456,4 +543,13 @@ type UnsupportedSaveFormatError struct {
 
 func (e *UnsupportedSaveFormatError) Error() string {
 	return "saving " + e.ext + " images isn't supported"
+}
+
+func jpegSourceBytesContext(ctx context.Context, source fyne.URI) ([]byte, error) {
+	resolved, release, err := fileaccess.Acquire(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return jpegFileBytesContext(ctx, resolved.Path())
 }

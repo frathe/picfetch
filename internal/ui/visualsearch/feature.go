@@ -4,6 +4,8 @@ package visualsearch
 import (
 	"slices"
 
+	"fyne.io/fyne/v2"
+
 	"github.com/frathe/picfetch/internal/fileidentity"
 	"github.com/frathe/picfetch/internal/heic"
 	"github.com/frathe/picfetch/internal/similarity"
@@ -41,6 +43,7 @@ type Options struct {
 
 // StartRequest fixes the original scope and waits for prior native retirement.
 type StartRequest struct {
+	Access        []fyne.URI
 	Paths         []string
 	ReferencePath string
 	Cache         similarity.CachePolicy
@@ -57,6 +60,7 @@ type State struct {
 // Feature is UI-owned. Workers capture immutable requests and deliver through
 // Queue; Wait and Settle are the only blocking lifecycle observations.
 type Feature struct {
+	access                         []fyne.URI
 	heic                           *heic.Capability
 	host                           Host
 	provider                       similarity.SearchProvider
@@ -115,6 +119,7 @@ func (f *Feature) Start(request StartRequest) bool {
 	f.clear()
 	f.active = true
 	f.scope = slices.Clone(request.Paths)
+	f.access = slices.Clone(request.Access)
 	f.cache = request.Cache
 	f.progress = grid.Progress{Total: len(f.scope)}
 	f.preparing = true
@@ -263,6 +268,7 @@ func (f *Feature) clear() {
 	f.invalidateQuery()
 	f.active, f.preparing = false, false
 	f.scope, f.history = nil, nil
+	f.access = nil
 	f.initialGrid = nil
 	f.progress = grid.Progress{}
 }

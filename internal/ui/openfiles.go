@@ -61,6 +61,7 @@ func (v *viewer) runFileChooser(token requestlife.Token, choose func() ([]fyne.U
 // until it returns, so shutdown must not wait for that external interaction.
 func (v *viewer) closeOpenChooser() {
 	v.openChooserClosed = true
+	v.osInputs.stop()
 	v.openChooserLifecycle.Invalidate()
 }
 

@@ -3,10 +3,13 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // cacheKey names the cache entry Save/Load read and write via app.Cache() -
@@ -20,7 +23,8 @@ const cacheKey = "session.json"
 // format can grow a field later without breaking decode of what's already
 // on disk.
 type state struct {
-	Files []string `json:"files"`
+	Files  []string             `json:"files"`
+	Access *fileaccess.Manifest `json:"access,omitempty"`
 }
 
 // Save records files as the session offered on the next launch. An empty
@@ -43,13 +47,22 @@ func Save(app fyne.App, files []fyne.URI) {
 	for i, u := range files {
 		uris[i] = u.String()
 	}
+	manifest, err := fileaccess.Pack(context.Background(), files)
+	if err != nil {
+		fyne.LogError("failed to capture session", err)
+		return
+	}
+	var access *fileaccess.Manifest
+	if len(manifest.Scopes) != 0 {
+		access = &manifest
+	}
 
 	w, err := cache.Write(cacheKey)
 	if err != nil {
 		fyne.LogError("failed to save session", err)
 		return
 	}
-	if err := json.NewEncoder(w).Encode(state{Files: uris}); err != nil {
+	if err := json.NewEncoder(w).Encode(state{Files: uris, Access: access}); err != nil {
 		_ = w.Close()
 		fyne.LogError("failed to save session", err)
 		return
@@ -82,6 +95,22 @@ func Load(app fyne.App) []fyne.URI {
 	var s state
 	if err := json.NewDecoder(r).Decode(&s); err != nil {
 		return nil
+	}
+
+	if s.Access != nil {
+		if len(s.Access.Sources) != len(s.Files) {
+			return nil
+		}
+		for i, source := range s.Access.Sources {
+			if source.URI != s.Files[i] {
+				return nil
+			}
+		}
+		uris, err := fileaccess.Unpack(context.Background(), *s.Access)
+		if err != nil {
+			return nil
+		}
+		return uris
 	}
 
 	uris := make([]fyne.URI, 0, len(s.Files))

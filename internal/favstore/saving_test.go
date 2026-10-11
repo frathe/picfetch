@@ -1,11 +1,15 @@
 package favstore
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
@@ -233,5 +237,68 @@ func testFavoriteSaveCancellation(t *testing.T) {
 				t.Fatalf("publication result = %+v, %v", definition, err)
 			}
 		})
+	}
+}
+
+func TestFavoriteSavePreservesAuthorityForEachOccurrence(t *testing.T) {
+	var files []fyne.URI
+	for _, bookmark := range []string{"first-folder", "second-folder"} {
+		source, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///photos/a.jpg", Bookmark: []byte(bookmark), Directory: true, Relative: "a.jpg"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, source)
+	}
+	files = append(files, storage.NewFileURI("/photos/plain.jpg"), files[0])
+	ctx := context.Background()
+	store := &Store{}
+	target, err := store.Capture(ctx, t.TempDir(), "Scoped")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.Save(ctx, target, files)
+	if err != nil || !result.Committed {
+		t.Fatalf("save: %+v, %v", result, err)
+	}
+	reopened, err := store.Open(ctx, result.Definition.Owner.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, definition := range []Definition{result.Definition, reopened} {
+		got := definition.Files()
+		if len(got) != 4 {
+			t.Fatalf("restored %d occurrences, want 4", len(got))
+		}
+		for i := range files {
+			if !reflect.DeepEqual(fileaccess.Snapshot(got[i]), fileaccess.Snapshot(files[i])) {
+				t.Fatalf("occurrence %d lost its authority: %+v", i, fileaccess.Snapshot(got[i]))
+			}
+		}
+	}
+}
+
+func TestFavoriteSharedFolderGrantFitsDefinitionBudget(t *testing.T) {
+	root, err := fileaccess.FromRecord(fileaccess.Record{URI: "file:///photos", Bookmark: bytes.Repeat([]byte("x"), 128*1024), Directory: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := fileaccess.Child(root, storage.NewFileURI("/photos/a.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := make([]fyne.URI, 1024)
+	for i := range files {
+		files[i] = source
+	}
+	dir := t.TempDir()
+	if err := Save(dir, "Folder", files); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := Load(dir, "Folder")
+	if err != nil || len(restored) != 1024 {
+		t.Fatalf("shared grant round trip: %d, %v", len(restored), err)
+	}
+	if got := fileaccess.Snapshot(restored[1023]); len(got.Bookmark) != 128*1024 || got.Relative != "a.jpg" {
+		t.Fatal("last occurrence lost the shared grant")
 	}
 }

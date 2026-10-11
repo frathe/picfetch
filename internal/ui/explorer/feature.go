@@ -70,6 +70,7 @@ type Options struct {
 
 // OpenRequest captures a prepared collection and its cache policy at admission.
 type OpenRequest struct {
+	Access                    []fyne.URI
 	Sources                   []string
 	FavoriteDir, FavoritesDir string
 	GeneralAnalysisDir        string

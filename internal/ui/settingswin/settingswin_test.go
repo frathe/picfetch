@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/appearance"
+	"github.com/frathe/picfetch/internal/distribution"
 	"github.com/frathe/picfetch/internal/filesort"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
@@ -938,7 +939,11 @@ func TestUpdatesTab_MicrosoftStoreOwnsUpdates(t *testing.T) {
 	if w.updateManaged == nil {
 		t.Fatal("Microsoft Store update explanation is missing")
 	}
-	if got, want := w.updateManaged.Text, "Updates are managed by Microsoft Store."; got != want {
+	want := "Updates are managed by Microsoft Store."
+	if distribution.AppleAppStore {
+		want = "Updates are managed by Mac App Store."
+	}
+	if got := w.updateManaged.Text; got != want {
 		t.Errorf("update explanation = %q, want %q", got, want)
 	}
 	if !containsCanvasObject(updates, w.updateManaged) {
@@ -950,6 +955,10 @@ func TestUpdatesTab_MicrosoftStoreOwnsUpdates(t *testing.T) {
 }
 
 func TestUpdatesTabLaunchPolicy(t *testing.T) {
+	storeExplanation := "Updates are managed by Microsoft Store."
+	if distribution.AppleAppStore {
+		storeExplanation = "Updates are managed by Mac App Store."
+	}
 	for _, tc := range []struct {
 		name           string
 		purpose        launch.Purpose
@@ -957,11 +966,11 @@ func TestUpdatesTabLaunchPolicy(t *testing.T) {
 		want           []string
 	}{
 		{"ordinary_portable", launch.Ordinary, false, false, nil},
-		{"ordinary_store", launch.Ordinary, true, false, []string{"Updates are managed by Microsoft Store."}},
+		{"ordinary_store", launch.Ordinary, true, false, []string{storeExplanation}},
 		{"explorer_portable", launch.ExplorerTrial, false, false, []string{"Updates are unavailable in this session"}},
-		{"explorer_store", launch.ExplorerTrial, true, false, []string{"Updates are managed by Microsoft Store.", "Updates are unavailable in this session"}},
+		{"explorer_store", launch.ExplorerTrial, true, false, []string{storeExplanation, "Updates are unavailable in this session"}},
 		{"location_map_portable", launch.LocationMapTrial, false, false, []string{"Updates are unavailable in this session"}},
-		{"location_map_store", launch.LocationMapTrial, true, false, []string{"Updates are managed by Microsoft Store.", "Updates are unavailable in this session"}},
+		{"location_map_store", launch.LocationMapTrial, true, false, []string{storeExplanation, "Updates are unavailable in this session"}},
 		{"missing_policy", launch.Ordinary, false, true, []string{"Updates are unavailable in this session"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/launch"
 	"github.com/frathe/picfetch/internal/preferences"
+	"github.com/frathe/picfetch/internal/screenshots"
 	"github.com/frathe/picfetch/internal/session"
 	"github.com/frathe/picfetch/internal/ui/autoupdate"
 )
@@ -40,6 +41,10 @@ func loadStartupState(application fyne.App) startupState {
 // buildStartupViewer is the shared load, construct, then restore entry point.
 // It leaves noPollerStop installed for startViewerRuntime to replace.
 func buildStartupViewer(application fyne.App, policy launch.Policy, resolveOrdinary func(fyne.App) (launch.Storage, error)) (*viewer, fyne.Window, error) {
+	return buildStartupViewerForLaunch(application, policy, resolveOrdinary, launch.Options{})
+}
+
+func buildStartupViewerForLaunch(application fyne.App, policy launch.Policy, resolveOrdinary func(fyne.App) (launch.Storage, error), opts launch.Options) (*viewer, fyne.Window, error) {
 	if !policy.Valid() {
 		return nil, nil, launch.ErrInvalidPolicy
 	}
@@ -58,7 +63,13 @@ func buildStartupViewer(application fyne.App, policy launch.Policy, resolveOrdin
 	startup := loadStartupState(application)
 	startup.policy = policy
 	startup.storage = selected
+	if opts.FixedSize != nil {
+		application = screenshots.App(application, opts.FixedSize.Width, opts.FixedSize.Height)
+	}
 	view, window := buildViewer(application, startup)
+	if opts.FixedSize != nil {
+		view.launchOverride.geometry = &startup.prefs
+	}
 	restoreStartupGeometry(view, window, startup)
 	return view, window, nil
 }

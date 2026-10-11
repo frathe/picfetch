@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"image/color"
 	"image/png"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -449,12 +452,15 @@ func TestLocationMapTheme(t *testing.T) {
 	w.ToggleLocation()
 	waitForWarm(t, w)
 	var raster *canvas.Raster
+	var attribution bool
 	var walk func(fyne.CanvasObject)
 	walk = func(object fyne.CanvasObject) {
 		if !object.Visible() {
 			return
 		}
 		switch object := object.(type) {
+		case *widget.Hyperlink:
+			attribution = object.Text == lang.L("© OpenStreetMap contributors\nopenstreetmap.org/copyright") && object.URL != nil && object.URL.String() == "https://www.openstreetmap.org/copyright"
 		case *canvas.Raster:
 			raster = object
 		case *fyne.Container:
@@ -468,11 +474,28 @@ func TestLocationMapTheme(t *testing.T) {
 		}
 	}
 	walk(w.Location())
+	if !attribution {
+		t.Fatal("map attribution must link directly to the OSM license")
+	}
 	if raster == nil {
 		t.Fatal("expanded location has no visible map raster")
 	}
 	w.Window().Canvas().Capture()
 	w.Settle()
+	t.Run("expiry reaches the renderer", func(t *testing.T) {
+		for range 4 {
+			_ = raster.Generator(256, 256)
+			w.tiles.Wait()
+		}
+		beforeExpiry := server.count()
+		w.tiles.now = func() time.Time { return time.Now().Add(8 * 24 * time.Hour) }
+		_ = raster.Generator(256, 256)
+		w.tiles.Wait()
+		if server.count() == beforeExpiry {
+			t.Fatal("map renderer bypasses expired tile validation")
+		}
+		w.tiles.now = time.Now
+	})
 	before := server.count()
 	for _, mode := range []appearance.Mode{appearance.Light, appearance.Dark, appearance.Light, appearance.Dark} {
 		appearance.Apply(app, mode)
@@ -489,6 +512,442 @@ func TestLocationMapTheme(t *testing.T) {
 		if server.count() != before {
 			t.Fatal("EXIF theme switch downloaded tiles again")
 		}
+	}
+}
+
+func TestThemedMapViewCacheLifetime(t *testing.T) {
+	for _, directive := range []string{"no-store", "no-cache", "max-age=60"} {
+		t.Run(directive, func(t *testing.T) {
+			app := test.NewApp()
+			defer app.Quit()
+			body := tilePNG(t)
+			var requests atomic.Int32
+			fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {directive}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+			}))
+			defer func() { fetcher.Stop(); fetcher.Wait() }()
+			view := newThemedMap(fetcher)
+			view.Resize(fyne.NewSize(256, 256))
+			view.PanToLatLon(0, 0)
+			for range 3 {
+				_ = view.draw(256, 256)
+				fetcher.Wait()
+			}
+			before := requests.Load()
+			if before == 0 || len(view.frame) == 0 {
+				t.Fatal("map did not load visible tiles")
+			}
+			for range 4 {
+				_ = view.draw(256, 256)
+				fetcher.Wait()
+			}
+			if requests.Load() != before {
+				t.Fatal("repainting the current display triggered a request loop")
+			}
+			view.Hide()
+			fetcher.Cancel()
+			_ = view.draw(256, 256)
+			fetcher.Wait()
+			if len(view.frame) != 0 || requests.Load() != before {
+				t.Fatal("hidden/cancelled view retained or requested display tiles")
+			}
+			fetcher.Restart()
+			view.Show()
+			_ = view.draw(256, 256)
+			fetcher.Wait()
+			if (requests.Load() > before) != (directive != "max-age=60") {
+				t.Fatal("reopening did not honor the HTTP cache policy")
+			}
+			centerX, centerY := view.centerX, view.centerY
+			view.ZoomIn()
+			view.ZoomOut()
+			if view.zoom != mapZoom || view.centerX != centerX || view.centerY != centerY {
+				t.Fatal("zoom moved the camera center")
+			}
+			view.Zoom(19)
+			view.ZoomIn()
+			if view.zoom != 19 {
+				t.Fatal("zoom escaped the provider limit")
+			}
+			view.PanToLatLon(90, 180)
+			view.Dragged(&fyne.DragEvent{Dragged: fyne.NewDelta(-1000, 1000)})
+			if view.centerX < 0 || view.centerX >= 1 || view.centerY < 0 || view.centerY > 1 {
+				t.Fatal("pan escaped world bounds")
+			}
+		})
+	}
+}
+
+func TestThemedMapPaddedForegroundDelivery(t *testing.T) {
+	for _, scenario := range []struct {
+		name, directive      string
+		width, height, tiles int
+		padded               bool
+	}{
+		{"padded no-store", "no-store", 1024, 1024, 16, true},
+		{"padded fresh", "max-age=60", 1024, 1024, 16, true},
+		{"large no-store viewport", "no-store", 4096, 2048, 128, false},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			app, host := testApp(t)
+			defer app.Quit()
+			body := tilePNG(t)
+			if scenario.padded {
+				body = append(body, make([]byte, maxTileBytes-len(body))...)
+			}
+			var requests atomic.Int32
+			w := newTestWindow(t, app, host)
+			w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {scenario.directive}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+			}))
+			w.buildLocation()
+			view := w.locationMap
+			view.Resize(fyne.NewSize(float32(scenario.width), float32(scenario.height)))
+			for range 4 {
+				_ = view.draw(scenario.width, scenario.height)
+				w.Settle()
+			}
+			if got := len(view.frame); got != scenario.tiles {
+				t.Errorf("visible tiles = %d, want all %d despite cache eviction", got, scenario.tiles)
+			}
+			if got := int(requests.Load()); got != scenario.tiles {
+				t.Errorf("downloads = %d, want each of %d visible tiles downloaded once", got, scenario.tiles)
+			}
+		})
+	}
+}
+
+func TestThemedMapNoStoreDirectDeliveryIsSingleUse(t *testing.T) {
+	app, host := testApp(t)
+	defer app.Quit()
+	body := tilePNG(t)
+	var requests atomic.Int32
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests.Add(1)
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	w.buildLocation()
+	view := w.locationMap
+	view.Resize(fyne.NewSize(256, 256))
+	_ = view.draw(256, 256)
+	w.Settle()
+	_ = view.draw(256, 256)
+	if len(view.frame) != 4 || requests.Load() != 4 {
+		t.Fatal("initial display did not consume each visible response once")
+	}
+	if w.tiles.ready.Len() != 0 || w.tiles.cache.Len() != 0 {
+		t.Error("no-store response retained after direct UI adoption")
+	}
+	test.WidgetRenderer(view).Destroy()
+	_ = view.draw(256, 256)
+	w.Settle()
+	_ = view.draw(256, 256)
+	if len(view.frame) != 4 || requests.Load() != 8 {
+		t.Fatal("recreated renderer reused an already delivered no-store response")
+	}
+}
+
+func TestThemedMapQueuedDeliveryRetiresRenderer(t *testing.T) {
+	app, host := testApp(t)
+	defer app.Quit()
+	red := uitest.EncodePNG(t, tileSize, tileSize, color.NRGBA{R: 230, A: 255})
+	blue := uitest.EncodePNG(t, tileSize, tileSize, color.NRGBA{B: 230, A: 255})
+	var replaced atomic.Bool
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		body := red
+		if replaced.Load() {
+			body = blue
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	w.buildLocation()
+	view := w.locationMap
+	view.Resize(fyne.NewSize(256, 256))
+	_ = view.draw(256, 256)
+	w.tiles.Wait() // Leave the first renderer's red results queued on UI.
+	test.WidgetRenderer(view).Destroy()
+	replaced.Store(true)
+	_ = view.draw(256, 256) // Recreate claims for the same URLs before draining.
+	w.Settle()
+	_ = view.draw(256, 256)
+	if len(view.frame) != 4 {
+		t.Fatal("recreated renderer did not receive all current tiles")
+	}
+	for _, tile := range view.frame {
+		if got := color.NRGBAModel.Convert(tile.pixels.At(0, 0)).(color.NRGBA); got != (color.NRGBA{B: 230, A: 255}) {
+			t.Fatal("old queued pixels replaced the recreated renderer's current tiles")
+		}
+	}
+}
+
+func TestThemedMapRetiredRendererCannotInvalidateReplacement(t *testing.T) {
+	app, host := testApp(t)
+	defer app.Quit()
+	body := tilePNG(t)
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	w.buildLocation()
+	old := w.locationMap
+	old.Resize(fyne.NewSize(256, 256))
+	_ = old.draw(256, 256)
+	w.tiles.Wait()
+	w.buildLocation() // Restart the shared fetcher for a replacement map session.
+	current := w.locationMap
+	current.Resize(fyne.NewSize(256, 256))
+	_ = current.draw(256, 256)
+	w.tiles.Wait()
+	test.WidgetRenderer(old).Destroy()
+	w.Settle()
+	if len(current.frame) != 4 {
+		t.Fatal("retired renderer invalidated its replacement's queued delivery")
+	}
+}
+
+func TestThemedMapQueuedDeliveryRetiresHiddenView(t *testing.T) {
+	app, host := testApp(t)
+	defer app.Quit()
+	body := tilePNG(t)
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	w.buildLocation()
+	view := w.locationMap
+	view.Resize(fyne.NewSize(256, 256))
+	_ = view.draw(256, 256)
+	w.tiles.Wait()
+	view.Hide()
+	w.Settle()
+	if len(view.frame) != 0 {
+		t.Fatal("queued tile delivery revived a hidden viewport")
+	}
+	view.Show()
+	_ = view.draw(256, 256)
+	w.Settle()
+	_ = view.draw(256, 256)
+	if len(view.frame) != 4 {
+		t.Fatal("reopened viewport did not receive fresh foreground tiles")
+	}
+}
+
+func TestThemedMapRetirementReleasesQueuedPixels(t *testing.T) {
+	for _, transition := range []string{"hide", "cancel", "stop", "destroy"} {
+		t.Run(transition, func(t *testing.T) {
+			app, host := testApp(t)
+			defer app.Quit()
+			body := tilePNG(t)
+			newFetcher := func() *tileFetcher {
+				return newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+					return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"no-store"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+				}))
+			}
+			w := newTestWindow(t, app, host)
+			w.tiles = newFetcher()
+			w.buildLocation()
+			view := w.locationMap
+			runtime.GC()
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			for range 64 {
+				_ = view.draw(256, 256)
+				w.tiles.Wait() // Retire each generation without draining any UI callbacks.
+				switch transition {
+				case "hide":
+					view.Hide()
+					view.Show()
+				case "cancel":
+					w.tiles.Cancel()
+					w.tiles.Restart()
+				case "stop":
+					w.tiles.Stop()
+					w.tiles = newFetcher()
+					w.buildLocation()
+					view = w.locationMap
+				case "destroy":
+					test.WidgetRenderer(view).Destroy()
+				}
+			}
+			if w.ui.(*uitest.UIQueue).Len() < 64 {
+				t.Fatal("setup: retired completions were not held in the UI queue")
+			}
+			runtime.GC()
+			runtime.ReadMemStats(&after)
+			if retained := int64(after.HeapAlloc) - int64(before.HeapAlloc); retained > 24*1024*1024 {
+				t.Fatalf("retired UI callbacks retained %d bytes, want less than 24 MiB", retained)
+			}
+			w.Settle()
+			if len(view.frame) != 0 {
+				t.Fatal("retired queued delivery revived map pixels")
+			}
+		})
+	}
+}
+
+func TestThemedMapPaddedViewportMemory(t *testing.T) {
+	app, host := testApp(t)
+	defer app.Quit()
+	body := tilePNG(t)
+	body = append(body, make([]byte, maxTileBytes-len(body))...)
+	w := newTestWindow(t, app, host)
+	w.tiles = newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {"max-age=60"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	w.buildLocation()
+	view := w.locationMap
+	view.Resize(fyne.NewSize(1024, 1024))
+	_ = view.draw(0, 0)
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	for range 20 {
+		_ = view.draw(1024, 1024)
+		w.Settle()
+		if len(view.frame) == 16 {
+			break
+		}
+	}
+	if len(view.frame) != 16 {
+		t.Fatal("viewport never received all 16 tiles")
+	}
+	runtime.GC()
+	runtime.ReadMemStats(&after)
+	// Sixteen decoded tiles take 4 MiB. Allow substantial headroom for the
+	// bounded caches and renderer; pinning sixteen encoded bodies takes 64 MiB.
+	if after.HeapAlloc > before.HeapAlloc+40*1024*1024 {
+		t.Errorf("viewport retains %d extra bytes; encoded response bodies escaped the cache budget", after.HeapAlloc-before.HeapAlloc)
+	}
+	runtime.KeepAlive(view)
+	runtime.KeepAlive(body)
+}
+
+func TestThemedMapExpiredPixelsOnFailedValidation(t *testing.T) {
+	app := test.NewApp()
+	defer app.Quit()
+	body := tilePNG(t)
+	now := time.Unix(1700000000, 0)
+	var fail atomic.Bool
+	fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		status := http.StatusOK
+		if fail.Load() {
+			status = http.StatusServiceUnavailable
+		}
+		return &http.Response{StatusCode: status, Header: http.Header{"Cache-Control": {"max-age=60"}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+	}))
+	defer func() { fetcher.Stop(); fetcher.Wait() }()
+	fetcher.now = func() time.Time { return now }
+	view := newThemedMap(fetcher)
+	view.Resize(fyne.NewSize(256, 256))
+	for range 3 {
+		_ = view.draw(256, 256)
+		fetcher.Wait()
+	}
+	if len(view.frame) == 0 {
+		t.Fatal("map did not display fresh tiles")
+	}
+	now = now.Add(2 * time.Minute)
+	fail.Store(true)
+	for range 3 {
+		pixels := view.draw(256, 256)
+		fetcher.Wait()
+		if len(view.frame) != 0 {
+			t.Fatal("expired pixels survived failed validation or retry backoff")
+		}
+		_, _, _, alpha := pixels.At(128, 128).RGBA()
+		if alpha != 0 {
+			t.Fatal("map painted expired pixels")
+		}
+	}
+}
+
+func TestThemedMapCameraChangeRetiresWarmDelivery(t *testing.T) {
+	for _, directive := range []string{"no-store", "no-cache", "max-age=60"} {
+		t.Run(directive, func(t *testing.T) {
+			app := test.NewApp()
+			defer app.Quit()
+			body := tilePNG(t)
+			var requests atomic.Int32
+			neighbor := fmt.Sprintf("/%d/%d/%d.png", mapZoom, (1<<mapZoom)/2+1, (1<<mapZoom)/2)
+			fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if request.URL.Path == neighbor {
+					requests.Add(1)
+				}
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {directive}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+			}))
+			defer func() { fetcher.Stop(); fetcher.Wait() }()
+			view := newThemedMap(fetcher)
+			view.Resize(fyne.NewSize(256, 256))
+			fetcher.Warm(0, 0, mapZoom)
+			for range 3 {
+				_ = view.draw(256, 256)
+				fetcher.Wait()
+			}
+			before := requests.Load()
+			if before != 1 {
+				t.Fatalf("neighbor warming requests = %d, want 1", before)
+			}
+			view.PanEast()
+			_ = view.draw(256, 256)
+			fetcher.Wait()
+			if (requests.Load() > before) != (directive != "max-age=60") {
+				t.Fatal("new camera view reused one-shot warming or discarded fresh cache")
+			}
+		})
+	}
+}
+
+func TestThemedMapCameraChangeRetiresActiveDelivery(t *testing.T) {
+	for _, directive := range []string{"no-store", "no-cache"} {
+		t.Run(directive, func(t *testing.T) {
+			app := test.NewApp()
+			defer app.Quit()
+			body := tilePNG(t)
+			started, release := make(chan struct{}), make(chan struct{})
+			var requests atomic.Int32
+			fetcher := newTileFetcher("https://tiles.invalid/%d/%d/%d.png", tileRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				if requests.Add(1) == 1 {
+					close(started)
+					select {
+					case <-release:
+					case <-request.Context().Done():
+						return nil, request.Context().Err()
+					}
+				}
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Cache-Control": {directive}}, Body: io.NopCloser(bytes.NewReader(body)), Request: request}, nil
+			}))
+			defer func() { fetcher.Stop(); fetcher.Wait() }()
+			view := newThemedMap(fetcher)
+			_ = view.draw(0, 0)
+			address := "https://tiles.invalid/1/0/0.png"
+			job, _ := fetcher.submit(fetcher.session(), address, true)
+			<-started
+			view.PanEast()
+			_ = view.draw(0, 0)
+			close(release)
+			<-job.done
+			if fetcher.ready.Len() != 0 || fetcher.cache.Len() != 0 {
+				t.Fatal("retired view published its late response")
+			}
+			if fetcher.displayTile(address) != nil {
+				t.Fatal("new view consumed a retired one-shot response")
+			}
+			fetcher.Wait()
+			if requests.Load() != 2 || fetcher.displayTile(address) == nil {
+				t.Fatal("new view did not obtain its own response")
+			}
+			capturedView := fetcher.captureView()
+			view.PanEast()
+			_ = view.draw(0, 0)
+			fetcher.warmView(fetcher.session(), 0, 0, mapZoom, capturedView)
+			if requests.Load() != 2 {
+				t.Fatal("a delayed warm worker admitted demand for its retired view")
+			}
+		})
 	}
 }
 
@@ -936,7 +1395,7 @@ func TestJPEGMetadataRemovalUI(t *testing.T) {
 		defer w.Window().Close()
 		// Exercise error delivery through the existing per-window mutation
 		// boundary without making the UI test allocate a large image.
-		w.stripFile = func(_ context.Context, _ fyne.URI) (imaging.WriteResult, error) {
+		w.stripFile = func(_ context.Context, _ fyne.URI, _ imaging.SourceVersion) (imaging.WriteResult, error) {
 			return imaging.WriteResult{}, imaging.ErrJPEGMetadataMemory
 		}
 		if _, found := absolutePos(w.Window().Content(), w.StripButton()); !found {
@@ -955,7 +1414,7 @@ func TestJPEGMetadataRemovalUI(t *testing.T) {
 			t.Fatal("memory refusal changed the source or notified a successful removal")
 		}
 	})
-	t.Run("source becomes clean before confirmation", func(t *testing.T) {
+	t.Run("source becomes clean before confirmation is refused", func(t *testing.T) {
 		app := test.NewApp()
 		plain := uitest.EncodeJPEG(t, 8, 8, color.White)
 		u := storage.NewFileURI(uitest.WriteTempFile(t, "cleaned.jpg", append(bytes.Clone(plain), []byte("fixture trailer")...)))
@@ -972,11 +1431,14 @@ func TestJPEGMetadataRemovalUI(t *testing.T) {
 		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
 		panel.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
 		w.Settle()
-		if host.after != 0 || len(host.toasts) != 0 {
-			t.Fatalf("no-op reported removal: after=%d toasts=%v", host.after, host.toasts)
+		if host.after != 0 || len(host.toasts) != 1 || !strings.Contains(host.toasts[0], removalErrorText(imaging.ErrSourceChanged)) {
+			t.Fatalf("changed clean source was not refused: after=%d toasts=%v", host.after, host.toasts)
+		}
+		if !bytes.Equal(plain, readWindowFile(t, u)) {
+			t.Fatal("refusal changed the clean source")
 		}
 		if _, found := absolutePos(w.Window().Content(), w.StripButton()); found {
-			t.Fatal("stale action remains after no-op")
+			t.Fatal("stale action remains after source-change refusal")
 		}
 	})
 
@@ -1472,6 +1934,48 @@ func TestWindow_CloseCancelsActiveTileReads(t *testing.T) {
 		}
 	}
 	w.tiles.Wait()
+}
+
+func TestWindow_HiddenLocationRetiresMapFrame(t *testing.T) {
+	for _, change := range []string{"collapse", "no-gps"} {
+		t.Run(change, func(t *testing.T) {
+			app, host := gpsApp(t)
+			server := newTileServer(t)
+			w := newTestWindow(t, app, host)
+			w.tiles = fetcherFor(server)
+			w.Show()
+			settleMetadata(w)
+			t.Cleanup(func() { w.Window().Close() })
+			w.ToggleLocation()
+			w.Settle()
+			view := w.locationMap
+			_ = view.draw(256, 256)
+			w.Settle()
+			_ = view.draw(256, 256)
+			if len(view.frame) == 0 {
+				t.Fatal("setup: rendered map has no decoded viewport tiles")
+			}
+			if change == "collapse" {
+				w.ToggleLocation()
+			} else {
+				w.showLocation(imaging.Metadata{})
+			}
+			if len(view.frame) != 0 || len(view.requested) != 0 || view.Visible() {
+				t.Fatal("hidden Location section retained map frame or request claims")
+			}
+			w.showLocation(imaging.Metadata{HasGPS: true, Latitude: 48.86, Longitude: 2.35})
+			if !w.expanded {
+				w.ToggleLocation()
+			}
+			w.Settle()
+			_ = view.draw(256, 256)
+			w.Settle()
+			_ = view.draw(256, 256)
+			if !view.Visible() || len(view.frame) == 0 {
+				t.Fatal("reopened Location section did not render a fresh frame")
+			}
+		})
+	}
 }
 
 func TestWindow_MapTransitionsCancelCapturedSession(t *testing.T) {

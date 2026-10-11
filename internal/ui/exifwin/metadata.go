@@ -65,7 +65,7 @@ func (w *Window) Refresh() {
 	generation := w.metadata.generation
 	done := w.metadata.done.Begin()
 	w.metadata.workers.Go(func() {
-		data, _, err := imaging.ReadAndProbe(ctx, u)
+		data, _, version, err := imaging.ReadAndProbeSnapshot(ctx, u)
 		var metadata imaging.Metadata
 		var inspection imaging.JPEGMetadataInspection
 		if err == nil && ctx.Err() == nil {
@@ -92,7 +92,8 @@ func (w *Window) Refresh() {
 			}
 			w.text.SetText(formatExifMetadata(metadata))
 			w.showLocation(metadata)
-			w.canStrip = inspection.State == imaging.JPEGMetadataRemovable
+			w.sourceVersion = version
+			w.canStrip = version.Valid() && inspection.State == imaging.JPEGMetadataRemovable
 			if inspection.State == imaging.JPEGMetadataClean {
 				w.setRemovalStatus(lang.L("Metadata removal: nothing to remove."))
 			} else if inspection.Err != nil && !errors.Is(inspection.Err, imaging.ErrJPEGMetadataNotJPEG) {

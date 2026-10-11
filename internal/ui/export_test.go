@@ -218,6 +218,44 @@ func TestExportAs_JPEGSourceKeepsGPSExif(t *testing.T) {
 
 		settleToast(t, v)
 	})
+	t.Run("export after our own save keeps source metadata", func(t *testing.T) {
+		v.rotateBy(1)
+		v.saveRotation()
+		drainFileWork(t, v)
+		dest := filepath.Join(t.TempDir(), "saved-copy.jpg")
+		uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { return storage.NewFileURI(dest), nil })
+		v.exportAs(".jpg")
+		settleChooser(t, v)
+		data, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !imaging.ReadMetadata(data).HasGPS {
+			t.Fatal("our own Save discarded metadata binding for subsequent Export")
+		}
+		settleToast(t, v)
+	})
+
+	t.Run("source changes while chooser is open", func(t *testing.T) {
+		dest := filepath.Join(t.TempDir(), "copy.jpg")
+		uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) {
+			if err := os.WriteFile(path, uitest.GPSJPEG(t, 8, 4, -33.856, 151.215), 0o600); err != nil {
+				return nil, err
+			}
+			return storage.NewFileURI(dest), nil
+		})
+		v.exportAs(".jpg")
+		settleChooser(t, v)
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if imaging.ReadMetadata(got).HasGPS {
+			t.Fatal("export published metadata from a source changed after display")
+		}
+		settleToast(t, v)
+	})
+
 }
 
 func TestExportAs_SuggestsTheSourceNameWithTheNewExtensionInItsOwnFolder(t *testing.T) {

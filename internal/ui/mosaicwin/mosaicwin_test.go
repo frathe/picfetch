@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/frathe/picfetch/internal/displays"
+	"github.com/frathe/picfetch/internal/fileaccess"
 	"github.com/frathe/picfetch/internal/imaging"
 	"github.com/frathe/picfetch/internal/mosaic"
 	"github.com/frathe/picfetch/internal/ui/widgets"
@@ -1881,5 +1883,43 @@ func TestMosaicLivePreview_RestoresAfterCancelOrFailure(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestMosaicExportRetiresNativeDestination(t *testing.T) {
+	for _, phase := range []string{"success", "failure", "close"} {
+		t.Run(phase, func(t *testing.T) {
+			w := New(test.NewApp(), successfulHost(t))
+			w.SetUIQueue(&uitest.UIQueue{})
+			t.Cleanup(w.Close)
+			w.Show(mustSnapshot(t))
+			w.Generate()
+			settleWindow(t, w)
+			var released atomic.Int32
+			destination := fileaccess.NewDestination(storage.NewFileURI(filepath.Join(t.TempDir(), "mosaic.png")), func() { released.Add(1) })
+			entered, gate := make(chan struct{}), make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(gate) })
+			t.Cleanup(unblock)
+			uitest.StubSaveChooser(t, func(_ string) (fyne.URI, error) { close(entered); <-gate; return destination, nil })
+			if phase == "failure" {
+				w.SetExporter(func(_ context.Context, _ fyne.URI, _ image.Image, _ fyne.URI, _ imaging.ExportOptions) (imaging.WriteResult, error) {
+					return imaging.WriteResult{}, errors.New("fixture export failure")
+				})
+			}
+			w.SaveImage()
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("save chooser not entered")
+			}
+			if phase == "close" {
+				w.Close()
+			}
+			unblock()
+			settleWindow(t, w)
+			if released.Load() != 1 {
+				t.Fatalf("destination released %d times", released.Load())
+			}
+		})
 	}
 }

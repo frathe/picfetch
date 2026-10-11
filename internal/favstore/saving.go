@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 
 	"fyne.io/fyne/v2"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 )
 
 // ErrConflict requires a fresh target observation and user decision.
@@ -247,7 +249,13 @@ func (s *Store) Save(ctx context.Context, target *Target, files []fyne.URI) (res
 	// if cancellation or external replacement follows the rename.
 	owner := &Owner{dir: access.owner.dir, base: target.base, directory: access.owner.directory, list: list}
 	owner.version = definitionVersion(data, list)
-	result = SaveResult{Committed: true, Definition: Definition{Owner: owner, Paths: paths, base: target.base}}
+	sources := make([]fyne.URI, len(files))
+	for i, file := range files {
+		if fileaccess.HasScope(file) {
+			sources[i] = file
+		}
+	}
+	result = SaveResult{Committed: true, Definition: Definition{Owner: owner, Paths: paths, base: target.base, sources: sources}}
 	if s.afterPublish != nil {
 		s.afterPublish()
 	}

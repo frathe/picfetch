@@ -1,9 +1,14 @@
 package ui
 
 import (
+	"context"
 	"image/color"
 	"slices"
 	"testing"
+
+	"fyne.io/fyne/v2/storage"
+
+	"github.com/frathe/picfetch/internal/fileaccess"
 
 	"fyne.io/fyne/v2"
 
@@ -197,5 +202,29 @@ func TestOpenWithHandler_DeliveryMergesWhenMergeModeIsOn(t *testing.T) {
 	}
 	if got := v.state.Observe().DisplayFiles()[v.state.Observe().index].Name(); got != "b.jpg" {
 		t.Errorf("displayed file = %q, want the just-merged b.jpg", got)
+	}
+}
+
+func TestOpenWithShutdownReleasesUndeliveredNativeInput(t *testing.T) {
+	v := newTestViewer(t)
+	queue := &uitest.UIQueue{}
+	v.osInputs.queue = queue
+	v.installOpenWithHandler()
+	released := 0
+	input := fileaccess.NewSelection(storage.NewFileURI("/selected.jpg"), func(_ context.Context) (fileaccess.Record, error) {
+		t.Fatal("shutdown input reached native capture")
+		return fileaccess.Record{}, nil
+	}, func() { released++ })
+	openwith.Deliver([]fyne.URI{input})
+	if released != 0 {
+		t.Fatal("queued URL was released before admission")
+	}
+	v.closeOpenChooser()
+	if released != 1 {
+		t.Fatal("shutdown kept native scope until UI drain")
+	}
+	queue.Drain()
+	if released != 1 || v.scanOp.done.Begun() {
+		t.Fatal("stale UI delivery revived an input")
 	}
 }

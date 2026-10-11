@@ -25,7 +25,7 @@ type DownloadProgress struct {
 }
 
 // ErrBundledRuntimeUnavailable requires package repair, never a code download.
-var ErrBundledRuntimeUnavailable = errors.New("bundled runtime is unavailable; repair or update PicFetch through Microsoft Store")
+var ErrBundledRuntimeUnavailable = errors.New("bundled runtime is unavailable; repair or update PicFetch through the app store")
 
 type assetDownload struct {
 	name, address, digest string
@@ -94,7 +94,7 @@ func (c Client) InstallAssets(ctx context.Context, progress func(DownloadProgres
 	if distribution.StoreManaged {
 		nativeRoot, err := runtimeDirectory("")
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("%w: %w", ErrBundledRuntimeUnavailable, err)
 		}
 		if err := verifyRuntime(ctx, nativeRoot, assetRuntime); err != nil {
 			return "", fmt.Errorf("%w: %w", ErrBundledRuntimeUnavailable, err)
